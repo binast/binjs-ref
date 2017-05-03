@@ -1,5 +1,8 @@
+#![feature(const_fn)]
+
 extern crate easter;
 extern crate esprit;
+
 
 use std::env;
 use std::fs::File;
