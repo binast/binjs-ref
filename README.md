@@ -61,7 +61,7 @@ These benchmarks do not attempt to measure the impact of early parsing.
 
 ### Firefox DevTools snapshot
 
-Size (gzipped):
+Size (gzipped): -72%
 Total parsing time:
 
 
@@ -70,5 +70,5 @@ Total parsing time:
 (total size/time for 152 files)
 
 Size (gzipped): 2541kb => 2403kb (-5%)
-Total parsing time:
+Total parsing time:  -72% without skipping, -94% skipping all functions
 
