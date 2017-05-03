@@ -5,7 +5,8 @@ use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 
-mod to_bin;
+// mod esprima;
+mod serialize;
 
 fn main() {
     for source_path in env::args().skip(1) {
@@ -18,6 +19,6 @@ fn main() {
         let script = esprit::script(&source_text).expect("Could not parse file.");
 
         println!("Compiling...");
-        to_bin::compile(&script);
+        serialize::compile(&script);
     }
 }

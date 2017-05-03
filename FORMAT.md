@@ -2,11 +2,11 @@
 
 ## Relationship with EcmaScript grammar
 
-A binjs file is meant to convey the exact same AST as the EcmaScript grammar,
+A BinJs file is meant to convey the exact same AST as the EcmaScript grammar,
 with a different concrete syntax, optimized for being parsed by a machine,
 rather than a human being.
 
-A guideline is that a conversion from a syntactically valid js file to a binjs
+A guideline is that a conversion from a syntactically valid js file to a BinJs
 file and back to a syntactically valid js file should always be possible and
 will only ever lose
 - comments (including sourcemaps);
@@ -29,24 +29,24 @@ that by definition could only have arity `n` may find themselves accepting
 additional optional children. Nodes that could only have one kind of children
 may find themselves accepting other children. While it is possible that large
 enough changes will require introducing an entirely new parser,
-the binjs format is designed to simplify the life of developers of parsers
+the BinJs format is designed to simplify the life of developers of parsers
 and transpilers, by making the format extensible enough that most changes in
 the JavaScript grammar and/or AST will not require breaking changes in a parser
 or transpiler.
 
-The binjs prepares itself for such changes by tagging all nodes of the AST
+The BinJs prepares itself for such changes by tagging all nodes of the AST
 with a *node kind* and *expecting that the set of node kinds will change as
 new versions of JavaScript appear*. Node kinds are simply strings, extracted
 from the specifications of JavaScript and representing the role of a node in
 an AST (e.g. `ArrayLiteral`, `AssignmentExpression`). The node kind lets the
-binjs parser lookup in its internal representation of the grammar to find out
+BinJs parser lookup in its internal representation of the grammar to find out
 the arity of the node, the kind of children it accepts, etc.
 
 Should a new version of JavaScript introduce new AST nodes, the specifications
 of the new nodes will be published for use by parser/transpiler
-developers and will not affect existing nodes. Older binjs
+developers and will not affect existing nodes. Older BinJs
 files will remain readable by updated parsers, while updated transpilers
-transpiling older source code will still be able to produce binjs files that
+transpiling older source code will still be able to produce BinJs files that
 can be read by older parsers.
 
 Should a new version of JavaScript change the details of an existing AST node,
@@ -75,11 +75,11 @@ TBD
 
 TBD
 
-# Contents of a .binjs file
+# Contents of a .BinJs file
 
 ## Format header
 
-Rationale: Being sure that we're reading a .binjs file.
+Rationale: Being sure that we're reading a .BinJs file.
 
 Format: The characters `BINJS` followed by a version number as a VARNUM, currently 0.
 
