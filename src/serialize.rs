@@ -57,17 +57,23 @@ pub mod kind {
 }
 use self::kind::*;
 
-
-pub enum Unlabelled {
+/// A raw node in the intermediate serialization tree.
+///
+/// Once written to disk, an instance of `Unlabelled` does *not* contain
+/// by itself sufficient information to determine which enum case is actually
+/// used. This information MUST be extrapolated from the context, typically from
+/// a parent `Labelled`.
+enum Unlabelled {
     /// A string designed to be represented as an atom (e.g. literal strings,
-    /// identifiers, ...). Will be internalized in the atoms table.
+    /// identifiers, ...). Will be internalized in the atoms table. Length
+    /// will be written to the file.
     Atom(String),
 
     /// One raw byte.
     RawByte(u8),
 
     /// A node with a number of children determined by the grammar.
-    /// Length will NOT be written to the file.
+    /// Length will NOT be written to the file. Can have 0 children.
     Tuple(Vec<SerializeTree>),
 
     /// A node with a number of children left unspecified by the grammar
@@ -76,27 +82,33 @@ pub enum Unlabelled {
 }
 
 impl Unlabelled {
-    fn label(self, kind: Kind) -> LabelledTree {
-        LabelledTree {
+    /// Add a label.
+    ///
+    /// Just a shorthand to keep code readable.
+    fn label(self, kind: Kind) -> Labelled {
+        Labelled {
             kind,
-            tree: Box::new(self)
+            tree: self
         }
     }
 
-    fn statement(self, kind: Statement) -> LabelledTree {
+    /// Add a `Kind::Statement` label.
+    ///
+    /// Just a shorthand to keep code readable.
+    fn statement(self, kind: Statement) -> Labelled {
         self.label(Kind::Statement(kind))
     }
 
-    // Note: We explicitly use `list` rather than deriving `ToSerializeTree`
+    // Note: We explicitly use `list` rather than deriving `ToUnlabelled`
     // for `Vec<T>` to avoid ambiguous magic code and to make porting to
     // other languages simpler.
     fn list<T>(items: &[T]) -> Self where T: ToUnlabelled {
         Unlabelled::List(items.iter()
-            .map(|item| item.to_naked().into())
+            .map(|item| item.to_naked().into_tree())
             .collect())
     }
 
-    // Note: We explicitly use `option` rather than deriving `ToSerializeTree`
+    // Note: We explicitly use `option` rather than deriving `ToUnlabelled`
     // for `Option<T>` to avoid ambiguous magic code and to make porting to
     // other languages simpler.
     fn option<T>(item: &Option<T>) -> Self where T: ToUnlabelled {
@@ -106,23 +118,22 @@ impl Unlabelled {
         }
     }
 
+    /// Convert into a tree.
     fn into_tree(self) -> SerializeTree {
         SerializeTree::Unlabelled(self)
     }
 }
 
-impl Into<SerializeTree> for Unlabelled {
-    fn into(self) -> SerializeTree {
-        SerializeTree::Unlabelled(self)
-    }
-}
-
-pub struct LabelledTree {
+/// A node in the intermediate serialization tree.
+///
+/// Once written to disk, the `kind` MUST contain sufficient information
+/// to determine the structure of the `tree`.
+struct Labelled {
    kind: Kind,
-   tree: Box<Unlabelled> // Or Unlabelled?
+   tree: Unlabelled // Or Unlabelled?
 }
 
-impl LabelledTree {
+impl Labelled {
     // Note: We explicitly use `list` rather than deriving `ToSerializeTree`
     // for `Vec<T>` to avoid ambiguous magic code and to make porting to
     // other languages simpler.
@@ -139,7 +150,7 @@ impl LabelledTree {
     // Note: We explicitly use `option` rather than deriving `ToSerializeTree`
     // for `Option<T>` to avoid ambiguous magic code and to make porting to
     // other languages simpler.
-    fn option<T>(item: &Option<T>) -> LabelledTree where T: ToLabelled {
+    fn option<T>(item: &Option<T>) -> Labelled where T: ToLabelled {
         match *item {
             None => Unlabelled::Tuple(vec![]).label(Kind::Empty),
             Some(ref some) => some.to_labelled()
@@ -152,42 +163,42 @@ impl LabelledTree {
 }
 
 
-pub enum SerializeTree {
+enum SerializeTree {
     Unlabelled(Unlabelled),
     /// Label a subtree with parsing information.
     /// In a followup pass, labels are rewritten as reference to one of several
     /// strings tables (e.g. one table for expressions, one for patterns, etc.)
     /// to ensure that references generally fit in a single byte.
-    Labelled(LabelledTree)
+    Labelled(Labelled)
 }
 
 impl SerializeTree {
-    fn label(self, kind: Kind) -> LabelledTree {
-        LabelledTree {
+    fn label(self, kind: Kind) -> Labelled {
+        Labelled {
             kind,
-            tree: Box::new(Unlabelled::Tuple(vec![self]))
+            tree: Unlabelled::Tuple(vec![self])
         }
     }
 
-    fn statement(self, kind: Statement) -> LabelledTree {
+    fn statement(self, kind: Statement) -> Labelled {
         self.label(Kind::Statement(kind))
     }
 
     fn empty() -> Self {
-        SerializeTree::Labelled(LabelledTree {
+        SerializeTree::Labelled(Labelled {
             kind: Kind::Empty,
-            tree: Box::new(Unlabelled::Tuple(vec![]))
+            tree: Unlabelled::Tuple(vec![])
         })
     }
 }
 
-pub trait ToSerializeTree {
+trait ToSerializeTree {
     fn to_serialize(&self) -> SerializeTree {
         unimplemented!()
     }
 }
 
-pub trait ToUnlabelled {
+trait ToUnlabelled {
     fn to_naked(&self) -> Unlabelled {
         unimplemented!()
     }
@@ -199,14 +210,14 @@ impl<T> ToUnlabelled for Box<T> where T: ToUnlabelled {
     }
 }
 
-pub trait ToLabelled {
-    fn to_labelled(&self) -> LabelledTree {
+trait ToLabelled {
+    fn to_labelled(&self) -> Labelled {
         unimplemented!()
     }
 }
 
 impl<T> ToLabelled for Box<T> where T: ToLabelled {
-    fn to_labelled(&self) -> LabelledTree {
+    fn to_labelled(&self) -> Labelled {
         (self.as_ref()).to_labelled()
     }
 }
@@ -219,7 +230,7 @@ pub fn compile(ast: &Script) -> String {
 
 
 impl ToLabelled for StmtListItem {
-    fn to_labelled(&self) -> LabelledTree {
+    fn to_labelled(&self) -> Labelled {
         match *self {
             StmtListItem::Decl(ref decl) => decl.to_labelled().into(),
             StmtListItem::Stmt(ref stmt) => stmt.to_labelled().into(),
@@ -235,34 +246,34 @@ impl<T> ToSerializeTree for Box<T> where T: ToSerializeTree {
 }
 
 impl ToLabelled for Decl {
-    fn to_labelled(&self) -> LabelledTree {
+    fn to_labelled(&self) -> Labelled {
         let Decl::Fun(ref fun) = *self;
         fun.to_labelled()
     }
 }
 
 impl ToLabelled for Stmt {
-    fn to_labelled(&self) -> LabelledTree {
+    fn to_labelled(&self) -> Labelled {
         use easter::stmt::Stmt::*;
         match *self {
             Empty(_) =>
                 Unlabelled::Tuple(vec![])
                     .label(Kind::Empty),
             Block(_, ref items) =>
-                LabelledTree::list(items)
+                Labelled::list(items)
                     .statement(Statement::Block),
             Expr(_, ref expr, _) =>
                 expr.to_labelled()
                     .into_tree()
                     .statement(Statement::Expression),
             Var(_, ref dtor, _) =>
-                LabelledTree::list(dtor)
+                Labelled::list(dtor)
                     .statement(Statement::VariableDeclaration),
             If(_, ref condition, ref then_branch, ref else_branch) =>
                 Unlabelled::Tuple(vec![
                     condition.to_labelled().into_tree(),
                     then_branch.to_labelled().into_tree(),
-                    LabelledTree::option(else_branch).into_tree()
+                    Labelled::option(else_branch).into_tree()
                 ]).statement(Statement::IfThenElse),
             Label(_, ref id, ref statement) =>
                 Unlabelled::Tuple(vec![
@@ -270,9 +281,9 @@ impl ToLabelled for Stmt {
                     statement.to_labelled().into_tree()
                 ]).statement(Statement::Label),
             Break(_, ref id, _) =>
-                LabelledTree::option(id).into_tree().statement(Statement::Break),
+                Labelled::option(id).into_tree().statement(Statement::Break),
             Cont(_, ref id, _) =>
-                LabelledTree::option(id).into_tree().statement(Statement::Cont),
+                Labelled::option(id).into_tree().statement(Statement::Cont),
             With(_, ref expr, ref statement) =>
                 Unlabelled::Tuple(vec![
                     expr.to_labelled().into_tree(),
@@ -287,7 +298,7 @@ impl ToLabelled for Stmt {
                     Unlabelled::list(cases).into_tree(),
                 ]).statement(Statement::Switch),
             Return(_, ref expr, _) =>
-                LabelledTree::option(expr)
+                Labelled::option(expr)
                     .into_tree()
                     .statement(Statement::Return),
             Throw(_, ref expr, _) =>
@@ -296,13 +307,13 @@ impl ToLabelled for Stmt {
                     .statement(Statement::Throw),
             Try(_, ref list, ref catch, Some(ref finalizer)) =>
                 Unlabelled::Tuple(vec![
-                    LabelledTree::list(list).into_tree(),
+                    Labelled::list(list).into_tree(),
                     Unlabelled::option(catch).into_tree(),
-                    LabelledTree::list(finalizer).into_tree(),
+                    Labelled::list(finalizer).into_tree(),
                 ]).statement(Statement::Try),
             Try(_, ref list, ref catch, None) =>
                 Unlabelled::Tuple(vec![
-                    LabelledTree::list(list).into_tree(),
+                    Labelled::list(list).into_tree(),
                     Unlabelled::option(catch).into_tree(),
                     SerializeTree::empty()
                 ]).statement(Statement::Try),
@@ -318,9 +329,9 @@ impl ToLabelled for Stmt {
                 ]).statement(Statement::DoWhile),
             For(_, ref head, ref cond, ref incr, ref stmt) =>
                 Unlabelled::Tuple(vec![
-                    LabelledTree::option(head).into_tree(),
-                    LabelledTree::option(cond).into_tree(),
-                    LabelledTree::option(incr).into_tree(),
+                    Labelled::option(head).into_tree(),
+                    Labelled::option(cond).into_tree(),
+                    Labelled::option(incr).into_tree(),
                     stmt.to_labelled().into_tree()
                 ]).statement(Statement::For),
             ForIn(_, ref head, ref expr, ref stmt) =>
@@ -342,7 +353,7 @@ impl ToLabelled for Stmt {
 
 
 impl ToLabelled for Dtor {
-    fn to_labelled(&self) -> LabelledTree {
+    fn to_labelled(&self) -> Labelled {
 // Note: Here, there's a divergence between Esprima and Esprit.
 // Trying to follow Esprima. When parsing to Esprit, we'll use the label of `id`/`pat` to
 // differentiate between Simple and Compound. When parsing to Esprima, it's actually the same node.
@@ -350,7 +361,7 @@ impl ToLabelled for Dtor {
             Dtor::Simple(_, ref id, ref expr) =>
                 Unlabelled::Tuple(vec![
                     id.to_labelled().into_tree(),
-                    LabelledTree::option(expr).into_tree()
+                    Labelled::option(expr).into_tree()
                 ]).label(Kind::VarDecl(Variable::Var)),
             Dtor::Compound(_, ref pat, ref expr) =>
                 Unlabelled::Tuple(vec![
@@ -362,11 +373,11 @@ impl ToLabelled for Dtor {
 }
 
 impl ToLabelled for CompoundPatt<Id> {
-    fn to_labelled(&self) -> LabelledTree {
+    fn to_labelled(&self) -> Labelled {
         match *self {
             CompoundPatt::Arr(_, ref patterns) => {
                 let pat2 : Vec<_> = patterns.iter().map(|x|
-                        SerializeTree::Labelled(LabelledTree::option(x))
+                        SerializeTree::Labelled(Labelled::option(x))
                     )
                     .collect();
                 Unlabelled::List(pat2)
@@ -381,10 +392,10 @@ impl ToLabelled for CompoundPatt<Id> {
 }
 
 impl ToLabelled for Patt<Id> {
-    fn to_labelled(&self) -> LabelledTree {
+    fn to_labelled(&self) -> Labelled {
         match *self {
             Patt::Simple(ref id) =>
-                id.to_labelled(), // FIXME: Make sure that this is labelled
+                id.to_labelled(),
             Patt::Compound(ref compound) =>
                 compound.to_labelled()
         }
