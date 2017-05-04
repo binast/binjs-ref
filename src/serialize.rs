@@ -1,17 +1,16 @@
 
 // Impl
-use easter::prog::*;
-use easter::stmt::*;
 use easter::decl::*;
 use easter::expr::*;
-use easter::stmt::*;
-use easter::patt::*;
 use easter::fun::*;
 use easter::id::*;
+use easter::obj::*;
+use easter::patt::*;
+use easter::prog::*;
+use easter::punc::*;
+use easter::stmt::*;
 
 use std::ops::Deref;
-
-use std::rc::Rc;
 
 /// Labels to differentiate AST nodes.
 // FIXME: There is a size bonus if we can make sure that all the commonly used instances
@@ -24,6 +23,9 @@ pub mod kind {
         Statement(Statement),
         VarDecl(Variable),
         BindingPattern(BindingPattern),
+        Expression(Expression),
+        FunDecl,
+        Name,
     }
     pub enum BindingPattern {
         Array,
@@ -53,6 +55,73 @@ pub mod kind {
         ForIn,
         ForOf,
         Debugger,
+    }
+    pub enum Expression {
+        This,
+        Array,
+        Object,
+        Function,
+        Sequence,
+        UnaryMinus,
+        UnaryPlus,
+        UnaryNot,
+        UnaryBitNot,
+        UnaryTypeof,
+        UnaryVoid,
+        UnaryDelete,
+        Eq,
+        NEq,
+        StrictEq,
+        StrictNEq,
+        Lt,
+        LEq,
+        Gt,
+        GEq,
+        LShift,
+        RShift,
+        URShift,
+        Plus,
+        Minus,
+        Times,
+        Div,
+        Mod,
+        BitOr,
+        BitXor,
+        BitAnd,
+        In,
+        Instanceof,
+        LogOr,
+        LogAnd,
+        PreInc,
+        PostInc,
+        PreDec,
+        PostDec,
+        Assign,
+        PlusEq,
+        MinusEq,
+        TimesEq,
+        DivEq,
+        ModEq,
+        LShiftEq,
+        RShiftEq,
+        URShiftEq,
+        BitOrEq,
+        BitXorEq,
+        BitAndEq,
+        Conditional,
+        Call,
+        New,
+        Member,
+        NewTarget,
+        True,
+        False,
+        Null,
+        Number,
+        RegExp,
+        String,
+        DecimalInt,
+        RadixInt,
+        Float,
     }
 }
 use self::kind::*;
@@ -98,6 +167,12 @@ impl Unlabelled {
     fn statement(self, kind: Statement) -> Labelled {
         self.label(Kind::Statement(kind))
     }
+    /// Add a `Kind::Statement` label.
+    ///
+    /// Just a shorthand to keep code readable.
+    fn expression(self, kind: Expression) -> Labelled {
+        self.label(Kind::Expression(kind))
+    }
 
     // Note: We explicitly use `list` rather than deriving `ToUnlabelled`
     // for `Vec<T>` to avoid ambiguous magic code and to make porting to
@@ -122,6 +197,7 @@ impl Unlabelled {
     fn into_tree(self) -> SerializeTree {
         SerializeTree::Unlabelled(self)
     }
+
 }
 
 /// A node in the intermediate serialization tree.
@@ -182,6 +258,10 @@ impl SerializeTree {
 
     fn statement(self, kind: Statement) -> Labelled {
         self.label(Kind::Statement(kind))
+    }
+
+    fn expression(self, kind: Expression) -> Labelled {
+        self.label(Kind::Expression(kind))
     }
 
     fn empty() -> Self {
@@ -248,7 +328,8 @@ impl<T> ToSerializeTree for Box<T> where T: ToSerializeTree {
 impl ToLabelled for Decl {
     fn to_labelled(&self) -> Labelled {
         let Decl::Fun(ref fun) = *self;
-        fun.to_labelled()
+        fun.to_naked()
+            .label(Kind::FunDecl)
     }
 }
 
@@ -404,7 +485,188 @@ impl ToLabelled for Patt<Id> {
 
 // FIXME: To implement.
 
-impl ToLabelled for Expr { }
+impl ToLabelled for Expr {
+    fn to_labelled(&self) -> Labelled {
+        match *self {
+            Expr::This(_) =>
+                Unlabelled::Tuple(vec![])
+                    .expression(Expression::This),
+            Expr::Id(ref id) => id.to_labelled(),
+            Expr::Arr(_, ref values) => {
+                let list : Vec<_> = values.iter()
+                    .map(Labelled::option)
+                    .map(Labelled::into_tree)
+                    .collect();
+                Unlabelled::List(list)
+                    .expression(Expression::Array)
+            }
+            Expr::Obj(_, ref properties) =>
+                Unlabelled::list(properties)
+                    .expression(Expression::Object),
+            Expr::Fun(ref fun) =>
+                fun.to_naked()
+                    .expression(Expression::Function),
+            Expr::Seq(_, ref expr) =>
+                Labelled::list(expr)
+                    .expression(Expression::Sequence),
+            Expr::Unop(_, ref op, ref expr) => {
+                let kind = match op.tag {
+                    UnopTag::Minus => Expression::UnaryMinus,
+                    UnopTag::Plus => Expression::UnaryPlus,
+                    UnopTag::Not => Expression::UnaryNot,
+                    UnopTag::BitNot => Expression::UnaryBitNot,
+                    UnopTag::Typeof => Expression::UnaryTypeof,
+                    UnopTag::Void => Expression::UnaryVoid,
+                    UnopTag::Delete => Expression::UnaryDelete,
+                };
+                expr.to_labelled()
+                    .into_tree()
+                    .expression(kind)
+            }
+            Expr::Binop(_, ref op, ref left, ref right) => {
+                let kind = match op.tag {
+                    BinopTag::Eq => Expression::Eq,
+                    BinopTag::NEq => Expression::NEq,
+                    BinopTag::StrictEq => Expression::StrictEq,
+                    BinopTag::StrictNEq => Expression::StrictNEq,
+                    BinopTag::Lt => Expression::Lt,
+                    BinopTag::LEq => Expression::LEq,
+                    BinopTag::Gt => Expression::Gt,
+                    BinopTag::GEq => Expression::GEq,
+                    BinopTag::LShift => Expression::LShift,
+                    BinopTag::RShift => Expression::RShift,
+                    BinopTag::URShift => Expression::URShift,
+                    BinopTag::Plus => Expression::Plus,
+                    BinopTag::Minus => Expression::Minus,
+                    BinopTag::Times => Expression::Times,
+                    BinopTag::Div => Expression::Div,
+                    BinopTag::Mod => Expression::Mod,
+                    BinopTag::BitOr => Expression::BitOr,
+                    BinopTag::BitXor => Expression::BitXor,
+                    BinopTag::BitAnd => Expression::BitAnd,
+                    BinopTag::In => Expression::In,
+                    BinopTag::Instanceof => Expression::Instanceof,
+                };
+                Unlabelled::Tuple(vec![
+                    left.to_labelled().into_tree(),
+                    right.to_labelled().into_tree()
+                ]).expression(kind)
+            }
+            Expr::Logop(_, ref op, ref left, ref right) => {
+                let kind = match op.tag {
+                    LogopTag::Or => Expression::LogOr,
+                    LogopTag::And => Expression::LogAnd,
+                };
+                Unlabelled::Tuple(vec![
+                    left.to_labelled().into_tree(),
+                    right.to_labelled().into_tree()
+                ]).expression(kind)
+            }
+            Expr::PreInc(_, ref expr) => {
+                expr.to_labelled()
+                    .into_tree()
+                    .expression(Expression::PreInc)
+            }
+            Expr::PostInc(_, ref expr) => {
+                expr.to_labelled()
+                    .into_tree()
+                    .expression(Expression::PostInc)
+            }
+            Expr::PreDec(_, ref expr) => {
+                expr.to_labelled()
+                    .into_tree()
+                    .expression(Expression::PreDec)
+            }
+            Expr::PostDec(_, ref expr) => {
+                expr.to_labelled()
+                    .into_tree()
+                    .expression(Expression::PostDec)
+            }
+            Expr::Assign(_, ref op, ref pat, ref expr) => {
+                let kind = match op.tag {
+                    AssopTag::Eq => Expression::Assign,
+                    AssopTag::PlusEq => Expression::PlusEq,
+                    AssopTag::MinusEq => Expression::MinusEq,
+                    AssopTag::TimesEq => Expression::TimesEq,
+                    AssopTag::DivEq => Expression::DivEq,
+                    AssopTag::ModEq => Expression::ModEq,
+                    AssopTag::LShiftEq => Expression::LShiftEq,
+                    AssopTag::RShiftEq => Expression::RShiftEq,
+                    AssopTag::URShiftEq => Expression::URShiftEq,
+                    AssopTag::BitOrEq => Expression::BitOrEq,
+                    AssopTag::BitXorEq => Expression::BitXorEq,
+                    AssopTag::BitAndEq => Expression::BitAndEq,
+                };
+                Unlabelled::Tuple(vec![
+                    pat.to_labelled().into_tree(),
+                    expr.to_labelled().into_tree(),
+                ]).expression(kind)
+            }
+            Expr::Cond(_, ref cond, ref then_branch, ref else_branch) => {
+                Unlabelled::Tuple(vec![
+                    cond.to_labelled().into_tree(),
+                    then_branch.to_labelled().into_tree(),
+                    else_branch.to_labelled().into_tree(),
+                ]).expression(Expression::Conditional)
+            }
+            Expr::Call(_, ref callee, ref arguments) => {
+                Unlabelled::Tuple(vec![
+                    callee.to_labelled().into_tree(),
+                    Labelled::list(arguments).into_tree()
+                ]).expression(Expression::Call)
+            }
+            Expr::New(_, ref callee, Some(ref arguments)) => {
+                Unlabelled::Tuple(vec![
+                    callee.to_labelled().into_tree(),
+                    Labelled::list(arguments).into_tree()
+                ]).expression(Expression::New)
+            }
+            Expr::New(_, ref callee, None) => {
+                Unlabelled::Tuple(vec![
+                    callee.to_labelled().into_tree(),
+                    SerializeTree::empty()
+                ]).expression(Expression::New)
+            },
+            // Note: We collapse `Dot` and `Brack` in `Member`.
+            Expr::Dot(_, ref object, ref property) => {
+                Unlabelled::Tuple(vec![
+                    object.to_labelled().into_tree(),
+                    Unlabelled::Atom(property.value).label(Kind::Name).into_tree(),
+                ]).expression(Expression::Member)
+            }
+            Expr::Brack(_, ref object, ref property) => {
+                Unlabelled::Tuple(vec![
+                    object.to_labelled().into_tree(),
+                    property.to_labelled().into_tree(),
+                ]).expression(Expression::Member)
+            }
+            Expr::NewTarget(_) =>
+                Unlabelled::Tuple(vec![])
+                    .expression(Expression::NewTarget),
+            Expr::True(_) =>
+                Unlabelled::Tuple(vec![])
+                    .expression(Expression::True),
+            Expr::False(_) =>
+                Unlabelled::Tuple(vec![])
+                    .expression(Expression::False),
+            Expr::Null(_) =>
+                Unlabelled::Tuple(vec![])
+                    .expression(Expression::Null),
+            Expr::String(_, ref string) =>
+                Unlabelled::Atom(string.value.clone())
+                    .expression(Expression::String),
+            Expr::RegExp(_, ref regexp) => {
+                let flags : String = regexp.flags.iter().collect();
+                Unlabelled::Tuple(vec![
+                    Unlabelled::Atom(regexp.pattern.clone()).into_tree(),
+                    Unlabelled::Atom(flags).into_tree()
+                ]).expression(Expression::RegExp)
+            },
+        }
+    }
+}
+
+impl ToLabelled for Patt<AssignTarget> { } // FIXME: Could be ToUnlabelled, I'm ok with that.
 
 impl ToLabelled for Id { }
 
@@ -420,6 +682,8 @@ impl ToLabelled for ForOfHead { }
 
 impl ToUnlabelled for PropPatt<Id> { }
 
-impl ToLabelled for Fun { }
+impl ToUnlabelled for Fun { }
 
 impl ToUnlabelled for Script { }
+
+impl ToUnlabelled for Prop { }
