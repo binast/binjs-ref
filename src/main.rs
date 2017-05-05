@@ -8,8 +8,10 @@ use std::io::prelude::*;
 
 // mod esprima;
 mod atoms;
+mod kind;
 mod serialize;
 mod varnum;
+mod serialize_tree;
 
 fn main() {
     let args : Vec<_> = std::env::args().collect();
