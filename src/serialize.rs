@@ -512,36 +512,23 @@ pub fn compile<T>(ast: &Script, out: &T) -> Result<usize, std::io::Error> where 
     let mut atoms = AtomsTableInitializer::new();
     tree.walk_unlabelled(|item| {
         if let Unlabelled::Atom(ref s) = *item {
-            atoms.add(&s)
+            atoms.add(s.clone())
         }
     });
 
     // 3. Write atoms table (first the lengths, then the table)
     let atoms = atoms.compile();
-    bytes += out.write_varnum(atoms.len() as u32)?;
-    for atom in atoms.iter() {
-        bytes += out.write_varnum(atom.len() as u32)?;
-    }
-    for atom in atoms.iter() {
-        bytes += out.write(atom.as_bytes())?;
-    }
+    bytes += atoms.write(out)?;
 
     // 4. Collect kinds into an atoms table.
     let mut kinds = AtomsTableInitializer::new();
     tree.walk_labelled(|item| {
-        kinds.add(&item.kind.get_spec_name());
+        kinds.add(item.kind.get_spec_name());
     });
-
 
     // 5. Write kinds table
     let kinds = kinds.compile();
-    bytes += out.write_varnum(kinds.len() as u32)?;
-    for kind in kinds.iter() {
-        bytes += out.write_varnum(kind.len() as u32)?;
-    }
-    for kind in kinds.iter() {
-        bytes += out.write(kind.as_bytes())?;
-    }
+    bytes += kinds.write(out)?;
 
     // FIXME: 6. Write `tree`, substituting
     // kinds to `kinds` and atoms to `atoms`.
