@@ -356,7 +356,7 @@ impl Unlabelled {
         SerializeTree::Unlabelled(self)
     }
 
-    fn walk_tree<T>(&self, f: T) where T: FnMut(&SerializeTree) {
+    fn walk_tree<T>(&self, f: &mut T) where T: FnMut(&SerializeTree) {
         match *self {
             Unlabelled::Tuple(ref subtrees)
             | Unlabelled::List(ref subtrees) =>
@@ -443,7 +443,7 @@ impl SerializeTree {
         })
     }
 
-    fn walk<T>(&self, f: T) where T: FnMut(&SerializeTree) {
+    fn walk<T>(&self, f: &mut T) where T: FnMut(&SerializeTree) {
         f(self);
         match *self {
             SerializeTree::Unlabelled(ref tree) |
@@ -452,8 +452,8 @@ impl SerializeTree {
         }
     }
 
-    fn walk_unlabelled<T>(&self, f: T) where T: FnMut(&Unlabelled) {
-        self.walk(|tree| {
+    fn walk_unlabelled<T>(&self, f: &mut T) where T: FnMut(&Unlabelled) {
+        self.walk(&mut |tree| {
             match *self {
                 SerializeTree::Unlabelled(ref tree) |
                 SerializeTree::Labelled(Labelled { kind: _, tree: ref tree }) =>
@@ -462,8 +462,8 @@ impl SerializeTree {
         })
     }
 
-    fn walk_labelled<T>(&self, f: T) where T: FnMut(&Labelled) {
-        self.walk(|tree| {
+    fn walk_labelled<T>(&self, f: &mut T) where T: FnMut(&Labelled) {
+        self.walk(&mut |tree| {
             if let SerializeTree::Labelled(ref tree) = *tree {
                 f(tree)
             }
@@ -501,16 +501,19 @@ impl<T> ToLabelled for Box<T> where T: ToLabelled {
     }
 }
 
-pub fn compile<T>(ast: &Script, out: &T) -> Result<usize, std::io::Error> where T: Write {
+pub fn compile<T>(ast: &Script, out: &mut T) -> Result<usize, std::io::Error> where T: Write {
     // 1. Generate tree.
     let tree = SerializeTree::Unlabelled(ast.to_naked());
+        // FIXME: Before any kind of release, we'd need to add the following features:
+        // - collecting free variables and annotating functions with them
+        // - collecting immediate uses of `eval` and annotating functions with them
 
     // Total bytes written.
     let mut bytes = 0;
 
     // 2. Collect atoms into an atoms table.
     let mut atoms = AtomsTableInitializer::new();
-    tree.walk_unlabelled(|item| {
+    tree.walk_unlabelled(&mut |item| {
         if let Unlabelled::Atom(ref s) = *item {
             atoms.add(s.clone())
         }
@@ -522,7 +525,7 @@ pub fn compile<T>(ast: &Script, out: &T) -> Result<usize, std::io::Error> where 
 
     // 4. Collect kinds into an atoms table.
     let mut kinds = AtomsTableInitializer::new();
-    tree.walk_labelled(|item| {
+    tree.walk_labelled(&mut |item| {
         kinds.add(item.kind.get_spec_name());
     });
 
