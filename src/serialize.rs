@@ -1,5 +1,7 @@
 
-// Impl
+use atoms::*;
+use varnum::*;
+
 use easter::decl::*;
 use easter::expr::*;
 use easter::fun::*;
@@ -10,7 +12,22 @@ use easter::prog::*;
 use easter::punc::*;
 use easter::stmt::*;
 
+use std;
+use std::io::Write;
 use std::ops::Deref;
+
+
+fn bytes_for_number(value: f64) -> Vec<SerializeTree> {
+    assert!(std::mem::size_of_val(&value) == std::mem::size_of::<[u8;8]>());
+    // FIXME: This makes assumptions on endianness.
+    let bytes = unsafe { std::mem::transmute::<_, [u8;8]>(value) };
+    bytes.iter()
+        .cloned()
+        .map(Unlabelled::RawByte)
+        .map(SerializeTree::Unlabelled)
+        .collect()
+}
+
 
 /// Labels to differentiate AST nodes.
 // FIXME: There is a size bonus if we can make sure that all the commonly used instances
@@ -35,6 +52,9 @@ pub mod kind {
         Var,
         Let,
         Const,
+        VarInit,
+        Get,
+        Set,
     }
     pub enum Statement {
         Block,
@@ -119,9 +139,6 @@ pub mod kind {
         Number,
         RegExp,
         String,
-        DecimalInt,
-        RadixInt,
-        Float,
     }
 }
 use self::kind::*;
@@ -236,6 +253,10 @@ impl Labelled {
     fn into_tree(self) -> SerializeTree {
         SerializeTree::Labelled(self)
     }
+
+    fn into_unlabelled(self) -> Unlabelled {
+        Unlabelled::Tuple(vec![SerializeTree::Labelled(self)])
+    }
 }
 
 
@@ -302,9 +323,40 @@ impl<T> ToLabelled for Box<T> where T: ToLabelled {
     }
 }
 
-pub fn compile(ast: &Script) -> String {
+pub fn compile<T>(ast: &Script, out: &T) -> Result<usize, std::io::Error> where T: Write {
+    // 1. Generate tree.
     let _string_tree = ast.to_naked();
+
+    let mut bytes = 0;
+    // FIXME: 2. Collect atoms into an atoms table.
+    let mut atoms = AtomsTableInitializer::new();
+
+    // 3. Write atoms table
+    let atoms = atoms.compile();
+    for atom in atoms.iter() {
+        bytes += out.write_varnum(atom.len() as u32)?;
+    }
+    for atom in atoms.iter() {
+        bytes += out.write(atom.as_bytes())?;
+    }
+
+    // FIXME: 4. Collect kinds into an atoms table.
+    let mut kinds = AtomsTableInitializer::new();
+
+
+    // 5. Write kinds table
+    let kinds = kinds.compile();
+    for kind in kinds.iter() {
+        bytes += out.write_varnum(kind.len() as u32)?;
+    }
+    for kind in kinds.iter() {
+        bytes += out.write(kind.as_bytes())?;
+    }
+
+    // FIXME: 6. Write _string_tree, substituting
+    // kinds to `kinds` and atoms to `atoms`.
     unimplemented!();
+    Ok(bytes)
 }
 
 
@@ -358,13 +410,13 @@ impl ToLabelled for Stmt {
                 ]).statement(Statement::IfThenElse),
             Label(_, ref id, ref statement) =>
                 Unlabelled::Tuple(vec![
-                    id.to_labelled().into_tree(),
+                    id.to_naked().into_tree(),
                     statement.to_labelled().into_tree()
                 ]).statement(Statement::Label),
             Break(_, ref id, _) =>
-                Labelled::option(id).into_tree().statement(Statement::Break),
+                Unlabelled::option(id).into_tree().statement(Statement::Break),
             Cont(_, ref id, _) =>
-                Labelled::option(id).into_tree().statement(Statement::Cont),
+                Unlabelled::option(id).into_tree().statement(Statement::Cont),
             With(_, ref expr, ref statement) =>
                 Unlabelled::Tuple(vec![
                     expr.to_labelled().into_tree(),
@@ -441,7 +493,7 @@ impl ToLabelled for Dtor {
         match *self {
             Dtor::Simple(_, ref id, ref expr) =>
                 Unlabelled::Tuple(vec![
-                    id.to_labelled().into_tree(),
+                    id.to_naked().label(Kind::Name).into_tree(),
                     Labelled::option(expr).into_tree()
                 ]).label(Kind::VarDecl(Variable::Var)),
             Dtor::Compound(_, ref pat, ref expr) =>
@@ -476,7 +528,7 @@ impl ToLabelled for Patt<Id> {
     fn to_labelled(&self) -> Labelled {
         match *self {
             Patt::Simple(ref id) =>
-                id.to_labelled(),
+                id.to_naked().label(Kind::Name),
             Patt::Compound(ref compound) =>
                 compound.to_labelled()
         }
@@ -491,7 +543,8 @@ impl ToLabelled for Expr {
             Expr::This(_) =>
                 Unlabelled::Tuple(vec![])
                     .expression(Expression::This),
-            Expr::Id(ref id) => id.to_labelled(),
+            Expr::Id(ref id) => id.to_naked()
+                    .label(Kind::Name),
             Expr::Arr(_, ref values) => {
                 let list : Vec<_> = values.iter()
                     .map(Labelled::option)
@@ -631,7 +684,7 @@ impl ToLabelled for Expr {
             Expr::Dot(_, ref object, ref property) => {
                 Unlabelled::Tuple(vec![
                     object.to_labelled().into_tree(),
-                    Unlabelled::Atom(property.value).label(Kind::Name).into_tree(),
+                    Unlabelled::Atom(property.value.clone()).label(Kind::Name).into_tree(),
                 ]).expression(Expression::Member)
             }
             Expr::Brack(_, ref object, ref property) => {
@@ -662,28 +715,163 @@ impl ToLabelled for Expr {
                     Unlabelled::Atom(flags).into_tree()
                 ]).expression(Expression::RegExp)
             },
+            Expr::Number(_, ref number) => {
+                let tuple = bytes_for_number(number.value);
+                Unlabelled::Tuple(tuple).expression(Expression::Number)
+            }
         }
+    }
+}
+
+impl ToUnlabelled for Id {
+    fn to_naked(&self) -> Unlabelled {
+        Unlabelled::Atom(self.name.clone().into_string())
     }
 }
 
 impl ToLabelled for Patt<AssignTarget> { } // FIXME: Could be ToUnlabelled, I'm ok with that.
 
-impl ToLabelled for Id { }
+impl ToUnlabelled for Case {
+    fn to_naked(&self) -> Unlabelled {
+        Unlabelled::Tuple(vec![
+            Labelled::option(&self.test).into_tree(),
+            Labelled::list(&self.body).into_tree()
+        ])
+    }
+}
 
-impl ToUnlabelled for Case { }
+impl ToUnlabelled for Catch {
+    fn to_naked(&self) -> Unlabelled {
+        Unlabelled::Tuple(vec![
+            self.param.to_labelled().into_tree(),
+            Labelled::list(&self.body).into_tree()
+        ])
+    }
+}
 
-impl ToUnlabelled for Catch { }
+impl ToLabelled for ForHead {
+    fn to_labelled(&self) -> Labelled {
+        match *self {
+            ForHead::Var(_, ref dtor) =>
+                Labelled::list(dtor)
+                    .label(Kind::VarDecl(Variable::Var)),
+            ForHead::Let(_, ref dtor) =>
+                Labelled::list(dtor)
+                    .label(Kind::VarDecl(Variable::Let)),
+            ForHead::Expr(_, ref expr) =>
+                expr.to_labelled()
+        }
+    }
+}
 
-impl ToLabelled for ForHead { }
+impl ToLabelled for ForInHead {
+    fn to_labelled(&self) -> Labelled {
+        match *self {
+            ForInHead::VarInit(_, ref id, ref expr) =>
+                Unlabelled::Tuple(vec![
+                    id.to_naked().into_tree(),
+                    expr.to_labelled().into_tree()
+                ]).label(Kind::VarDecl(Variable::VarInit)),
+            ForInHead::Var(_, ref pat) =>
+                pat.to_labelled()
+                    .into_tree()
+                    .label(Kind::VarDecl(Variable::Var)),
+            ForInHead::Let(_, ref pat) =>
+                pat.to_labelled()
+                    .into_tree()
+                    .label(Kind::VarDecl(Variable::Let)),
+            ForInHead::Expr(ref expr) =>
+                expr.to_labelled()
+        }
+    }
+}
 
-impl ToLabelled for ForInHead { }
 
-impl ToLabelled for ForOfHead { }
+impl ToLabelled for ForOfHead {
+    fn to_labelled(&self) -> Labelled {
+        match *self {
+            ForOfHead::Var(_, ref pat) =>
+                pat.to_labelled()
+                    .into_tree()
+                    .label(Kind::VarDecl(Variable::Var)),
+            ForOfHead::Let(_, ref pat) =>
+                pat.to_labelled()
+                    .into_tree()
+                    .label(Kind::VarDecl(Variable::Let)),
+            ForOfHead::Expr(ref expr) =>
+                expr.to_labelled()
+        }
+    }
+}
 
-impl ToUnlabelled for PropPatt<Id> { }
+impl ToLabelled for PropKey {
+    fn to_labelled(&self) -> Labelled {
+        match *self {
+            // Afaict, that's `foo` in `{ foo: bar }`
+            PropKey::Id(_, ref string) =>
+                Unlabelled::Atom(string.clone())
+                    .label(Kind::Name),
+            // Afaict, that's `"foo"` in `{ "foo": bar }`
+            PropKey::String(_, ref literal) =>
+                Unlabelled::Atom(literal.value.clone())
+                    .expression(Expression::String),
+            PropKey::Number(_, ref literal) => {
+                let tuple = bytes_for_number(literal.value);
+                Unlabelled::Tuple(tuple)
+                    .expression(Expression::Number)
+            }
+        }
+    }
+}
 
-impl ToUnlabelled for Fun { }
+impl ToUnlabelled for Fun {
+    fn to_naked(&self) -> Unlabelled {
+        Unlabelled::Tuple(vec![
+            Unlabelled::option(&self.id).into_tree(),
+            Labelled::list(&self.params.list).into_tree(),
+            Labelled::list(&self.body).into_tree(),
+        ])
+    }
+}
 
-impl ToUnlabelled for Script { }
+impl ToUnlabelled for PropPatt<Id> {
+    fn to_naked(&self) -> Unlabelled {
+        Unlabelled::Tuple(vec![
+            self.key.to_labelled().into_tree(),
+            self.patt.to_labelled().into_tree()
+        ])
+    }
+}
 
-impl ToUnlabelled for Prop { }
+
+impl ToUnlabelled for Prop {
+    fn to_naked(&self) -> Unlabelled {
+        Unlabelled::Tuple(vec![
+            self.key.to_labelled().into_tree(),
+            self.val.to_labelled().into_tree()
+        ])
+    }
+}
+
+impl ToLabelled for PropVal {
+    fn to_labelled(&self) -> Labelled {
+        match *self {
+            PropVal::Get(_, ref body) =>
+                Labelled::list(body)
+                    .label(Kind::VarDecl(Variable::Get)),
+            PropVal::Set(_, ref pat, ref body) =>
+                Unlabelled::Tuple(vec![
+                    pat.to_labelled().into_tree(),
+                    Labelled::list(body).into_tree(),
+                ]).label(Kind::VarDecl(Variable::Set)),
+            PropVal::Init(ref expr) =>
+                expr.to_labelled()
+        }
+    }
+}
+
+impl ToUnlabelled for Script {
+    fn to_naked(&self) -> Unlabelled {
+        Labelled::list(&self.body)
+    }
+}

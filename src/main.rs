@@ -9,7 +9,9 @@ use std::fs::File;
 use std::io::prelude::*;
 
 // mod esprima;
+mod atoms;
 mod serialize;
+mod varnum;
 
 fn main() {
     for source_path in env::args().skip(1) {
