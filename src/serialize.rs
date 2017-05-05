@@ -140,6 +140,147 @@ pub mod kind {
         RegExp,
         String,
     }
+
+    impl Kind {
+        pub fn get_spec_name(&self) -> String {
+            use self::Kind::*;
+            let str = match *self {
+                Empty => "",
+                FunDecl => "FunctionDeclaration",
+                Name => "Identifier",
+                Statement(ref x) => return x.get_spec_name(),
+                VarDecl(ref x) => return x.get_spec_name(),
+                BindingPattern(ref x) => return x.get_spec_name(),
+                Expression(ref x) => return x.get_spec_name(),
+            };
+            str.to_string()
+        }
+    }
+
+    impl Statement {
+        pub fn get_spec_name(&self) -> String {
+            use self::Statement::*;
+            let str = match *self {
+                Block => "BlockStatement",
+                Expression => "ExpressionStatement",
+                VariableDeclaration => "VariableDeclaration",
+                IfThenElse => "IfStatement",
+                Label => "LabeledStatement",
+                Break => "BreakStatement",
+                Cont => "ContinueStatement",
+                With => "WithStatement",
+                Switch => "SwitchStatement",
+                Return => "ReturnStatement",
+                Throw => "ThrowStatement",
+                Try => "TryStatement",
+                While => "WhileStatement",
+                DoWhile => "DoWhileStatement",
+                For => "ForStatement",
+                ForIn => "ForInStatement",
+                ForOf => "ForOfStatement",
+                Debugger => "DebuggerStatement",
+            };
+            str.to_string()
+        }
+    }
+
+    impl Variable {
+        pub fn get_spec_name(&self) -> String {
+            use self::Variable::*;
+            let str = match *self {
+                Var => "var",
+                Let => "let",
+                Const => "const",
+                Get => "get",
+                Set => "set",
+                VarInit => "init",
+            };
+            str.to_string()
+        }
+    }
+
+    impl BindingPattern {
+        pub fn get_spec_name(&self) -> String {
+            use self::BindingPattern::*;
+            let str = match *self {
+                Array => "ArrayPattern",
+                Object => "ObjectPattern",
+            };
+            str.to_string()
+        }
+    }
+
+    impl Expression {
+        pub fn get_spec_name(&self) -> String {
+            use self::Expression::*;
+            let str = match *self {
+                This => "ThisExpression",
+                Array => "ArrayExpression",
+                Object => "ObjectExpression",
+                Function => "FunctionExpression",
+                Sequence => "SequenceExpression",
+                UnaryMinus => "Unary-",
+                UnaryPlus => "Unary+",
+                UnaryNot => "~",
+                UnaryBitNot => "~",
+                UnaryTypeof => "typeof",
+                UnaryVoid => "void",
+                UnaryDelete => "delete",
+                Eq => "==",
+                NEq => "!=",
+                StrictEq => "===",
+                StrictNEq => "!==",
+                Lt => "<",
+                LEq => "<=",
+                Gt => ">",
+                GEq => ">=",
+                LShift => "<<",
+                RShift => ">>",
+                URShift => ">>>",
+                Plus => "+",
+                Minus => "-",
+                Times => "*",
+                Div => "/",
+                Mod => "%",
+                BitOr => "|",
+                BitXor => "^",
+                BitAnd => "&",
+                In => "in",
+                Instanceof => "instanceof",
+                LogOr => "||",
+                LogAnd => "&&",
+                PreInc => "++_",
+                PostInc => "_++",
+                PreDec => "--_",
+                PostDec => "_--",
+                Assign => "=",
+                PlusEq => "+=",
+                MinusEq => "-=",
+                TimesEq => "*=",
+                DivEq => "/=",
+                ModEq => "%=",
+                LShiftEq => "<<=",
+                RShiftEq => ">>=",
+                URShiftEq => ">>>=",
+                BitOrEq => "|=",
+                BitXorEq => "^=",
+                BitAndEq => "&=",
+                Conditional => "ConditionalExpression",
+                Call => "CallExpression",
+                New => "NewExpression",
+                Member => "MemberExpression",
+                NewTarget => "NewTargetExpression", // FIXME: No clue what this is.
+                True => "true",
+                False => "false",
+                Null => "null",
+                Number => "NumberLiteral",
+                RegExp => "RegexpLiteral",
+                String => "StringLiteral",
+            };
+            str.to_string()
+        }
+    }
+
 }
 use self::kind::*;
 
@@ -215,6 +356,16 @@ impl Unlabelled {
         SerializeTree::Unlabelled(self)
     }
 
+    fn walk_tree<T>(&self, f: T) where T: FnMut(&SerializeTree) {
+        match *self {
+            Unlabelled::Tuple(ref subtrees)
+            | Unlabelled::List(ref subtrees) =>
+                for subtree in subtrees {
+                    subtree.walk(f)
+                },
+            _ => {}
+        }
+    }
 }
 
 /// A node in the intermediate serialization tree.
@@ -291,6 +442,33 @@ impl SerializeTree {
             tree: Unlabelled::Tuple(vec![])
         })
     }
+
+    fn walk<T>(&self, f: T) where T: FnMut(&SerializeTree) {
+        f(self);
+        match *self {
+            SerializeTree::Unlabelled(ref tree) |
+            SerializeTree::Labelled(Labelled { kind: _, tree: ref tree }) =>
+                tree.walk_tree(f)
+        }
+    }
+
+    fn walk_unlabelled<T>(&self, f: T) where T: FnMut(&Unlabelled) {
+        self.walk(|tree| {
+            match *self {
+                SerializeTree::Unlabelled(ref tree) |
+                SerializeTree::Labelled(Labelled { kind: _, tree: ref tree }) =>
+                    f(tree)
+            }
+        })
+    }
+
+    fn walk_labelled<T>(&self, f: T) where T: FnMut(&Labelled) {
+        self.walk(|tree| {
+            if let SerializeTree::Labelled(ref tree) = *tree {
+                f(tree)
+            }
+        })
+    }
 }
 
 trait ToSerializeTree {
@@ -325,14 +503,22 @@ impl<T> ToLabelled for Box<T> where T: ToLabelled {
 
 pub fn compile<T>(ast: &Script, out: &T) -> Result<usize, std::io::Error> where T: Write {
     // 1. Generate tree.
-    let _string_tree = ast.to_naked();
+    let tree = SerializeTree::Unlabelled(ast.to_naked());
 
+    // Total bytes written.
     let mut bytes = 0;
-    // FIXME: 2. Collect atoms into an atoms table.
-    let mut atoms = AtomsTableInitializer::new();
 
-    // 3. Write atoms table
+    // 2. Collect atoms into an atoms table.
+    let mut atoms = AtomsTableInitializer::new();
+    tree.walk_unlabelled(|item| {
+        if let Unlabelled::Atom(ref s) = *item {
+            atoms.add(&s)
+        }
+    });
+
+    // 3. Write atoms table (first the lengths, then the table)
     let atoms = atoms.compile();
+    bytes += out.write_varnum(atoms.len() as u32)?;
     for atom in atoms.iter() {
         bytes += out.write_varnum(atom.len() as u32)?;
     }
@@ -340,12 +526,16 @@ pub fn compile<T>(ast: &Script, out: &T) -> Result<usize, std::io::Error> where 
         bytes += out.write(atom.as_bytes())?;
     }
 
-    // FIXME: 4. Collect kinds into an atoms table.
+    // 4. Collect kinds into an atoms table.
     let mut kinds = AtomsTableInitializer::new();
+    tree.walk_labelled(|item| {
+        kinds.add(&item.kind.get_spec_name());
+    });
 
 
     // 5. Write kinds table
     let kinds = kinds.compile();
+    bytes += out.write_varnum(kinds.len() as u32)?;
     for kind in kinds.iter() {
         bytes += out.write_varnum(kind.len() as u32)?;
     }
@@ -353,7 +543,7 @@ pub fn compile<T>(ast: &Script, out: &T) -> Result<usize, std::io::Error> where 
         bytes += out.write(kind.as_bytes())?;
     }
 
-    // FIXME: 6. Write _string_tree, substituting
+    // FIXME: 6. Write `tree`, substituting
     // kinds to `kinds` and atoms to `atoms`.
     unimplemented!();
     Ok(bytes)
