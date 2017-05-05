@@ -17,7 +17,7 @@ use std::io::Write;
 use std::ops::Deref;
 
 
-fn bytes_for_number(value: f64) -> Vec<SerializeTree> {
+fn bytes_for_number<K>(value: f64) -> Vec<SerializeTree<K>> {
     assert!(std::mem::size_of_val(&value) == std::mem::size_of::<[u8;8]>());
     // FIXME: This makes assumptions on endianness.
     let bytes = unsafe { std::mem::transmute::<_, [u8;8]>(value) };
@@ -35,6 +35,9 @@ fn bytes_for_number(value: f64) -> Vec<SerializeTree> {
 // the case, consider using several pools (e.g. one for Statement, one for VarDecl, ...).
 // This is more accident-prone.
 pub mod kind {
+    use atoms::ToBytes;
+
+    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
     pub enum Kind {
         Empty,
         Statement(Statement),
@@ -44,10 +47,12 @@ pub mod kind {
         FunDecl,
         Name,
     }
+    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
     pub enum BindingPattern {
         Array,
         Object,
     }
+    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
     pub enum Variable {
         Var,
         Let,
@@ -56,6 +61,7 @@ pub mod kind {
         Get,
         Set,
     }
+    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
     pub enum Statement {
         Block,
         Expression,
@@ -76,6 +82,7 @@ pub mod kind {
         ForOf,
         Debugger,
     }
+    #[derive(PartialEq, Eq, Hash, Clone, Copy)]
     pub enum Expression {
         This,
         Array,
@@ -141,24 +148,36 @@ pub mod kind {
         String,
     }
 
-    impl Kind {
-        pub fn get_spec_name(&self) -> String {
+    impl Default for Kind {
+        fn default() -> Kind {
+            Kind::Empty
+        }
+    }
+
+    impl ToBytes for str {
+        fn to_bytes(&self) -> Vec<u8> {
+            self.bytes().collect()
+        }
+    }
+
+    impl ToBytes for Kind {
+        fn to_bytes(&self) -> Vec<u8> {
             use self::Kind::*;
             let str = match *self {
                 Empty => "",
                 FunDecl => "FunctionDeclaration",
                 Name => "Identifier",
-                Statement(ref x) => return x.get_spec_name(),
-                VarDecl(ref x) => return x.get_spec_name(),
-                BindingPattern(ref x) => return x.get_spec_name(),
-                Expression(ref x) => return x.get_spec_name(),
+                Statement(ref x) => return x.to_bytes(),
+                VarDecl(ref x) => return x.to_bytes(),
+                BindingPattern(ref x) => return x.to_bytes(),
+                Expression(ref x) => return x.to_bytes(),
             };
-            str.to_string()
+            str.to_bytes()
         }
     }
 
-    impl Statement {
-        pub fn get_spec_name(&self) -> String {
+    impl ToBytes for Statement {
+        fn to_bytes(&self) -> Vec<u8> {
             use self::Statement::*;
             let str = match *self {
                 Block => "BlockStatement",
@@ -180,12 +199,12 @@ pub mod kind {
                 ForOf => "ForOfStatement",
                 Debugger => "DebuggerStatement",
             };
-            str.to_string()
+            str.to_bytes()
         }
     }
 
-    impl Variable {
-        pub fn get_spec_name(&self) -> String {
+    impl ToBytes for Variable {
+        fn to_bytes(&self) -> Vec<u8> {
             use self::Variable::*;
             let str = match *self {
                 Var => "var",
@@ -195,23 +214,23 @@ pub mod kind {
                 Set => "set",
                 VarInit => "init",
             };
-            str.to_string()
+            str.to_bytes()
         }
     }
 
-    impl BindingPattern {
-        pub fn get_spec_name(&self) -> String {
+    impl ToBytes for BindingPattern {
+        fn to_bytes(&self) -> Vec<u8> {
             use self::BindingPattern::*;
             let str = match *self {
                 Array => "ArrayPattern",
                 Object => "ObjectPattern",
             };
-            str.to_string()
+            str.to_bytes()
         }
     }
 
-    impl Expression {
-        pub fn get_spec_name(&self) -> String {
+    impl ToBytes for Expression {
+        fn to_bytes(&self) -> Vec<u8> {
             use self::Expression::*;
             let str = match *self {
                 This => "ThisExpression",
@@ -277,7 +296,7 @@ pub mod kind {
                 RegExp => "RegexpLiteral",
                 String => "StringLiteral",
             };
-            str.to_string()
+            str.to_bytes()
         }
     }
 
@@ -290,7 +309,7 @@ use self::kind::*;
 /// by itself sufficient information to determine which enum case is actually
 /// used. This information MUST be extrapolated from the context, typically from
 /// a parent `Labelled`.
-enum Unlabelled {
+enum Unlabelled<T> {
     /// A string designed to be represented as an atom (e.g. literal strings,
     /// identifiers, ...). Will be internalized in the atoms table. Length
     /// will be written to the file.
@@ -301,41 +320,28 @@ enum Unlabelled {
 
     /// A node with a number of children determined by the grammar.
     /// Length will NOT be written to the file. Can have 0 children.
-    Tuple(Vec<SerializeTree>),
+    Tuple(Vec<SerializeTree<T>>),
 
     /// A node with a number of children left unspecified by the grammar
     /// (typically a list). Length will be written to the file.
-    List(Vec<SerializeTree>),
+    List(Vec<SerializeTree<T>>),
 }
 
-impl Unlabelled {
+impl<K> Unlabelled<K> where K: Default {
     /// Add a label.
     ///
     /// Just a shorthand to keep code readable.
-    fn label(self, kind: Kind) -> Labelled {
+    fn label(self, kind: K) -> Labelled<K> {
         Labelled {
             kind,
             tree: self
         }
     }
 
-    /// Add a `Kind::Statement` label.
-    ///
-    /// Just a shorthand to keep code readable.
-    fn statement(self, kind: Statement) -> Labelled {
-        self.label(Kind::Statement(kind))
-    }
-    /// Add a `Kind::Statement` label.
-    ///
-    /// Just a shorthand to keep code readable.
-    fn expression(self, kind: Expression) -> Labelled {
-        self.label(Kind::Expression(kind))
-    }
-
     // Note: We explicitly use `list` rather than deriving `ToUnlabelled`
     // for `Vec<T>` to avoid ambiguous magic code and to make porting to
     // other languages simpler.
-    fn list<T>(items: &[T]) -> Self where T: ToUnlabelled {
+    fn list<T>(items: &[T]) -> Self where T: ToUnlabelled<K> {
         Unlabelled::List(items.iter()
             .map(|item| item.to_naked().into_tree())
             .collect())
@@ -344,7 +350,7 @@ impl Unlabelled {
     // Note: We explicitly use `option` rather than deriving `ToUnlabelled`
     // for `Option<T>` to avoid ambiguous magic code and to make porting to
     // other languages simpler.
-    fn option<T>(item: &Option<T>) -> Self where T: ToUnlabelled {
+    fn option<T>(item: &Option<T>) -> Self where T: ToUnlabelled<K> {
         match *item {
             None => Unlabelled::Tuple(vec![]),
             Some(ref some) => some.to_naked()
@@ -352,11 +358,11 @@ impl Unlabelled {
     }
 
     /// Convert into a tree.
-    fn into_tree(self) -> SerializeTree {
+    fn into_tree(self) -> SerializeTree<K> {
         SerializeTree::Unlabelled(self)
     }
 
-    fn walk_tree<T>(&self, f: &mut T) where T: FnMut(&SerializeTree) {
+    fn walk_tree<T>(&self, f: &mut T) where T: FnMut(&SerializeTree<K>) {
         match *self {
             Unlabelled::Tuple(ref subtrees)
             | Unlabelled::List(ref subtrees) =>
@@ -372,21 +378,21 @@ impl Unlabelled {
 ///
 /// Once written to disk, the `kind` MUST contain sufficient information
 /// to determine the structure of the `tree`.
-struct Labelled {
-   kind: Kind,
-   tree: Unlabelled // Or Unlabelled?
+struct Labelled<K> {
+   kind: K,
+   tree: Unlabelled<K>
 }
 
-impl Labelled {
+impl<K> Labelled<K> {
     // Note: We explicitly use `list` rather than deriving `ToSerializeTree`
     // for `Vec<T>` to avoid ambiguous magic code and to make porting to
     // other languages simpler.
-    fn list<T>(items: &[T]) -> Unlabelled where T: ToLabelled {
+    fn list<T>(items: &[T]) -> Unlabelled<K> where T: ToLabelled<K> {
         Unlabelled::List(items.iter()
             .map(|item| item.to_labelled().into_tree())
             .collect())
     }
-    fn tuple<T>(items: &[T]) -> Unlabelled where T: ToLabelled {
+    fn tuple<T>(items: &[T]) -> Unlabelled<K>where T: ToLabelled<K> {
         Unlabelled::Tuple(items.iter()
             .map(|item| item.to_labelled().into_tree())
             .collect())
@@ -394,56 +400,48 @@ impl Labelled {
     // Note: We explicitly use `option` rather than deriving `ToSerializeTree`
     // for `Option<T>` to avoid ambiguous magic code and to make porting to
     // other languages simpler.
-    fn option<T>(item: &Option<T>) -> Labelled where T: ToLabelled {
+    fn option<T>(item: &Option<T>) -> Labelled<K> where T: ToLabelled<K>, K: Default {
         match *item {
-            None => Unlabelled::Tuple(vec![]).label(Kind::Empty),
+            None => Unlabelled::Tuple(vec![]).label(K::default()),
             Some(ref some) => some.to_labelled()
         }
     }
 
-    fn into_tree(self) -> SerializeTree {
+    fn into_tree(self) -> SerializeTree<K> {
         SerializeTree::Labelled(self)
     }
 
-    fn into_unlabelled(self) -> Unlabelled {
+    fn into_unlabelled(self) -> Unlabelled<K> {
         Unlabelled::Tuple(vec![SerializeTree::Labelled(self)])
     }
 }
 
 
-enum SerializeTree {
-    Unlabelled(Unlabelled),
+enum SerializeTree<K> {
+    Unlabelled(Unlabelled<K>),
     /// Label a subtree with parsing information.
     /// In a followup pass, labels are rewritten as reference to one of several
     /// strings tables (e.g. one table for expressions, one for patterns, etc.)
     /// to ensure that references generally fit in a single byte.
-    Labelled(Labelled)
+    Labelled(Labelled<K>)
 }
 
-impl SerializeTree {
-    fn label(self, kind: Kind) -> Labelled {
+impl<K> SerializeTree<K> where K: Default {
+    fn label(self, kind: K) -> Labelled<K> {
         Labelled {
             kind,
             tree: Unlabelled::Tuple(vec![self])
         }
     }
 
-    fn statement(self, kind: Statement) -> Labelled {
-        self.label(Kind::Statement(kind))
-    }
-
-    fn expression(self, kind: Expression) -> Labelled {
-        self.label(Kind::Expression(kind))
-    }
-
     fn empty() -> Self {
         SerializeTree::Labelled(Labelled {
-            kind: Kind::Empty,
+            kind: K::default(),
             tree: Unlabelled::Tuple(vec![])
         })
     }
 
-    fn walk<T>(&self, f: &mut T) where T: FnMut(&SerializeTree) {
+    fn walk<T>(&self, f: &mut T) where T: FnMut(&SerializeTree<K>) {
         f(self);
         match *self {
             SerializeTree::Unlabelled(ref tree) |
@@ -452,7 +450,7 @@ impl SerializeTree {
         }
     }
 
-    fn walk_unlabelled<T>(&self, f: &mut T) where T: FnMut(&Unlabelled) {
+    fn walk_unlabelled<T>(&self, f: &mut T) where T: FnMut(&Unlabelled<K>) {
         self.walk(&mut |tree| {
             match *self {
                 SerializeTree::Unlabelled(ref tree) |
@@ -462,7 +460,7 @@ impl SerializeTree {
         })
     }
 
-    fn walk_labelled<T>(&self, f: &mut T) where T: FnMut(&Labelled) {
+    fn walk_labelled<T>(&self, f: &mut T) where T: FnMut(&Labelled<K>) {
         self.walk(&mut |tree| {
             if let SerializeTree::Labelled(ref tree) = *tree {
                 f(tree)
@@ -471,32 +469,26 @@ impl SerializeTree {
     }
 }
 
-trait ToSerializeTree {
-    fn to_serialize(&self) -> SerializeTree {
+trait ToUnlabelled<K> {
+    fn to_naked(&self) -> Unlabelled<K> {
         unimplemented!()
     }
 }
 
-trait ToUnlabelled {
-    fn to_naked(&self) -> Unlabelled {
-        unimplemented!()
-    }
-}
-
-impl<T> ToUnlabelled for Box<T> where T: ToUnlabelled {
-    fn to_naked(&self) -> Unlabelled {
+impl<T, K> ToUnlabelled<K> for Box<T> where T: ToUnlabelled<K> {
+    fn to_naked(&self) -> Unlabelled<K> {
         (self.as_ref()).to_naked()
     }
 }
 
-trait ToLabelled {
-    fn to_labelled(&self) -> Labelled {
+trait ToLabelled<K> {
+    fn to_labelled(&self) -> Labelled<K> {
         unimplemented!()
     }
 }
 
-impl<T> ToLabelled for Box<T> where T: ToLabelled {
-    fn to_labelled(&self) -> Labelled {
+impl<T, K> ToLabelled<K> for Box<T> where T: ToLabelled<K> {
+    fn to_labelled(&self) -> Labelled<K> {
         (self.as_ref()).to_labelled()
     }
 }
@@ -510,6 +502,10 @@ pub fn compile<T>(ast: &Script, out: &mut T) -> Result<usize, std::io::Error> wh
 
     // Total bytes written.
     let mut bytes = 0;
+
+    // Write header.
+    bytes += out.write(b"BINJS")?;
+    bytes += out.write_varnum(0)?;
 
     // 2. Collect atoms into an atoms table.
     let mut atoms = AtomsTableInitializer::new();
@@ -526,7 +522,7 @@ pub fn compile<T>(ast: &Script, out: &mut T) -> Result<usize, std::io::Error> wh
     // 4. Collect kinds into an atoms table.
     let mut kinds = AtomsTableInitializer::new();
     tree.walk_labelled(&mut |item| {
-        kinds.add(item.kind.get_spec_name());
+        kinds.add(item.kind);
     });
 
     // 5. Write kinds table
@@ -541,8 +537,9 @@ pub fn compile<T>(ast: &Script, out: &mut T) -> Result<usize, std::io::Error> wh
 
 
 
-impl ToLabelled for StmtListItem {
-    fn to_labelled(&self) -> Labelled {
+
+impl ToLabelled<Kind> for StmtListItem {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             StmtListItem::Decl(ref decl) => decl.to_labelled().into(),
             StmtListItem::Stmt(ref stmt) => stmt.to_labelled().into(),
@@ -550,23 +547,16 @@ impl ToLabelled for StmtListItem {
     }
 }
 
-
-impl<T> ToSerializeTree for Box<T> where T: ToSerializeTree {
-    fn to_serialize(&self) -> SerializeTree {
-        self.deref().to_serialize()
-    }
-}
-
-impl ToLabelled for Decl {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for Decl {
+    fn to_labelled(&self) -> Labelled<Kind>{
         let Decl::Fun(ref fun) = *self;
         fun.to_naked()
             .label(Kind::FunDecl)
     }
 }
 
-impl ToLabelled for Stmt {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for Stmt {
+    fn to_labelled(&self) -> Labelled<Kind>{
         use easter::stmt::Stmt::*;
         match *self {
             Empty(_) =>
@@ -665,8 +655,8 @@ impl ToLabelled for Stmt {
 }
 
 
-impl ToLabelled for Dtor {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for Dtor {
+    fn to_labelled(&self) -> Labelled<Kind>{
 // Note: Here, there's a divergence between Esprima and Esprit.
 // Trying to follow Esprima. When parsing to Esprit, we'll use the label of `id`/`pat` to
 // differentiate between Simple and Compound. When parsing to Esprima, it's actually the same node.
@@ -685,8 +675,8 @@ impl ToLabelled for Dtor {
     }
 }
 
-impl ToLabelled for CompoundPatt<Id> {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for CompoundPatt<Id> {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             CompoundPatt::Arr(_, ref patterns) => {
                 let pat2 : Vec<_> = patterns.iter().map(|x|
@@ -704,8 +694,8 @@ impl ToLabelled for CompoundPatt<Id> {
     }
 }
 
-impl ToLabelled for Patt<Id> {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for Patt<Id> {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             Patt::Simple(ref id) =>
                 id.to_naked().label(Kind::Name),
@@ -717,8 +707,8 @@ impl ToLabelled for Patt<Id> {
 
 // FIXME: To implement.
 
-impl ToLabelled for Expr {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for Expr {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             Expr::This(_) =>
                 Unlabelled::Tuple(vec![])
@@ -903,16 +893,16 @@ impl ToLabelled for Expr {
     }
 }
 
-impl ToUnlabelled for Id {
-    fn to_naked(&self) -> Unlabelled {
+impl ToUnlabelled<Kind> for Id {
+    fn to_naked(&self) -> Unlabelled<Kind> {
         Unlabelled::Atom(self.name.clone().into_string())
     }
 }
 
-impl ToLabelled for Patt<AssignTarget> { } // FIXME: Could be ToUnlabelled, I'm ok with that.
+impl ToLabelled<Kind> for Patt<AssignTarget> { } // FIXME: Could be ToUnlabelled, I'm ok with that.
 
-impl ToUnlabelled for Case {
-    fn to_naked(&self) -> Unlabelled {
+impl ToUnlabelled<Kind> for Case {
+    fn to_naked(&self) -> Unlabelled<Kind> {
         Unlabelled::Tuple(vec![
             Labelled::option(&self.test).into_tree(),
             Labelled::list(&self.body).into_tree()
@@ -920,8 +910,8 @@ impl ToUnlabelled for Case {
     }
 }
 
-impl ToUnlabelled for Catch {
-    fn to_naked(&self) -> Unlabelled {
+impl ToUnlabelled<Kind> for Catch {
+    fn to_naked(&self) -> Unlabelled<Kind> {
         Unlabelled::Tuple(vec![
             self.param.to_labelled().into_tree(),
             Labelled::list(&self.body).into_tree()
@@ -929,8 +919,8 @@ impl ToUnlabelled for Catch {
     }
 }
 
-impl ToLabelled for ForHead {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for ForHead {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             ForHead::Var(_, ref dtor) =>
                 Labelled::list(dtor)
@@ -944,8 +934,8 @@ impl ToLabelled for ForHead {
     }
 }
 
-impl ToLabelled for ForInHead {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for ForInHead {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             ForInHead::VarInit(_, ref id, ref expr) =>
                 Unlabelled::Tuple(vec![
@@ -967,8 +957,8 @@ impl ToLabelled for ForInHead {
 }
 
 
-impl ToLabelled for ForOfHead {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for ForOfHead {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             ForOfHead::Var(_, ref pat) =>
                 pat.to_labelled()
@@ -984,8 +974,8 @@ impl ToLabelled for ForOfHead {
     }
 }
 
-impl ToLabelled for PropKey {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for PropKey {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             // Afaict, that's `foo` in `{ foo: bar }`
             PropKey::Id(_, ref string) =>
@@ -1004,8 +994,8 @@ impl ToLabelled for PropKey {
     }
 }
 
-impl ToUnlabelled for Fun {
-    fn to_naked(&self) -> Unlabelled {
+impl ToUnlabelled<Kind> for Fun {
+    fn to_naked(&self) -> Unlabelled<Kind> {
         Unlabelled::Tuple(vec![
             Unlabelled::option(&self.id).into_tree(),
             Labelled::list(&self.params.list).into_tree(),
@@ -1014,8 +1004,8 @@ impl ToUnlabelled for Fun {
     }
 }
 
-impl ToUnlabelled for PropPatt<Id> {
-    fn to_naked(&self) -> Unlabelled {
+impl ToUnlabelled<Kind> for PropPatt<Id> {
+    fn to_naked(&self) -> Unlabelled<Kind> {
         Unlabelled::Tuple(vec![
             self.key.to_labelled().into_tree(),
             self.patt.to_labelled().into_tree()
@@ -1024,8 +1014,8 @@ impl ToUnlabelled for PropPatt<Id> {
 }
 
 
-impl ToUnlabelled for Prop {
-    fn to_naked(&self) -> Unlabelled {
+impl ToUnlabelled<Kind> for Prop {
+    fn to_naked(&self) -> Unlabelled<Kind> {
         Unlabelled::Tuple(vec![
             self.key.to_labelled().into_tree(),
             self.val.to_labelled().into_tree()
@@ -1033,8 +1023,8 @@ impl ToUnlabelled for Prop {
     }
 }
 
-impl ToLabelled for PropVal {
-    fn to_labelled(&self) -> Labelled {
+impl ToLabelled<Kind> for PropVal {
+    fn to_labelled(&self) -> Labelled<Kind>{
         match *self {
             PropVal::Get(_, ref body) =>
                 Labelled::list(body)
@@ -1050,8 +1040,26 @@ impl ToLabelled for PropVal {
     }
 }
 
-impl ToUnlabelled for Script {
-    fn to_naked(&self) -> Unlabelled {
+impl ToUnlabelled<Kind> for Script {
+    fn to_naked(&self) -> Unlabelled<Kind> {
         Labelled::list(&self.body)
+    }
+}
+
+impl Unlabelled<Kind> {
+    fn statement(self, kind: Statement) -> Labelled<Kind> {
+        self.label(Kind::Statement(kind))
+    }
+    fn expression(self, kind: Expression) -> Labelled<Kind> {
+        self.label(Kind::Expression(kind))
+    }
+}
+
+impl SerializeTree<Kind> {
+    fn statement(self, kind: Statement) -> Labelled<Kind> {
+        self.label(Kind::Statement(kind))
+    }
+    fn expression(self, kind: Expression) -> Labelled<Kind> {
+        self.label(Kind::Expression(kind))
     }
 }
