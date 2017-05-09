@@ -2,6 +2,7 @@
 
 extern crate easter;
 extern crate esprit;
+extern crate joker;
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -16,7 +17,7 @@ mod serialize_tree;
 fn main() {
     let args : Vec<_> = std::env::args().collect();
     if args.len() < 3 {
-        println!("Expected use: {} source dest", args[0]);
+        println!("Use: {} source dest", args[0]);
         std::process::exit(1);
     }
 

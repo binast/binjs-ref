@@ -33,25 +33,6 @@ impl<K> Unlabelled<K> where K: Default {
         }
     }
 
-    // Note: We explicitly use `list` rather than deriving `ToUnlabelled`
-    // for `Vec<T>` to avoid ambiguous magic code and to make porting to
-    // other languages simpler.
-    pub fn list<T>(items: &[T]) -> Self where T: ToUnlabelled<K> {
-        Unlabelled::List(items.iter()
-            .map(|item| item.to_naked().into_tree())
-            .collect())
-    }
-
-    // Note: We explicitly use `option` rather than deriving `ToUnlabelled`
-    // for `Option<T>` to avoid ambiguous magic code and to make porting to
-    // other languages simpler.
-    pub fn option<T>(item: &Option<T>) -> Self where T: ToUnlabelled<K> {
-        match *item {
-            None => Unlabelled::Tuple(vec![]),
-            Some(ref some) => some.to_naked()
-        }
-    }
-
     /// Convert into a tree.
     pub fn into_tree(self) -> SerializeTree<K> {
         SerializeTree::Unlabelled(self)
@@ -79,24 +60,6 @@ pub struct Labelled<K> {
 }
 
 impl<K> Labelled<K> {
-    // Note: We explicitly use `list` rather than deriving `ToSerializeTree`
-    // for `Vec<T>` to avoid ambiguous magic code and to make porting to
-    // other languages simpler.
-    pub fn list<T>(items: &[T]) -> Unlabelled<K> where T: ToLabelled<K> {
-        Unlabelled::List(items.iter()
-            .map(|item| item.to_labelled().into_tree())
-            .collect())
-    }
-    // Note: We explicitly use `option` rather than deriving `ToSerializeTree`
-    // for `Option<T>` to avoid ambiguous magic code and to make porting to
-    // other languages simpler.
-    pub fn option<T>(item: &Option<T>) -> Labelled<K> where T: ToLabelled<K>, K: Default {
-        match *item {
-            None => Unlabelled::Tuple(vec![]).label(K::default()),
-            Some(ref some) => some.to_labelled()
-        }
-    }
-
     pub fn into_tree(self) -> SerializeTree<K> {
         SerializeTree::Labelled(self)
     }
@@ -159,26 +122,25 @@ impl<K> SerializeTree<K> where K: Default {
     }
 }
 
-pub trait ToUnlabelled<K> {
-    fn to_naked(&self) -> Unlabelled<K> {
-        unimplemented!()
+pub trait Context {
+}
+
+pub trait ToUnlabelled<K, U> where U: Context {
+    fn to_naked<'a>(&self, env: &'a mut U) -> Unlabelled<K>;
+}
+
+impl<T, K, U> ToUnlabelled<K, U> for Box<T> where T: ToUnlabelled<K, U>, U: Context {
+    fn to_naked<'a>(&self, env: &'a mut U) -> Unlabelled<K> {
+        (self.as_ref()).to_naked(env)
     }
 }
 
-impl<T, K> ToUnlabelled<K> for Box<T> where T: ToUnlabelled<K> {
-    fn to_naked(&self) -> Unlabelled<K> {
-        (self.as_ref()).to_naked()
-    }
+pub trait ToLabelled<K, U> where U: Context {
+    fn to_labelled<'a>(&self, env: &'a mut U) -> Labelled<K>;
 }
 
-pub trait ToLabelled<K> {
-    fn to_labelled(&self) -> Labelled<K> {
-        unimplemented!()
-    }
-}
-
-impl<T, K> ToLabelled<K> for Box<T> where T: ToLabelled<K> {
-    fn to_labelled(&self) -> Labelled<K> {
-        (self.as_ref()).to_labelled()
+impl<T, K, U> ToLabelled<K, U> for Box<T> where T: ToLabelled<K, U>, U: Context {
+    fn to_labelled<'a>(&self, env: &'a mut U) -> Labelled<K> {
+        (self.as_ref()).to_labelled(env)
     }
 }

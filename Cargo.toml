@@ -6,3 +6,4 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 [dependencies]
 easter = "*"
 esprit = "*"
+joker = "*"
