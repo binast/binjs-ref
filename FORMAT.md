@@ -1,6 +1,4 @@
-# Conventions
-
-## Relationship with EcmaScript grammar
+# About the BinJS format
 
 A BinJs file is meant to convey the exact same AST as the EcmaScript grammar,
 with a different concrete syntax, optimized for being parsed by a machine,
@@ -14,12 +12,7 @@ will only ever lose
 
 Everything else should be preserved.
 
-## Variable-length numbers
-
-(aka `Varnum`)
-
-TBD
-
+# Design choices
 
 ## Self-describing node kinds
 
@@ -67,37 +60,146 @@ in the file. Unused node kinds will not occupy any space in the file. A quick
 lookup to the string table will be able to tell whether the file only uses
 node kinds that the parser understands.
 
-## Annotations on nodes
+## `Varnum` (variable-length numbers)
+
+All metadata numbers (e.g. node kinds, string lengths, ...) are represented
+as variable-length 32-bit integers. This ensures that short values (which
+experiments confirm are by a huge margin the most common) take up less binary
+space than rarer longer values. This also ensures that unused node kinds
+do not waste any space in a file.
 
 TBD
 
-## String table
+## Atoms
 
 TBD
 
-# Contents of a .BinJs file
+# Reading a BinJS
 
-## Format header
+To simplify specifications, reading from/writing to BinJS format is specified
+as a series of independent steps. Actual implementations may decide to adopt
+implementation strategies that merge steps, parallelize them, delay them
+until the result is needed, etc.
 
-Rationale: Being sure that we're reading a .BinJs file.
+1. Read the format header.
+2. Read the table of atoms.
+3. Read the table of node kinds.
+4. Read the intermediate tree.
+5. Decode the intermediate tree to an AST.
 
-Format: The characters `BINJS` followed by a version number as a VARNUM, currently 0.
+## 0. Global structure
 
-## Table of atoms
+```
+BinJSFile ::= FormatHeader TableOfAtoms TableOfNodeKinds IntermediateTree
+```
 
-Rationale: Putting all atoms in the same place makes it easier to start parsing
-before having received the entire file. Also, makes the file smaller.
+## 1. Read the format header.
 
-Format: Table of strings.
+Rationale: The format header helps identify that the binary file is indeed
+a BinJS and, if the BinJS format needs to evolve, which version of the format
+is used.
 
-TBD
+```
+FormatHeader ::= 'BINJS' FormatVersion
+FormatVersion ::= VarNum
+```
 
-## Table of node kinds
+For the current version of this specifications, the `FormatVersion` is always 0.
 
-Rationale: See the section on Self-describing node kinds.
+## 2. Read the table of atoms.
 
-Format: Table of strings.
+Rationale: The table of atoms regroups atoms (e.g. literal strings, string
+templates, identifiers, labels) in a single place, ensuring that the BinJS
+file can reference each atom with a single `VarNum`
+and that the parser can
+pre-parse atoms without having to re-hash them at a later stage.
 
-TBD
+```
+TableOfAtoms ::= NumberOfEntries ListOfLengths ListOfString
+NumberOfEntries ::= VarNum
+ListOfLengths ::= VarNum*
+ListOfStrings ::= String*
+String ::= Byte*
+```
 
-## AST
+`NumberOfEntries` represent the total number of atoms in the tree.
+
+Both `ListOfLengths` and `ListOfStrings` contain exactly `NumberOfEntries`.
+
+For each `i` in `[0,NumberOfEntries[`, `ListOfStrings[i]` contains exactly
+`ListOfLengths[i]` bytes.
+
+## 3. Read the table of kinds.
+
+Rationale: The table of node kinds regroups node kinds (e.g. `ArrayExpression`,
+`Regexp`, ...) in a single place, ensuring that the BinJS
+file can reference each kind with a single `VarNum` and that the parser can
+pre-parse atoms without having to re-hash them at a later stage.
+
+```
+TableOfNodeKinds ::= NumberOfEntries ListOfLengths ListOfString
+```
+
+`NumberOfEntries` represent the total number of atoms in the tree.
+
+Both `ListOfLengths` and `ListOfStrings` contain exactly `NumberOfEntries`.
+
+For each `i` in `[0,NumberOfEntries[`, `ListOfStrings[i]` contains exactly
+`ListOfLengths[i]` bytes.
+
+For each `i` in `[0,NumberOfEntries[`, `ListOfStrings[i]` MUST be a node kind
+understood by the parser.
+
+## 4. Read the intermediate tree
+
+Rationale: Specifying the encoding/decoding of a trivial tree that is neutral
+with respect to the version of JavaScript is simpler than specifying the
+encoding/decoding of a specific JavaScript grammar.
+
+```
+IntermediateTree ::= UnlabelledTree
+                  |  LabelledTree
+UnlabelledTree   ::= RawFloat64
+                  |  RawByte
+                  |  Atom
+                  |  Tuple
+                  |  List
+LabelledTree     ::= NodeKind UnlabelledTree
+RawFloat64       ::= (one IEEE-754 double-precision floating-point)
+RawByte          ::= (a single byte)
+Atom             ::= VarNum
+Tuple            ::= ByteLength IntermediateTree*
+List             ::= ByteLength NumberOfEntries IntermediateTree*
+ByteLength       ::= VarNum
+NodeKind         ::= VarNum
+```
+
+Productions `RawFloat`, `RawByte` and `Atom` are considered short
+and are not prefixed by their length. Productions `Tuple` and `List` are
+considered more complex and are prefixed by their byte length.
+
+// FIXME: Perhaps we should only prefix `LabelledTree` by the byte length?
+
+Both `Tuple` and `List` represent several intermediate trees. The only
+difference is that `Tuple` is designed for constructions that have a fixed
+number of children (e.g. `IfStatement` always has three children, even if
+some may be undefined) while `List` is designed for constructions that have
+a variable number of children (e.g. `CaseClauses` may contain an arbitrary
+number of clauses).
+
+In both `Tuple` and `List`, `ByteLength` represents the total length of the
+rest of the production. In the case of `List`, this includes `NumberOfEntries`.
+
+The specifications of `RawFloat64` may be found here: https://en.wikipedia.org/wiki/Double-precision_floating-point_format
+
+The value of `Atom` is taken as an index in table `ListOfStrings` read in step 2.
+
+The value of `NodeKind` is taken as an index in table `ListOfStrings` read in step 3.
+
+## 5. Extracting EcmaScript grammar
+
+// FIXME: Specify the step in which we replace `Atom` and `NodeKind` by the
+// corresponding values taken from their table.
+
+// FIXME: Turn this into pseudo-code.
+
