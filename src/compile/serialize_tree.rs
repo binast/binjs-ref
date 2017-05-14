@@ -13,6 +13,9 @@ pub enum Unlabelled<T> {
     /// One raw byte.
     RawByte(u8),
 
+    /// A raw floating value.
+    RawFloat(f64),
+
     /// A node with a number of children determined by the grammar.
     /// Length will NOT be written to the file. Can have 0 children.
     Tuple(Vec<SerializeTree<T>>),
@@ -66,6 +69,10 @@ impl<K> Labelled<K> {
 
     pub fn kind(&self) -> &K {
         &self.kind
+    }
+
+    pub fn tree(&self) -> &Unlabelled<K> {
+        &self.tree
     }
 }
 

@@ -1,9 +1,7 @@
-use atoms::*;
 use compile::serialize_tree::*;
 use compile::serialize_tree;
-use compile::serialize_tree::Context;
+use compile::env::Env;
 use kind::*;
-use varnum::*;
 
 use easter::decl::*;
 use easter::expr::*;
@@ -15,148 +13,19 @@ use easter::prog::*;
 use easter::punc::*;
 use easter::stmt::*;
 
-use std;
-use std::collections::HashSet;
-use std::io::Write;
-use std::cell::RefCell;
-use std::rc::Rc;
-
-pub struct EnvNode {
-    let_declarations: HashSet<String>,
-    var_declarations: HashSet<String>,
-    looks_like_direct_eval: bool,
-    link: EnvLink
-}
-impl EnvNode {
-    fn new(link: EnvLink) -> Self {
-        EnvNode {
-            let_declarations: HashSet::new(),
-            var_declarations: HashSet::new(),
-            looks_like_direct_eval: false,
-            link
-        }
-    }
-}
-pub enum EnvLink {
-    Toplevel,
-    Function(Env),
-    Block(Env)
-}
-#[derive(Clone)]
-pub struct Env(Rc<RefCell<EnvNode>>);
-impl Drop for Env {
-    fn drop(&mut self) {
-        use self::EnvLink::*;
-        let mut borrow = self.0.borrow_mut();
-        if let EnvNode {
-            link: EnvLink::Block(ref mut parent),
-            ref mut var_declarations,
-            ..
-        } = *borrow {
-            if self.looks_like_direct_eval() {
-                // Propagate `eval`, `var` to parent.
-                parent.add_eval()
-            }
-            let ref mut parent_var_declarations = parent.0
-                .borrow_mut()
-                .var_declarations;
-            for x in var_declarations.drain() {
-                parent_var_declarations.insert(x);
-            }
-        }
-    }
-}
 impl Env {
-    fn new(link: EnvLink) -> Self {
-        Env(Rc::new(RefCell::new(EnvNode::new(link))))
-    }
-
-    pub fn toplevel() -> Self {
-        Env::new(EnvLink::Toplevel)
-    }
-
-    /// Enter a function. Every variable
-    /// declaration local to the function
-    /// (e.g. pattern, `let`, `var`, `const`,
-    /// arguments) is dropped when we leave
-    /// the function. Other declarations
-    /// are unaffected.
-    fn enter_function(&mut self) -> Env {
-        Env::new(EnvLink::Function(self.clone()))
-    }
-
-    /// Enter a block. Every variable
-    /// declaration local to the block
-    /// (e.g. `let`) is dropped when we leave
-    /// the block. Other declarations are
-    /// unaffected.
-    fn enter_block(&mut self) -> Self {
-        Env::new(EnvLink::Block(self.clone()))
-    }
-
-    fn add_binding<'b>(&mut self, binding: &IdUsage<'b, Id>) {
-        use self::IdUsageKind::*;
-        match binding.kind {
-            Let => {
-                // Add to current block.
-                self.0
-                    .borrow_mut()
-                    .let_declarations
-                    .insert(binding.data.name.clone().into_string());
-            },
-            Var => {
-                // Add to current block, then to parent.
-                {
-                    self.0
-                        .borrow_mut()
-                        .var_declarations
-                        .insert(binding.data.name.clone().into_string());
-                }
-                use self::EnvLink::*;
-                match self.0.borrow_mut().link {
-                    Function(ref mut parent)
-                    | Block(ref mut parent) =>
-                        parent.add_binding(binding),
-                    _ => {}
-                }
-            }
-            // FIXME: Double-check, but it looks like other declarations are just ignored.
-            _ => {}
-        }
-    }
-
-    fn looks_like_direct_eval(&self) -> bool {
-        let borrow = self.0.borrow();
-        borrow.looks_like_direct_eval
-        && !borrow.let_declarations.contains("eval")
-        && !borrow.var_declarations.contains("eval")
-    }
-
-
     /// Export the context for the block (both
     /// lexically declared names and var-declared names).
     fn to_block_naked(&self) -> Unlabelled<Kind> {
-        let mut let_names : Vec<_> = self.0
-            .borrow_mut()
-            .let_declarations
-            .iter()
-            .cloned()
-            .collect();
-        let_names.sort();
-        let mut var_names : Vec<_> = self.0
-            .borrow_mut().
-            var_declarations
-            .iter()
-            .cloned()
-            .collect();
-        var_names.sort();
-        let let_list = Unlabelled::List(let_names
+        let let_list = Unlabelled::List(
+            self.let_declarations()
             .iter()
             .cloned()
             .map(Unlabelled::Atom)
             .map(Unlabelled::into_tree)
             .collect());
-        let var_list = Unlabelled::List(let_names
+        let var_list = Unlabelled::List(
+            self.var_declarations()
             .iter()
             .cloned()
             .map(Unlabelled::Atom)
@@ -183,31 +52,12 @@ impl Env {
             keys.into_tree()
         ])
     }
-
-    /// Mark that we have been calling `eval(...)`.
-    ///
-    /// Note that this does NOT mean that we have a direct call to
-    /// `eval`. We only find this out when we leave the block/function
-    /// and we find out that `eval` has not been bound.
-    fn add_eval(&mut self) {
-        self.0.borrow_mut().looks_like_direct_eval = true
-    }
 }
 
 
 impl<'a> serialize_tree::Context for Env {
 }
 
-fn bytes_for_number<K>(value: f64) -> Vec<SerializeTree<K>> {
-    assert!(std::mem::size_of_val(&value) == std::mem::size_of::<[u8;8]>());
-    // FIXME: This makes assumptions on endianness.
-    let bytes = unsafe { std::mem::transmute::<_, [u8;8]>(value) };
-    bytes.iter()
-        .cloned()
-        .map(Unlabelled::RawByte)
-        .map(SerializeTree::Unlabelled)
-        .collect()
-}
 
 
 impl<'a> ToLabelled<Kind, Env> for StmtListItem {
@@ -351,76 +201,6 @@ impl<'a> ToLabelled<Kind, Env> for Stmt {
     }
 }
 
-/// A data structure used to represent uses of an id.
-///
-/// The `Context` uses this to determine whether the id represents
-/// a declaration or a use, and whether it is lexically scoped.
-struct IdUsage<'a, T> where T: 'a {
-    kind: IdUsageKind,
-    data: &'a T
-}
-#[derive(Clone)]
-enum IdUsageKind {
-    /// `var foo;`
-    Var,
-    /// `let foo;`
-    Let,
-    /// `foo:` or `break foo` or `continue foo`
-    Label,
-    /// `foo` (in an expression)
-    Usage,
-    /// `function(foo) {}`
-    Argument,
-    /// `function foo() {}`
-    FunDecl
-}
-impl<'a, T> IdUsage<'a, T> {
-    fn propagate<U>(&self, data: &'a U) -> IdUsage<'a, U> where U: 'a {
-        IdUsage {
-            data,
-            kind: self.kind.clone()
-        }
-    }
-    fn data(&self) -> &'a T {
-        self.data
-    }
-    fn lex(data: &'a T) -> Self {
-        IdUsage {
-            kind: IdUsageKind::Let,
-            data
-        }
-    }
-    fn var(data: &'a T) -> Self {
-        IdUsage {
-            kind: IdUsageKind::Var,
-            data
-        }
-    }
-    fn label(data: &'a T) -> Self {
-        IdUsage {
-            kind: IdUsageKind::Label,
-            data
-        }
-    }
-    fn usage(data: &'a T) -> Self {
-        IdUsage {
-            kind: IdUsageKind::Usage,
-            data
-        }
-    }
-    fn arg(data: &'a T) -> Self {
-        IdUsage {
-            kind: IdUsageKind::Argument,
-            data
-        }
-    }
-    fn fun_decl(data: &'a T) -> Self {
-        IdUsage {
-            kind: IdUsageKind::FunDecl,
-            data
-        }
-    }
-}
 
 impl<'a, 'b> ToLabelled<Kind, Env> for IdUsage<'b, Dtor>  {
     fn to_labelled(&self, env: &mut Env) -> Labelled<Kind> {
@@ -428,7 +208,7 @@ impl<'a, 'b> ToLabelled<Kind, Env> for IdUsage<'b, Dtor>  {
 // Trying to follow Esprima. When parsing to Esprit, we'll use the label of `id`/`pat` to
 // differentiate between Simple and Compound. When parsing to Esprima, it's actually the same node.
 
-        match *self.data {
+        match *self.data() {
             Dtor::Simple(_, ref id, ref expr) => {
                 Unlabelled::Tuple(vec![
                     self.propagate(id).to_naked(env).label(Kind::Name).into_tree(),
@@ -705,15 +485,14 @@ impl<'a> ToLabelled<Kind, Env> for Expr {
                 ]).expression(Expression::RegExp)
             },
             Expr::Number(_, ref number) => {
-                let tuple = bytes_for_number(number.value);
-                Unlabelled::Tuple(tuple).expression(Expression::Number)
+                Unlabelled::RawFloat(number.value).expression(Expression::Number)
             }
         }
     }
 }
 
 impl<'a> ToUnlabelled<Kind, Env> for DotKey {
-    fn to_naked(&self, env: &mut Env) -> Unlabelled<Kind> {
+    fn to_naked(&self, _: &mut Env) -> Unlabelled<Kind> {
         Unlabelled::Atom(self.value.clone())
     }
 }
@@ -834,7 +613,7 @@ impl<'a> ToLabelled<Kind, Env> for ForOfHead {
 }
 
 impl<'a> ToLabelled<Kind, Env> for PropKey {
-    fn to_labelled(&self, env: &mut Env) -> Labelled<Kind>{
+    fn to_labelled(&self, _: &mut Env) -> Labelled<Kind>{
         match *self {
             // Afaict, that's `foo` in `{ foo: bar }`
             PropKey::Id(_, ref string) =>
@@ -845,8 +624,7 @@ impl<'a> ToLabelled<Kind, Env> for PropKey {
                 Unlabelled::Atom(literal.value.clone())
                     .expression(Expression::String),
             PropKey::Number(_, ref literal) => {
-                let tuple = bytes_for_number(literal.value);
-                Unlabelled::Tuple(tuple)
+                Unlabelled::RawFloat(literal.value)
                     .expression(Expression::Number)
             }
         }
