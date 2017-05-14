@@ -1,9 +1,8 @@
-
 use atoms::*;
+use compile::serialize_tree::*;
+use compile::serialize_tree;
+use compile::serialize_tree::Context;
 use kind::*;
-use serialize_tree::*;
-use serialize_tree;
-use serialize_tree::Context;
 use varnum::*;
 
 use easter::decl::*;
@@ -22,7 +21,7 @@ use std::io::Write;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-struct EnvNode {
+pub struct EnvNode {
     let_declarations: HashSet<String>,
     var_declarations: HashSet<String>,
     looks_like_direct_eval: bool,
@@ -38,13 +37,13 @@ impl EnvNode {
         }
     }
 }
-enum EnvLink {
+pub enum EnvLink {
     Toplevel,
     Function(Env),
     Block(Env)
 }
 #[derive(Clone)]
-struct Env(Rc<RefCell<EnvNode>>);
+pub struct Env(Rc<RefCell<EnvNode>>);
 impl Drop for Env {
     fn drop(&mut self) {
         use self::EnvLink::*;
@@ -71,7 +70,8 @@ impl Env {
     fn new(link: EnvLink) -> Self {
         Env(Rc::new(RefCell::new(EnvNode::new(link))))
     }
-    fn toplevel() -> Self {
+
+    pub fn toplevel() -> Self {
         Env::new(EnvLink::Toplevel)
     }
 
@@ -190,15 +190,12 @@ impl Env {
     /// `eval`. We only find this out when we leave the block/function
     /// and we find out that `eval` has not been bound.
     fn add_eval(&mut self) {
-        unimplemented!();
+        self.0.borrow_mut().looks_like_direct_eval = true
     }
 }
 
 
 impl<'a> serialize_tree::Context for Env {
-/*    fn as_ref(&mut self) -> &mut Self {
-        unsafe { std::mem::transmute::<&mut Self, &mut Self>(self) } // FIXME: Test
-    }*/
 }
 
 fn bytes_for_number<K>(value: f64) -> Vec<SerializeTree<K>> {
@@ -211,56 +208,6 @@ fn bytes_for_number<K>(value: f64) -> Vec<SerializeTree<K>> {
         .map(SerializeTree::Unlabelled)
         .collect()
 }
-
-
-
-
-
-pub fn compile<T>(ast: &Script, out: &mut T) -> Result<usize, std::io::Error> where T: Write {
-    let mut env = Env::new(EnvLink::Toplevel);
-
-    // 1. Generate tree.
-    let tree = SerializeTree::Unlabelled(ast.to_naked(&mut env));
-        // FIXME: Before any kind of release, we'd need to add the following features:
-        // - collecting free variables and annotating functions with them
-        // - collecting immediate uses of `eval` and annotating functions with them
-
-    // Total bytes written.
-    let mut bytes = 0;
-
-    // Write header.
-    bytes += out.write(b"BINJS")?;
-    bytes += out.write_varnum(0)?;
-
-    // 2. Collect atoms into an atoms table.
-    let mut atoms = AtomsTableInitializer::new();
-    tree.walk_unlabelled(&mut |item| {
-        if let Unlabelled::Atom(ref s) = *item {
-            atoms.add(s.clone())
-        }
-    });
-
-    // 3. Write atoms table (first the lengths, then the table)
-    let atoms = atoms.compile();
-    bytes += atoms.write(out)?;
-
-    // 4. Collect kinds into an atoms table.
-    let mut kinds = AtomsTableInitializer::new();
-    tree.walk_labelled(&mut |item| {
-        kinds.add(*item.kind());
-    });
-
-    // 5. Write kinds table
-    let kinds = kinds.compile();
-    bytes += kinds.write(out)?;
-
-    // FIXME: 6. Write `tree`, substituting
-    // kinds to `kinds` and atoms to `atoms`.
-    unimplemented!();
-    Ok(bytes)
-}
-
-
 
 
 impl<'a> ToLabelled<Kind, Env> for StmtListItem {

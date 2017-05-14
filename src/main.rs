@@ -7,12 +7,10 @@ extern crate joker;
 use std::fs::File;
 use std::io::prelude::*;
 
-// mod esprima;
 mod atoms;
+mod compile;
 mod kind;
-mod serialize;
 mod varnum;
-mod serialize_tree;
 
 fn main() {
     let args : Vec<_> = std::env::args().collect();
@@ -34,5 +32,5 @@ fn main() {
 
     let mut out = File::create(dest_path).expect("Could not open destination file.");
     println!("Compiling...");
-    serialize::compile(&script, &mut out).unwrap();
+    compile::compile(&script, &mut out).unwrap();
 }
