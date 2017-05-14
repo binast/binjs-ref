@@ -8,13 +8,13 @@ use atoms::*;
 use varnum::*;
 use self::serialize_tree::*;
 use self::to_binary::*;
-use self::to_serialize_tree::*;
 
 use easter::prog::*;
 
 use std;
 
-pub fn compile<T>(ast: &Script, out: &mut T) -> Result<usize, std::io::Error> where T: std::io::Write {
+/// Write an AST to a BinJS stream.
+pub fn write<T>(ast: &Script, out: &mut T) -> Result<usize, std::io::Error> where T: std::io::Write {
     let mut env = env::Env::toplevel();
 
     // 1. Generate tree.

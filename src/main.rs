@@ -32,5 +32,5 @@ fn main() {
 
     let mut out = File::create(dest_path).expect("Could not open destination file.");
     println!("Compiling...");
-    compile::compile(&script, &mut out).unwrap();
+    compile::write(&script, &mut out).unwrap();
 }

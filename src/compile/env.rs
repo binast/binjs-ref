@@ -32,7 +32,6 @@ enum EnvLink {
 pub struct Env(Rc<RefCell<EnvNode>>);
 impl Drop for Env {
     fn drop(&mut self) {
-        use self::EnvLink::*;
         let mut borrow = self.0.borrow_mut();
         if let EnvNode {
             link: EnvLink::Block(ref mut parent),
