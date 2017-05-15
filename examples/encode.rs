@@ -1,16 +1,8 @@
-#![feature(const_fn)]
-
-extern crate easter;
 extern crate esprit;
-extern crate joker;
+extern crate binjs;
 
 use std::fs::File;
 use std::io::prelude::*;
-
-mod atoms;
-mod compile;
-mod kind;
-mod varnum;
 
 fn main() {
     let args : Vec<_> = std::env::args().collect();
@@ -32,5 +24,9 @@ fn main() {
 
     let mut out = File::create(dest_path).expect("Could not open destination file.");
     println!("Compiling...");
-    compile::write(&script, &mut out).unwrap();
+    let bytes = binjs::compile::write(&script, &mut out).unwrap();
+
+    println!("Rewrote {} bytes as {} bytes",
+        source_text.len(),
+        bytes);
 }

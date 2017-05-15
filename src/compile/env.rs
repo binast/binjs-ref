@@ -22,7 +22,14 @@ impl EnvNode {
             link
         }
     }
+
+    fn looks_like_direct_eval(&self) -> bool {
+        self.looks_like_direct_eval
+        && !self.let_declarations.contains("eval")
+        && !self.var_declarations.contains("eval")
+    }
 }
+
 enum EnvLink {
     Toplevel,
     Function(Env),
@@ -33,12 +40,13 @@ pub struct Env(Rc<RefCell<EnvNode>>);
 impl Drop for Env {
     fn drop(&mut self) {
         let mut borrow = self.0.borrow_mut();
+        let looks_like_direct_eval = borrow.looks_like_direct_eval();
         if let EnvNode {
             link: EnvLink::Block(ref mut parent),
             ref mut var_declarations,
             ..
         } = *borrow {
-            if self.looks_like_direct_eval() {
+            if looks_like_direct_eval {
                 // Propagate `eval`, `var` to parent.
                 parent.add_eval()
             }
@@ -112,9 +120,7 @@ impl Env {
 
     pub fn looks_like_direct_eval(&self) -> bool {
         let borrow = self.0.borrow();
-        borrow.looks_like_direct_eval
-        && !borrow.let_declarations.contains("eval")
-        && !borrow.var_declarations.contains("eval")
+        borrow.looks_like_direct_eval()
     }
 
     pub fn let_declarations(&self) -> Vec<String> {

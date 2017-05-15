@@ -1,5 +1,5 @@
 [package]
-name = "implem"
+name = "binjs"
 version = "0.1.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 
