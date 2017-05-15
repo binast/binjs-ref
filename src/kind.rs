@@ -3,9 +3,11 @@
 // of `Kind` are fewer than 128, as we can fit this in a single VarNum byte. If this is not
 // the case, consider using several pools (e.g. one for Statement, one for VarDecl, ...).
 // This is more accident-prone.
-use atoms::ToBytes;
+use atoms::{ FromBytes, ToBytes };
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+use std;
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum Kind {
     Empty,
     Statement(Statement),
@@ -15,12 +17,12 @@ pub enum Kind {
     FunDecl,
     Name,
 }
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum BindingPattern {
     Array,
     Object,
 }
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum Variable {
     Var,
     Let,
@@ -29,7 +31,7 @@ pub enum Variable {
     Get,
     Set,
 }
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum Statement {
     Block,
     Expression,
@@ -50,7 +52,7 @@ pub enum Statement {
     ForOf,
     Debugger,
 }
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum Expression {
     This,
     Array,
@@ -143,7 +145,26 @@ impl ToBytes for Kind {
         str.to_bytes()
     }
 }
-
+impl FromBytes for Kind {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, std::io::Error> {
+        Self::from_str(&String::from_bytes(bytes)?)
+    }
+}
+impl Kind {
+    fn from_str(string: &str) -> Result<Self, std::io::Error> {
+        use self::Kind::*;
+        match string {
+            "" => return Ok(Empty),
+            "FunctionDeclaration" => return Ok(FunDecl),
+            "Identifier" => return Ok(Name),
+            _ => {}
+        }
+        self::Statement::from_str(string).map(Statement)
+            .or_else(|_| Variable::from_str(string).map(VarDecl))
+            .or_else(|_| self::BindingPattern::from_str(string).map(BindingPattern))
+            .or_else(|_| self::Expression::from_str(string).map(Expression))
+    }
+}
 impl ToBytes for Statement {
     fn to_bytes(&self) -> Vec<u8> {
         use self::Statement::*;
@@ -170,7 +191,32 @@ impl ToBytes for Statement {
         str.to_bytes()
     }
 }
-
+impl Statement {
+    fn from_str(str: &str) -> Result<Self, std::io::Error> {
+        use self::Statement::*;
+        match str {
+            "BlockStatement" => Ok(Block),
+            "ExpressionStatement" => Ok(Expression),
+            "VariableDeclaration" => Ok(VariableDeclaration),
+            "IfStatement" => Ok(IfThenElse),
+            "LabeledStatement" => Ok(Label),
+            "BreakStatement" => Ok(Break),
+            "ContinueStatement" => Ok(Cont),
+            "WithStatement" => Ok(With),
+            "SwitchStatement" => Ok(Switch),
+            "ReturnStatement" => Ok(Return),
+            "ThrowStatement" => Ok(Throw),
+            "TryStatement" => Ok(Try),
+            "WhileStatement" => Ok(While),
+            "DoWhileStatement" => Ok(DoWhile),
+            "ForStatement" => Ok(For),
+            "ForInStatement" => Ok(ForIn),
+            "ForOfStatement" => Ok(ForOf),
+            "DebuggerStatement" => Ok(Debugger),
+            _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Not a Statement"))
+        }
+    }
+}
 impl ToBytes for Variable {
     fn to_bytes(&self) -> Vec<u8> {
         use self::Variable::*;
@@ -185,7 +231,20 @@ impl ToBytes for Variable {
         str.to_bytes()
     }
 }
-
+impl Variable {
+    fn from_str(str: &str) -> Result<Self, std::io::Error> {
+        use self::Variable::*;
+        match str {
+            "var" => Ok(Var),
+            "let" => Ok(Let),
+            // "const" => Ok(Const),
+            "get" => Ok(Get),
+            "set" => Ok(Set),
+            "init" => Ok(VarInit),
+            _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Not a Variable"))
+        }
+    }
+}
 impl ToBytes for BindingPattern {
     fn to_bytes(&self) -> Vec<u8> {
         use self::BindingPattern::*;
@@ -194,6 +253,16 @@ impl ToBytes for BindingPattern {
             Object => "ObjectPattern",
         };
         str.to_bytes()
+    }
+}
+impl BindingPattern {
+    fn from_str(str: &str) -> Result<Self, std::io::Error> {
+        use self::BindingPattern::*;
+        match str {
+            "ArrayPattern" => Ok(Array),
+            "ObjectPattern" => Ok(Object),
+            _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Not a BindingPattern"))
+        }
     }
 }
 
@@ -209,7 +278,7 @@ impl ToBytes for Expression {
             UnaryMinus => "Unary-",
             UnaryPlus => "Unary+",
             UnaryNot => "~",
-            UnaryBitNot => "~",
+            UnaryBitNot => "Unary~",
             UnaryTypeof => "typeof",
             UnaryVoid => "void",
             UnaryDelete => "delete",
@@ -265,6 +334,76 @@ impl ToBytes for Expression {
             String => "StringLiteral",
         };
         str.to_bytes()
+    }
+}
+impl Expression {
+    fn from_str(str: &str) -> Result<Self, std::io::Error> {
+        use self::Expression::*;
+        match str {
+            "ThisExpression" => Ok(This),
+            "ArrayExpression" => Ok(Array),
+            "ObjectExpression" => Ok(Object),
+            "FunctionExpression" => Ok(Function),
+            "SequenceExpression" => Ok(Sequence),
+            "Unary-" => Ok(UnaryMinus),
+            "Unary+" => Ok(UnaryPlus),
+            "~" => Ok(UnaryNot),
+            "Unary~" => Ok(UnaryBitNot),
+            "typeof" => Ok(UnaryTypeof),
+            "void" => Ok(UnaryVoid),
+            "delete" => Ok(UnaryDelete),
+            "==" => Ok(Eq),
+            "!=" => Ok(NEq),
+            "===" => Ok(StrictEq),
+            "!==" => Ok(StrictNEq),
+            "<" => Ok(Lt),
+            "<=" => Ok(LEq),
+            ">" => Ok(Gt),
+            ">=" => Ok(GEq),
+            "<<" => Ok(LShift),
+            ">>" => Ok(RShift),
+            ">>>" => Ok(URShift),
+            "+" => Ok(Plus),
+            "-" => Ok(Minus),
+            "*" => Ok(Times),
+            "/" => Ok(Div),
+            "%" => Ok(Mod),
+            "|" => Ok(BitOr),
+            "^" => Ok(BitXor),
+            "&" => Ok(BitAnd),
+            "in" => Ok(In),
+            "instanceof" => Ok(Instanceof),
+            "||" => Ok(LogOr),
+            "&&" => Ok(LogAnd),
+            "++_" => Ok(PreInc),
+            "_++" => Ok(PostInc),
+            "--_" => Ok(PreDec),
+            "_--" => Ok(PostDec),
+            "=" => Ok(Assign),
+            "+=" => Ok(PlusEq),
+            "-=" => Ok(MinusEq),
+            "*=" => Ok(TimesEq),
+            "/=" => Ok(DivEq),
+            "%=" => Ok(ModEq),
+            "<<=" => Ok(LShiftEq),
+            ">>=" => Ok(RShiftEq),
+            ">>>=" => Ok(URShiftEq),
+            "|=" => Ok(BitOrEq),
+            "^=" => Ok(BitXorEq),
+            "&=" => Ok(BitAndEq),
+            "ConditionalExpression" => Ok(Conditional),
+            "CallExpression" => Ok(Call),
+            "NewExpression" => Ok(New),
+            "MemberExpression" => Ok(Member),
+            "NewTargetExpression" => Ok(NewTarget), // FIXME: No clue what this is.
+            "true" => Ok(True),
+            "false" => Ok(False),
+            "null" => Ok(Null),
+            "NumberLiteral" => Ok(Number),
+            "RegexpLiteral" => Ok(RegExp),
+            "StringLiteral" => Ok(String),
+            _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Not a Expression"))
+        }
     }
 }
 

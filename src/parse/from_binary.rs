@@ -2,11 +2,18 @@ use kind::*;
 
 use std::io::*;
 
-pub struct TreeReader<T> where T: Read {
-    reader: T
+pub struct TreeReader<'a, T> where T: Read + 'a {
+    reader: &'a mut T
+}
+impl<'a, T> TreeReader<'a, T> where T: Read + 'a {
+    pub fn new(reader: &'a mut T) -> Self {
+        TreeReader {
+            reader
+        }
+    }
 }
 
-impl<T> TreeReader<T> where T: Read {
+impl<'a, T> TreeReader<'a, T> where T: Read {
     pub fn read_raw_byte(&mut self) -> Result<u8> {
         unimplemented!()
     }
