@@ -8,6 +8,19 @@ use easter::prog::*;
 
 use std;
 use std::io::*;
+use std::rc::Rc;
+
+impl FromBytes for Rc<String> {
+    fn from_bytes(bytes: &[u8]) -> std::result::Result<Self, Error> {
+        String::from_bytes(bytes).map(Rc::new)
+    }
+}
+
+impl ToBytes for Rc<String> {
+    fn to_bytes(&self) -> Vec<u8> {
+        return self.as_ref().to_bytes()
+    }
+}
 
 /// Read a BinJS stream into an AST
 // FIXME: Improve error handling.
@@ -34,19 +47,16 @@ pub fn read<T>(src: &mut T) -> Result<(usize, Script)> where T: Read {
     }
 
     // 2. Read strings table
-    let (bytes_strings, strings_table) = AtomsTable::<String>::read_index(src)?;
+    let (bytes_strings, strings_table) = AtomsTable::<Rc<String>>::read_index(src)?;
     bytes += bytes_strings;
 
-    // 3. Read kings table
+    // 3. Read kinds table
     let (bytes_kinds, kinds_table) = AtomsTable::<Kind>::read_index(src)?;
     bytes += bytes_kinds;
 
+    // 4. Actually parse script
     let mut tree_reader = from_binary::TreeReader::new(src, &strings_table, &kinds_table);
-    let (bytes_script, script) = tree_reader.parse_script()?;
-    bytes += bytes_script;
-
-    // FIXME: Start parsing tree
-    unimplemented!();
+    let script = tree_reader.parse_script()?.count(&mut bytes);
 
     Ok((bytes, script))
 }

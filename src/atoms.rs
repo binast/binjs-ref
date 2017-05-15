@@ -47,10 +47,10 @@ impl<T> AtomsTableInitializer<T> where T: ToBytes + Eq + Hash + Clone {
             a.1.cmp(&b.1)
         });
 
-        let mut from_key: HashMap<u32, Vec<u8>> = HashMap::with_capacity(entries.len());
+        let mut from_key: HashMap<u32, T> = HashMap::with_capacity(entries.len());
         let mut to_key: HashMap<T, u32> = HashMap::with_capacity(entries.len());
         for (entry, i) in entries.iter().zip(0..) {
-            assert!(from_key.insert(i, entry.0.to_bytes()).is_none());
+            assert!(from_key.insert(i, entry.0.clone()).is_none());
             assert!(to_key.insert(entry.0.clone(), i).is_none());
         }
         AtomsTable {
@@ -60,16 +60,17 @@ impl<T> AtomsTableInitializer<T> where T: ToBytes + Eq + Hash + Clone {
     }
 }
 
-pub struct AtomsTable<T> where T: Eq + Hash {
-    from_key: HashMap<u32, Vec<u8>>,
+// FIXME: We should probably split the reading part from the writing part
+pub struct AtomsTable<T> where T: Eq + Hash + ToBytes {
+    from_key: HashMap<u32, T>,
     to_key: HashMap<T, u32>,
 }
-impl<T> AtomsTable<T> where T: Eq + Hash {
+impl<T> AtomsTable<T> where T: Eq + Hash + ToBytes {
     fn len(&self) -> u32 {
         self.from_key.len() as u32
     }
 
-    pub fn get(&self, key: u32) -> Option<&Vec<u8>> {
+    pub fn get(&self, key: u32) -> Option<&T> {
         self.from_key.get(&key)
     }
     pub fn get_key(&self, value: &T) -> Option<u32> {
@@ -88,15 +89,17 @@ impl<T> AtomsTable<T> where T: Eq + Hash {
         let mut bytes = 0;
         bytes += out.write_varnum(self.len())?;
         for atom in self.from_key.values() {
-            bytes += out.write_varnum(atom.len() as u32)?;
+            let data = atom.to_bytes();
+            bytes += out.write_varnum(data.len() as u32)?;
         }
         for atom in self.from_key.values() {
-            bytes += out.write(&atom)?;
+            let data = atom.to_bytes();
+            bytes += out.write(&data)?;
         }
         Ok(bytes)
     }
 
-    pub fn read_index<U>(src: &mut U) -> Result<(usize, Self), Error> where U: Read, T: FromBytes + Debug {
+    pub fn read_index<U>(src: &mut U) -> Result<(usize, Self), Error> where U: Read, T: FromBytes + Debug + ToBytes + Clone {
         let mut bytes = 0;
 
         // Read number of entries.
@@ -114,8 +117,8 @@ impl<T> AtomsTable<T> where T: Eq + Hash {
         }
 
         // Read actual entries.
-        let mut from_key = HashMap::with_capacity(number_of_entries);
-        let mut to_key = HashMap::with_capacity(number_of_entries);
+        let mut from_key : HashMap<u32, T> = HashMap::with_capacity(number_of_entries);
+        let mut to_key : HashMap<T, u32> = HashMap::with_capacity(number_of_entries);
         for i in 0..number_of_entries {
             let length_of_entry = byte_lengths[i];
             let mut buf = Vec::with_capacity(length_of_entry);
@@ -125,12 +128,12 @@ impl<T> AtomsTable<T> where T: Eq + Hash {
 
             let data = T::from_bytes(&buf)?;
 
-            if let Some(_) = to_key.insert(data, i as u32) {
+            if let Some(_) = to_key.insert(data.clone(), i as u32) {
                 // Duplicate entry, that's bad.
                 return Err(Error::new(ErrorKind::InvalidData, "Duplicate entry"));
             }
 
-            assert!(from_key.insert(i as u32, buf).is_none());
+            assert!(from_key.insert(i as u32, data).is_none());
         }
 
         // Build maps

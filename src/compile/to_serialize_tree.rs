@@ -12,6 +12,7 @@ use easter::patt::*;
 use easter::prog::*;
 use easter::punc::*;
 use easter::stmt::*;
+use joker;
 
 impl Env {
     /// Export the context for the block (both
@@ -635,12 +636,17 @@ impl<'a> ToUnlabelled<Kind, Env> for Fun {
     fn to_naked<'b>(&self, env: &'b mut Env) -> Unlabelled<Kind> {
         let mut env = env.enter_function();
         // 1. Evaluate the children.
-        let id = match self.id {
-            None => SerializeTree::empty(),
-            Some(ref id) => IdUsage::fun_decl(id)
-                .to_naked(&mut env)
-                .into_tree()
+        let default_id = Id {
+            location: None,
+            name: joker::word::Name::String("".to_string())
         };
+        let id = match self.id {
+            None => &default_id,
+            Some(ref id) => id
+        };
+        let id = IdUsage::fun_decl(id)
+            .to_naked(&mut env)
+            .into_tree();
         let mut list = Vec::with_capacity(self.params.list.len());
         for param in &self.params.list {
             list.push(IdUsage::arg(param)
