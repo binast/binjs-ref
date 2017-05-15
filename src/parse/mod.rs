@@ -9,9 +9,9 @@ use easter::prog::*;
 use std;
 use std::io::*;
 
-/// Write an AST to a BinJS stream.
+/// Read a BinJS stream into an AST
 // FIXME: Improve error handling.
-pub fn read<T>(src: &mut T) -> Result<usize> where T: Read {
+pub fn read<T>(src: &mut T) -> Result<(usize, Script)> where T: Read {
     let mut bytes = 0;
 
     // 1. Read header
@@ -41,8 +41,12 @@ pub fn read<T>(src: &mut T) -> Result<usize> where T: Read {
     let (bytes_kinds, kinds_table) = AtomsTable::<Kind>::read_index(src)?;
     bytes += bytes_kinds;
 
+    let mut tree_reader = from_binary::TreeReader::new(src, &strings_table, &kinds_table);
+    let (bytes_script, script) = tree_reader.parse_script()?;
+    bytes += bytes_script;
+
     // FIXME: Start parsing tree
     unimplemented!();
 
-    Ok(bytes)
+    Ok((bytes, script))
 }

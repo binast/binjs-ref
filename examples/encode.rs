@@ -23,7 +23,7 @@ fn main() {
     let script = esprit::script(&source_text).expect("Could not parse file.");
 
     let mut out = File::create(dest_path).expect("Could not open destination file.");
-    println!("Compiling...");
+    println!("Encoding...");
     let bytes = binjs::compile::write(&script, &mut out).unwrap();
 
     println!("Rewrote {} bytes as {} bytes",

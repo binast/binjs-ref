@@ -166,7 +166,7 @@ LabelledTree     ::= NodeKind UnlabelledTree
 RawFloat64       ::= (one IEEE-754 double-precision floating-point)
 RawByte          ::= (a single byte)
 Atom             ::= VarNum
-Tuple            ::= ByteLength IntermediateTree*
+Tuple            ::= IntermediateTree*
 List             ::= ByteLength NumberOfEntries IntermediateTree*
 ByteLength       ::= VarNum
 NodeKind         ::= VarNum
@@ -198,8 +198,8 @@ some may be undefined) while `List` is designed for constructions that have
 a variable number of children (e.g. `CaseClauses` may contain an arbitrary
 number of clauses).
 
-In both `Tuple` and `List`, `ByteLength` represents the total length of the
-rest of the production. In the case of `List`, this includes `NumberOfEntries`.
+In `Tuple` `ByteLength` represents the total length of the
+rest of the production.
 
 The specifications of `RawFloat64` may be found here: https://en.wikipedia.org/wiki/Double-precision_floating-point_format
 

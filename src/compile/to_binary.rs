@@ -26,11 +26,13 @@ impl SerializeTree<Kind> {
        for item in data {
            item.write(&mut buf, atoms, kinds)?;
        }
-       // Write byte length.
        let mut bytes = 0;
-       bytes += out.write_varnum(buf.len() as u32)?;
 
        if include_length {
+           // Write byte length.
+           bytes += out.write_varnum(buf.len() as u32)?;
+
+           // Write number of items.
            bytes += out.write_varnum(data.len() as u32)?;
        }
 
