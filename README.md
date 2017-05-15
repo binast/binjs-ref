@@ -21,6 +21,19 @@ we expect that the toolchain, both server-side and browser-side, will generate
 (respectively parse) BinJs files, letting BinJs files be used transparently
 for communication between the browser and the server.
 
+## Testing it
+
+1. Pull the code.
+2. Build the code.
+```
+cargo build && cargo test
+```
+3. Run the encoder
+```
+./target/debug/examples/encode source destination
+```
+
+
 ## Compatibility with JavaScript source code
 
 The BinJs format is designed to preserve the semantics for all syntactically

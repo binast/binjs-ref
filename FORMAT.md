@@ -90,7 +90,7 @@ until the result is needed, etc.
 ## 0. Global structure
 
 ```
-BinJSFile ::= FormatHeader TableOfAtoms TableOfNodeKinds IntermediateTree
+BinJSFile ::= FormatHeader TableOfAtoms TableOfNodeKinds UnlabelledTree
 ```
 
 ## 1. Read the format header.
@@ -157,8 +157,6 @@ with respect to the version of JavaScript is simpler than specifying the
 encoding/decoding of a specific JavaScript grammar.
 
 ```
-IntermediateTree ::= UnlabelledTree
-                  |  LabelledTree
 UnlabelledTree   ::= RawFloat64
                   |  RawByte
                   |  Atom
@@ -172,13 +170,26 @@ Tuple            ::= ByteLength IntermediateTree*
 List             ::= ByteLength NumberOfEntries IntermediateTree*
 ByteLength       ::= VarNum
 NodeKind         ::= VarNum
+IntermediateTree ::= UnlabelledTree
+                  |  LabelledTree
 ```
+
+**Caveat** This grammar is presented as a BNF but it doesn't contain
+any terminal. Consequently, this BNF is not sufficient to determine
+whether a stream of bytes represents an `UnlabelledTree` or a `LabelledTree`,
+or whether an `UnlabelledTree` is a `RawFloat64`, a `RawByte`, an `Atom`
+a `Tuple` or a `List`. This is by design. All this information is meant
+to be extracted by interpreting `NodeKind` using the existing EcmaScript
+grammar. See Step 5 for the details.
 
 Productions `RawFloat`, `RawByte` and `Atom` are considered short
 and are not prefixed by their length. Productions `Tuple` and `List` are
-considered more complex and are prefixed by their byte length.
+considered more complex and are prefixed by their byte length. The role
+of the byte length is double: it helps detect incorrect files and it lets
+parsers delay parsing subtrees or delegate it to background tasks.
 
-// FIXME: Perhaps we should only prefix `LabelledTree` by the byte length?
+// FIXME: Perhaps we should only prefix `LabelledTree(Tuple)`
+// and `LabelledTree(List)` by the byte length?
 
 Both `Tuple` and `List` represent several intermediate trees. The only
 difference is that `Tuple` is designed for constructions that have a fixed
