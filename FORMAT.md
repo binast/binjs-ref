@@ -90,7 +90,7 @@ until the result is needed, etc.
 ## 0. Global structure
 
 ```
-BinJSFile ::= FormatHeader TableOfAtoms TableOfNodeKinds UnlabelledTree
+BinJSFile ::= FormatHeader TableOfAtoms TableOfNodeKinds LabelledTree
 ```
 
 ## 1. Read the format header.
@@ -129,6 +129,11 @@ Both `ListOfLengths` and `ListOfStrings` contain exactly `NumberOfEntries`.
 For each `i` in `[0,NumberOfEntries[`, `ListOfStrings[i]` contains exactly
 `ListOfLengths[i]` bytes.
 
+### 2.1 FIXME
+If we decide to head towards maximal sharing, `ListOfStrings` is replaced
+taken as an index in a table
+containing `IntermediateTree`.
+
 ## 3. Read the table of kinds.
 
 Rationale: The table of node kinds regroups node kinds (e.g. `ArrayExpression`,
@@ -157,12 +162,14 @@ with respect to the version of JavaScript is simpler than specifying the
 encoding/decoding of a specific JavaScript grammar.
 
 ```
+IntermediateTree ::= UnlabelledTree
+                  |  LabelledTree
+LabelledTree     ::= NodeKind UnlabelledTree
 UnlabelledTree   ::= RawFloat64
                   |  RawByte
                   |  Atom
                   |  Tuple
                   |  List
-LabelledTree     ::= NodeKind UnlabelledTree
 RawFloat64       ::= (one IEEE-754 double-precision floating-point)
 RawByte          ::= (a single byte)
 Atom             ::= VarNum
@@ -170,8 +177,6 @@ Tuple            ::= IntermediateTree*
 List             ::= ByteLength NumberOfEntries IntermediateTree*
 ByteLength       ::= VarNum
 NodeKind         ::= VarNum
-IntermediateTree ::= UnlabelledTree
-                  |  LabelledTree
 ```
 
 **Caveat** This grammar is presented as a BNF but it doesn't contain
@@ -188,9 +193,6 @@ considered more complex and are prefixed by their byte length. The role
 of the byte length is double: it helps detect incorrect files and it lets
 parsers delay parsing subtrees or delegate it to background tasks.
 
-// FIXME: Perhaps we should only prefix `LabelledTree(Tuple)`
-// and `LabelledTree(List)` by the byte length?
-
 Both `Tuple` and `List` represent several intermediate trees. The only
 difference is that `Tuple` is designed for constructions that have a fixed
 number of children (e.g. `IfStatement` always has three children, even if
@@ -198,8 +200,8 @@ some may be undefined) while `List` is designed for constructions that have
 a variable number of children (e.g. `CaseClauses` may contain an arbitrary
 number of clauses).
 
-In `Tuple` `ByteLength` represents the total length of the
-rest of the production.
+In `List`, `ByteLength` represents the total length of the
+rest of the production (covering both `NumberOfEntries` and `IntermediateTree`).
 
 The specifications of `RawFloat64` may be found here: https://en.wikipedia.org/wiki/Double-precision_floating-point_format
 
@@ -207,10 +209,76 @@ The value of `Atom` is taken as an index in table `ListOfStrings` read in step 2
 
 The value of `NodeKind` is taken as an index in table `ListOfStrings` read in step 3.
 
-## 5. Extracting EcmaScript grammar
+### 4.1 FIXME
+If we decide to head towards maximal sharing, we need to make the following
+changes:
+
+- `Atom` is replaced with a production `String`;
+- `UnlabelledTree` gains a production `SharedTree`;
+- `SharedTree` is an index in a table of shared trees;
+- we need to distinguish a special `NodeKind` to indicate to the parser that
+  it should read an `UnlabelledTree` as a `SharedTree`.
+
+## 5. Extracting to an ESTree grammar
+
+For the time being, we use the [ESTree](https://github.com/estree/estree)
+specification as a target for decoding JavaScript.
+
+**This section is very much in progress.**
+
+**FIXME** Specify amendments to ESTree:
+- specify order of fields;
+- introduce interfaces `String`, `Boolean`, ... and use them instead of sum types `string | boolean | ...`;
+- introduce interfaces `Get`, `Set`, ... and use them instead of enums `"get" | "set" | ...`;
+- introduce interface `Null` and use it instead of all the `| null`;
+- extend functions with BinJS metadata;
+- we don't care about locations;
+- packing booleans?;
+- implicit interface for `null`;
+- ... ?
+
+```
+parse():
+  return parse_node(Program) // `Program` is defined by ESTree
+
+parse_node(esTreeType):
+  if esTreeType is an interface:
+    type <- read NodeKind
+    return parse_node_with_type(type, esTreeType)
+  else if esTreeType is boolean:
+    // FIXME: Finish
+  else if esTreeType is String:
+    // FIXME: Finish
+  else if esTreeType is [esTreeType2]:
+    // FIXME: Finish
+  else if esTreeType is {field1: type1, ..., fieldN: typeN}
+    return parse_object(esTreeType)
+  else if esTreeType is type1 | ... | typeN:
+    // FIXME: Finish (handle as if it was a super-interface)
+  // ...
+
+parse_node_with_type(type, esTreeType):
+    if esTreeType.type is defined: // Example: interface VariableDeclarator
+      if type == Foo.type:
+        return parse_object(esTreeType) 
+      else:
+        throw BadKind
+    else: // Example: interface Expression
+      if there is a subinterface esTreeType2 of esTreeType such that esTreeType2.type == type:
+        return parse_object(esTreeType2)
+      else:
+        throw BadKind
+
+parse_object(esTreeType):
+  for (fieldName, fieldType) <- each MEANINGFUL field in the interface esTreeType: // FIXME: Specify order, "meaningful"
+    fieldContent <- parse_node(fieldType)
+  // FIXME: Finish
+
+
+```
+
+Note that this algorithm may does not need backtracking.
 
 // FIXME: Specify the step in which we replace `Atom` and `NodeKind` by the
 // corresponding values taken from their table.
-
-// FIXME: Turn this into pseudo-code.
 
