@@ -85,3 +85,6 @@ Total parsing time:
 Size (gzipped): 2541kb => 2403kb (-5%)
 Total parsing time:  -72% without skipping, -94% skipping all functions
 
+# Specifications
+
+All specifications may be found in directory spec/.
