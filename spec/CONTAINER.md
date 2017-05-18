@@ -152,13 +152,12 @@ A special node `BinJS.Fragment [id]` may be specified as part the table of
 nodes. If specified, this distinguished node will be used while resolving
 fragments (see below).
 
+By convention, the **last** element in the syntax table represents the root of the tree.
+
 **Size note** At the time of this writing, The table of syntax for a file using
 all the features of JavaScript is expected to contain about 100 entries for a
-total of about 200 fields, which may all be represented within ~3kb. For a file
-restricting itself to JSON, the table of syntax is expected to contain only
+total of about 200 fields, which may all be represented within ~3kb. If we restrict ourselves to JSON, the table of syntax may contain only
 2 entries and fit within a few bytes.
-
-// FIXME: We need to specify the root of the tree, right?
 
 ## 3. Read the table of atoms.
 
@@ -233,6 +232,7 @@ The value of `AtomIndex` is taken as an index in table `TableOfAtoms` read in st
 
 The value of `NodeKindIndex` is taken as an index in table `TableOfNodeKinds` read in step 3.
 
+By convention, the **last** fragment in the table of fragments is the AST.
 
 ```rust
 // Pseudo-code
@@ -246,14 +246,14 @@ struct Parser {
 impl Parser {
     /// Parse from the root.
     fn parse_ast(&mut self) -> Result<Fragment> {
-      return self.parse_node(input, syntax, atoms, &syntax.root)
+      return self.parse_node(input, syntax, atoms, &syntax.last())
     }
 
     fn parse_node(&mut self, expect: &Type) -> Result<Fragment> {
         match expect.kind() {
             Interface(ref interface) => {
                 let node_kind = self.parse_node_kind()?;
-                return self.parse_node_with_type(interface, node_kind)
+                return self.parse_node_with_interface(interface, node_kind)
             }
             Boolean => {
                 // FIXME: TODO
@@ -262,32 +262,39 @@ impl Parser {
                 // FIXME: TODO
             }
             Array(ref expect2) => {
-                // FIXME: TODO
+                return self.parse_list(expect2);
             }
             Structure(ref structure) => {
                 return self.parse_tuple(structure)
             }
-            Or(ref list) => {
-                // FIXME: Finish (handle as if it was a super-interface without a `type`)
+            OneOfLiterals(ref list) => {
+                // Example: `"get" | "set" | "init"`
+                // FIXME: Finish
+            }
+            OneOfTypes(ref list) => {
+                // Example: `Identifier | Literal`
+                // Example: `string | boolean`
+                // FIXME: Handle as if it was a super-interface without a `type`. If there are any primitive types in `list`, replace them with their mechanically generated interface (e.g. `string` => `String`, `null` => `Null`)
             }
             // ... FIXME: Finish
         }
     }
 
-    fn parse_node_with_type(&mut self, interface: &Interface, kind: &String) -> Result<Fragment> {
-        if let Some(ref type) = interface.type() {
-            // Example: interface VariableDeclarator
+    /// Attempt to parse a node, expecting to encounter an instance of
+    /// `interface`. Since interfaces support subtyping, the instance
+    /// may actually be an instance of a subinterface.
+    fn parse_node_with_interface(&mut self, interface: &Interface, kind: &String) -> Result<Fragment> {
+        // Either `interface` or one of its subinterfaces should have
+        // type `kind`.
+        if let Some(ref type) = interface.find_subinterface(kind) {
             return self.parse_tuple(interface.structure())?;
-        }
-        // Example: interface Expression
-        if let Some(ref refined_interface) = interface.find_subinterface(kind) {
-            return self.parse_tuple(refined_interface.structure())?;
         }
         return Err(BadKind(kind))
     }
 
+    /// Parse a fixed-length list of tuples of generally heterogenous types.
     fn parse_tuple(&mut self, structure: &Structure) -> Result<Fragment> {
-        let mut result = Fragment::new();
+        let mut result = Fragment::object();
         for (ref field_name, ref field_node) in structure {
             let field_content = self.parse_node(field_node)?;
             result.insert(field_name, field_content);
@@ -295,6 +302,26 @@ impl Parser {
         return Ok(result)
     }
 
+    /// Parse a (variable-length) list of items of the same type.
+    fn parse_list(&mut self, expect: &Type) -> Result<Fragment> {
+        let byte_length = self.parse_varnum()?;
+        let byte_start = self.input.position();
+
+        let mut result = Fragment::list();
+
+        let length = self.parse_varnum()?;
+        for _ in 0..length {
+            let item = self.parse_node(expect)?;
+            result.push(item);
+        }
+
+        let byte_stop = self.input.position();
+        if byte_stop - byte_start != byte_length {
+            return Err(BadLength)
+        }
+
+        return Ok(result)
+    }
     // ...
 }
 ```
@@ -308,7 +335,4 @@ Also note that this algorithm may be amended for concurrency or for lazy loading
 
 
 ## 5. Extracting the AST
-
-
-
 
