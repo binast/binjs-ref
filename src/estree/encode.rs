@@ -1,5 +1,5 @@
 use estree::grammar::*;
-use bintree::io::*;
+use estree::io::*;
 
 use std;
 use std::collections::HashSet;

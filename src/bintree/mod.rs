@@ -2,4 +2,3 @@
 //! and turning them into strings of bytes.
 
 mod concrete;
-pub mod io;

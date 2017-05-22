@@ -18,3 +18,6 @@ pub mod decode;
 
 /// Encode an AST to a SerializeTree using a dynamically-loaded grammar.
 pub mod encode;
+
+/// Support for importing from/exporting to a lower-level format.
+pub mod io;

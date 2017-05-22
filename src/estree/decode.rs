@@ -1,5 +1,8 @@
+//! With the help of an underlying `Extractor`, decode a stream of bytes
+//! to a JSON matching a specific grammar.
+
 use estree::grammar::*;
-use bintree::io::*;
+use estree::io::*;
 
 use serde_json::Value;
 
