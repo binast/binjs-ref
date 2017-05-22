@@ -1,5 +1,5 @@
 use atoms::*;
-use compile::serialize_tree::*;
+use encode::serialize_tree::*;
 use kind::*;
 use varnum::*;
 
@@ -54,7 +54,7 @@ impl Writable for Labelled<Kind> {
 
 impl Writable for Unlabelled<Kind> {
     fn write<W>(&self, out: &mut W, atoms: &AtomsTable<String>, kinds: &AtomsTable<Kind>) -> Result<usize> where W: Write {
-        use compile::serialize_tree::Unlabelled::*;
+        use encode::serialize_tree::Unlabelled::*;
         match *self {
             // Short nodes: do not write byteLength
             Atom(ref string) =>

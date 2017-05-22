@@ -7,3 +7,4 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 easter = "*"
 esprit = "*"
 joker = "*"
+serde_json = "*"

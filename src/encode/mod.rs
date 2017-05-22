@@ -1,7 +1,6 @@
 mod env;
-mod serialize_tree;
 mod to_binary;
-mod to_serialize_tree;
+// mod to_serialize_tree;
 
 
 use atoms::*;
@@ -18,7 +17,8 @@ pub fn write<T>(ast: &Script, out: &mut T) -> Result<usize, std::io::Error> wher
     let mut env = env::Env::toplevel();
 
     // 1. Generate tree.
-    let tree = SerializeTree::Unlabelled(ast.to_naked(&mut env));
+    // let tree = SerializeTree::Unlabelled(ast.to_naked(&mut env));
+    let tree = SerializeTree::Unlabelled(unimplemented!());
 
     // Total bytes written.
     let mut bytes = 0;

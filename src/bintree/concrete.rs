@@ -10,19 +10,18 @@ pub enum Unlabelled<T> {
     /// will be written to the file.
     Atom(String),
 
-    /// One raw byte.
-    RawByte(u8),
+    RawBool(bool),
 
     /// A raw floating value.
     RawFloat(f64),
 
     /// A node with a number of children determined by the grammar.
     /// Length will NOT be written to the file. Can have 0 children.
-    Tuple(Vec<SerializeTree<T>>),
+    Tuple(Vec<Tree<T>>),
 
     /// A node with a number of children left unspecified by the grammar
     /// (typically a list). Length will be written to the file.
-    List(Vec<SerializeTree<T>>),
+    List(Vec<Tree<T>>),
 }
 
 impl<K> Unlabelled<K> where K: Default {
@@ -37,11 +36,11 @@ impl<K> Unlabelled<K> where K: Default {
     }
 
     /// Convert into a tree.
-    pub fn into_tree(self) -> SerializeTree<K> {
-        SerializeTree::Unlabelled(self)
+    pub fn into_tree(self) -> Tree<K> {
+        Tree::Unlabelled(self)
     }
 
-    pub fn walk_tree<T>(&self, f: &mut T) where T: FnMut(&SerializeTree<K>) {
+    pub fn walk_tree<T>(&self, f: &mut T) where T: FnMut(&Tree<K>) {
         match *self {
             Unlabelled::Tuple(ref subtrees)
             | Unlabelled::List(ref subtrees) =>
@@ -63,8 +62,8 @@ pub struct Labelled<K> {
 }
 
 impl<K> Labelled<K> {
-    pub fn into_tree(self) -> SerializeTree<K> {
-        SerializeTree::Labelled(self)
+    pub fn into_tree(self) -> Tree<K> {
+        Tree::Labelled(self)
     }
 
     pub fn kind(&self) -> &K {
@@ -77,7 +76,7 @@ impl<K> Labelled<K> {
 }
 
 
-pub enum SerializeTree<K> {
+pub enum Tree<K> {
     Unlabelled(Unlabelled<K>),
     /// Label a subtree with parsing information.
     /// In a followup pass, labels are rewritten as reference to one of several
@@ -86,7 +85,7 @@ pub enum SerializeTree<K> {
     Labelled(Labelled<K>)
 }
 
-impl<K> SerializeTree<K> where K: Default {
+impl<K> Tree<K> where K: Default {
     pub fn label(self, kind: K) -> Labelled<K> {
         Labelled {
             kind,
@@ -95,17 +94,17 @@ impl<K> SerializeTree<K> where K: Default {
     }
 
     pub fn empty() -> Self {
-        SerializeTree::Labelled(Labelled {
+        Tree::Labelled(Labelled {
             kind: K::default(),
             tree: Unlabelled::Tuple(vec![])
         })
     }
 
-    pub fn walk<T>(&self, f: &mut T) where T: FnMut(&SerializeTree<K>) {
+    pub fn walk<T>(&self, f: &mut T) where T: FnMut(&Tree<K>) {
         f(self);
         match *self {
-            SerializeTree::Unlabelled(ref tree) |
-            SerializeTree::Labelled(Labelled { kind: _, ref tree }) =>
+            Tree::Unlabelled(ref tree) |
+            Tree::Labelled(Labelled { kind: _, ref tree }) =>
                 tree.walk_tree(f)
         }
     }
@@ -113,8 +112,8 @@ impl<K> SerializeTree<K> where K: Default {
     pub fn walk_unlabelled<T>(&self, f: &mut T) where T: FnMut(&Unlabelled<K>) {
         self.walk(&mut |tree| {
             match *tree {
-                SerializeTree::Unlabelled(ref tree) |
-                SerializeTree::Labelled(Labelled { kind: _, ref tree }) =>
+                Tree::Unlabelled(ref tree) |
+                Tree::Labelled(Labelled { kind: _, ref tree }) =>
                     f(tree)
             }
         })
@@ -122,7 +121,7 @@ impl<K> SerializeTree<K> where K: Default {
 
     pub fn walk_labelled<T>(&self, f: &mut T) where T: FnMut(&Labelled<K>) {
         self.walk(&mut |tree| {
-            if let SerializeTree::Labelled(ref tree) = *tree {
+            if let Tree::Labelled(ref tree) = *tree {
                 f(tree)
             }
         })
