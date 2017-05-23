@@ -62,7 +62,9 @@ impl<'a, E> Decoder<'a, E> where E: Extractor {
                     .ok_or_else(|| Error::UnexpectedValue("(no string)".to_string()))?;
                 Ok(Value::String(string))
             }
-            OneOfStrings {ref strings, or_null} => {
+            Enum(ref enum_) => {
+                use estree::grammar::Enum;
+                let Enum {ref strings, or_null} = *enum_;
                 let string = self.extractor.string()
                     .map_err(|_| Error::ExtractorError)?;
                 match string {

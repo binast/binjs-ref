@@ -51,7 +51,9 @@ impl<B, Tree> Encoder<B, Tree> where B: Builder<Tree=Tree> {
                 let contents = self.encode_structure(object, structure.fields())?;
                 Ok(self.builder.tuple(contents, None))
             }
-           OneOfStrings {ref strings, or_null} => {
+            Enum(ref enum_) => {
+                use estree::grammar::Enum;
+                let Enum {ref strings, or_null} = *enum_;
                 if or_null {
                     if value.is_null() {
                         return Ok(self.builder.no_string())

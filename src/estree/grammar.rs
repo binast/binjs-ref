@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::rc::*;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
-pub struct InterfaceName(Rc<String>);
+pub struct InterfaceName(Rc<String>); // FIXME: Should this be an Arc?
 impl InterfaceName {
     pub fn to_string(&self) -> &String {
         self.0.as_ref()
@@ -42,7 +42,7 @@ pub enum Type {
     Structure(Structure),
 
     /// A choice between several literals, e.g. `"get" | "set"`.
-    OneOfStrings {strings: Vec<String>, or_null: bool},
+    Enum(Enum),
 
     /// A value that may belong to one or more interfaces.
     ///
@@ -58,16 +58,65 @@ pub enum Type {
     Number,
 }
 
+impl Type {
+    pub fn interface(name: &InterfaceName) -> Self {
+        unimplemented!()
+    }
+    pub fn interfaces(names: &[&InterfaceName]) -> Self {
+        unimplemented!()
+    }
+    pub fn one_of_strings(strings: &[&str]) -> Self {
+        unimplemented!()
+    }
+    pub fn array(&self) -> Self {
+        unimplemented!()
+    }
+    pub fn or_null(self) -> Self {
+        unimplemented!()
+    }
+}
 
 /// Representation of an object-like value.
 pub struct Structure {
     fields: Vec<Field>,
 }
 impl Structure {
+    pub fn new() -> Self {
+        Structure {
+            fields: Vec::new()
+        }
+    }
     pub fn fields<'a>(&'a self) -> &'a [Field] {
         unimplemented!()
     }
     pub fn field<'a>(&'a self, name: &str) -> Option<&'a Field> {
+        unimplemented!()
+    }
+    pub fn with_field(self, name: &str, type_: Type) -> Self {
+        unimplemented!()
+    }
+}
+
+pub struct Enum {
+    pub strings: Vec<String>,
+    pub or_null: bool
+}
+impl Default for Enum {
+    fn default() -> Self {
+        Enum {
+            strings: Vec::new(),
+            or_null: false
+        }
+    }
+}
+impl Enum {
+    pub fn or_null(&mut self) -> &mut Self {
+        unimplemented!()
+    }
+    pub fn with_string(&mut self, string: &str) -> &mut Self {
+        unimplemented!()
+    }
+    pub fn with_strings(&mut self, strings: &[&str]) -> &mut Self {
         unimplemented!()
     }
 }
@@ -112,6 +161,13 @@ impl Interface {
     pub fn get_refinement(&self, tag: &Tag) -> Option<&Interface> {
         unimplemented!()
     }
+
+    pub fn with_field(&mut self, name: &str, type_: Type) -> &mut Self {
+        unimplemented!()
+    }
+    pub fn refines(&mut self, parent: &str) -> &mut Self {
+        unimplemented!()
+    }
 }
 
 pub struct Syntax {
@@ -119,7 +175,19 @@ pub struct Syntax {
 }
 
 impl Syntax {
-    pub fn add_interface(&mut self, interface: Interface) {
+    pub fn new() -> Self {
+        unimplemented!()
+    }
+    pub fn interface_name(&mut self, name: &str) -> InterfaceName {
+        unimplemented!()
+    }
+    pub fn add_tagged_interface(&mut self, name: &str) -> &mut Interface {
+        unimplemented!()
+    }
+    pub fn add_virtual_interface(&mut self, name: &str) -> &mut Interface {
+        unimplemented!()
+    }
+    pub fn add_enum(&mut self, name: &str) -> &mut Enum {
         unimplemented!()
     }
     pub fn get_interface(&self, name: &InterfaceName) -> Option<Interface> {

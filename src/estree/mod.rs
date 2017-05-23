@@ -21,3 +21,5 @@ pub mod encode;
 
 /// Support for importing from/exporting to a lower-level format.
 pub mod io;
+
+pub mod library;
