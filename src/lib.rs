@@ -9,6 +9,8 @@ pub mod estree;
 /// Encoding/decoding a BinTree to/from a stream of bytes.
 mod bintree;
 
+mod util;
+
 /*
 pub mod decode;
 pub mod encode;

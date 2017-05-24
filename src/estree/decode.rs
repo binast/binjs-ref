@@ -36,14 +36,12 @@ impl<'a, E> Decoder<'a, E> where E: Extractor {
         use estree::grammar::Type::*;
         match *kind {
             Array(ref kind) => {
-                let mut values = Vec::new();
-                // Delegate decoding of the list to the lower layer.
-                // At this stage, we should also be able to skip the entire list.
-                for slice in self.extractor.list() {
-                    let slice = slice
-                        .map_err(|_| Error::ExtractorError)?;
-                    let mut extractor = Decoder::new(slice, self.grammar);
-                    values.push(extractor.decode(kind)?);
+                let (len, mut extractor) = self.extractor.list()
+                    .map_err(|_| Error::ExtractorError)?;
+                let mut decoder = Decoder::new(extractor, self.grammar);
+                let mut values = Vec::with_capacity(len as usize);
+                for _ in 0..len {
+                    values.push(decoder.decode(kind)?);
                 }
                 Ok(Value::Array(values))
             }
