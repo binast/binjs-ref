@@ -1,9 +1,24 @@
+//! Low-level API used to write individual components of a tree to a stream.
+//!
+//! Simple implementations may write bytes as they come, while complex
+//! ones may decide to provide sophisticated compression.
+//!
+//! In practice, this API is kept as a trait to simplify unit testing and
+//! experimentation of sophisticated compression schemes.
+
 use estree::grammar::*;
 
-use std::cell::RefMut;
 use std::fmt::Debug;
 
+/// Extracting values and structure from a stream of bytes.
 pub trait Extractor where Self::Error: Debug, Self: Sized {
+    /// An error returned by the extractor.
+    ///
+    /// Errors are *not* recoverable.
+    ///
+    /// For instance, if attempting to read with `string()`
+    /// fails, any further attempt to use the `Extractor`
+    /// or any of its parents will also raise an error.
     type Error;
 
     /// Skip to the end of the extractor.

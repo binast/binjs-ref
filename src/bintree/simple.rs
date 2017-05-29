@@ -19,6 +19,7 @@ pub enum ExtractorError {
     Encoding(FromUtf8Error),
     NotInList,
     EndOffsetError { expected: u64, found: u64 },
+    BailingOutBecauseOfPreviousError
 }
 
 struct TreeExtractorImpl<R> where R: Read + Seek {
@@ -33,7 +34,7 @@ pub struct TreeExtractor<R> where R: Read + Seek {
     pos_end: Option<u64>,
 }
 impl<R> TreeExtractor<R> where R: Read + Seek {
-    /// Create a new TreeExtractor.
+    /// Create a new toplevel TreeExtractor.
     pub fn new(reader: R) -> Self {
         let implem = TreeExtractorImpl {
             reader: PositionRead::new(reader)
@@ -57,14 +58,27 @@ impl<R> TreeExtractor<R> where R: Read + Seek {
         }
     }
 
+    /// Read data to a buffer.
+    ///
+    /// If an error is pending, propagate the error.
+    /// If reading causes an error, any further call to `read()` will
+    /// cause an error of type
+    /// `ExtractorError::BailingOutBecauseOfPreviousError`.
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, ExtractorError> {
         let error = self.my_pending_error.borrow_mut().take();
         if let Some(error) = error {
+            *self.my_pending_error.borrow_mut() = Some(ExtractorError::BailingOutBecauseOfPreviousError);
             return Err(error)
         }
         let ref mut reader = self.implem.borrow_mut().reader;
-        reader.read(buf)
-            .map_err(ExtractorError::Reader)
+        match reader.read(buf) {
+            Ok(ok) => Ok(ok),
+            Err(err) => {
+                let error = ExtractorError::Reader(err);
+                *self.my_pending_error.borrow_mut() = Some(ExtractorError::BailingOutBecauseOfPreviousError);
+                Err(error)
+            }
+        }
     }
 
     fn read_u32(&mut self) -> Result<u32, ExtractorError> {
