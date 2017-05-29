@@ -41,7 +41,7 @@ pub trait Extractor where Self::Error: Debug, Self: Sized {
     /// perform additional checks on byte length.
     ///
     /// The iterator MUST be exhausted by the client.
-    fn tag(&mut self) -> Result<(Tag, Box<Iterator<Item=String>>), Self::Error>;
+    fn tag(&mut self) -> Result<(Kind, Box<Iterator<Item=String>>), Self::Error>;
 
     fn float(&mut self) -> Result<f64, Self::Error>;
     fn bool(&mut self) -> Result<bool, Self::Error>;
@@ -58,7 +58,7 @@ pub trait Builder {
     /// Write a tuple.
     ///
     /// If an interface is specified, add the `tag` of the interface. // FIXME: What if it has no tag?
-    fn tuple(&mut self, Vec<Self::Tree>, Option<&Interface>) -> Result<Self::Tree, Self::Error>;
+    fn tuple(&mut self, Vec<Self::Tree>, Option<&InterfaceNode>) -> Result<Self::Tree, Self::Error>;
     fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, Self::Error>;
 
     /// Build a special string that represents the undefined string.

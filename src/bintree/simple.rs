@@ -1,7 +1,7 @@
 //! Minimal implementation of encoding/decoding to binary.
 //! FIXME: This module should probably move to `examples/`.
 
-use estree::grammar::{ Interface, Tag };
+use estree::grammar::{ InterfaceNode, Kind };
 use estree::io::*;
 
 use util::*;
@@ -158,7 +158,7 @@ impl<R> Extractor for TreeExtractor<R> where R: Read + Seek {
         Ok((list_len, extractor))
     }
 
-    fn tag(&mut self) -> Result<(Tag, Box<Iterator<Item=String>>), Self::Error> {
+    fn tag(&mut self) -> Result<(Kind, Box<Iterator<Item=String>>), Self::Error> {
         unimplemented!()
     }
 
@@ -217,7 +217,7 @@ impl Builder for TreeBuilder {
         Ok(self.register(result))
     }
 
-    fn tuple(&mut self, children: Vec<Self::Tree>, _: Option<&Interface>) -> Result<Self::Tree, Self::Error> {
+    fn tuple(&mut self, children: Vec<Self::Tree>, _: Option<&InterfaceNode>) -> Result<Self::Tree, Self::Error> {
         let mut result = Vec::new();
         for item in children {
             result.extend_from_slice(&*item)
