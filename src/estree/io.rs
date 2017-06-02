@@ -34,14 +34,13 @@ pub trait Extractor where Self::Error: Debug, Self: Sized {
     fn list(&mut self) -> Result<(u32, Self), Self::Error>;
 
     /// Extract a tag from the stream. If the stream was encoded
-    /// properly, the tag is attached to an **ordered** list of
+    /// properly, the tag is attached to an **ordered** tuple of
     /// fields that may be extracted **in order**.
     ///
-    /// Once reading the tuple is complete, the iterator may
-    /// perform additional checks on byte length.
-    ///
-    /// The iterator MUST be exhausted by the client.
-    fn tag(&mut self) -> Result<(Kind, Box<Iterator<Item=String>>), Self::Error>;
+    /// Returns the tag, the ordered array of fields in which
+    /// the contents must be read, and a sub-extractor dedicated
+    /// to that tuple.
+    fn tag(&mut self) -> Result<(String, &[&Field], Self), Self::Error>;
 
     fn float(&mut self) -> Result<f64, Self::Error>;
     fn bool(&mut self) -> Result<bool, Self::Error>;
@@ -57,7 +56,7 @@ pub trait Builder {
 
     /// Write a tuple.
     ///
-    /// If an interface is specified, add the `tag` of the interface. // FIXME: What if it has no tag?
+    /// If an interface is specified, it MUST have a Tag.
     fn tuple(&mut self, Vec<Self::Tree>, Option<&InterfaceNode>) -> Result<Self::Tree, Self::Error>;
     fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, Self::Error>;
 

@@ -1,7 +1,7 @@
 //! Minimal implementation of encoding/decoding to binary.
 //! FIXME: This module should probably move to `examples/`.
 
-use estree::grammar::{ InterfaceNode, Kind };
+use estree::grammar::{ Field, InterfaceNode };
 use estree::io::*;
 
 use util::*;
@@ -158,7 +158,7 @@ impl<R> Extractor for TreeExtractor<R> where R: Read + Seek {
         Ok((list_len, extractor))
     }
 
-    fn tag(&mut self) -> Result<(Kind, Box<Iterator<Item=String>>), Self::Error> {
+    fn tag(&mut self) -> Result<(String, &[&Field], Self), Self::Error> {
         unimplemented!()
     }
 
@@ -177,9 +177,12 @@ impl TreeBuilder {
     }
 }
 
+pub enum BuilderError {
+    MissingKind,
+}
 impl Builder for TreeBuilder {
     type Tree = Rc<Vec<u8>>;
-    type Error = ();
+    type Error = BuilderError;
 
     fn float(&mut self, data: f64) -> Result<Self::Tree, Self::Error> {
         let buf : [u8; 8] = unsafe { std::mem::transmute(data) };
@@ -205,20 +208,53 @@ impl Builder for TreeBuilder {
         Ok(self.register(buf))
     }
 
+    /// Lists are represented as:
+    /// - number of bytes (u32);
+    /// - number of items (u32);
+    /// - items
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
         let mut result = Vec::new();
-        let len = items.len();
-        let buf : [u8; 8] = unsafe { std::mem::transmute(len) };
-        assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&len));
+        let number_of_items = items.len() as u32;
+        let mut buf : [u8; 4] = unsafe { std::mem::transmute(number_of_items) };
+        assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&number_of_items));
+
+        // Placeholder for `byte_len`
+        result.extend_from_slice(&buf);
         result.extend_from_slice(&buf);
         for item in items {
             result.extend_from_slice(&*item)
         }
+
+        let byte_len = result.len() as u32;
+        assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&byte_len));
+        buf = unsafe { std::mem::transmute(number_of_items) };
+
+        for i in 0..buf.len() {
+            result[i] = buf[i];
+        }
+
         Ok(self.register(result))
     }
 
-    fn tuple(&mut self, children: Vec<Self::Tree>, _: Option<&InterfaceNode>) -> Result<Self::Tree, Self::Error> {
+    /// For this example, use a very, very, very suboptimal encoding.
+    /// - (if specified)
+    ///   - kind (string, \0 terminated)
+    ///   - field names (string, \0 terminated)
+    /// - contents
+    fn tuple(&mut self, children: Vec<Self::Tree>, interface: Option<&InterfaceNode>) -> Result<Self::Tree, Self::Error> {
         let mut result = Vec::new();
+        if let Some(node) = interface {
+            let kind = node.kind()
+                .ok_or_else(|| BuilderError::MissingKind)?;
+            let bytes : Vec<_> = kind.to_string().bytes().collect();
+            result.extend_from_slice(&bytes);
+            result.push(0);
+            for field in node.contents().fields() {
+                let bytes : Vec<_> = field.name().to_string().bytes().collect();
+                result.extend_from_slice(&bytes);
+                result.push(0);
+            }
+        }
         for item in children {
             result.extend_from_slice(&*item)
         }

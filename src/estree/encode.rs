@@ -59,6 +59,8 @@ impl<B, Tree, E> Encoder<B, Tree, E> where B: Builder<Tree=Tree, Error=E> {
                 let object = value.as_object()
                     .ok_or_else(|| Error::Mismatch("Object".to_string()))?;
                 let contents = self.encode_structure(object, structure.fields())?;
+                // This is an anonymous structure, so we expect that the order
+                // of fields has been specified elsewhere.
                 let result = self.builder.borrow_mut().tuple(contents, None)
                     .map_err(Error::BuilderError)?;
                 Ok(result)
@@ -109,7 +111,7 @@ impl<B, Tree, E> Encoder<B, Tree, E> where B: Builder<Tree=Tree, Error=E> {
                         ).is_none() {
                         return Err(Error::NoSuchRefinement(kind.to_string().clone()))
                    }
-                   let fields = interface.contents(&self.grammar).fields();
+                   let fields = interface.contents().fields();
                    let contents = self.encode_structure(object, fields)?;
                    // Write the contents with the tag of the refined interface.
                    let labelled = self.builder
@@ -146,11 +148,11 @@ impl<B, Tree, E> Encoder<B, Tree, E> where B: Builder<Tree=Tree, Error=E> {
     fn encode_structure(&self, object: &Object, fields: &[Field]) -> Result<Vec<B::Tree>, Error<E>> {
         let mut result = Vec::with_capacity(fields.len());
         for field in fields {
-            if let Some(source) = object.get(field.name()) {
+            if let Some(source) = object.get(field.name().to_string()) {
                 let encoded = self.encode(source, field.type_())?;
                 result.push(encoded)
             } else {
-                return Err(Error::MissingField(field.name().clone()))
+                return Err(Error::MissingField(field.name().to_string().clone()))
             }
         }
         Ok(result)

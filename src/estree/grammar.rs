@@ -41,13 +41,21 @@ impl Kind {
     }
 }
 
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct FieldName(Rc<String>);
+impl FieldName {
+    pub fn to_string(&self) -> &String {
+        self.0.as_ref()
+    }
+}
+
 #[derive(Clone)]
 pub struct Field {
-    name: String,
+    name: FieldName,
     type_: Type,
 }
 impl Field {
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> &FieldName {
         &self.name
     }
     pub fn type_(&self) -> &Type {
@@ -132,17 +140,17 @@ impl Obj {
         &self.fields
     }
     /// Fetch a specific field in the structure
-    pub fn field<'a>(&'a self, name: &str) -> Option<&'a Field> {
+    pub fn field<'a>(&'a self, name: &FieldName) -> Option<&'a Field> {
         self.fields.iter().find(|field| &field.name == name)
     }
     /// Extend a structure with a field.
-    pub fn with_field(self, name: &str, type_: Type) -> Self {
+    pub fn with_field(self, name: &FieldName, type_: Type) -> Self {
         if self.field(name).is_some() {
             return self
         }
         let mut fields = self.fields;
         fields.push(Field {
-            name: name.to_string(),
+            name: name.clone(),
             type_
         });
         Obj {
@@ -214,7 +222,7 @@ pub struct Interface {
 }
 
 impl Interface {
-    pub fn with_field(&mut self, name: &str, type_: Type) -> &mut Self {
+    pub fn with_field(&mut self, name: &FieldName, type_: Type) -> &mut Self {
         // FIXME: There must be a better way to do this.
         let mut contents = Obj::new();
         std::mem::swap(&mut self.own_contents, &mut contents);
@@ -261,6 +269,16 @@ impl SyntaxBuilder {
         }
         let shared = Rc::new(name.to_string());
         let result = InterfaceName(InterfaceNameImpl::Named(shared.clone()));
+        self.names.insert(name.to_string(), shared);
+        result
+    }
+
+    pub fn field_name(&mut self, name: &str) -> FieldName {
+        if let Some(result) = self.names.get(name) {
+            return FieldName(result.clone());
+        }
+        let shared = Rc::new(name.to_string());
+        let result = FieldName(shared.clone());
         self.names.insert(name.to_string(), shared);
         result
     }
@@ -323,14 +341,14 @@ impl SyntaxBuilder {
             // To do so, walk the ancestors of `interface`. Algorithmically,
             // this could explode, but in practice, I haven't seen a depth higher than 4.
             let mut roots = vec![name.clone()];
-            let mut ancestors = HashSet::new();
+            let mut all_ancestors = HashSet::new();
             while let Some(root) = roots.pop() {
                 if already_met.contains(&root) {
                     // With mutual inheritance, let's not copy stuff more than
                     // once. Should also prevent (but not detect) infinite loops.
                     continue;
                 }
-                ancestors.insert(root.clone());
+                all_ancestors.insert(root.clone());
                 already_met.insert(root.clone());
                 let node = self.interfaces.get(&name).unwrap();
                 if let Some(ref kind) = node.borrow().kind {
@@ -355,7 +373,7 @@ impl SyntaxBuilder {
                 .map(|(name, type_)| Field { name, type_ })
                 .collect();
             let node = Rc::new(InterfaceNode {
-                ancestors: ancestors.drain().collect(),
+                ancestors: all_ancestors.drain().collect(),
                 interface: interface.borrow().clone(),
                 full_contents: Obj { fields }
             });
@@ -368,6 +386,7 @@ impl SyntaxBuilder {
         }
         // FIXME: What about RegexpLiteral? & co
 
+        // Now handle `enums`.
         for key in self.enums.keys() {
             let string = key.to_str().to_string();
             assert!(names.insert(string.clone(), Rc::new(string)).is_none());
@@ -400,12 +419,19 @@ impl InterfaceNode {
     /// - ensuring that the fields of parent structures are properly accounted for;
     /// - disregarding ignored fields (i.e. `position`, `type`);
     /// - disregarding fields with a single possible value.
-    pub fn contents(&self, syntax: &Syntax) -> &Obj {
+    pub fn contents(&self) -> &Obj {
         &self.full_contents
     }
 
     pub fn name(&self) -> &InterfaceName {
         &self.interface.name
+    }
+
+    pub fn kind(&self) -> Option<Kind> {
+        match self.interface.kind {
+            None => None,
+            Some(ref x) => Some(x.clone())
+        }
     }
 }
 
