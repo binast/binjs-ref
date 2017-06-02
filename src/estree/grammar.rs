@@ -306,10 +306,16 @@ impl SyntaxBuilder {
     pub fn as_syntax(self) -> Syntax {
         let mut interfaces_by_name = HashMap::new();
         let mut interfaces_by_kind = HashMap::new();
+        let mut names = HashMap::new();
         let mut kinds = HashMap::new();
 
 
         for (name, interface) in &self.interfaces {
+            {
+                let string = name.to_str().to_string();
+                assert!(names.insert(string.clone(), Rc::new(string)).is_none());
+            }
+
             // Compute the fields and ancestors of `interface`.
             let mut already_met = HashSet::new();
             let mut fields = HashMap::new();
@@ -360,12 +366,19 @@ impl SyntaxBuilder {
 
             assert!(interfaces_by_name.insert(name.clone(), node).is_none());
         }
+        // FIXME: What about RegexpLiteral? & co
 
-    // FIXME: What about RegexpLiteral?
+        for key in self.enums.keys() {
+            let string = key.to_str().to_string();
+            assert!(names.insert(string.clone(), Rc::new(string)).is_none());
+        }
+        let enums_by_name = self.enums;
         Syntax {
             interfaces_by_name,
             interfaces_by_kind,
-            ..unimplemented!()
+            enums_by_name,
+            names,
+            kinds
         }
     }
 }
@@ -388,7 +401,7 @@ impl InterfaceNode {
     /// - disregarding ignored fields (i.e. `position`, `type`);
     /// - disregarding fields with a single possible value.
     pub fn contents(&self, syntax: &Syntax) -> &Obj {
-        unimplemented!()
+        &self.full_contents
     }
 
     pub fn name(&self) -> &InterfaceName {
