@@ -10,7 +10,7 @@ use std::collections::{ HashMap, HashSet };
 use std::ops::Deref;
 use std::rc::*;
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 enum InterfaceNameImpl {
     /// Special hardcoded name, because it makes our life easier.
     Null,
@@ -25,7 +25,7 @@ impl InterfaceNameImpl {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct InterfaceName(InterfaceNameImpl);
 impl InterfaceName {
     pub fn to_str(&self) -> &str {
@@ -33,7 +33,7 @@ impl InterfaceName {
     }
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct Kind(Rc<String>);
 impl Kind {
     pub fn to_string(&self) -> &String {
@@ -41,7 +41,7 @@ impl Kind {
     }
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct FieldName(Rc<String>);
 impl FieldName {
     pub fn to_string(&self) -> &String {
@@ -49,7 +49,7 @@ impl FieldName {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Field {
     name: FieldName,
     type_: Type,
@@ -64,7 +64,7 @@ impl Field {
 }
 
 /// A type, typically that of a field.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Type {
     Array(Box<Type>),
     Obj(Obj),
@@ -124,7 +124,7 @@ impl Type {
 }
 
 /// Obj of an object-like value.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Obj {
     fields: Vec<Field>,
 }
@@ -160,7 +160,7 @@ impl Obj {
 }
 
 /// Structure of an enum of strings.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Enum {
     /// Unordered list of strings, without duplicates.
     strings: Vec<String>,
@@ -201,7 +201,7 @@ impl Enum {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Interface {
     /// The name of the interface, e.g. `Node`.
     name: InterfaceName,
@@ -237,7 +237,7 @@ impl Interface {
     }
 }
 
-/// A data structure used to progressively the `Syntax`.
+/// A data structure used to progressively construct the `Syntax`.
 pub struct SyntaxBuilder {
     /// All the interfaces entered so far.
     interfaces: HashMap<InterfaceName, RefCell<Interface>>,
@@ -289,8 +289,9 @@ impl SyntaxBuilder {
             InterfaceNameImpl::Null => return None,
             InterfaceNameImpl::Named(ref rc) => Kind(rc.clone())
         };
-        self.add_virtual_interface(name)
-            .map(|mut result| {result.kind = Some(kind); result})
+        let result = self.add_virtual_interface(name)
+            .map(|mut result| {result.kind = Some(kind); result});
+        result
     }
 
     /// Add a virtual interface, i.e. one that doesn't have a `kind`,
@@ -330,31 +331,37 @@ impl SyntaxBuilder {
 
 
         for (name, interface) in &self.interfaces {
+            println!("\nCompiling interface {:?}", name);
             {
                 let string = name.to_str().to_string();
                 assert!(names.insert(string.clone(), Rc::new(string)).is_none());
             }
 
+            if let Some(ref kind) = interface.borrow().kind {
+                assert!(kinds.insert(kind.to_string().clone(), kind.clone()).is_none());
+            }
+
+
             // Compute the fields and ancestors of `interface`.
-            let mut already_met = HashSet::new();
-            let mut fields = HashMap::new();
+            let mut ancestors_met = HashSet::new();
+            let mut my_fields = HashMap::new();
 
             // To do so, walk the ancestors of `interface`. Algorithmically,
             // this could explode, but in practice, I haven't seen a depth higher than 4.
             let mut roots = vec![name.clone()];
-            let mut all_ancestors = HashSet::new();
+            let mut all_my_ancestors = HashSet::new();
             while let Some(root) = roots.pop() {
-                if already_met.contains(&root) {
+                if ancestors_met.contains(&root) {
                     // With mutual inheritance, let's not copy stuff more than
                     // once. Should also prevent (but not detect) infinite loops.
                     continue;
                 }
-                all_ancestors.insert(root.clone());
-                already_met.insert(root.clone());
-                let node = self.interfaces.get(&name).unwrap();
-                if let Some(ref kind) = node.borrow().kind {
-                    assert!(kinds.insert(kind.to_string().clone(), kind.clone()).is_none());
-                }
+
+                all_my_ancestors.insert(root.clone());
+                ancestors_met.insert(root.clone());
+                let node = self.interfaces.get(&root).unwrap();
+                debug_assert_eq!(node.borrow().name, root);
+
                 for parent_names in &node.borrow().parent_interfaces {
                     roots.push(parent_names.clone());
                 }
@@ -362,9 +369,17 @@ impl SyntaxBuilder {
                     let name = field_names.entry(field.name.to_string().clone())
                         .or_insert_with(|| field.name().clone())
                         .clone();
-                    if fields.insert(name, field.type_.clone()).is_some() {
-                        unimplemented!()
+                    if let Some(prev) = my_fields.get(&name) {
+                        println!("Conflict: attempting to insert {:?}", name);
+                        println!("Previous: {:?}", prev);
+                        println!("Overwrite: {:?}", field);
+                        println!("While treating {:?}", root);
+                        println!("Skipping");
+                        // FIXME: We should make more efforts to ensure that
+                        // we always end up with the bottom-most version
+                        continue;
                     }
+                    my_fields.insert(name, field.type_.clone());
                     // FIXME: We should handle the case in which a field is updated,
                     // e.g. `VariableDeclaration.kind` is extended from `"var"` to
                     // `"var" | "let" | "const"`.
@@ -373,11 +388,11 @@ impl SyntaxBuilder {
                 }
             }
 
-            let fields = fields.drain()
+            let fields = my_fields.drain()
                 .map(|(name, type_)| Field { name, type_ })
                 .collect();
             let node = Rc::new(InterfaceNode {
-                ancestors: all_ancestors.drain().collect(),
+                ancestors: all_my_ancestors.drain().collect(),
                 interface: interface.borrow().clone(),
                 full_contents: Obj { fields }
             });

@@ -465,3 +465,8 @@ pub fn syntax(level: Level) -> Syntax {
     setup_binjs(&mut builder);
     builder.as_syntax()
 }
+
+#[test]
+fn test_syntax() {
+    syntax(Level::ES5);
+}

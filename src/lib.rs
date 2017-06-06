@@ -7,7 +7,7 @@ extern crate serde_json;
 pub mod estree;
 
 /// Encoding/decoding a BinTree to/from a stream of bytes.
-mod bintree;
+pub mod bintree;
 
 mod util;
 

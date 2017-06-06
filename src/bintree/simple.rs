@@ -1,5 +1,5 @@
 //! Minimal implementation of encoding/decoding to binary.
-
+//! Used for testing purposes. Not included in release builds.
 use estree::grammar::{ Field, InterfaceNode, Syntax };
 use estree::io::*;
 
@@ -84,7 +84,7 @@ impl<'a, R> TreeExtractor<'a, R> where R: Read + Seek {
         }
         let ref mut reader = self.implem.borrow_mut().reader;
         match reader.read_exact(buf) {
-            Ok(ok) => Ok(buf.len()),
+            Ok(_) => Ok(buf.len()),
             Err(err) => {
                 let error = ExtractorError::Reader(err);
                 *self.my_pending_error.borrow_mut() = Some(ExtractorError::BailingOutBecauseOfPreviousError);
@@ -230,7 +230,7 @@ impl<'a, R> Extractor for TreeExtractor<'a, R> where R: Read + Seek {
         }
 
         // Attach types
-        let fields = Vec::with_capacity(len as usize);
+        let mut fields = Vec::with_capacity(len as usize);
         let obj = interface.contents();
         'fields: for field_name in field_names.drain(..) {
             for field in obj.fields() {
@@ -360,7 +360,7 @@ impl Builder for TreeBuilder {
             result.push(0);
 
             let number_of_items = node.contents().fields().len() as u32;
-            let mut buf : [u8; 4] = unsafe { std::mem::transmute(number_of_items) };
+            let buf : [u8; 4] = unsafe { std::mem::transmute(number_of_items) };
             assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&number_of_items));
             result.extend_from_slice(&buf);
 

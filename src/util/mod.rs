@@ -20,7 +20,7 @@ impl<R> PositionRead<R> where R: Read {
 
 impl<R> Read for PositionRead<R> where R: Read {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let bytes = self.read(buf)?;
+        let bytes = self.reader.read(buf)?;
         self.position += bytes as u64;
         Ok(bytes)
     }
