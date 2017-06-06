@@ -9,6 +9,7 @@
 use estree::grammar::*;
 
 use std::fmt::Debug;
+use std::rc::Rc;
 
 /// Extracting values and structure from a stream of bytes.
 pub trait Extractor where Self::Error: Debug, Self: Sized {
@@ -40,7 +41,8 @@ pub trait Extractor where Self::Error: Debug, Self: Sized {
     /// Returns the tag, the ordered array of fields in which
     /// the contents must be read, and a sub-extractor dedicated
     /// to that tuple.
-    fn tag(&mut self) -> Result<(String, &[&Field], Self), Self::Error>;
+    fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[Field]>>, Self), Self::Error>;
+    fn untagged_tuple(&mut self) -> Result<Self, Self::Error>;
 
     fn float(&mut self) -> Result<f64, Self::Error>;
     fn bool(&mut self) -> Result<bool, Self::Error>;

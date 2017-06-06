@@ -326,6 +326,7 @@ impl SyntaxBuilder {
         let mut interfaces_by_kind = HashMap::new();
         let mut names = HashMap::new();
         let mut kinds = HashMap::new();
+        let mut field_names : HashMap<String, FieldName> = HashMap::new();
 
 
         for (name, interface) in &self.interfaces {
@@ -358,7 +359,13 @@ impl SyntaxBuilder {
                     roots.push(parent_names.clone());
                 }
                 for field in &node.borrow().own_contents.fields {
-                    if fields.insert(field.name.clone(), field.type_.clone()).is_some() {
+                    let name = if let Some(name) = field_names.get(field.name.to_string()) {
+                        name.clone()
+                    } else {
+                        field_names.insert(field.name().to_string().clone(), field.name().clone());
+                        field.name.clone()
+                    };
+                    if fields.insert(name, field.type_.clone()).is_some() {
                         unimplemented!()
                     }
                     // FIXME: We should handle the case in which a field is updated,
@@ -397,7 +404,8 @@ impl SyntaxBuilder {
             interfaces_by_kind,
             enums_by_name,
             names,
-            kinds
+            kinds,
+            fields: field_names,
         }
     }
 }
@@ -442,6 +450,7 @@ pub struct Syntax {
     enums_by_name: HashMap<InterfaceName, RefCell<Enum>>,
     names: HashMap<String, Rc<String>>,
     kinds: HashMap<String, Kind>,
+    fields: HashMap<String, FieldName>,
 }
 
 impl Syntax {
@@ -463,6 +472,11 @@ impl Syntax {
     }
     pub fn get_kind(&self, name: &str) -> Option<Kind> {
         self.kinds
+            .get(name)
+            .cloned()
+    }
+    pub fn get_field_name(&self, name: &str) -> Option<FieldName> {
+        self.fields
             .get(name)
             .cloned()
     }

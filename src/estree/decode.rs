@@ -47,9 +47,12 @@ impl<'a, E> Decoder<'a, E> where E: Extractor {
             }
             Obj(ref structure) => {
                 // At this stage, since there is no inheritance involved, use the built-in mapping.
+                let extractor = self.extractor.untagged_tuple()
+                    .map_err(|_| Error::ExtractorError)?;
+                let mut decoder = Decoder::new(extractor, self.grammar);
                 let mut object = Object::new();
                 for field in structure.fields() {
-                    let item = self.decode(field.type_())?;
+                    let item = decoder.decode(field.type_())?;
                     object.insert(field.name().to_string().clone(), item);
                 }
                 Ok(Value::Object(object))
@@ -77,7 +80,7 @@ impl<'a, E> Decoder<'a, E> where E: Extractor {
                 }
             }
             Interfaces(ref interfaces) => {
-                let (kind_name, mapped_field_names, extractor) = self.extractor.tag()
+                let (kind_name, mapped_field_names, extractor) = self.extractor.tagged_tuple()
                     .map_err(|_| Error::ExtractorError)?;
 
                 // We have a kind, so we know how to parse the data. We just need

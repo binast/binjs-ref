@@ -16,3 +16,6 @@ files bearing the same `type` will not have the exact same set of properties.
 
 It is expected that actual implementations of the AST will not use dictionaries
 but some more optimized data structures.
+
+## Evolving the grammar
+

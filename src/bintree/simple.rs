@@ -1,7 +1,7 @@
 //! Minimal implementation of encoding/decoding to binary.
 //! FIXME: This module should probably move to `examples/`.
 
-use estree::grammar::{ Field, InterfaceNode };
+use estree::grammar::{ Field, InterfaceNode, Syntax };
 use estree::io::*;
 
 use util::*;
@@ -18,18 +18,21 @@ pub enum ExtractorError {
     Reader(std::io::Error),
     Encoding(FromUtf8Error),
     NotInList,
+    NoSuchKind(String),
+    NoSuchField(String),
     HeaderOrFooterNotFound { expected: String, found: Vec<u8> },
     EndOffsetError { expected: u64, found: u64 },
     BailingOutBecauseOfPreviousError
 }
 
-struct TreeExtractorImpl<R> where R: Read + Seek {
-    reader: PositionRead<R>
+struct TreeExtractorImpl<'a, R> where R: Read + Seek {
+    reader: PositionRead<R>,
+    grammar: &'a Syntax,
 }
 
-pub struct TreeExtractor<R> where R: Read + Seek {
+pub struct TreeExtractor<'a, R> where R: Read + Seek {
     // Shared with all children.
-    implem: Rc<RefCell<TreeExtractorImpl<R>>>,
+    implem: Rc<RefCell<TreeExtractorImpl<'a, R>>>,
     my_pending_error: Rc<RefCell<Option<ExtractorError>>>,
     parent_pending_error: Rc<RefCell<Option<ExtractorError>>>,
 
@@ -40,11 +43,12 @@ pub struct TreeExtractor<R> where R: Read + Seek {
     // This suffix appears *after* `pos_end`.
     suffix: Option<String>
 }
-impl<R> TreeExtractor<R> where R: Read + Seek {
+impl<'a, R> TreeExtractor<'a, R> where R: Read + Seek {
     /// Create a new toplevel TreeExtractor.
-    pub fn new(reader: R) -> Self {
+    pub fn new(reader: R, grammar: &'a Syntax) -> Self {
         let implem = TreeExtractorImpl {
-            reader: PositionRead::new(reader)
+            reader: PositionRead::new(reader),
+            grammar,
         };
         TreeExtractor {
             implem: Rc::new(RefCell::new(implem)),
@@ -99,6 +103,19 @@ impl<R> TreeExtractor<R> where R: Read + Seek {
         Ok(result)
     }
 
+    fn read_string(&mut self) -> Result<String, ExtractorError> {
+        let mut bytes = Vec::new();
+        let mut buf: [u8;1] = [0];
+        loop {
+            self.read(&mut buf)?;
+            if buf[0] == 0 {
+                return String::from_utf8(bytes)
+                    .map_err(ExtractorError::Encoding);
+            }
+            bytes.push(buf[0])
+        }
+    }
+
     fn read_constant(&mut self, value: &str) -> Result<(), ExtractorError> {
         let mut buf : Vec<u8> = value.bytes().collect();
         self.read(&mut buf)?;
@@ -113,7 +130,7 @@ impl<R> TreeExtractor<R> where R: Read + Seek {
         Ok(())
     }
 }
-impl<R> Drop for TreeExtractor<R> where R: Read + Seek {
+impl<'a, R> Drop for TreeExtractor<'a, R> where R: Read + Seek {
     fn drop(&mut self) {
         // Check byte_len, if available.
         if let Some(expected) = self.pos_end {
@@ -136,7 +153,7 @@ impl<R> Drop for TreeExtractor<R> where R: Read + Seek {
         }
     }
 }
-impl<R> Extractor for TreeExtractor<R> where R: Read + Seek {
+impl<'a, R> Extractor for TreeExtractor<'a, R> where R: Read + Seek {
     type Error = ExtractorError;
 
     fn skip(&mut self) -> Result<(), Self::Error> {
@@ -194,15 +211,63 @@ impl<R> Extractor for TreeExtractor<R> where R: Read + Seek {
         Ok((list_len, extractor))
     }
 
-    fn tag(&mut self) -> Result<(String, &[&Field], Self), Self::Error> {
-        unimplemented!()
+    fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[Field]>>, Self), Self::Error> {
+        self.read_constant("<tuple>")?;
+        // Read (and validate) the kind.
+        let kind_name = self.read_string()?;
+        let kind = { self.implem.borrow().grammar.get_kind(&kind_name)
+            .ok_or_else(|| ExtractorError::NoSuchKind(kind_name.clone()))? };
+        let interface = { self.implem.borrow().grammar.get_interface_by_kind(&kind)
+            .ok_or_else(|| ExtractorError::NoSuchKind(kind_name.clone()))? };
+
+        // Read the field names
+        let len = self.read_u32()?;
+        let mut field_names = Vec::with_capacity(len as usize);
+        for _ in 0..len {
+            let string_name = self.read_string()?;
+            let field_name = self.implem.borrow().grammar.get_field_name(&string_name)
+                .ok_or_else(|| ExtractorError::NoSuchField(string_name.clone()))?;
+            field_names.push(field_name);
+        }
+
+        // Attach types
+        let fields = Vec::with_capacity(len as usize);
+        let obj = interface.contents();
+        'fields: for field_name in field_names.drain(..) {
+            for field in obj.fields() {
+                if field_name == *field.name() {
+                    fields.push(field.clone());
+                    continue 'fields
+                }
+            }
+        }
+        let extractor = self.sub(SubOptions {
+            suffix: Some("</tuple>".to_string()),
+            ..SubOptions::default()
+        });
+        Ok((kind_name, Rc::new(fields.into_boxed_slice()), extractor))
     }
 
+    fn untagged_tuple(&mut self) -> Result<Self, Self::Error> {
+        self.read_constant("<tuple>")?;
+        Ok(self.sub(SubOptions {
+            suffix: Some("</tuple>".to_string()),
+            ..SubOptions::default()
+        }))
+    }
 }
 
 struct SubOptions {
     byte_len: Option<u64>,
     suffix: Option<String>,
+}
+impl Default for SubOptions {
+    fn default() -> Self {
+        SubOptions {
+            byte_len: None,
+            suffix: None,
+        }
+    }
 }
 
 /// A trivial tree writer, without any kind of optimization.
@@ -294,6 +359,12 @@ impl Builder for TreeBuilder {
             let bytes : Vec<_> = kind.to_string().bytes().collect();
             result.extend_from_slice(&bytes);
             result.push(0);
+
+            let number_of_items = node.contents().fields().len() as u32;
+            let mut buf : [u8; 4] = unsafe { std::mem::transmute(number_of_items) };
+            assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&number_of_items));
+            result.extend_from_slice(&buf);
+
             for field in node.contents().fields() {
                 let bytes : Vec<_> = field.name().to_string().bytes().collect();
                 result.extend_from_slice(&bytes);
