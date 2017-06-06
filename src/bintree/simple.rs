@@ -1,5 +1,4 @@
 //! Minimal implementation of encoding/decoding to binary.
-//! FIXME: This module should probably move to `examples/`.
 
 use estree::grammar::{ Field, InterfaceNode, Syntax };
 use estree::io::*;

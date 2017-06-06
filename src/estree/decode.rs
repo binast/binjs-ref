@@ -105,7 +105,7 @@ impl<'a, E> Decoder<'a, E> where E: Extractor {
                     // Read the fields **in the order** in which they appear in the stream.
                     let mut decoder = Decoder::new(extractor, self.grammar);
                     let mut object = Object::new();
-                    for field in mapped_field_names.as_ref() {
+                    for field in mapped_field_names.as_ref().iter() {
                         let item = decoder.decode(field.type_())?;
                         object.insert(field.name().to_string().clone(), item);
                     }

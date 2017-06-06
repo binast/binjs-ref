@@ -359,12 +359,9 @@ impl SyntaxBuilder {
                     roots.push(parent_names.clone());
                 }
                 for field in &node.borrow().own_contents.fields {
-                    let name = if let Some(name) = field_names.get(field.name.to_string()) {
-                        name.clone()
-                    } else {
-                        field_names.insert(field.name().to_string().clone(), field.name().clone());
-                        field.name.clone()
-                    };
+                    let name = field_names.entry(field.name.to_string().clone())
+                        .or_insert_with(|| field.name().clone())
+                        .clone();
                     if fields.insert(name, field.type_.clone()).is_some() {
                         unimplemented!()
                     }
