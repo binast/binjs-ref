@@ -87,4 +87,4 @@ Total parsing time:  -72% without skipping, -94% skipping all functions
 
 # Specifications
 
-All specifications may be found in directory spec/.
+All (WIP) specifications may be found in directory spec/.

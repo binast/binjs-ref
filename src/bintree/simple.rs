@@ -18,6 +18,7 @@ pub enum ExtractorError {
     Reader(std::io::Error),
     Encoding(FromUtf8Error),
     NotInList,
+    HeaderOrFooterNotFound { expected: String, found: Vec<u8> },
     EndOffsetError { expected: u64, found: u64 },
     BailingOutBecauseOfPreviousError
 }
@@ -31,7 +32,13 @@ pub struct TreeExtractor<R> where R: Read + Seek {
     implem: Rc<RefCell<TreeExtractorImpl<R>>>,
     my_pending_error: Rc<RefCell<Option<ExtractorError>>>,
     parent_pending_error: Rc<RefCell<Option<ExtractorError>>>,
+
+    // If specified, the position at which extraction must end.
     pos_end: Option<u64>,
+
+    // If specified, a suffix for the extraction.
+    // This suffix appears *after* `pos_end`.
+    suffix: Option<String>
 }
 impl<R> TreeExtractor<R> where R: Read + Seek {
     /// Create a new toplevel TreeExtractor.
@@ -43,18 +50,20 @@ impl<R> TreeExtractor<R> where R: Read + Seek {
             implem: Rc::new(RefCell::new(implem)),
             my_pending_error: Rc::new(RefCell::new(None)),
             parent_pending_error: Rc::new(RefCell::new(None)),
-            pos_end: None
+            pos_end: None,
+            suffix: None,
         }
     }
 
     /// Derive a TreeExtractor for reading a subset of the stream.
-    fn sub(&self, length: u64) -> Self {
+    fn sub(&self, options: SubOptions) -> Self {
         let position = self.implem.borrow().reader.position();
         TreeExtractor {
             implem: self.implem.clone(),
             parent_pending_error: self.my_pending_error.clone(),
             my_pending_error: Rc::new(RefCell::new(None)),
-            pos_end: Some(position + length)
+            pos_end: options.byte_len.map(|length| position + length),
+            suffix: options.suffix
         }
     }
 
@@ -71,8 +80,8 @@ impl<R> TreeExtractor<R> where R: Read + Seek {
             return Err(error)
         }
         let ref mut reader = self.implem.borrow_mut().reader;
-        match reader.read(buf) {
-            Ok(ok) => Ok(ok),
+        match reader.read_exact(buf) {
+            Ok(ok) => Ok(buf.len()),
             Err(err) => {
                 let error = ExtractorError::Reader(err);
                 *self.my_pending_error.borrow_mut() = Some(ExtractorError::BailingOutBecauseOfPreviousError);
@@ -89,9 +98,24 @@ impl<R> TreeExtractor<R> where R: Read + Seek {
         result = unsafe { std::mem::transmute(buf) };
         Ok(result)
     }
+
+    fn read_constant(&mut self, value: &str) -> Result<(), ExtractorError> {
+        let mut buf : Vec<u8> = value.bytes().collect();
+        self.read(&mut buf)?;
+        for (expected, found) in buf.iter().zip(value.bytes()) {
+            if *expected != found {
+                return Err(ExtractorError::HeaderOrFooterNotFound {
+                    found: buf.clone(),
+                    expected: value.to_string()
+                });
+            }
+        }
+        Ok(())
+    }
 }
 impl<R> Drop for TreeExtractor<R> where R: Read + Seek {
     fn drop(&mut self) {
+        // Check byte_len, if available.
         if let Some(expected) = self.pos_end {
             let ref reader = self.implem.borrow().reader;
             if reader.position() != expected {
@@ -99,7 +123,15 @@ impl<R> Drop for TreeExtractor<R> where R: Read + Seek {
                     Some(ExtractorError::EndOffsetError {
                         expected,
                         found: reader.position()
-                    })
+                    });
+                return;
+            }
+        }
+        // Check suffix, if available.
+        if let Some(ref suffix) = self.suffix.take() {
+            if let Err(err) = self.read_constant(suffix) {
+                *self.parent_pending_error.borrow_mut() = Some(err);
+                return;
             }
         }
     }
@@ -152,8 +184,12 @@ impl<R> Extractor for TreeExtractor<R> where R: Read + Seek {
     }
 
     fn list(&mut self) -> Result<(u32, Self), Self::Error> {
+        self.read_constant("<list>")?;
         let byte_len = self.read_u32()?;
-        let mut extractor = self.sub(byte_len as u64);
+        let mut extractor = self.sub(SubOptions {
+            byte_len: Some(byte_len as u64),
+            suffix: Some("</list>".to_string())
+        });
         let list_len = extractor.read_u32()?;
         Ok((list_len, extractor))
     }
@@ -164,6 +200,10 @@ impl<R> Extractor for TreeExtractor<R> where R: Read + Seek {
 
 }
 
+struct SubOptions {
+    byte_len: Option<u64>,
+    suffix: Option<String>,
+}
 
 /// A trivial tree writer, without any kind of optimization.
 pub struct TreeBuilder {
@@ -197,6 +237,7 @@ impl Builder for TreeBuilder {
         Ok(self.register(result))
     }
 
+    // Strings are represented as UTF-8, \0-terminated.
     fn string(&mut self, data: &str) -> Result<Self::Tree, Self::Error> {
         let mut result : Vec<_> = data.as_bytes().iter().cloned().collect();
         result.push(0);
@@ -214,6 +255,8 @@ impl Builder for TreeBuilder {
     /// - items
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
         let mut result = Vec::new();
+        result.extend_from_slice(&"<list>".as_bytes());// Sole purpose of this constant is testing
+
         let number_of_items = items.len() as u32;
         let mut buf : [u8; 4] = unsafe { std::mem::transmute(number_of_items) };
         assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&number_of_items));
@@ -233,6 +276,7 @@ impl Builder for TreeBuilder {
             result[i] = buf[i];
         }
 
+        result.extend_from_slice(&"</list>".as_bytes());// Sole purpose of this constant is testing
         Ok(self.register(result))
     }
 
@@ -243,6 +287,7 @@ impl Builder for TreeBuilder {
     /// - contents
     fn tuple(&mut self, children: Vec<Self::Tree>, interface: Option<&InterfaceNode>) -> Result<Self::Tree, Self::Error> {
         let mut result = Vec::new();
+        result.extend_from_slice(&"<tuple>".as_bytes()); // Sole purpose of this constant is testing
         if let Some(node) = interface {
             let kind = node.kind()
                 .ok_or_else(|| BuilderError::MissingKind)?;
@@ -258,6 +303,7 @@ impl Builder for TreeBuilder {
         for item in children {
             result.extend_from_slice(&*item)
         }
+        result.extend_from_slice(&"</tuple>".as_bytes()); // Sole purpose of this constant is testing
         Ok(self.register(result))
     }
 }
