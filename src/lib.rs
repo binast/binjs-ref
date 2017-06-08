@@ -29,10 +29,6 @@
 
 #[macro_use]
 extern crate log;
-
-extern crate easter;
-extern crate esprit;
-extern crate joker;
 extern crate serde_json;
 
 /// Manipulating the AST.

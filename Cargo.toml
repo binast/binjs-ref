@@ -5,7 +5,8 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [dependencies]
 log ="*"
-easter = "*"
-esprit = "*"
 joker = "*"
 serde_json = "*"
+
+[dev-dependencies]
+glob = "*"
