@@ -27,6 +27,8 @@
 //! - the Token Streams (see module `token`);
 //! - the Byte Streams (see module `bytes`).
 
+#[macro_use]
+extern crate log;
 
 extern crate easter;
 extern crate esprit;
@@ -41,6 +43,9 @@ pub mod token;
 
 /// Encoding/decoding a stream of tokens to/from a stream of bytes.
 pub mod bytes;
+
+/// Parsing source JavaScript.
+pub mod source;
 
 /// Misc utilities.
 mod util;
