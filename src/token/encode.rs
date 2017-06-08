@@ -1,12 +1,12 @@
 use ast::grammar::*;
 use token::io::*;
 
-use std;
 use std::cell::*;
 use std::ops::Deref;
 
+use serde_json;
 use serde_json::Value;
-type Object = std::collections::BTreeMap<String, Value>;
+type Object = serde_json::Map<String, Value>;
 
 #[derive(Debug)]
 pub enum Error<E> {
@@ -78,7 +78,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                         return Ok(result)
                     }
                 }
-                let string = value.as_string()
+                let string = value.as_str()
                     .ok_or_else(|| Error::Mismatch("String".to_string()))?;
                 for candidate in enum_.strings() {
                     if candidate == string {
@@ -97,7 +97,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                    .ok_or_else(|| Error::Mismatch("Object".to_string()))?;
                let kind_name = object.get("type")
                    .ok_or_else(|| Error::MissingField("type".to_string()))?
-                   .as_string()
+                   .as_str()
                    .ok_or_else(|| Error::Mismatch("type".to_string()))?;
                let kind = self.grammar.get_kind(kind_name)
                    .ok_or_else(|| Error::NoSuchKind(kind_name.to_string().clone()))?;
@@ -128,15 +128,16 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                return Err(Error::NoSuchRefinement(kind.to_string().clone()));
            }
            Boolean => {
-                let value = value.as_boolean()
+                let value = value.as_bool()
                     .ok_or_else(|| Error::Mismatch("boolean".to_string()))?;
                 let result = self.builder.borrow_mut().bool(value)
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)
            }
            String => {
-                let value = value.as_string()
-                   .ok_or_else(|| Error::Mismatch("String".to_string()))?;
+                let value = value.as_str()
+                   .ok_or_else(|| Error::Mismatch("String".to_string()))?
+                   .to_owned();
                 let result = self.builder.borrow_mut().string(Some(&value))
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)

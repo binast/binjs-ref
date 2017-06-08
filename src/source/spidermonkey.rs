@@ -21,7 +21,11 @@ pub struct SpiderMonkey {
 }
 
 impl SpiderMonkey {
-    pub fn new<P: AsRef<Path>>(bin_path: P) -> Self {
+    pub fn new() -> Self {
+        SpiderMonkey::with_path("js")
+    }
+
+    pub fn with_path<P: AsRef<Path>>(bin_path: P) -> Self {
         SpiderMonkey {
             bin_path: bin_path.as_ref().to_path_buf()
         }

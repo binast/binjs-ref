@@ -3,10 +3,15 @@ name = "binjs"
 version = "0.1.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 
+[features]
+default = []
+# If specified build with SpiderMonkey.
+spidermonkey = []
+
 [dependencies]
 log ="*"
-joker = "*"
-serde_json = "*"
+serde_json = "1.0"
 
 [dev-dependencies]
+env_logger = "*"
 glob = "*"

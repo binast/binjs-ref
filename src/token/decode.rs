@@ -4,11 +4,10 @@
 use ast::grammar::*;
 use token::io::*;
 
+use serde_json;
 use serde_json::Value;
 
-use std;
-
-type Object = std::collections::BTreeMap<String, Value>;
+type Object = serde_json::Map<String, Value>;
 
 pub enum Error {
     UnexpectedValue(String),
@@ -122,7 +121,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             Number => {
                 let value = self.extractor.float()
                     .map_err(|_| Error::InvalidValue("float".to_string()))?;
-                Ok(Value::F64(value))
+                Ok(json!(value))
             }
         }
     }

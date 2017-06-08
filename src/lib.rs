@@ -29,6 +29,8 @@
 
 #[macro_use]
 extern crate log;
+
+#[macro_use]
 extern crate serde_json;
 
 /// Manipulating the AST.
@@ -45,4 +47,3 @@ pub mod source;
 
 /// Misc utilities.
 mod util;
-
