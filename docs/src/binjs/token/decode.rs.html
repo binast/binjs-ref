@@ -171,6 +171,7 @@
 <span id="126">126</span>
 <span id="127">127</span>
 <span id="128">128</span>
+<span id="129">129</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! With the help of an underlying `TokenReader`, decode a stream of bytes</span>
 <span class="doccomment">//! to a JSON matching a specific grammar.</span>
@@ -183,6 +184,7 @@
 
 <span class="kw">type</span> <span class="ident">Object</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span>;
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Error</span> {
     <span class="ident">UnexpectedValue</span>(<span class="ident">String</span>),
     <span class="ident">TokenReaderError</span>, <span class="comment">// FIXME: Improve this</span>
@@ -199,7 +201,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">Decoder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">TokenReader</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">extractor</span>: <span class="ident">E</span>, <span class="ident">grammar</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Syntax</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">grammar</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Syntax</span>, <span class="ident">extractor</span>: <span class="ident">E</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Decoder</span> {
             <span class="ident">extractor</span>,
             <span class="ident">grammar</span>
@@ -211,7 +213,7 @@
             <span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="ident">kind</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> (<span class="ident">len</span>, <span class="ident">extractor</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">extractor</span>.<span class="ident">list</span>()
                     .<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">Error</span>::<span class="ident">TokenReaderError</span>)<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="ident">extractor</span>, <span class="self">self</span>.<span class="ident">grammar</span>);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">grammar</span>, <span class="ident">extractor</span>);
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span>);
                 <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">len</span> {
                     <span class="ident">values</span>.<span class="ident">push</span>(<span class="ident">decoder</span>.<span class="ident">decode</span>(<span class="ident">kind</span>)<span class="question-mark">?</span>);
@@ -222,7 +224,7 @@
                 <span class="comment">// At this stage, since there is no inheritance involved, use the built-in mapping.</span>
                 <span class="kw">let</span> <span class="ident">extractor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">extractor</span>.<span class="ident">untagged_tuple</span>()
                     .<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">Error</span>::<span class="ident">TokenReaderError</span>)<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="ident">extractor</span>, <span class="self">self</span>.<span class="ident">grammar</span>);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">grammar</span>, <span class="ident">extractor</span>);
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
                 <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">structure</span>.<span class="ident">fields</span>() {
                     <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">decode</span>(<span class="ident">field</span>.<span class="ident">type_</span>())<span class="question-mark">?</span>;
@@ -276,7 +278,7 @@
                     }
 
                     <span class="comment">// Read the fields **in the order** in which they appear in the stream.</span>
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="ident">extractor</span>, <span class="self">self</span>.<span class="ident">grammar</span>);
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">grammar</span>, <span class="ident">extractor</span>);
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
                     <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">mapped_field_names</span>.<span class="ident">as_ref</span>().<span class="ident">iter</span>() {
                         <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">decode</span>(<span class="ident">field</span>.<span class="ident">type_</span>())<span class="question-mark">?</span>;

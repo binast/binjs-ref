@@ -520,6 +520,10 @@
 <span id="475">475</span>
 <span id="476">476</span>
 <span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A library of specifications for versions of JavaScript.</span>
 
@@ -631,6 +635,7 @@
     <span class="kw">let</span> <span class="ident">field_callee</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;callee&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_arguments</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;arguments&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_expressions</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;expressions&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;expression&quot;</span>);
 
     <span class="comment">// Node objects</span>
     <span class="ident">syntax</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>).<span class="ident">unwrap</span>();
@@ -684,9 +689,12 @@
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">empty_statement</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>);
 
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">block_statement</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>).<span class="ident">array</span>())
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression_statement</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>).<span class="ident">array</span>())
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_expression</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">debugger_statement</span>).<span class="ident">unwrap</span>()

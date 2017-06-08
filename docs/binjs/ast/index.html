@@ -48,7 +48,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/binjs/ast/mod.rs.html#1-19' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/binjs/ast/mod.rs.html#1-51' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Manipulating the AST.
 This module defines the AST grammar and provides tools for manipulating
 representations of this AST.</p>
@@ -62,7 +62,35 @@ any version of the specifications of ESTree.</p>
 <p>Optimized implementations are expected to hardcode a specific version of ESTree.</p>
 
 <h1 id='specifications' class='section-header'><a href='#specifications'>Specifications</a></h1>
-<p>TODO</p>
+<p>A Grammar is composed of Interface Declarations and Enumeration Declarations.</p>
+
+<p>Each Interface Declaration consists in <em>all</em> of:
+- one Name (e.g. <code>Expression</code>, <code>ExpressionStatement</code>, ...);
+- a (possibly empty) list of Names of Parent Interfaces.
+- optionally, one Tag (e.g. <code>ExpressionStatement</code>, but not <code>Expression</code>);
+- an Object Structure.</p>
+
+<p>FIXME: specify Enumerations.</p>
+
+<p>Each Field consists in <em>all</em> of:
+- one Name (e.g. <code>body</code>);
+- one Type.</p>
+
+<p>Each Type is <em>one</em> of:
+- <code>OrNull(T)</code>, where T is a Type; or
+- one or more Name of Interfaces; or
+- the Name of an Enumeration; or
+- <code>Array(T)</code>, where T is a Type; or
+- <code>Boolean</code>; or
+- <code>String</code>; or
+- <code>Number</code>; or
+- <code>Null</code>.</p>
+
+<h1 id='inhabiting-a-grammar' class='section-header'><a href='#inhabiting-a-grammar'>Inhabiting a grammar</a></h1>
+<p>FIXME: Specify.</p>
+
+<h1 id='evolving-the-grammar' class='section-header'><a href='#evolving-the-grammar'>Evolving the Grammar</a></h1>
+<p>FIXME: Specify.</p>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>
