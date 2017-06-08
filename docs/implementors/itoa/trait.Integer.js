@@ -1,5 +1,4 @@
 (function() {var implementors = {};
-implementors["easter"] = [];
 implementors["itoa"] = [];
 
             if (window.register_implementors) {

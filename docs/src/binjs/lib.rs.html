@@ -90,6 +90,8 @@
 <span id="45">45</span>
 <span id="46">46</span>
 <span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A reference implementation for the BinJS binary source format for JavaScript.</span>
 <span class="doccomment">//!</span>
@@ -120,10 +122,10 @@
 <span class="doccomment">//! - the Token Streams (see module `token`);</span>
 <span class="doccomment">//! - the Byte Streams (see module `bytes`).</span>
 
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
 
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">easter</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">esprit</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">joker</span>;
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_json</span>;
 
 <span class="doccomment">/// Manipulating the AST.</span>
@@ -135,9 +137,11 @@
 <span class="doccomment">/// Encoding/decoding a stream of tokens to/from a stream of bytes.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bytes</span>;
 
+<span class="doccomment">/// Parsing source JavaScript.</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">source</span>;
+
 <span class="doccomment">/// Misc utilities.</span>
 <span class="kw">mod</span> <span class="ident">util</span>;
-
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

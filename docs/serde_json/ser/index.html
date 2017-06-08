@@ -29,7 +29,7 @@
 
     <nav class="sidebar">
         
-        <p class='location'>Module ser</p><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>serde_json</a></p><script>window.sidebarCurrent = {name: 'ser', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+        <p class='location'>Module ser</p><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>serde_json</a></p><script>window.sidebarCurrent = {name: 'ser', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
     </nav>
 
     <nav class="sub">
@@ -48,10 +48,8 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/serde_json/ser.rs.html#1-687' title='goto source code'>[src]</a></span></h1>
-<div class='docblock'><p>JSON Serialization</p>
-
-<p>This module provides for JSON serialization with the type <code>Serializer</code>.</p>
+               </span><a class='srclink' href='../../src/serde_json/ser.rs.html#9-1842' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Serialize a Rust data structure into JSON data.</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>
@@ -74,6 +72,14 @@
                            <td class='docblock-short'>
                                 <p>A structure for serializing Rust values into JSON.</p>
                            </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.CharEscape.html"
+                                  title='enum serde_json::ser::CharEscape'>CharEscape</a></td>
+                           <td class='docblock-short'>
+                                <p>Represents a character escape code in a type-safe manner.</p>
+                           </td>
                        </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
 <table>
                        <tr class=' module-item'>
@@ -86,60 +92,46 @@ optionally pretty print the JSON output.</p>
                        </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
 <table>
                        <tr class=' module-item'>
-                           <td><a class="fn" href="fn.escape_bytes.html"
-                                  title='fn serde_json::ser::escape_bytes'>escape_bytes</a></td>
-                           <td class='docblock-short'>
-                                <p>DEPRECATED. Will be removed in 0.8.0.
-<a href="https://github.com/serde-rs/json/issues/60">https://github.com/serde-rs/json/issues/60</a></p>
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.escape_str.html"
-                                  title='fn serde_json::ser::escape_str'>escape_str</a></td>
-                           <td class='docblock-short'>
-                                <p>Serializes and escapes a <code>&amp;str</code> into a JSON string.</p>
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
                            <td><a class="fn" href="fn.to_string.html"
                                   title='fn serde_json::ser::to_string'>to_string</a></td>
                            <td class='docblock-short'>
-                                <p>Encode the specified struct into a json <code>String</code> buffer.</p>
+                                <p>Serialize the given data structure as a String of JSON.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="fn" href="fn.to_string_pretty.html"
                                   title='fn serde_json::ser::to_string_pretty'>to_string_pretty</a></td>
                            <td class='docblock-short'>
-                                <p>Encode the specified struct into a json <code>String</code> buffer.</p>
+                                <p>Serialize the given data structure as a pretty-printed String of JSON.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="fn" href="fn.to_vec.html"
                                   title='fn serde_json::ser::to_vec'>to_vec</a></td>
                            <td class='docblock-short'>
-                                <p>Encode the specified struct into a json <code>[u8]</code> buffer.</p>
+                                <p>Serialize the given data structure as a JSON byte vector.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="fn" href="fn.to_vec_pretty.html"
                                   title='fn serde_json::ser::to_vec_pretty'>to_vec_pretty</a></td>
                            <td class='docblock-short'>
-                                <p>Encode the specified struct into a json <code>[u8]</code> buffer.</p>
+                                <p>Serialize the given data structure as a pretty-printed JSON byte vector.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="fn" href="fn.to_writer.html"
                                   title='fn serde_json::ser::to_writer'>to_writer</a></td>
                            <td class='docblock-short'>
-                                <p>Encode the specified struct into a json <code>[u8]</code> writer.</p>
+                                <p>Serialize the given data structure as JSON into the IO stream.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="fn" href="fn.to_writer_pretty.html"
                                   title='fn serde_json::ser::to_writer_pretty'>to_writer_pretty</a></td>
                            <td class='docblock-short'>
-                                <p>Encode the specified struct into a json <code>[u8]</code> writer.</p>
+                                <p>Serialize the given data structure as pretty-printed JSON into the IO
+stream.</p>
                            </td>
                        </tr></table></section>
     <section id='search' class="content hidden"></section>
