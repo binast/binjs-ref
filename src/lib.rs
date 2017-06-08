@@ -1,22 +1,47 @@
+//! A reference implementation for the BinJS binary source format for JavaScript.
+//!
+//! # About BinJS
+//!
+//! As websites become more sophisticated, the amount of JavaScript source code keeps
+//! increasing. By itself, this is not a problem. However, with the amount of code
+//! loaded by large websites such as Facebook's chat, it is now common to witness
+//! page loads during which both the loading and the parsing of JS code can take
+//! several seconds each – this is assuming a fast connection, and taking into
+//! account that the code is both compressed and optimized for loading and parsing
+//! speed.
+//!
+//! There is no reason to believe that the size of JS code will decrease or will
+//! even stop increasing, nor that every large webdev team has the means to profile
+//! loading and parsing speed of all their code.
+//!
+//! This crate offers a (WIP) reference implementation for BinJS, a vendor-neutral
+//! JavaScript format designed to optimize parsing speed and, when possible,
+//! loading speed.
+//!
+//!
+//! # The format
+//!
+//! To simplify reading, specifications of the format are cut in three layers:
+//!
+//! - the AST (see module `ast`);
+//! - the Token Streams (see module `token`);
+//! - the Byte Streams (see module `bytes`).
+
+
 extern crate easter;
 extern crate esprit;
 extern crate joker;
 extern crate serde_json;
 
-/// Encoding/decoding an AST for an EcmaScript source represented in ESTree format to/from BinTree.
-pub mod estree;
+/// Manipulating the AST.
+pub mod ast;
 
-/// Encoding/decoding a BinTree to/from a stream of bytes.
-pub mod bintree;
+/// Encoding/decoding an AST to/from a stream of tokens.
+pub mod token;
 
+/// Encoding/decoding a stream of tokens to/from a stream of bytes.
+pub mod bytes;
+
+/// Misc utilities.
 mod util;
 
-/*
-pub mod decode;
-pub mod encode;
-
-pub mod ast;
-mod atoms;
-mod kind;
-mod varnum;
-*/

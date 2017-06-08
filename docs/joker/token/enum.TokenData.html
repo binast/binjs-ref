@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `TokenData` enum in crate `joker`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, TokenData">
+
+    <title>joker::token::TokenData - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc enum">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Enum TokenData</p><div class="block items"><ul><li><a href="#variants">Variants</a></li><li><a href="#implementations">Trait Implementations</a></li></ul></div><p class='location'><a href='../index.html'>joker</a>::<wbr><a href='index.html'>token</a></p><script>window.sidebarCurrent = {name: 'TokenData', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Enum <a href='../index.html'>joker</a>::<wbr><a href='index.html'>token</a>::<wbr><a class="enum" href=''>TokenData</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/joker/token.rs.html#24-86' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum TokenData {
+    Reserved(<a class="enum" href="../../joker/word/enum.Reserved.html" title="enum joker::word::Reserved">Reserved</a>),
+    LBrace,
+    RBrace,
+    LParen,
+    RParen,
+    LBrack,
+    RBrack,
+    Dot,
+    Semi,
+    Comma,
+    LAngle,
+    RAngle,
+    LEq,
+    GEq,
+    Eq,
+    NEq,
+    StrictEq,
+    StrictNEq,
+    Plus,
+    Minus,
+    Star,
+    Mod,
+    Slash,
+    Inc,
+    Dec,
+    LShift,
+    RShift,
+    URShift,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Bang,
+    Tilde,
+    LogicalAnd,
+    LogicalOr,
+    Question,
+    Colon,
+    Assign,
+    PlusAssign,
+    MinusAssign,
+    StarAssign,
+    SlashAssign,
+    ModAssign,
+    LShiftAssign,
+    RShiftAssign,
+    URShiftAssign,
+    BitAndAssign,
+    BitOrAssign,
+    BitXorAssign,
+    Arrow,
+    Number(<a class="struct" href="../../joker/token/struct.NumberLiteral.html" title="struct joker::token::NumberLiteral">NumberLiteral</a>),
+    String(<a class="struct" href="../../joker/token/struct.StringLiteral.html" title="struct joker::token::StringLiteral">StringLiteral</a>),
+    RegExp(<a class="struct" href="../../joker/token/struct.RegExpLiteral.html" title="struct joker::token::RegExpLiteral">RegExpLiteral</a>),
+    Identifier(<a class="enum" href="../../joker/word/enum.Name.html" title="enum joker::word::Name">Name</a>),
+    EOF,
+}</pre><h2 id='variants' class='variants'>Variants</h2>
+<span id='variant.Reserved' class='variant'><span id='Reserved.v' class='invisible'><code>Reserved(<a class="enum" href="../../joker/word/enum.Reserved.html" title="enum joker::word::Reserved">Reserved</a>)</code></span></span><span id='variant.LBrace' class='variant'><span id='LBrace.v' class='invisible'><code>LBrace</code></span></span><span id='variant.RBrace' class='variant'><span id='RBrace.v' class='invisible'><code>RBrace</code></span></span><span id='variant.LParen' class='variant'><span id='LParen.v' class='invisible'><code>LParen</code></span></span><span id='variant.RParen' class='variant'><span id='RParen.v' class='invisible'><code>RParen</code></span></span><span id='variant.LBrack' class='variant'><span id='LBrack.v' class='invisible'><code>LBrack</code></span></span><span id='variant.RBrack' class='variant'><span id='RBrack.v' class='invisible'><code>RBrack</code></span></span><span id='variant.Dot' class='variant'><span id='Dot.v' class='invisible'><code>Dot</code></span></span><span id='variant.Semi' class='variant'><span id='Semi.v' class='invisible'><code>Semi</code></span></span><span id='variant.Comma' class='variant'><span id='Comma.v' class='invisible'><code>Comma</code></span></span><span id='variant.LAngle' class='variant'><span id='LAngle.v' class='invisible'><code>LAngle</code></span></span><span id='variant.RAngle' class='variant'><span id='RAngle.v' class='invisible'><code>RAngle</code></span></span><span id='variant.LEq' class='variant'><span id='LEq.v' class='invisible'><code>LEq</code></span></span><span id='variant.GEq' class='variant'><span id='GEq.v' class='invisible'><code>GEq</code></span></span><span id='variant.Eq' class='variant'><span id='Eq.v' class='invisible'><code>Eq</code></span></span><span id='variant.NEq' class='variant'><span id='NEq.v' class='invisible'><code>NEq</code></span></span><span id='variant.StrictEq' class='variant'><span id='StrictEq.v' class='invisible'><code>StrictEq</code></span></span><span id='variant.StrictNEq' class='variant'><span id='StrictNEq.v' class='invisible'><code>StrictNEq</code></span></span><span id='variant.Plus' class='variant'><span id='Plus.v' class='invisible'><code>Plus</code></span></span><span id='variant.Minus' class='variant'><span id='Minus.v' class='invisible'><code>Minus</code></span></span><span id='variant.Star' class='variant'><span id='Star.v' class='invisible'><code>Star</code></span></span><span id='variant.Mod' class='variant'><span id='Mod.v' class='invisible'><code>Mod</code></span></span><span id='variant.Slash' class='variant'><span id='Slash.v' class='invisible'><code>Slash</code></span></span><span id='variant.Inc' class='variant'><span id='Inc.v' class='invisible'><code>Inc</code></span></span><span id='variant.Dec' class='variant'><span id='Dec.v' class='invisible'><code>Dec</code></span></span><span id='variant.LShift' class='variant'><span id='LShift.v' class='invisible'><code>LShift</code></span></span><span id='variant.RShift' class='variant'><span id='RShift.v' class='invisible'><code>RShift</code></span></span><span id='variant.URShift' class='variant'><span id='URShift.v' class='invisible'><code>URShift</code></span></span><span id='variant.BitAnd' class='variant'><span id='BitAnd.v' class='invisible'><code>BitAnd</code></span></span><span id='variant.BitOr' class='variant'><span id='BitOr.v' class='invisible'><code>BitOr</code></span></span><span id='variant.BitXor' class='variant'><span id='BitXor.v' class='invisible'><code>BitXor</code></span></span><span id='variant.Bang' class='variant'><span id='Bang.v' class='invisible'><code>Bang</code></span></span><span id='variant.Tilde' class='variant'><span id='Tilde.v' class='invisible'><code>Tilde</code></span></span><span id='variant.LogicalAnd' class='variant'><span id='LogicalAnd.v' class='invisible'><code>LogicalAnd</code></span></span><span id='variant.LogicalOr' class='variant'><span id='LogicalOr.v' class='invisible'><code>LogicalOr</code></span></span><span id='variant.Question' class='variant'><span id='Question.v' class='invisible'><code>Question</code></span></span><span id='variant.Colon' class='variant'><span id='Colon.v' class='invisible'><code>Colon</code></span></span><span id='variant.Assign' class='variant'><span id='Assign.v' class='invisible'><code>Assign</code></span></span><span id='variant.PlusAssign' class='variant'><span id='PlusAssign.v' class='invisible'><code>PlusAssign</code></span></span><span id='variant.MinusAssign' class='variant'><span id='MinusAssign.v' class='invisible'><code>MinusAssign</code></span></span><span id='variant.StarAssign' class='variant'><span id='StarAssign.v' class='invisible'><code>StarAssign</code></span></span><span id='variant.SlashAssign' class='variant'><span id='SlashAssign.v' class='invisible'><code>SlashAssign</code></span></span><span id='variant.ModAssign' class='variant'><span id='ModAssign.v' class='invisible'><code>ModAssign</code></span></span><span id='variant.LShiftAssign' class='variant'><span id='LShiftAssign.v' class='invisible'><code>LShiftAssign</code></span></span><span id='variant.RShiftAssign' class='variant'><span id='RShiftAssign.v' class='invisible'><code>RShiftAssign</code></span></span><span id='variant.URShiftAssign' class='variant'><span id='URShiftAssign.v' class='invisible'><code>URShiftAssign</code></span></span><span id='variant.BitAndAssign' class='variant'><span id='BitAndAssign.v' class='invisible'><code>BitAndAssign</code></span></span><span id='variant.BitOrAssign' class='variant'><span id='BitOrAssign.v' class='invisible'><code>BitOrAssign</code></span></span><span id='variant.BitXorAssign' class='variant'><span id='BitXorAssign.v' class='invisible'><code>BitXorAssign</code></span></span><span id='variant.Arrow' class='variant'><span id='Arrow.v' class='invisible'><code>Arrow</code></span></span><span id='variant.Number' class='variant'><span id='Number.v' class='invisible'><code>Number(<a class="struct" href="../../joker/token/struct.NumberLiteral.html" title="struct joker::token::NumberLiteral">NumberLiteral</a>)</code></span></span><span id='variant.String' class='variant'><span id='String.v' class='invisible'><code>String(<a class="struct" href="../../joker/token/struct.StringLiteral.html" title="struct joker::token::StringLiteral">StringLiteral</a>)</code></span></span><span id='variant.RegExp' class='variant'><span id='RegExp.v' class='invisible'><code>RegExp(<a class="struct" href="../../joker/token/struct.RegExpLiteral.html" title="struct joker::token::RegExpLiteral">RegExpLiteral</a>)</code></span></span><span id='variant.Identifier' class='variant'><span id='Identifier.v' class='invisible'><code>Identifier(<a class="enum" href="../../joker/word/enum.Name.html" title="enum joker::word::Name">Name</a>)</code></span></span><span id='variant.EOF' class='variant'><span id='EOF.v' class='invisible'><code>EOF</code></span></span><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="enum" href="../../joker/token/enum.TokenData.html" title="enum joker::token::TokenData">TokenData</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/joker/token.rs.html#23' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="enum" href="../../joker/token/enum.TokenData.html" title="enum joker::token::TokenData">TokenData</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/joker/token.rs.html#23' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../../joker/token/enum.TokenData.html" title="enum joker::token::TokenData">TokenData</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../../joker/token/enum.TokenData.html" title="enum joker::token::TokenData">TokenData</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "joker";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

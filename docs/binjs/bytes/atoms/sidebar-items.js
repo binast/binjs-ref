@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["AtomsTable",""],["AtomsTableInitializer",""]],"trait":[["FromBytes",""],["ToBytes",""]]});

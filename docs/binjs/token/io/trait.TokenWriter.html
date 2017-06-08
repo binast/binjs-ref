@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `TokenWriter` trait in crate `binjs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, TokenWriter">
+
+    <title>binjs::token::io::TokenWriter - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Trait TokenWriter</p><div class="block items"><ul><li><a href="#associated-types">Associated Types</a></li><li><a href="#required-methods">Required Methods</a></li><li><a href="#implementors">Implementors</a></li></ul></div><p class='location'><a href='../../index.html'>binjs</a>::<wbr><a href='../index.html'>token</a>::<wbr><a href='index.html'>io</a></p><script>window.sidebarCurrent = {name: 'TokenWriter', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>binjs</a>::<wbr><a href='../index.html'>token</a>::<wbr><a href='index.html'>io</a>::<wbr><a class="trait" href=''>TokenWriter</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/binjs/token/io.rs.html#72-112' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait TokenWriter {
+    type <a href='#associatedtype.Tree' class="type">Tree</a>;
+    type <a href='#associatedtype.Error' class="type">Error</a>;
+    fn <a href='#tymethod.tagged_tuple' class='fnname'>tagged_tuple</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_: <a class="struct" href="https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html" title="struct collections::vec::Vec">Vec</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>&gt;, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_: &amp;<a class="struct" href="../../../binjs/ast/grammar/struct.InterfaceNode.html" title="struct binjs::ast::grammar::InterfaceNode">InterfaceNode</a><br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;;
+    fn <a href='#tymethod.untagged_tuple' class='fnname'>untagged_tuple</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_: <a class="struct" href="https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html" title="struct collections::vec::Vec">Vec</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;;
+    fn <a href='#tymethod.list' class='fnname'>list</a>(&amp;mut self, _: <a class="struct" href="https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html" title="struct collections::vec::Vec">Vec</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;;
+    fn <a href='#tymethod.string' class='fnname'>string</a>(&amp;mut self, _: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;;
+    fn <a href='#tymethod.float' class='fnname'>float</a>(&amp;mut self, _: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;;
+    fn <a href='#tymethod.bool' class='fnname'>bool</a>(&amp;mut self, _: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;;
+}</pre><div class='docblock'><p>Build an in-memory representation of a BinTree.</p>
+
+<p>Implementations may for instance introduce atoms,
+maximal sharing, etc.</p>
+</div>
+            <h2 id='associated-types'>Associated Types</h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Tree' class='method'><span id='Tree.t' class='invisible'><code>type <a href='#associatedtype.Tree' class="type">Tree</a></code></span></h3><div class='docblock'><p>The type of trees manipulated by this writer.</p>
+</div><h3 id='associatedtype.Error' class='method'><span id='Error.t' class='invisible'><code>type <a href='#associatedtype.Error' class="type">Error</a></code></span></h3><div class='docblock'><p>An error returned by this writer.</p>
+
+<p>Note that errors are <em>not</em> recoverable within the life
+of this <code>TokenWriter</code>.</p>
+</div></div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.tagged_tuple' class='method'><span id='tagged_tuple.v' class='invisible'><code>fn <a href='#tymethod.tagged_tuple' class='fnname'>tagged_tuple</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;_: <a class="struct" href="https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html" title="struct collections::vec::Vec">Vec</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>&gt;, <br>&nbsp;&nbsp;&nbsp;&nbsp;_: &amp;<a class="struct" href="../../../binjs/ast/grammar/struct.InterfaceNode.html" title="struct binjs::ast::grammar::InterfaceNode">InterfaceNode</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;</code></span></h3><div class='docblock'><p>Write a tagged tuple.</p>
+
+<p>The number of items is specified by the grammar, so it MAY not be
+recorded by the <code>TokenWriter</code>.</p>
+
+<p>The interface MUST have a Tag.</p>
+</div><h3 id='tymethod.untagged_tuple' class='method'><span id='untagged_tuple.v' class='invisible'><code>fn <a href='#tymethod.untagged_tuple' class='fnname'>untagged_tuple</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;_: <a class="struct" href="https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html" title="struct collections::vec::Vec">Vec</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>&gt;<br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;</code></span></h3><div class='docblock'><p>Write an untagged tuple.</p>
+
+<p>The number of items is specified by the grammar, so it MAY not be
+recorded by the <code>TokenWriter</code>.</p>
+</div><h3 id='tymethod.list' class='method'><span id='list.v' class='invisible'><code>fn <a href='#tymethod.list' class='fnname'>list</a>(&amp;mut self, _: <a class="struct" href="https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html" title="struct collections::vec::Vec">Vec</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;</code></span></h3><div class='docblock'><p>Write a list.</p>
+
+<p>By opposition to a tuple, the number of items is variable and MUST
+be somehow recorded by the <code>TokenWriter</code>.</p>
+</div><h3 id='tymethod.string' class='method'><span id='string.v' class='invisible'><code>fn <a href='#tymethod.string' class='fnname'>string</a>(&amp;mut self, _: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;</code></span></h3><div class='docblock'><p>Write a single UTF-8 string or, if <code>None</code>, a representation of the <code>undefined</code> string.</p>
+
+<p>If specified, the string MUST be UTF-8.</p>
+</div><h3 id='tymethod.float' class='method'><span id='float.v' class='invisible'><code>fn <a href='#tymethod.float' class='fnname'>float</a>(&amp;mut self, _: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;</code></span></h3><div class='docblock'><p>Write a single number.</p>
+</div><h3 id='tymethod.bool' class='method'><span id='bool.v' class='invisible'><code>fn <a href='#tymethod.bool' class='fnname'>bool</a>(&amp;mut self, _: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Tree</a>, Self::<a class="trait" href="../../../binjs/token/io/trait.TokenWriter.html" title="trait binjs::token::io::TokenWriter">Error</a>&gt;</code></span></h3><div class='docblock'><p>Write single bool.</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl TokenWriter for <a class="struct" href="../../../binjs/token/simple/struct.TreeTokenWriter.html" title="struct binjs::token::simple::TreeTokenWriter">TreeTokenWriter</a></code></li>
+</ul><script type="text/javascript" async
+                         src="../../../implementors/binjs/token/io/trait.TokenWriter.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "binjs";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>
