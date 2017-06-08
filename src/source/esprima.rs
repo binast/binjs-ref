@@ -1,6 +1,8 @@
 use serde_json;
 use serde_json::Value as JSON;
 
+use source::parser::SourceParser;
+
 use std;
 use std::io::{ Cursor, Write };
 use std::path::*;
@@ -31,8 +33,12 @@ impl Esprima {
             bin_path: bin_path.as_ref().to_path_buf()
         }
     }
+}
 
-    pub fn parse_str(&self, data: &str) -> Result<JSON, Error> {
+impl SourceParser for Esprima {
+    type Error = Error;
+
+    fn parse_str(&self, data: &str) -> Result<JSON, Error> {
         info!(target: "Esprima", "Parsing data {}", data);
         let mut child = Command::new(&*self.bin_path)
             .stdin(Stdio::piped())
@@ -76,7 +82,7 @@ impl Esprima {
     }
 
     /// Parse a text source file, using Esprima.
-    pub fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<JSON, Error> {
+    fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<JSON, Error> {
         let path = path.as_ref().to_str()
             .ok_or_else(||Error::InvalidPath(path.as_ref().to_path_buf()))?;
 

@@ -6,6 +6,8 @@ use std::io::Cursor;
 use std::path::*;
 use std::process::*;
 
+use source::parser::SourceParser;
+
 #[derive(Debug)]
 pub enum Error {
     CouldNotLaunch(std::io::Error),
@@ -29,38 +31,6 @@ impl SpiderMonkey {
         SpiderMonkey {
             bin_path: bin_path.as_ref().to_path_buf()
         }
-    }
-
-    pub fn parse_str(&self, data: &str) -> Result<JSON, Error> {
-        // Escape `"`.
-        let data = data.replace("\"", "\\\"");
-
-        // A script to parse a string, write it to stdout as JSON.
-        let script = format!(
-                    r##"
-                    let parsed  = Reflect.parse("{}");
-                    let json    = JSON.stringify(parsed);
-                    print(json)
-                    "##,
-                    data);
-        self.parse_script_output(&script)
-    }
-
-    /// Parse a text source file, using SpiderMonkey.
-    pub fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<JSON, Error> {
-        let path = path.as_ref().to_str()
-            .ok_or_else(||Error::InvalidPath(path.as_ref().to_path_buf()))?;
-
-        // A script to parse a source file, write it to stdout as JSON.
-        let script = format!(
-                    r##"
-                    let source  = os.file.readFile("{}");
-                    let parsed  = Reflect.parse(source);
-                    let json    = JSON.stringify(parsed);
-                    print(json)
-                    "##,
-                    path);
-        self.parse_script_output(&script)
     }
 
     fn parse_script_output(&self, script: &str) -> Result<JSON, Error> {
@@ -88,5 +58,40 @@ impl SpiderMonkey {
 
         // Result should be a valid AST.
         Ok(result)
+    }
+}
+
+impl SourceParser for SpiderMonkey {
+    type Error = Error;
+    fn parse_str(&self, data: &str) -> Result<JSON, Error> {
+        // Escape `"`.
+        let data = data.replace("\"", "\\\"");
+
+        // A script to parse a string, write it to stdout as JSON.
+        let script = format!(
+                    r##"
+                    let parsed  = Reflect.parse("{}");
+                    let json    = JSON.stringify(parsed);
+                    print(json)
+                    "##,
+                    data);
+        self.parse_script_output(&script)
+    }
+
+    /// Parse a text source file, using SpiderMonkey.
+    fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<JSON, Error> {
+        let path = path.as_ref().to_str()
+            .ok_or_else(||Error::InvalidPath(path.as_ref().to_path_buf()))?;
+
+        // A script to parse a source file, write it to stdout as JSON.
+        let script = format!(
+                    r##"
+                    let source  = os.file.readFile("{}");
+                    let parsed  = Reflect.parse(source);
+                    let json    = JSON.stringify(parsed);
+                    print(json)
+                    "##,
+                    path);
+        self.parse_script_output(&script)
     }
 }
