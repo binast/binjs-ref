@@ -163,8 +163,7 @@ fn test_create_table() {
             let key = table.get_key(&string).expect("The entry is present");
 
             let extracted = table.get(key).expect("The key maps to an entry");
-            let extracted_string = String::from_utf8(extracted.clone()).expect("The entry is utf8");
-            assert_eq!(string, extracted_string);
+            assert_eq!(string, *extracted);
         }
     }
 
@@ -204,8 +203,7 @@ fn test_write_read_index() {
             let key = table2.get_key(&string).expect("The entry is present");
 
             let extracted = table2.get(key).expect("The key maps to an entry");
-            let extracted_string = String::from_utf8(extracted.clone()).expect("The entry is utf8");
-            assert_eq!(string, extracted_string);
+            assert_eq!(string, *extracted);
         }
     }
 
