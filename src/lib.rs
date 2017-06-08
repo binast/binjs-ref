@@ -27,6 +27,8 @@
 //! - the Token Streams (see module `token`);
 //! - the Byte Streams (see module `bytes`).
 
+extern crate env_logger;
+
 #[macro_use]
 extern crate log;
 

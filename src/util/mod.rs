@@ -1,3 +1,5 @@
+use serde_json::Value as JSON;
+
 use std::io::{ Read, Result, Seek, SeekFrom };
 
 pub struct PositionRead<R> where R: Read {
@@ -30,5 +32,29 @@ impl<R> Seek for PositionRead<R> where R: Read + Seek {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.position = self.reader.seek(pos)?;
         Ok(self.position)
+    }
+}
+
+
+/// Strip a tree from meaningless information (location information, comments, ...)
+#[allow(unused)]
+pub fn strip(tree: &mut JSON) {
+    use serde_json::Value::*;
+    match *tree {
+        Object(ref mut map) => {
+            map.remove("loc");
+            map.remove("comments");
+            map.remove("start");
+            map.remove("end");
+            for (_, value) in map.iter_mut() {
+                strip(value);
+            }
+        }
+        Array(ref mut array) => {
+            for value in array.iter_mut() {
+                strip(value);
+            }
+        }
+        _ => {}
     }
 }

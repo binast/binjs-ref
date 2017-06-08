@@ -9,6 +9,7 @@ default = []
 spidermonkey = []
 
 [dependencies]
+env_logger = "*"
 log ="*"
 serde_json = "1.0"
 

@@ -23,14 +23,14 @@ for communication between the browser and the server.
 
 ## Testing it
 
-1. Pull the code.
-2. Build the code.
+1. Install dependencies (you will need `npm`)
+```
+npm install babylon
+```
+2. Pull the code.
+3. Build the code.
 ```
 cargo build && cargo test
-```
-3. Run the encoder
-```
-./target/debug/examples/encode source destination
 ```
 
 

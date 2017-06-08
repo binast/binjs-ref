@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 extern crate binjs;
 extern crate glob;
 extern crate serde_json;

@@ -14,5 +14,8 @@ pub use self::spidermonkey::SpiderMonkey;
 
 /// Using Node.js + Esprima to load an AST.
 pub mod esprima;
-
 pub use self::esprima::Esprima;
+
+/// Using Node.js + Babel to load an AST.
+pub mod babel;
+pub use self::babel::Babel;
