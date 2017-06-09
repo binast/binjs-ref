@@ -5,6 +5,8 @@ use ast::grammar::*;
 
 /// The set of features requested for a syntax.
 pub enum Level {
+    /// Empty syntax, for testing purposes.
+    Empty,
     /// All the features for ES5.
     ES5,
     // FIXME: More levels to be implemented.
@@ -108,6 +110,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     let field_callee = syntax.field_name("callee");
     let field_arguments = syntax.field_name("arguments");
     let field_expressions = syntax.field_name("expressions");
+    let field_expression = syntax.field_name("expression");
 
     // Node objects
     syntax.add_virtual_interface(&node).unwrap();
@@ -161,9 +164,12 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     syntax.add_kinded_interface(&empty_statement).unwrap()
         .with_parent(&statement);
 
+    syntax.add_kinded_interface(&block_statement).unwrap()
+        .with_field(&field_body, Type::interface(&statement).array())
+        .with_parent(&statement);
 
     syntax.add_kinded_interface(&expression_statement).unwrap()
-        .with_field(&field_body, Type::interface(&statement).array())
+        .with_field(&field_expression, Type::interface(&expression))
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&debugger_statement).unwrap()
@@ -462,13 +468,16 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) {
 /// Construct a syntax for a specific version of JavaScript.
 pub fn syntax(level: Level) -> Syntax {
     let mut builder = SyntaxBuilder::new();
-    match level {
+    match level { 
+        Level::Empty => {
+            return builder.into_syntax()
+        }
         Level::ES5 => {
             setup_es5(&mut builder)
         }
     }
     setup_binjs(&mut builder);
-    builder.as_syntax()
+    builder.into_syntax()
 }
 
 #[test]

@@ -12,7 +12,9 @@ spidermonkey = []
 env_logger = "*"
 log ="*"
 serde_json = "1.0"
+assert_matches = "*"
 
 [dev-dependencies]
 env_logger = "*"
 glob = "*"
+test-logger = "*"

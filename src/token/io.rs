@@ -69,7 +69,7 @@ pub trait TokenReader where Self::Error: Debug, Self: Sized {
 ///
 /// Implementations may for instance introduce atoms,
 /// maximal sharing, etc.
-pub trait TokenWriter {
+pub trait TokenWriter where Self::Error: Debug {
     /// The type of trees manipulated by this writer.
     type Tree;
 
@@ -85,13 +85,13 @@ pub trait TokenWriter {
     /// recorded by the `TokenWriter`.
     ///
     /// The interface MUST have a Tag.
-    fn tagged_tuple(&mut self, Vec<Self::Tree>, &InterfaceNode) -> Result<Self::Tree, Self::Error>;
+    fn tagged_tuple(&mut self, tag: &str, &[(&Field, Self::Tree)]) -> Result<Self::Tree, Self::Error>;
 
     /// Write an untagged tuple.
     ///
     /// The number of items is specified by the grammar, so it MAY not be
     /// recorded by the `TokenWriter`.
-    fn untagged_tuple(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, Self::Error>;
+    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, Self::Error>;
 
     /// Write a list.
     ///

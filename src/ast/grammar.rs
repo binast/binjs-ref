@@ -55,6 +55,12 @@ pub struct Field {
     type_: Type,
 }
 impl Field {
+    pub fn new(name: FieldName, type_: Type) -> Self {
+        Field {
+            name,
+            type_
+        }
+    }
     pub fn name(&self) -> &FieldName {
         &self.name
     }
@@ -146,9 +152,23 @@ impl Obj {
     pub fn field<'a>(&'a self, name: &FieldName) -> Option<&'a Field> {
         self.fields.iter().find(|field| &field.name == name)
     }
+
+    pub fn with_own_field(self, field: Field) -> Self {
+        if self.field(field.name()).is_some() {
+            println!("Field: attempting to overwrite {:?}", field.name());
+            return self
+        }
+        let mut fields = self.fields;
+        fields.push(field);
+        Obj {
+            fields
+        }
+    }
+
     /// Extend a structure with a field.
     pub fn with_field(self, name: &FieldName, type_: Type) -> Self {
         if self.field(name).is_some() {
+            println!("Field: attempting to overwrite {:?}", name);
             return self
         }
         let mut fields = self.fields;
@@ -230,6 +250,13 @@ impl Interface {
         let mut contents = Obj::new();
         std::mem::swap(&mut self.own_contents, &mut contents);
         self.own_contents = contents.with_field(name, type_);
+        self
+    }
+    pub fn with_own_field(&mut self, field: Field) -> &mut Self {
+        // FIXME: There must be a better way to do this.
+        let mut contents = Obj::new();
+        std::mem::swap(&mut self.own_contents, &mut contents);
+        self.own_contents = contents.with_own_field(field);
         self
     }
     pub fn with_parent(&mut self, parent: &InterfaceName) -> &mut Self {
@@ -325,7 +352,7 @@ impl SyntaxBuilder {
     }
 
     /// Generate the graph.
-    pub fn as_syntax(self) -> Syntax {
+    pub fn into_syntax(self) -> Syntax {
         let mut interfaces_by_name = HashMap::new();
         let mut interfaces_by_kind = HashMap::new();
         let mut names = HashMap::new();

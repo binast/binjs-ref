@@ -2,6 +2,7 @@ use ast::grammar::*;
 use token::io::*;
 
 use std::cell::*;
+use std::fmt::Debug;
 use std::ops::Deref;
 
 use serde_json;
@@ -26,11 +27,11 @@ impl<E> From<E> for Error<E> {
 }
 
 
-pub struct Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E> {
+pub struct Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
     grammar: &'a Syntax,
     builder: RefCell<B>,
 }
-impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E> {
+impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
     pub fn new(syntax: &'a Syntax, builder: B) -> Self {
         Encoder {
             grammar: syntax,
@@ -46,6 +47,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
     /// Encode a JSON into a SerializeTree based on a grammar.
     /// This step doesn't perform any interesting check on the JSON.
     pub fn encode(&self, value: &Value, kind: &Type) -> Result<Tree, Error<E>> {
+        println!("encode: {:?}", kind);
         use ast::grammar::Type::*;
         match *kind {
             Array(ref kind) => {
@@ -63,10 +65,14 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             Obj(ref structure) => {
                 let object = value.as_object()
                     .ok_or_else(|| Error::Mismatch("Object".to_string()))?;
-                let contents = self.encode_structure(object, structure.fields())?;
+                let mut contents = self.encode_structure(object, structure.fields())?;
+                let contents : Vec<_> = contents
+                    .drain(..)
+                    .map(|(_, tree)| tree)
+                    .collect();
                 // This is an anonymous structure, so we expect that the order
                 // of fields has been specified elsewhere.
-                let result = self.builder.borrow_mut().untagged_tuple(contents)
+                let result = self.builder.borrow_mut().untagged_tuple(&contents)
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)
             }
@@ -121,7 +127,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                    // Write the contents with the tag of the refined interface.
                    let labelled = self.builder
                        .borrow_mut()
-                       .tagged_tuple(contents, interface.deref())
+                       .tagged_tuple(&kind.to_string(), &contents)
                        .map_err(Error::TokenWriterError)?;
                    return Ok(labelled)
                }
@@ -151,12 +157,13 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
            }
         }
     }
-    fn encode_structure(&self, object: &Object, fields: &[Field]) -> Result<Vec<B::Tree>, Error<E>> {
+
+    fn encode_structure<'b>(&self, object: &'b Object, fields: &'b [Field]) -> Result<Vec<(&'b Field, B::Tree)>, Error<E>> {
         let mut result = Vec::with_capacity(fields.len());
         for field in fields {
             if let Some(source) = object.get(field.name().to_string()) {
                 let encoded = self.encode(source, field.type_())?;
-                result.push(encoded)
+                result.push((field, encoded))
             } else {
                 return Err(Error::MissingField(field.name().to_string().clone()))
             }

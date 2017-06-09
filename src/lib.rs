@@ -27,6 +27,9 @@
 //! - the Token Streams (see module `token`);
 //! - the Byte Streams (see module `bytes`).
 
+#[macro_use]
+extern crate assert_matches;
+
 extern crate env_logger;
 
 #[macro_use]
@@ -34,6 +37,7 @@ extern crate log;
 
 #[macro_use]
 extern crate serde_json;
+
 
 /// Manipulating the AST.
 pub mod ast;

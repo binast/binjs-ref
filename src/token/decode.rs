@@ -7,11 +7,14 @@ use token::io::*;
 use serde_json;
 use serde_json::Value;
 
+use std::fmt::Debug;
+
 type Object = serde_json::Map<String, Value>;
 
-pub enum Error {
+#[derive(Debug)]
+pub enum Error<E> where E: Debug {
     UnexpectedValue(String),
-    TokenReaderError, // FIXME: Improve this
+    TokenReaderError(E),
     NoSuchInterface(String),
     NoSuchRefinement(String),
     NoSuchKind(String),
@@ -25,19 +28,20 @@ pub struct Decoder<'a, E> where E: TokenReader {
 }
 
 impl<'a, E> Decoder<'a, E> where E: TokenReader {
-    pub fn new(extractor: E, grammar: &'a Syntax) -> Self {
+    pub fn new(grammar: &'a Syntax, extractor: E) -> Self {
         Decoder {
             extractor,
             grammar
         }
     }
-    pub fn decode(&mut self, kind: &Type) -> Result<Value, Error> {
+    pub fn decode(&mut self, kind: &Type) -> Result<Value, Error<E::Error>> {
         use ast::grammar::Type::*;
+        println!("decode: {:?}", kind);
         match *kind {
             Array(ref kind) => {
                 let (len, extractor) = self.extractor.list()
-                    .map_err(|_| Error::TokenReaderError)?;
-                let mut decoder = Decoder::new(extractor, self.grammar);
+                    .map_err(Error::TokenReaderError)?;
+                let mut decoder = Decoder::new(self.grammar, extractor);
                 let mut values = Vec::with_capacity(len as usize);
                 for _ in 0..len {
                     values.push(decoder.decode(kind)?);
@@ -47,8 +51,8 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             Obj(ref structure) => {
                 // At this stage, since there is no inheritance involved, use the built-in mapping.
                 let extractor = self.extractor.untagged_tuple()
-                    .map_err(|_| Error::TokenReaderError)?;
-                let mut decoder = Decoder::new(extractor, self.grammar);
+                    .map_err(Error::TokenReaderError)?;
+                let mut decoder = Decoder::new(self.grammar, extractor);
                 let mut object = Object::new();
                 for field in structure.fields() {
                     let item = decoder.decode(field.type_())?;
@@ -58,13 +62,13 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             }
             String => {
                 let string = self.extractor.string()
-                    .map_err(|_| Error::TokenReaderError)?
+                    .map_err(Error::TokenReaderError)?
                     .ok_or_else(|| Error::UnexpectedValue("(no string)".to_string()))?;
                 Ok(Value::String(string))
             }
             Enum(ref enum_) => {
                 let string = self.extractor.string()
-                    .map_err(|_| Error::TokenReaderError)?;
+                    .map_err(Error::TokenReaderError)?;
                 match string {
                     None if enum_.or_null() => Ok(Value::Null),
                     None => Err(Error::UnexpectedValue("(no string)".to_string())),
@@ -80,7 +84,8 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             }
             Interfaces(ref interfaces) => {
                 let (kind_name, mapped_field_names, extractor) = self.extractor.tagged_tuple()
-                    .map_err(|_| Error::TokenReaderError)?;
+                    .map_err(Error::TokenReaderError)?;
+                println!("decoder: found kind {:?}", kind_name);
 
                 // We have a kind, so we know how to parse the data. We just need
                 // to make sure that we expected this interface here.
@@ -102,7 +107,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     }
 
                     // Read the fields **in the order** in which they appear in the stream.
-                    let mut decoder = Decoder::new(extractor, self.grammar);
+                    let mut decoder = Decoder::new(self.grammar, extractor);
                     let mut object = Object::new();
                     for field in mapped_field_names.as_ref().iter() {
                         let item = decoder.decode(field.type_())?;
