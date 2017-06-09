@@ -19,26 +19,39 @@ pub enum Error<E> where E: Debug {
     NoSuchRefinement(String),
     NoSuchKind(String),
     NoSuchField(String),
+    NoSuchEnum(String),
     InvalidValue(String),
 }
 
 pub struct Decoder<'a, E> where E: TokenReader {
     extractor: E,
     grammar: &'a Syntax,
+
+    /// Latest value decoded. Used for debugging/troubleshooting.
+    latest: Value,
 }
 
 impl<'a, E> Decoder<'a, E> where E: TokenReader {
     pub fn new(grammar: &'a Syntax, extractor: E) -> Self {
         Decoder {
             extractor,
-            grammar
+            grammar,
+            latest: Value::Null
         }
+    }
+    fn register(&mut self, value: Value) -> Value {
+        self.latest = value.clone();
+        value
+    }
+    pub fn latest(&self) -> &Value {
+        &self.latest
     }
     pub fn decode(&mut self, kind: &Type) -> Result<Value, Error<E::Error>> {
         use ast::grammar::Type::*;
         println!("decode: {:?}", kind);
         match *kind {
             Array(ref kind) => {
+                let start = self.extractor.position();
                 let (len, extractor) = self.extractor.list()
                     .map_err(Error::TokenReaderError)?;
                 let mut decoder = Decoder::new(self.grammar, extractor);
@@ -46,7 +59,9 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 for _ in 0..len {
                     values.push(decoder.decode(kind)?);
                 }
-                Ok(Value::Array(values))
+                let stop = self.extractor.position();
+                println!("decode: decoded list {} => {} to {}", start, stop, serde_json::to_string(&values).unwrap());
+                Ok(self.register(Value::Array(values)))
             }
             Obj(ref structure) => {
                 // At this stage, since there is no inheritance involved, use the built-in mapping.
@@ -58,34 +73,45 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     let item = decoder.decode(field.type_())?;
                     object.insert(field.name().to_string().clone(), item);
                 }
-                Ok(Value::Object(object))
+                Ok(self.register(Value::Object(object)))
             }
             String => {
                 let string = self.extractor.string()
                     .map_err(Error::TokenReaderError)?
                     .ok_or_else(|| Error::UnexpectedValue("(no string)".to_string()))?;
-                Ok(Value::String(string))
+                Ok(self.register(Value::String(string)))
             }
-            Enum(ref enum_) => {
+            Enum(ref name) => {
+                // FIXME: Do we really need to check this here?
+                let enum_ = self.grammar.get_enum_by_name(&name)
+                    .ok_or_else(|| Error::NoSuchEnum(name.to_string().clone()))?;
                 let string = self.extractor.string()
                     .map_err(Error::TokenReaderError)?;
                 match string {
-                    None if enum_.or_null() => Ok(Value::Null),
                     None => Err(Error::UnexpectedValue("(no string)".to_string())),
                     Some(s) => {
                         for candidate in enum_.strings() {
                             if candidate == &s {
-                                return Ok(Value::String(s))
+                                return Ok(self.register(Value::String(s)))
                             }
                         }
                         Err(Error::UnexpectedValue(s))
                     }
                 }
             }
-            Interfaces(ref interfaces) => {
+            Interfaces {
+                names: ref interfaces,
+                or_null
+            } => {
                 let (kind_name, mapped_field_names, extractor) = self.extractor.tagged_tuple()
                     .map_err(Error::TokenReaderError)?;
                 println!("decoder: found kind {:?}", kind_name);
+
+                // Special case: `null`.
+                if or_null && kind_name.to_string() == "Null" {
+                    assert_eq!(mapped_field_names.len(), 0);
+                    return Ok(self.register(Value::Null));
+                }
 
                 // We have a kind, so we know how to parse the data. We just need
                 // to make sure that we expected this interface here.
@@ -113,7 +139,10 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                         let item = decoder.decode(field.type_())?;
                         object.insert(field.name().to_string().clone(), item);
                     }
-                    Ok(Value::Object(object))
+
+                    // Don't forget `"type"`.
+                    object.insert("type".to_owned(), Value::String(kind.to_string().clone()));
+                    Ok(self.register(Value::Object(object)))
                 } else {
                     Err(Error::NoSuchKind(kind.to_string().clone()))
                 }
@@ -121,12 +150,12 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             Boolean => {
                 let value = self.extractor.bool()
                     .map_err(|_| Error::InvalidValue("bool".to_string()))?;
-                Ok(Value::Bool(value))
+                Ok(self.register(Value::Bool(value)))
             }
             Number => {
                 let value = self.extractor.float()
                     .map_err(|_| Error::InvalidValue("float".to_string()))?;
-                Ok(json!(value))
+                Ok(self.register(json!(value)))
             }
         }
     }

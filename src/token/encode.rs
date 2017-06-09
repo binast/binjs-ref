@@ -1,9 +1,9 @@
 use ast::grammar::*;
 use token::io::*;
+use util::{ f64_of, type_of };
 
 use std::cell::*;
 use std::fmt::Debug;
-use std::ops::Deref;
 
 use serde_json;
 use serde_json::Value;
@@ -11,12 +11,13 @@ type Object = serde_json::Map<String, Value>;
 
 #[derive(Debug)]
 pub enum Error<E> {
-    Mismatch(String),
+    Mismatch { expected: String, got: String },
     NoSuchInterface(String),
     NoSuchRefinement(String),
+    NoSuchEnum(String),
     NoSuchKind(String),
     MissingField(String),
-    NoSuchLiteral {strings: Vec<String>, or_null: bool},
+    NoSuchLiteral { strings: Vec<String> },
     TokenWriterError(E),
 }
 
@@ -47,12 +48,15 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
     /// Encode a JSON into a SerializeTree based on a grammar.
     /// This step doesn't perform any interesting check on the JSON.
     pub fn encode(&self, value: &Value, kind: &Type) -> Result<Tree, Error<E>> {
-        println!("encode: {:?}", kind);
+        println!("encode: value {:?} with kind {:?}", value, kind);
         use ast::grammar::Type::*;
         match *kind {
             Array(ref kind) => {
                 let list = value.as_array()
-                    .ok_or_else(|| Error::Mismatch("Array".to_string()))?;
+                    .ok_or_else(|| Error::Mismatch {
+                        expected: "Array".to_string(),
+                        got: type_of(&value)
+                    })?;
                 let mut encoded = Vec::with_capacity(list.len());
                 for item in list {
                     let item = self.encode(item, kind)?;
@@ -64,7 +68,10 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             }
             Obj(ref structure) => {
                 let object = value.as_object()
-                    .ok_or_else(|| Error::Mismatch("Object".to_string()))?;
+                    .ok_or_else(|| Error::Mismatch {
+                        expected: "Object".to_string(),
+                        got: type_of(&value)
+                    })?;
                 let mut contents = self.encode_structure(object, structure.fields())?;
                 let contents : Vec<_> = contents
                     .drain(..)
@@ -76,16 +83,14 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)
             }
-            Enum(ref enum_) => {
-                if enum_.or_null() {
-                    if value.is_null() {
-                        let result = self.builder.borrow_mut().string(None)
-                            .map_err(Error::TokenWriterError)?;
-                        return Ok(result)
-                    }
-                }
+            Enum(ref name) => {
+                let enum_ = self.grammar.get_enum_by_name(&name)
+                    .ok_or_else(|| Error::NoSuchEnum(name.to_string().clone()))?;
                 let string = value.as_str()
-                    .ok_or_else(|| Error::Mismatch("String".to_string()))?;
+                    .ok_or_else(|| Error::Mismatch {
+                        expected: "String".to_string(),
+                        got: type_of(&value)
+                    })?;
                 for candidate in enum_.strings() {
                     if candidate == string {
                         let result = self.builder.borrow_mut().string(Some(&candidate))
@@ -95,21 +100,41 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                 }
                 Err(Error::NoSuchLiteral {
                     strings: enum_.strings().iter().cloned().collect(),
-                    or_null: enum_.or_null()
                 })
            }
-           Interfaces(ref interfaces) => {
+           // Special-case: hardcoded `"Null"`.
+           Interfaces {
+               or_null: true,
+               ..
+           } if value.is_null() => {
+               self.builder
+                   .borrow_mut()
+                   .tagged_tuple(&"Null", &[])
+                   .map_err(Error::TokenWriterError)
+           }
+           Interfaces {
+               names: ref interfaces,
+               ..
+           } => {
                let object = value.as_object()
-                   .ok_or_else(|| Error::Mismatch("Object".to_string()))?;
-               let kind_name = object.get("type")
-                   .ok_or_else(|| Error::MissingField("type".to_string()))?
+                   .ok_or_else(|| Error::Mismatch {
+                       expected: "Object (implementing interface)".to_string(),
+                       got: type_of(&value)
+                   })?;
+               let type_field = object.get("type")
+                   .ok_or_else(|| Error::MissingField("type".to_string()))?;
+               let kind_name = type_field
                    .as_str()
-                   .ok_or_else(|| Error::Mismatch("type".to_string()))?;
+                   .ok_or_else(|| Error::Mismatch {
+                       expected: "type name (as String)".to_string(),
+                       got: type_of(type_field)
+                   })?;
                let kind = self.grammar.get_kind(kind_name)
                    .ok_or_else(|| Error::NoSuchKind(kind_name.to_string().clone()))?;
 
                // We have a kind, so we know how to encode the data. We just need
                // to make sure that we expected this interface here.
+               // FIXME: Is this really necessary?
                if let Some(interface) = self.grammar.get_interface_by_kind(&kind) {
                    if self.grammar
                         .get_ancestors_by_name_including_self(interface.name())
@@ -117,7 +142,10 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                         .iter()
                         .find(|ancestor|
                             interfaces.iter()
-                                .find(|candidate| candidate == ancestor)
+                                .find(|candidate| {
+                                    println!("Looking for {:?} =?= {:?}", candidate, ancestor);
+                                    candidate == ancestor
+                                })
                                 .is_some()
                         ).is_none() {
                         return Err(Error::NoSuchRefinement(kind.to_string().clone()))
@@ -135,25 +163,38 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
            }
            Boolean => {
                 let value = value.as_bool()
-                    .ok_or_else(|| Error::Mismatch("boolean".to_string()))?;
+                    .ok_or_else(|| Error::Mismatch {
+                        expected: "bool".to_string(),
+                        got: type_of(&value)
+                    })?;
                 let result = self.builder.borrow_mut().bool(value)
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)
            }
            String => {
                 let value = value.as_str()
-                   .ok_or_else(|| Error::Mismatch("String".to_string()))?
+                    .ok_or_else(|| Error::Mismatch {
+                        expected: "String".to_string(),
+                        got: type_of(&value)
+                    })?
                    .to_owned();
                 let result = self.builder.borrow_mut().string(Some(&value))
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)
            }
            Number => {
-               let value = value.as_f64()
-                   .ok_or_else(|| Error::Mismatch("Number".to_string()))?;
-               let result = self.builder.borrow_mut().float(value)
+                let value =
+                    if let serde_json::Value::Number(ref num) = *value {
+                        f64_of(num)
+                    } else {
+                        return Err(Error::Mismatch {
+                            expected: "Number".to_string(),
+                            got: type_of(&value)
+                        })
+                    };
+                let result = self.builder.borrow_mut().float(value)
                    .map_err(Error::TokenWriterError)?;
-               Ok(result)
+                Ok(result)
            }
         }
     }

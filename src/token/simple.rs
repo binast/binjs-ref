@@ -71,12 +71,13 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
     fn sub(&self, options: SubOptions) -> Self {
 
         let position = self.implem.borrow().reader.position();
-        println!("TreeTokenReader: sub {:?} at {}", options.suffix, position);
+        let pos_end = options.byte_len.map(|length| position + length);
+        println!("TreeTokenReader: sub {:?}, starting at {} => {:?}", options.suffix, position, pos_end);
         TreeTokenReader {
             implem: self.implem.clone(),
             parent_pending_error: self.my_pending_error.clone(),
             my_pending_error: Rc::new(RefCell::new(None)),
-            pos_end: options.byte_len.map(|length| position + length),
+            pos_end,
             suffix: options.suffix,
             pos_current: position,
             pos_start: position,
@@ -146,18 +147,32 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
 }
 impl<'a, R> Drop for TreeTokenReader<'a, R> where R: Read + Seek {
     fn drop(&mut self) {
-        println!("TreeTokenReader: drop() {:?} at {}", self.suffix, self.pos_start);
+        {
+            if self.parent_pending_error.borrow().is_some() {
+                // Propagate error.
+                return;
+            }
+        }
+
+        // FIXME: Wait, we are relying upon order of destruction!
+        let position = { self.implem.borrow().reader.position() };
 
         // Check byte_len, if available.
         if let Some(expected) = self.pos_end {
-            if self.pos_current != expected {
+            if position != expected {
                 *self.parent_pending_error.borrow_mut() =
                     Some(TokenReaderError::EndOffsetError {
                         start: self.pos_start,
                         suffix: self.suffix.clone(),
                         expected,
-                        found: self.pos_current,
+                        found: position,
                     });
+                panic!("TokenTreeReader: This subextractor goes {} => {}, expected {} => {}, ({:?})",
+                    self.pos_start,
+                    position,
+                    self.pos_start,
+                    expected,
+                    self.suffix);
                 return;
             }
         }
@@ -165,20 +180,25 @@ impl<'a, R> Drop for TreeTokenReader<'a, R> where R: Read + Seek {
         if let Some(ref suffix) = self.suffix.take() {
             if let Err(err) = self.read_constant(suffix) {
                 *self.parent_pending_error.borrow_mut() = Some(err);
+                panic!("TokenTreeReader: This subextractor should end with {}", suffix);
                 return;
             }
         }
 
-        println!("TreeTokenReader: drop() {:?} OK", self.suffix);
+        println!("TreeTokenReader: drop() {:?} {:?} OK", self.pos_end, self.suffix);
     }
 }
 impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
     type Error = TokenReaderError;
 
+    fn position(&self) -> u64 {
+        self.pos_current
+    }
+
     fn skip(&mut self) -> Result<(), Self::Error> {
         println!("TreeTokenReader: skip");
         if let Some(end) = self.pos_end {
-            self.implem.borrow_mut().reader.seek(SeekFrom::Start(end))
+            self.pos_current = self.implem.borrow_mut().reader.seek(SeekFrom::Start(end))
                 .map_err(TokenReaderError::Reader)?;
             Ok(())
         } else {
@@ -362,9 +382,15 @@ impl TokenWriter for TreeTokenWriter {
     }
 
     /// Lists are represented as:
+    /// - "<list>"
     /// - number of bytes (u32);
     /// - number of items (u32);
     /// - items
+    /// - "</list>"
+    ///
+    /// The number of bytes is the total size of
+    /// - number of items;
+    /// - items.
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
         println!("TreeTokenWriter: list");
         let prefix = "<list>";
@@ -393,6 +419,9 @@ impl TokenWriter for TreeTokenWriter {
 
         result.extend_from_str(suffix);// Sole purpose of this constant is testing
         println!("TreeTokenWriter: list has {} items, {} bytes", number_of_items, byte_len);
+        assert_eq!(byte_len as usize,
+            result.len() - prefix.len() - suffix.len() - std::mem::size_of_val(&number_of_items),
+            "TreeTokenWriter: incorrect byte_len");
         Ok(self.register(result))
     }
 
@@ -452,12 +481,11 @@ impl ExtendFromUTF8 for Vec<u8> {
 #[test]
 fn test_simple_io() {
     use ast::grammar::*;
-    use ast::library;
     use std::io::Cursor;
 
     println!("Setting up syntax");
     let mut builder = SyntaxBuilder::new();
-    let kinded = builder.interface_name("Kinded");
+    let kinded = builder.node_name("Kinded");
     let field_string = Field::new(builder.field_name("some_string"), Type::String);
     let field_number = Field::new(builder.field_name("some_number"), Type::Number);
 

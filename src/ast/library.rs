@@ -15,68 +15,69 @@ pub enum Level {
 /// Hardcoding for https://github.com/estree/estree/blob/master/es5.md#exceptions
 fn setup_es5(syntax: &mut SyntaxBuilder) {
     // Interface names.
-    let node = syntax.interface_name("Node");
-    let string = syntax.interface_name("String");
-    let boolean = syntax.interface_name("Boolean");
-    let null = syntax.interface_name("Null");
-    let number = syntax.interface_name("Number");
-    let regexp = syntax.interface_name("RegExp");
-    let statement = syntax.interface_name("Statement");
-    let identifier = syntax.interface_name("Identifier");
-    let pattern = syntax.interface_name("Pattern");
-    let block_statement = syntax.interface_name("BlockStatement");
-    let expression = syntax.interface_name("Expression");
-    let switch_case = syntax.interface_name("SwitchCase");
-    let catch_clause = syntax.interface_name("CatchClause");
-    let variable_declaration = syntax.interface_name("VariableDeclaration");
-    let variable_declarator = syntax.interface_name("VariableDeclarator");
-    let property = syntax.interface_name("Property");
-    let literal = syntax.interface_name("Literal");
-    let unary_operator = syntax.interface_name("UnaryOperator");
-    let binary_operator = syntax.interface_name("BinaryOperator");
-    let assignment_operator = syntax.interface_name("AssignmentOperator");
-    let function = syntax.interface_name("Function");
-    let declaration = syntax.interface_name("Declaration");
-    let regexp_literal = syntax.interface_name("RegexpLiteral");
-    let program = syntax.interface_name("Program");
-    let empty_statement = syntax.interface_name("EmptyStatement");
-    let expression_statement = syntax.interface_name("ExpressionStatement");
-    let debugger_statement = syntax.interface_name("DebuggerStatement");
-    let with_statement = syntax.interface_name("WithStatement");
-    let return_statement = syntax.interface_name("ReturnStatement");
-    let labelled_statement = syntax.interface_name("LabelledStatement");
-    let break_statement = syntax.interface_name("BreakStatement");
-    let contine_statement = syntax.interface_name("ContinueStatement");
-    let if_statement = syntax.interface_name("IfStatement");
-    let switch_statement = syntax.interface_name("SwitchStatement");
-    let throw_statement = syntax.interface_name("ThrowStatement");
-    let try_statement = syntax.interface_name("TryStatement");
-    let while_statement = syntax.interface_name("WhileStatement");
-    let do_while_statement = syntax.interface_name("DoWhileStatement");
-    let for_statement = syntax.interface_name("ForStatement");
-    let for_in_statement = syntax.interface_name("ForInStatement");
-    let function_declaration = syntax.interface_name("FunctionDeclaration");
-    let this_expression = syntax.interface_name("ThisExpression");
-    let array_expression = syntax.interface_name("ArrayExpression");
-    let object_expression = syntax.interface_name("ObjectExpression");
-    let function_expression = syntax.interface_name("FunctionExpression");
-    let unary_expression = syntax.interface_name("UnaryExpression");
-    let update_expression = syntax.interface_name("UpdateExpression");
-    let update_operator = syntax.interface_name("UpdateOperator");
-    let binary_expression = syntax.interface_name("BinaryExpression");
-    let assignment_expression = syntax.interface_name("AssignmentExpression");
-    let logical_expression = syntax.interface_name("LogicalExpression");
-    let logical_operator = syntax.interface_name("LogicalOperator");
-    let member_expression = syntax.interface_name("MemberExpression");
-    let conditional_expression = syntax.interface_name("ConditionalExpression");
-    let call_expression = syntax.interface_name("CallExpression");
-    let new_expression = syntax.interface_name("NewExpression");
-    let sequence_expression = syntax.interface_name("SequenceExpression");
+    let node = syntax.node_name("Node");
+    let null = syntax.node_name("Null");
+    let statement = syntax.node_name("Statement");
+    let identifier = syntax.node_name("Identifier");
+    let pattern = syntax.node_name("Pattern");
+    let block_statement = syntax.node_name("BlockStatement");
+    let expression = syntax.node_name("Expression");
+    let switch_case = syntax.node_name("SwitchCase");
+    let catch_clause = syntax.node_name("CatchClause");
+    let variable_declaration = syntax.node_name("VariableDeclaration");
+    let variable_declarator = syntax.node_name("VariableDeclarator");
+    let property = syntax.node_name("Property");
+    let literal = syntax.node_name("Literal");
+    let unary_operator = syntax.node_name("UnaryOperator");
+    let binary_operator = syntax.node_name("BinaryOperator");
+    let assignment_operator = syntax.node_name("AssignmentOperator");
+    let function = syntax.node_name("Function");
+    let declaration = syntax.node_name("Declaration");
+    let regexp_literal = syntax.node_name("RegExpLiteral");
+    let string_literal = syntax.node_name("StringLIteral");
+    let boolean_literal = syntax.node_name("BooleanLiteral");
+    let null_literal = syntax.node_name("NullLiteral");
+    let numeric_literal = syntax.node_name("NumericLiteral");
+    let program = syntax.node_name("Program");
+    let empty_statement = syntax.node_name("EmptyStatement");
+    let expression_statement = syntax.node_name("ExpressionStatement");
+    let debugger_statement = syntax.node_name("DebuggerStatement");
+    let with_statement = syntax.node_name("WithStatement");
+    let return_statement = syntax.node_name("ReturnStatement");
+    let labelled_statement = syntax.node_name("LabelledStatement");
+    let break_statement = syntax.node_name("BreakStatement");
+    let contine_statement = syntax.node_name("ContinueStatement");
+    let if_statement = syntax.node_name("IfStatement");
+    let switch_statement = syntax.node_name("SwitchStatement");
+    let throw_statement = syntax.node_name("ThrowStatement");
+    let try_statement = syntax.node_name("TryStatement");
+    let while_statement = syntax.node_name("WhileStatement");
+    let do_while_statement = syntax.node_name("DoWhileStatement");
+    let for_statement = syntax.node_name("ForStatement");
+    let for_in_statement = syntax.node_name("ForInStatement");
+    let function_declaration = syntax.node_name("FunctionDeclaration");
+    let this_expression = syntax.node_name("ThisExpression");
+    let array_expression = syntax.node_name("ArrayExpression");
+    let object_expression = syntax.node_name("ObjectExpression");
+    let function_expression = syntax.node_name("FunctionExpression");
+    let unary_expression = syntax.node_name("UnaryExpression");
+    let update_expression = syntax.node_name("UpdateExpression");
+    let update_operator = syntax.node_name("UpdateOperator");
+    let binary_expression = syntax.node_name("BinaryExpression");
+    let assignment_expression = syntax.node_name("AssignmentExpression");
+    let logical_expression = syntax.node_name("LogicalExpression");
+    let logical_operator = syntax.node_name("LogicalOperator");
+    let member_expression = syntax.node_name("MemberExpression");
+    let conditional_expression = syntax.node_name("ConditionalExpression");
+    let call_expression = syntax.node_name("CallExpression");
+    let new_expression = syntax.node_name("NewExpression");
+    let sequence_expression = syntax.node_name("SequenceExpression");
+    let variable_kind = syntax.node_name("VariableKind");
+    let property_kind = syntax.node_name("PropertyKind");
 
     // Field names
     let field_name = syntax.field_name("name");
     let field_value = syntax.field_name("value");
-    let field_regex = syntax.field_name("regex");
     let field_pattern = syntax.field_name("pattern");
     let field_flags = syntax.field_name("flags");
     let field_body = syntax.field_name("body");
@@ -123,21 +124,21 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 
     // Literals
     syntax.add_kinded_interface(&literal).unwrap()
-        .with_field(&field_value, Type::Interfaces(vec![
-            string.clone(),
-            boolean.clone(),
-            null.clone(),
-            number.clone(),
-            regexp.clone()
-        ]))
         .with_parent(&expression);
-
-    // FIXME: As `RegexpLiteral` is virtual, this should be compiled as adding an optional field to `Literal`.
-
-    syntax.add_virtual_interface(&regexp_literal).unwrap()
-        .with_field(&field_regex, Type::Obj(Obj::new()
-            .with_field(&field_pattern, Type::String)
-            .with_field(&field_flags, Type::String)))
+    syntax.add_kinded_interface(&string_literal).unwrap()
+        .with_field(&field_value, Type::String)
+        .with_parent(&literal);
+    syntax.add_kinded_interface(&boolean_literal).unwrap()
+        .with_field(&field_value, Type::Boolean)
+        .with_parent(&literal);
+    syntax.add_kinded_interface(&null_literal).unwrap()
+        .with_parent(&literal);
+    syntax.add_kinded_interface(&numeric_literal).unwrap()
+        .with_field(&field_value, Type::Number)
+        .with_parent(&literal);
+    syntax.add_kinded_interface(&regexp_literal).unwrap()
+        .with_field(&field_pattern, Type::String)
+        .with_field(&field_flags, Type::String)
         .with_parent(&literal);
 
 
@@ -149,10 +150,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 
     // Functions (shared between function declaration, function statement, function expression)
     syntax.add_virtual_interface(&function).unwrap()
-        .with_field(&field_id, Type::Interfaces(vec![
-            identifier.clone(),
-            null.clone()
-        ]))
+        .with_field(&field_id, Type::Interfaces {
+            names: vec![identifier.clone()],
+            or_null: false
+        })
         .with_field(&field_params, Type::Array(Box::new(Type::interface(&pattern))))
         .with_field(&field_body, Type::interface(&block_statement))
         .with_parent(&node);
@@ -270,8 +271,15 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 
     syntax.add_kinded_interface(&variable_declaration).unwrap()
         .with_field(&field_declarations, Type::interface(&variable_declarator).array())
-        .with_field(&field_kind, Type::one_of_strings(&["var"]))
+        .with_field(&field_kind, Type::enumeration(&variable_kind))
         .with_parent(&declaration);
+
+    syntax.add_enum(&variable_kind).unwrap()
+        .with_strings(&[
+            "let",
+            "var",
+            "const"
+        ]);
 
     syntax.add_kinded_interface(&variable_declarator).unwrap()
         .with_field(&field_id, Type::interface(&pattern))
@@ -299,12 +307,15 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
             &identifier
         ]))
         .with_field(&field_value, Type::interface(&expression))
-        .with_field(&field_kind, Type::one_of_strings(&[
+        .with_field(&field_kind, Type::enumeration(&property_kind))
+        .with_parent(&node);
+
+    syntax.add_enum(&property_kind).unwrap()
+        .with_strings(&[
             "get",
             "set",
-            "init"
-        ]))
-        .with_parent(&node);
+            "method"
+        ]);
 
     syntax.add_kinded_interface(&function_expression).unwrap()
         .with_parent(&expression)
@@ -328,7 +339,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
         ]);
 
     syntax.add_kinded_interface(&update_expression).unwrap()
-        .with_field(&field_operator, Type::interface(&update_operator))
+        .with_field(&field_operator, Type::enumeration(&update_operator))
         .with_field(&field_argument, Type::interface(&expression))
         .with_field(&field_prefix, Type::Boolean)
         .with_parent(&expression);
@@ -340,7 +351,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
         ]);
 
     syntax.add_kinded_interface(&binary_expression).unwrap()
-        .with_field(&field_operator, Type::interface(&binary_operator))
+        .with_field(&field_operator, Type::enumeration(&binary_operator))
         .with_field(&field_left, Type::interface(&expression))
         .with_field(&field_right, Type::interface(&expression))
         .with_parent(&expression);
@@ -371,7 +382,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
         ]);
 
     syntax.add_kinded_interface(&assignment_expression).unwrap()
-        .with_field(&field_operator, Type::interface(&assignment_operator))
+        .with_field(&field_operator, Type::enumeration(&assignment_operator))
         .with_field(&field_left, Type::interfaces(&[
             &pattern,
             &expression
@@ -438,31 +449,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 }
 
 fn setup_binjs(syntax: &mut SyntaxBuilder) {
-    let string = syntax.interface_name("String");
-    let boolean = syntax.interface_name("Boolean");
-    let null = syntax.interface_name("Null");
-    let number = syntax.interface_name("Number");
-    let regexp = syntax.interface_name("Regexp");
-
-    let field_value = syntax.field_name("value");
-    let field_pattern = syntax.field_name("pattern");
-    let field_flags = syntax.field_name("flags");
-
-    syntax.add_kinded_interface(&string).unwrap()
-        .with_field(&field_value, Type::String);
-
-    syntax.add_kinded_interface(&boolean).unwrap()
-        .with_field(&field_value, Type::Boolean);
-
+    // Special value `Null`.
+    let null = syntax.node_name("Null");
     syntax.add_kinded_interface(&null).unwrap();
-
-    syntax.add_kinded_interface(&number).unwrap()
-        .with_field(&field_value, Type::Number);
-
-    syntax.add_kinded_interface(&regexp).unwrap()
-        .with_field(&field_value, Type::Obj(Obj::new()
-            .with_field(&field_pattern, Type::String)
-            .with_field(&field_flags, Type::String)));
 }
 
 /// Construct a syntax for a specific version of JavaScript.

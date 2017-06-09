@@ -27,6 +27,7 @@
 //! - the Token Streams (see module `token`);
 //! - the Byte Streams (see module `bytes`).
 
+#[allow(unused_imports)]
 #[macro_use]
 extern crate assert_matches;
 
@@ -52,4 +53,4 @@ pub mod bytes;
 pub mod source;
 
 /// Misc utilities.
-mod util;
+pub mod util;

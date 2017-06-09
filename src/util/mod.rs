@@ -1,4 +1,4 @@
-use serde_json::Value as JSON;
+use serde_json::{ Value as JSON, Number };
 
 use std::io::{ Read, Result, Seek, SeekFrom };
 
@@ -56,5 +56,27 @@ pub fn strip(tree: &mut JSON) {
             }
         }
         _ => {}
+    }
+}
+
+pub fn type_of(tree: &JSON) -> String {
+    use serde_json::Value::*;
+    match *tree {
+        Object(_) => "Object",
+        String(_) => "String",
+        Number(_) => "Number",
+        Null      => "Null",
+        Bool(_)   => "Bool",
+        Array(_)  => "Array"
+    }.to_owned()
+}
+
+pub fn f64_of(number: &Number) -> f64 {
+    if number.is_i64() {
+        number.as_i64().unwrap() as f64
+    } else if number.is_u64() {
+        number.as_u64().unwrap() as f64
+    } else {
+        number.as_f64().unwrap()
     }
 }
