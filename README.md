@@ -25,7 +25,8 @@ for communication between the browser and the server.
 
 1. Install dependencies (you will need `npm`)
 ```
-npm install babylon
+npm install babel
+npm install mktemp
 ```
 2. Pull the code.
 3. Build the code.
