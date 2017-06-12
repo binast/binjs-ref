@@ -7,12 +7,13 @@
 use std;
 use std::cell::*;
 use std::collections::{ HashMap, HashSet };
+use std::fmt::Debug;
 use std::hash::*;
 use std::ops::Deref;
 use std::rc::*;
 
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct NodeName(Rc<String>);
 impl NodeName {
     pub fn to_string(&self) -> &String {
@@ -20,6 +21,11 @@ impl NodeName {
     }
     pub fn to_str(&self) -> &str {
         &self.0
+    }
+}
+impl Debug for NodeName {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        self.to_str().fmt(formatter)
     }
 }
 
@@ -361,6 +367,24 @@ impl SyntaxBuilder {
 
             if let Some(ref kind) = interface.borrow().kind {
                 assert!(kinds.insert(kind.to_string().clone(), kind.clone()).is_none());
+            }
+
+            {
+                for field in interface.borrow().own_contents.fields() {
+                    match *field.type_() {
+                        Type::Enum(ref field_name) =>
+                            assert!(self.enums.get(field_name).is_some(),
+                                "While compiling {:?}, could not find an enum named {:?}",
+                                name, field_name),
+                        Type::Interfaces { ref names, .. } =>
+                            for interface_name in names {
+                                assert!(self.interfaces.get(interface_name).is_some(),
+                                    "While compiling {:?}, could not find an interface named {:?}",
+                                    name, interface_name)
+                            },
+                        _ => {}
+                    }
+                }
             }
 
 
