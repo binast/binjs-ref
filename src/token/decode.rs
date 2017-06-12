@@ -46,7 +46,13 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
     pub fn latest(&self) -> &Value {
         &self.latest
     }
-    pub fn decode(&mut self, kind: &Type) -> Result<Value, Error<E::Error>> {
+
+    pub fn decode(&mut self) -> Result<Value, Error<E::Error>> {
+        let start = self.grammar.get_start();
+        let kind = Type::interfaces(&[start.name()]);
+        self.decode_from_type(&kind)
+    }
+    pub fn decode_from_type(&mut self, kind: &Type) -> Result<Value, Error<E::Error>> {
         use ast::grammar::Type::*;
         debug!("decode: {:?}", kind);
         match *kind {
@@ -57,7 +63,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 let mut decoder = Decoder::new(self.grammar, extractor);
                 let mut values = Vec::with_capacity(len as usize);
                 for _ in 0..len {
-                    values.push(decoder.decode(kind)?);
+                    values.push(decoder.decode_from_type(kind)?);
                 }
                 let stop = self.extractor.position();
                 debug!("decode: decoded list {} => {} to {}", start, stop, serde_json::to_string(&values).unwrap());
@@ -70,7 +76,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 let mut decoder = Decoder::new(self.grammar, extractor);
                 let mut object = Object::new();
                 for field in structure.fields() {
-                    let item = decoder.decode(field.type_())?;
+                    let item = decoder.decode_from_type(field.type_())?;
                     object.insert(field.name().to_string().clone(), item);
                 }
                 Ok(self.register(Value::Object(object)))
@@ -136,7 +142,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     let mut decoder = Decoder::new(self.grammar, extractor);
                     let mut object = Object::new();
                     for field in mapped_field_names.as_ref().iter() {
-                        let item = decoder.decode(field.type_())?;
+                        let item = decoder.decode_from_type(field.type_())?;
                         object.insert(field.name().to_string().clone(), item);
                     }
 

@@ -53,10 +53,12 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
 
     /// Encode a JSON into a SerializeTree based on a grammar.
     /// This step doesn't perform any interesting check on the JSON.
-    pub fn encode(&self, value: &Value, kind: &Type) -> Result<Tree, Error<E>> {
-        self.encode_aux(value, kind, self.grammar.get_start().name())
+    pub fn encode(&self, value: &Value) -> Result<Tree, Error<E>> {
+        let start = self.grammar.get_start();
+        let kind = Type::interfaces(&[start.name()]);
+        self.encode_from_type(value, &kind, start.name())
     }
-    fn encode_aux(&self, value: &Value, kind: &Type, node: &NodeName) -> Result<Tree, Error<E>> {
+    pub fn encode_from_type(&self, value: &Value, kind: &Type, node: &NodeName) -> Result<Tree, Error<E>> {
         debug!("encode: value {:?} with kind {:?}", value, kind);
         use ast::grammar::Type::*;
         match *kind {
@@ -68,7 +70,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                     })?;
                 let mut encoded = Vec::with_capacity(list.len());
                 for item in list {
-                    let item = self.encode_aux(item, kind, node)?;
+                    let item = self.encode_from_type(item, kind, node)?;
                     encoded.push(item);
                 }
                 let result = self.builder.borrow_mut().list(encoded)
@@ -212,7 +214,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
         let mut result = Vec::with_capacity(fields.len());
         for field in fields {
             if let Some(source) = object.get(field.name().to_string()) {
-                let encoded = self.encode_aux(source, field.type_(), node)?;
+                let encoded = self.encode_from_type(source, field.type_(), node)?;
                 result.push((field, encoded))
             } else {
                 return Err(Error::missing_field(field.name().to_string(), node));
