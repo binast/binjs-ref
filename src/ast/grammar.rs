@@ -161,8 +161,7 @@ impl Obj {
 
     pub fn with_own_field(self, field: Field) -> Self {
         if self.field(field.name()).is_some() {
-            println!("Field: attempting to overwrite {:?}", field.name());
-            panic!();
+            warn!("Field: attempting to overwrite {:?}", field.name());
             return self
         }
         let mut fields = self.fields;
@@ -175,8 +174,7 @@ impl Obj {
     /// Extend a structure with a field.
     pub fn with_field(self, name: &FieldName, type_: Type) -> Self {
         if self.field(name).is_some() {
-            println!("Field: attempting to overwrite {:?}", name);
-            panic!();
+            warn!("Field: attempting to overwrite {:?}", name);
             return self
         }
         let mut fields = self.fields;
@@ -356,7 +354,6 @@ impl SyntaxBuilder {
 
 
         for (name, interface) in &self.interfaces {
-            //println!("\nCompiling interface {:?}", name);
             {
                 let string = name.to_str().to_string();
                 assert!(names.insert(string.clone(), Rc::new(string)).is_none());
@@ -396,13 +393,12 @@ impl SyntaxBuilder {
                         .clone();
                     if let Some(prev) = my_fields.get(&name) {
                         if prev != field.type_() {
-                            println!("Conflict: attempting to insert {:?}", name);
-                            println!("Previous: {:?}", prev);
-                            println!("Overwrite: {:?}", field.type_());
-                            println!("While treating {:?}", root);
-                            assert!(false, "CHECK THIS OVERWRITE");
+                            warn!("Conflict: attempting to insert {:?}", name);
+                            warn!("Previous: {:?}", prev);
+                            warn!("Overwrite: {:?}", field.type_());
+                            warn!("While treating {:?}", root);
                         }
-                        println!("Skipping");
+                        debug!("Skipping");
                         // FIXME: We should make more efforts to ensure that
                         // we always end up with the bottom-most version
                         continue;

@@ -48,7 +48,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
     }
     pub fn decode(&mut self, kind: &Type) -> Result<Value, Error<E::Error>> {
         use ast::grammar::Type::*;
-        println!("decode: {:?}", kind);
+        debug!("decode: {:?}", kind);
         match *kind {
             Array(ref kind) => {
                 let start = self.extractor.position();
@@ -60,7 +60,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     values.push(decoder.decode(kind)?);
                 }
                 let stop = self.extractor.position();
-                println!("decode: decoded list {} => {} to {}", start, stop, serde_json::to_string(&values).unwrap());
+                debug!("decode: decoded list {} => {} to {}", start, stop, serde_json::to_string(&values).unwrap());
                 Ok(self.register(Value::Array(values)))
             }
             Obj(ref structure) => {
@@ -105,7 +105,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             } => {
                 let (kind_name, mapped_field_names, extractor) = self.extractor.tagged_tuple()
                     .map_err(Error::TokenReaderError)?;
-                println!("decoder: found kind {:?}", kind_name);
+                debug!("decoder: found kind {:?}", kind_name);
 
                 // Special case: `null`.
                 if or_null && kind_name.to_string() == "Null" {

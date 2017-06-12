@@ -72,7 +72,7 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
 
         let position = self.implem.borrow().reader.position();
         let pos_end = options.byte_len.map(|length| position + length);
-        println!("TreeTokenReader: sub {:?}, starting at {} => {:?}", options.suffix, position, pos_end);
+        debug!("TreeTokenReader: sub {:?}, starting at {} => {:?}", options.suffix, position, pos_end);
         TreeTokenReader {
             implem: self.implem.clone(),
             parent_pending_error: self.my_pending_error.clone(),
@@ -167,7 +167,7 @@ impl<'a, R> Drop for TreeTokenReader<'a, R> where R: Read + Seek {
                         expected,
                         found: position,
                     });
-                panic!("TokenTreeReader: This subextractor goes {} => {}, expected {} => {}, ({:?})",
+                warn!("TokenTreeReader: This subextractor goes {} => {}, expected {} => {}, ({:?})",
                     self.pos_start,
                     position,
                     self.pos_start,
@@ -180,12 +180,12 @@ impl<'a, R> Drop for TreeTokenReader<'a, R> where R: Read + Seek {
         if let Some(ref suffix) = self.suffix.take() {
             if let Err(err) = self.read_constant(suffix) {
                 *self.parent_pending_error.borrow_mut() = Some(err);
-                panic!("TokenTreeReader: This subextractor should end with {}", suffix);
+                warn!("TokenTreeReader: This subextractor should end with {}", suffix);
                 return;
             }
         }
 
-        println!("TreeTokenReader: drop() {:?} {:?} OK", self.pos_end, self.suffix);
+        debug!("TreeTokenReader: drop() {:?} {:?} OK", self.pos_end, self.suffix);
     }
 }
 impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
@@ -196,7 +196,7 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
     }
 
     fn skip(&mut self) -> Result<(), Self::Error> {
-        println!("TreeTokenReader: skip");
+        debug!("TreeTokenReader: skip");
         if let Some(end) = self.pos_end {
             self.pos_current = self.implem.borrow_mut().reader.seek(SeekFrom::Start(end))
                 .map_err(TokenReaderError::Reader)?;
@@ -207,14 +207,14 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
     }
 
     fn bool(&mut self) -> Result<bool, Self::Error> {
-        println!("TreeTokenReader: bool");
+        debug!("TreeTokenReader: bool");
         let mut buf : [u8; 1] = unsafe { std::mem::uninitialized() };
         self.read(&mut buf)?;
         Ok(buf[0] != 0)
     }
 
     fn float(&mut self) -> Result<f64, Self::Error> {
-        println!("TreeTokenReader: float");
+        debug!("TreeTokenReader: float");
         let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
         assert!(std::mem::size_of_val(&buf) == std::mem::size_of::<f64>());
         self.read(&mut buf)?;
@@ -222,7 +222,7 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
     }
 
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
-        println!("TreeTokenReader: string");
+        debug!("TreeTokenReader: string");
         let mut bytes = Vec::new();
         // Read until we get a \0.
         loop {
@@ -241,12 +241,12 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
             Ok(string) => Ok(Some(string)),
             Err(err) => Err(TokenReaderError::Encoding(err))
         };
-        println!("TreeTokenReader: string => {:?}", result);
+        debug!("TreeTokenReader: string => {:?}", result);
         result
     }
 
     fn list(&mut self) -> Result<(u32, Self), Self::Error> {
-        println!("TreeTokenReader: list");
+        debug!("TreeTokenReader: list");
         self.read_constant("<list>")?;
         let byte_len = self.read_u32()?;
         let mut extractor = self.sub(SubOptions {
@@ -254,12 +254,12 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
             suffix: Some("</list>".to_string())
         });
         let list_len = extractor.read_u32()?;
-        println!("TreeTokenReader: list has {} items, {} bytes", list_len, byte_len);
+        debug!("TreeTokenReader: list has {} items, {} bytes", list_len, byte_len);
         Ok((list_len, extractor))
     }
 
     fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[Field]>>, Self), Self::Error> {
-        println!("TreeTokenReader: tagged_tuple");
+        debug!("TreeTokenReader: tagged_tuple");
         self.read_constant("<tuple>")?;
         self.read_constant("<head>")?;
 
@@ -297,12 +297,12 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
             ..SubOptions::default()
         });
 
-        println!("TreeTokenReader: tagged_tuple has name {:?}, fields {:?}", kind_name, fields);
+        debug!("TreeTokenReader: tagged_tuple has name {:?}, fields {:?}", kind_name, fields);
         Ok((kind_name, Rc::new(fields.into_boxed_slice()), extractor))
     }
 
     fn untagged_tuple(&mut self) -> Result<Self, Self::Error> {
-        println!("TreeTokenReader: untagged_tuple");
+        debug!("TreeTokenReader: untagged_tuple");
         self.read_constant("<tuple>")?;
         Ok(self.sub(SubOptions {
             suffix: Some("</tuple>".to_string()),
@@ -354,7 +354,7 @@ impl TokenWriter for TreeTokenWriter {
     type Error = TokenWriterError;
 
     fn float(&mut self, data: f64) -> Result<Self::Tree, Self::Error> {
-        println!("TreeTokenWriter: float");
+        debug!("TreeTokenWriter: float");
         let buf : [u8; 8] = unsafe { std::mem::transmute(data) };
         assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&data));
         let result = buf.iter().cloned().collect();
@@ -362,7 +362,7 @@ impl TokenWriter for TreeTokenWriter {
     }
 
     fn bool(&mut self, data: bool) -> Result<Self::Tree, Self::Error> {
-        println!("TreeTokenWriter: bool");
+        debug!("TreeTokenWriter: bool");
         let buf = [if data { 1 } else { 0 }];
         let result = buf.iter().cloned().collect();
         Ok(self.register(result))
@@ -370,7 +370,7 @@ impl TokenWriter for TreeTokenWriter {
 
     // Strings are represented as UTF-8, \0-terminated.
     fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
-        println!("TreeTokenWriter: string {:?}", data);
+        debug!("TreeTokenWriter: string {:?}", data);
         let mut buf =
             if let Some(string) = data {
                 string.as_bytes().iter().cloned().collect()
@@ -392,7 +392,7 @@ impl TokenWriter for TreeTokenWriter {
     /// - number of items;
     /// - items.
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
-        println!("TreeTokenWriter: list");
+        debug!("TreeTokenWriter: list");
         let prefix = "<list>";
         let suffix = "</list>";
         let mut result = Vec::new();
@@ -418,7 +418,7 @@ impl TokenWriter for TreeTokenWriter {
         }
 
         result.extend_from_str(suffix);// Sole purpose of this constant is testing
-        println!("TreeTokenWriter: list has {} items, {} bytes", number_of_items, byte_len);
+        debug!("TreeTokenWriter: list has {} items, {} bytes", number_of_items, byte_len);
         assert_eq!(byte_len as usize,
             result.len() - prefix.len() - suffix.len() - std::mem::size_of_val(&number_of_items),
             "TreeTokenWriter: incorrect byte_len");
@@ -431,7 +431,7 @@ impl TokenWriter for TreeTokenWriter {
     ///   - field names (string, \0 terminated)
     /// - contents
     fn tagged_tuple(&mut self, tag: &str, children: &[(&Field, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
-        println!("TreeTokenWriter: tagged_tuple");
+        debug!("TreeTokenWriter: tagged_tuple");
         let mut prefix = Vec::new();
         prefix.extend_from_str("<head>");
         prefix.extend_from_str(tag);
@@ -457,7 +457,7 @@ impl TokenWriter for TreeTokenWriter {
         self.untagged_tuple(&untagged)
     }
     fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
-        println!("TreeTokenWriter: untagged_tuple");
+        debug!("TreeTokenWriter: untagged_tuple");
         let mut result = Vec::new();
         result.extend_from_str("<tuple>"); // Sole purpose of this constant is testing
         for item in children {
@@ -483,7 +483,7 @@ fn test_simple_io() {
     use ast::grammar::*;
     use std::io::Cursor;
 
-    println!("Setting up syntax");
+    debug!("Setting up syntax");
     let mut builder = SyntaxBuilder::new();
     let kinded = builder.node_name("Kinded");
     let field_string = Field::new(builder.field_name("some_string"), Type::String);
@@ -495,7 +495,7 @@ fn test_simple_io() {
 
     let syntax = builder.into_syntax();
 
-    println!("Testing string I/O");
+    debug!("Testing string I/O");
 
     {
         let mut writer = TreeTokenWriter::new();
@@ -519,7 +519,7 @@ fn test_simple_io() {
         assert_matches!(simple_string, Some(ref s) if s == "simple string");
     }
 
-    println!("Testing untagged tuple I/O");
+    debug!("Testing untagged tuple I/O");
 
     {
         let mut writer = TreeTokenWriter::new();
@@ -549,7 +549,7 @@ fn test_simple_io() {
         assert_matches!(simple_string, Some(ref s) if s == "bar");
     }
 
-    println!("Testing tagged tuple I/O");
+    debug!("Testing tagged tuple I/O");
 
     {
         let mut writer = TreeTokenWriter::new();
@@ -589,7 +589,7 @@ fn test_simple_io() {
         }
     }
 
-    println!("Testing list I/O");
+    debug!("Testing list I/O");
 
     {
         let mut writer = TreeTokenWriter::new();

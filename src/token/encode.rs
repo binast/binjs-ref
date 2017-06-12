@@ -48,7 +48,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
     /// Encode a JSON into a SerializeTree based on a grammar.
     /// This step doesn't perform any interesting check on the JSON.
     pub fn encode(&self, value: &Value, kind: &Type) -> Result<Tree, Error<E>> {
-        println!("encode: value {:?} with kind {:?}", value, kind);
+        debug!("encode: value {:?} with kind {:?}", value, kind);
         use ast::grammar::Type::*;
         match *kind {
             Array(ref kind) => {
@@ -143,7 +143,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                         .find(|ancestor|
                             interfaces.iter()
                                 .find(|candidate| {
-                                    println!("Looking for {:?} =?= {:?}", candidate, ancestor);
+                                    debug!("Looking for {:?} =?= {:?}", candidate, ancestor);
                                     candidate == ancestor
                                 })
                                 .is_some()
