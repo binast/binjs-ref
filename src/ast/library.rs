@@ -59,7 +59,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     let object_property = syntax.node_name("ObjectProperty");
     let pattern = syntax.node_name("Pattern");
     let program = syntax.node_name("Program");
-    let property = syntax.node_name("Property");
     let property_kind = syntax.node_name("PropertyKind");
     let regexp_literal = syntax.node_name("RegExpLiteral");
     let return_statement = syntax.node_name("ReturnStatement");
@@ -158,10 +157,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 
     // Functions (shared between function declaration, function statement, function expression)
     syntax.add_virtual_interface(&function).unwrap()
-        .with_field(&field_id, Type::Interfaces {
-            names: vec![identifier.clone()],
-            or_null: false
-        })
+        .with_field(&field_id, Type::interfaces(&[&identifier]).or_null().unwrap())
         .with_field(&field_params, Type::Array(Box::new(Type::interface(&pattern))))
         .with_field(&field_body, Type::interface(&block_statement))
         .with_parent(&node);
@@ -473,9 +469,12 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) {
 /// Construct a syntax for a specific version of JavaScript.
 pub fn syntax(level: Level) -> Syntax {
     let mut builder = SyntaxBuilder::new();
-    match level { 
+
+    let program = builder.node_name("Program");
+    match level {
         Level::Empty => {
-            return builder.into_syntax()
+            builder.add_virtual_interface(&program).unwrap();
+            return builder.into_syntax(&program)
         }
         Level::ES5
         | Level::Latest => {
@@ -483,7 +482,7 @@ pub fn syntax(level: Level) -> Syntax {
         }
     }
     setup_binjs(&mut builder);
-    builder.into_syntax()
+    builder.into_syntax(&program)
 }
 
 #[test]

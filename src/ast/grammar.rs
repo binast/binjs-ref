@@ -351,13 +351,15 @@ impl SyntaxBuilder {
     }
 
     /// Generate the graph.
-    pub fn into_syntax(self) -> Syntax {
+    pub fn into_syntax(self, start: &NodeName) -> Syntax {
         let mut interfaces_by_name = HashMap::new();
         let mut interfaces_by_kind = HashMap::new();
         let mut names = HashMap::new();
         let mut kinds = HashMap::new();
         let mut field_names : HashMap<String, FieldName> = HashMap::new();
 
+        assert!(self.interfaces.get(start).is_some(),
+            "Cannot find start interface {:?}", start);
 
         for (name, interface) in &self.interfaces {
             {
@@ -466,6 +468,7 @@ impl SyntaxBuilder {
             names,
             kinds,
             fields: field_names,
+            start: start.clone(),
         }
     }
 }
@@ -511,6 +514,7 @@ pub struct Syntax {
     names: HashMap<String, Rc<String>>,
     kinds: HashMap<String, Kind>,
     fields: HashMap<String, FieldName>,
+    start: NodeName,
 }
 
 impl Syntax {
@@ -544,5 +548,11 @@ impl Syntax {
         self.fields
             .get(name)
             .cloned()
+    }
+
+    /// The starting point for parsing.
+    pub fn get_start(&self) -> &InterfaceNode {
+        self.get_interface_by_name(&self.start)
+            .unwrap()
     }
 }
