@@ -100,7 +100,7 @@ impl SourceParser for Babel {
             var babylon = require('babylon');
             var fs      = require('fs');
 
-            var source  = fs.readFileSync({}, {{encoding: "utf-8"}});
+            var source  = fs.readFileSync('{}', {{encoding: "utf-8"}});
             var parsed  = babylon.parse(source);
             var json    = JSON.stringify(parsed);
             process.stdout.write(json)
