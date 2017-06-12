@@ -34,6 +34,7 @@ test!(test_simple_tokenization, {
         "var i; var j;",
         "var i; for (i = 0; i < 100; ++i) {}",
         "var i; for (i = 0; i < 100; ++i) { console.log(i); }",
+        "function foo(x, y) { var i; for (i = 0; i < 100; ++i) { console.log(x, y + i, x + y + i, x + y + i + 1); } }",
     ].iter() {
         println!("Attempting to (de)tokenize {}", source);
 
