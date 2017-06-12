@@ -524,6 +524,16 @@
 <span id="479">479</span>
 <span id="480">480</span>
 <span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A library of specifications for versions of JavaScript.</span>
 
@@ -532,110 +542,120 @@
 
 <span class="doccomment">/// The set of features requested for a syntax.</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Level</span> {
+    <span class="doccomment">/// Empty syntax, for testing purposes.</span>
+    <span class="ident">Empty</span>,
     <span class="doccomment">/// All the features for ES5.</span>
     <span class="ident">ES5</span>,
+    <span class="doccomment">/// All the features of the latest version of JavaScript.</span>
+    <span class="ident">Latest</span>,
     <span class="comment">// FIXME: More levels to be implemented.</span>
 }
 
 <span class="doccomment">/// Hardcoding for https://github.com/estree/estree/blob/master/es5.md#exceptions</span>
 <span class="kw">fn</span> <span class="ident">setup_es5</span>(<span class="ident">syntax</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SyntaxBuilder</span>) {
-    <span class="comment">// Interface names.</span>
-    <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Node&quot;</span>);
-    <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;String&quot;</span>);
-    <span class="kw">let</span> <span class="ident">boolean</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Boolean&quot;</span>);
-    <span class="kw">let</span> <span class="ident">null</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Null&quot;</span>);
-    <span class="kw">let</span> <span class="ident">number</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Number&quot;</span>);
-    <span class="kw">let</span> <span class="ident">regexp</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;RegExp&quot;</span>);
-    <span class="kw">let</span> <span class="ident">statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Statement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">identifier</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Identifier&quot;</span>);
-    <span class="kw">let</span> <span class="ident">pattern</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Pattern&quot;</span>);
-    <span class="kw">let</span> <span class="ident">block_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;BlockStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Expression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">switch_case</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;SwitchCase&quot;</span>);
-    <span class="kw">let</span> <span class="ident">catch_clause</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;CatchClause&quot;</span>);
-    <span class="kw">let</span> <span class="ident">variable_declaration</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;VariableDeclaration&quot;</span>);
-    <span class="kw">let</span> <span class="ident">variable_declarator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;VariableDeclarator&quot;</span>);
-    <span class="kw">let</span> <span class="ident">property</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Property&quot;</span>);
-    <span class="kw">let</span> <span class="ident">literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Literal&quot;</span>);
-    <span class="kw">let</span> <span class="ident">unary_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;UnaryOperator&quot;</span>);
-    <span class="kw">let</span> <span class="ident">binary_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;BinaryOperator&quot;</span>);
-    <span class="kw">let</span> <span class="ident">assignment_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;AssignmentOperator&quot;</span>);
-    <span class="kw">let</span> <span class="ident">function</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Function&quot;</span>);
-    <span class="kw">let</span> <span class="ident">declaration</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Declaration&quot;</span>);
-    <span class="kw">let</span> <span class="ident">regexp_literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;RegexpLiteral&quot;</span>);
-    <span class="kw">let</span> <span class="ident">program</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Program&quot;</span>);
-    <span class="kw">let</span> <span class="ident">empty_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;EmptyStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">expression_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ExpressionStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">debugger_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;DebuggerStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">with_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;WithStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">return_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ReturnStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">labelled_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;LabelledStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">break_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;BreakStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">contine_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ContinueStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">if_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;IfStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">switch_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;SwitchStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">throw_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ThrowStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">try_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;TryStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">while_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;WhileStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">do_while_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;DoWhileStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">for_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ForStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">for_in_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ForInStatement&quot;</span>);
-    <span class="kw">let</span> <span class="ident">function_declaration</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;FunctionDeclaration&quot;</span>);
-    <span class="kw">let</span> <span class="ident">this_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ThisExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">array_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ArrayExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">object_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ObjectExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">function_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;FunctionExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">unary_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;UnaryExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">update_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;UpdateExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">update_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;UpdateOperator&quot;</span>);
-    <span class="kw">let</span> <span class="ident">binary_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;BinaryExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">assignment_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;AssignmentExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">logical_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;LogicalExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">logical_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;LogicalOperator&quot;</span>);
-    <span class="kw">let</span> <span class="ident">member_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;MemberExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">conditional_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;ConditionalExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">call_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;CallExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">new_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;NewExpression&quot;</span>);
-    <span class="kw">let</span> <span class="ident">sequence_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;SequenceExpression&quot;</span>);
+    <span class="comment">// Interface names (by alphabetical order)</span>
 
-    <span class="comment">// Field names</span>
-    <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;name&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_value</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;value&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_regex</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;regex&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_pattern</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;pattern&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_flags</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;flags&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_body</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;body&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_id</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;id&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_params</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;params&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_object</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;object&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_argument</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;argument&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_label</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;label&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_test</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;test&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_consequent</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;consequent&quot;</span>);
+    <span class="kw">let</span> <span class="ident">array_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ArrayExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">assignment_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;AssignmentExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">assignment_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;AssignmentOperator&quot;</span>);
+    <span class="kw">let</span> <span class="ident">binary_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;BinaryExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">binary_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;BinaryOperator&quot;</span>);
+    <span class="kw">let</span> <span class="ident">block_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;BlockStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">boolean_literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;BooleanLiteral&quot;</span>);
+    <span class="kw">let</span> <span class="ident">break_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;BreakStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">call_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;CallExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">catch_clause</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;CatchClause&quot;</span>);
+    <span class="kw">let</span> <span class="ident">conditional_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ConditionalExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">contine_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ContinueStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">debugger_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;DebuggerStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">declaration</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Declaration&quot;</span>);
+    <span class="kw">let</span> <span class="ident">do_while_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;DoWhileStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">empty_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;EmptyStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Expression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">expression_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ExpressionStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">for_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ForStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">for_in_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ForInStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">function</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Function&quot;</span>);
+    <span class="kw">let</span> <span class="ident">function_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;FunctionExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">function_declaration</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;FunctionDeclaration&quot;</span>);
+    <span class="kw">let</span> <span class="ident">identifier</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Identifier&quot;</span>);
+    <span class="kw">let</span> <span class="ident">if_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;IfStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">labelled_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;LabelledStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Literal&quot;</span>);
+    <span class="kw">let</span> <span class="ident">logical_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;LogicalExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">logical_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;LogicalOperator&quot;</span>);
+    <span class="kw">let</span> <span class="ident">member_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;MemberExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Node&quot;</span>);
+    <span class="kw">let</span> <span class="ident">new_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;NewExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">null</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Null&quot;</span>);
+    <span class="kw">let</span> <span class="ident">null_literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;NullLiteral&quot;</span>);
+    <span class="kw">let</span> <span class="ident">numeric_literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;NumericLiteral&quot;</span>);
+    <span class="kw">let</span> <span class="ident">object_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ObjectExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">object_member</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ObjectMember&quot;</span>);
+    <span class="kw">let</span> <span class="ident">object_method</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ObjectMethod&quot;</span>);
+    <span class="kw">let</span> <span class="ident">object_property</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ObjectProperty&quot;</span>);
+    <span class="kw">let</span> <span class="ident">pattern</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Pattern&quot;</span>);
+    <span class="kw">let</span> <span class="ident">program</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Program&quot;</span>);
+    <span class="kw">let</span> <span class="ident">property_kind</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;PropertyKind&quot;</span>);
+    <span class="kw">let</span> <span class="ident">regexp_literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;RegExpLiteral&quot;</span>);
+    <span class="kw">let</span> <span class="ident">return_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ReturnStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">sequence_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;SequenceExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">string_literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;StringLiteral&quot;</span>);
+    <span class="kw">let</span> <span class="ident">statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Statement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">switch_case</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;SwitchCase&quot;</span>);
+    <span class="kw">let</span> <span class="ident">switch_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;SwitchStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">this_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ThisExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">throw_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ThrowStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">try_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;TryStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">unary_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;UnaryExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">unary_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;UnaryOperator&quot;</span>);
+    <span class="kw">let</span> <span class="ident">update_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;UpdateExpression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">update_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;UpdateOperator&quot;</span>);
+    <span class="kw">let</span> <span class="ident">variable_declaration</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;VariableDeclaration&quot;</span>);
+    <span class="kw">let</span> <span class="ident">variable_declarator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;VariableDeclarator&quot;</span>);
+    <span class="kw">let</span> <span class="ident">variable_kind</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;VariableKind&quot;</span>);
+    <span class="kw">let</span> <span class="ident">while_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;WhileStatement&quot;</span>);
+    <span class="kw">let</span> <span class="ident">with_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;WithStatement&quot;</span>);
+
+
+    <span class="comment">// Field names (by alphabetical order)</span>
     <span class="kw">let</span> <span class="ident">field_alternate</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;alternate&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_discriminant</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;discriminant&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_cases</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;cases&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_block</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;block&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_handler</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;handler&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_finalizer</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;finalizer&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_param</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;param&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_init</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;init&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_update</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;update&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_left</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;left&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_right</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;right&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_declarations</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;declarations&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_kind</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;kind&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_elements</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;elements&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_properties</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;properties&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_key</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;key&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;operator&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_prefix</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;prefix&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_property</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;property&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_computed</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;computed&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_callee</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;callee&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_argument</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;argument&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_arguments</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;arguments&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_expressions</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;expressions&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_block</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;block&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_callee</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;callee&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_cases</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;cases&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_consequent</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;consequent&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_computed</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;computed&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_body</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;body&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_declarations</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;declarations&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_discriminant</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;discriminant&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_elements</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;elements&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;expression&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_expressions</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;expressions&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_finalizer</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;finalizer&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_flags</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;flags&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_handler</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;handler&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_id</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;id&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_init</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;init&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_key</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;key&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_kind</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;kind&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_label</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;label&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_left</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;left&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;name&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_object</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;object&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_operator</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;operator&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_param</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;param&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_params</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;params&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_pattern</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;pattern&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_prefix</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;prefix&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_properties</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;properties&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_property</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;property&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_right</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;right&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_test</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;test&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_update</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;update&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_value</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;value&quot;</span>);
+
 
     <span class="comment">// Node objects</span>
     <span class="ident">syntax</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>).<span class="ident">unwrap</span>();
@@ -648,21 +668,21 @@
 
     <span class="comment">// Literals</span>
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">literal</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">Interfaces</span>(<span class="macro">vec</span><span class="macro">!</span>[
-            <span class="ident">string</span>.<span class="ident">clone</span>(),
-            <span class="ident">boolean</span>.<span class="ident">clone</span>(),
-            <span class="ident">null</span>.<span class="ident">clone</span>(),
-            <span class="ident">number</span>.<span class="ident">clone</span>(),
-            <span class="ident">regexp</span>.<span class="ident">clone</span>()
-        ]))
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>);
-
-    <span class="comment">// FIXME: As `RegexpLiteral` is virtual, this should be compiled as adding an optional field to `Literal`.</span>
-
-    <span class="ident">syntax</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">regexp_literal</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_regex</span>, <span class="ident">Type</span>::<span class="ident">Obj</span>(<span class="ident">Obj</span>::<span class="ident">new</span>()
-            .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_pattern</span>, <span class="ident">Type</span>::<span class="ident">String</span>)
-            .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_flags</span>, <span class="ident">Type</span>::<span class="ident">String</span>)))
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">string_literal</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">String</span>)
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">literal</span>);
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">boolean_literal</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">Boolean</span>)
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">literal</span>);
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">null_literal</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">literal</span>);
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">numeric_literal</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">Number</span>)
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">literal</span>);
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">regexp_literal</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_pattern</span>, <span class="ident">Type</span>::<span class="ident">String</span>)
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_flags</span>, <span class="ident">Type</span>::<span class="ident">String</span>)
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">literal</span>);
 
 
@@ -674,10 +694,7 @@
 
     <span class="comment">// Functions (shared between function declaration, function statement, function expression)</span>
     <span class="ident">syntax</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">function</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_id</span>, <span class="ident">Type</span>::<span class="ident">Interfaces</span>(<span class="macro">vec</span><span class="macro">!</span>[
-            <span class="ident">identifier</span>.<span class="ident">clone</span>(),
-            <span class="ident">null</span>.<span class="ident">clone</span>()
-        ]))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_id</span>, <span class="ident">Type</span>::<span class="ident">interfaces</span>(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">identifier</span>]).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_params</span>, <span class="ident">Type</span>::<span class="ident">Array</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">pattern</span>))))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">block_statement</span>))
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
@@ -795,8 +812,15 @@
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">variable_declaration</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_declarations</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">variable_declarator</span>).<span class="ident">array</span>())
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_kind</span>, <span class="ident">Type</span>::<span class="ident">one_of_strings</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;var&quot;</span>]))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_kind</span>, <span class="ident">Type</span>::<span class="ident">enumeration</span>(<span class="kw-2">&amp;</span><span class="ident">variable_kind</span>))
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">declaration</span>);
+
+    <span class="ident">syntax</span>.<span class="ident">add_enum</span>(<span class="kw-2">&amp;</span><span class="ident">variable_kind</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_strings</span>(<span class="kw-2">&amp;</span>[
+            <span class="string">&quot;let&quot;</span>,
+            <span class="string">&quot;var&quot;</span>,
+            <span class="string">&quot;const&quot;</span>
+        ]);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">variable_declarator</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_id</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">pattern</span>))
@@ -815,28 +839,39 @@
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">object_expression</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_properties</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">property</span>).<span class="ident">array</span>())
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_properties</span>, <span class="ident">Type</span>::<span class="ident">interfaces</span>(<span class="kw-2">&amp;</span>[ 
+            <span class="kw-2">&amp;</span><span class="ident">object_property</span>,
+            <span class="kw-2">&amp;</span><span class="ident">object_method</span>
+        ]).<span class="ident">array</span>())
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>);
 
-    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">property</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_key</span>, <span class="ident">Type</span>::<span class="ident">interfaces</span>(<span class="kw-2">&amp;</span>[
-            <span class="kw-2">&amp;</span><span class="ident">literal</span>,
-            <span class="kw-2">&amp;</span><span class="ident">identifier</span>
-        ]))
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">object_member</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_key</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_computed</span>, <span class="ident">Type</span>::<span class="ident">Boolean</span>)
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
+
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">object_property</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_kind</span>, <span class="ident">Type</span>::<span class="ident">one_of_strings</span>(<span class="kw-2">&amp;</span>[
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">object_member</span>);
+
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">object_method</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_kind</span>, <span class="ident">Type</span>::<span class="ident">enumeration</span>(<span class="kw-2">&amp;</span><span class="ident">property_kind</span>))
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">object_member</span>)
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">function</span>);
+
+    <span class="ident">syntax</span>.<span class="ident">add_enum</span>(<span class="kw-2">&amp;</span><span class="ident">property_kind</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_strings</span>(<span class="kw-2">&amp;</span>[
             <span class="string">&quot;get&quot;</span>,
             <span class="string">&quot;set&quot;</span>,
-            <span class="string">&quot;init&quot;</span>
-        ]))
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
+            <span class="string">&quot;method&quot;</span>
+        ]);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">function_expression</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>)
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">function</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">unary_expression</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">unary_operator</span>))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">enumeration</span>(<span class="kw-2">&amp;</span><span class="ident">unary_operator</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_prefix</span>, <span class="ident">Type</span>::<span class="ident">Boolean</span>)
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_argument</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>);
@@ -853,7 +888,7 @@
         ]);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">update_expression</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">update_operator</span>))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">enumeration</span>(<span class="kw-2">&amp;</span><span class="ident">update_operator</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_argument</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_prefix</span>, <span class="ident">Type</span>::<span class="ident">Boolean</span>)
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>);
@@ -865,7 +900,7 @@
         ]);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">binary_expression</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">binary_operator</span>))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">enumeration</span>(<span class="kw-2">&amp;</span><span class="ident">binary_operator</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_left</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_right</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>);
@@ -896,7 +931,7 @@
         ]);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">assignment_expression</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">assignment_operator</span>))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">enumeration</span>(<span class="kw-2">&amp;</span><span class="ident">assignment_operator</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_left</span>, <span class="ident">Type</span>::<span class="ident">interfaces</span>(<span class="kw-2">&amp;</span>[
             <span class="kw-2">&amp;</span><span class="ident">pattern</span>,
             <span class="kw-2">&amp;</span><span class="ident">expression</span>
@@ -921,7 +956,7 @@
         ]);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">logical_expression</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">logical_operator</span>))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_operator</span>, <span class="ident">Type</span>::<span class="ident">enumeration</span>(<span class="kw-2">&amp;</span><span class="ident">logical_operator</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_left</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_right</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>);
@@ -963,43 +998,28 @@
 }
 
 <span class="kw">fn</span> <span class="ident">setup_binjs</span>(<span class="ident">syntax</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SyntaxBuilder</span>) {
-    <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;String&quot;</span>);
-    <span class="kw">let</span> <span class="ident">boolean</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Boolean&quot;</span>);
-    <span class="kw">let</span> <span class="ident">null</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Null&quot;</span>);
-    <span class="kw">let</span> <span class="ident">number</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Number&quot;</span>);
-    <span class="kw">let</span> <span class="ident">regexp</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">interface_name</span>(<span class="string">&quot;Regexp&quot;</span>);
-
-    <span class="kw">let</span> <span class="ident">field_value</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;value&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_pattern</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;pattern&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_flags</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;flags&quot;</span>);
-
-    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">string</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">String</span>);
-
-    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">boolean</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">Boolean</span>);
-
+    <span class="comment">// Special value `Null`.</span>
+    <span class="kw">let</span> <span class="ident">null</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Null&quot;</span>);
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">null</span>).<span class="ident">unwrap</span>();
-
-    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">number</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">Number</span>);
-
-    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">regexp</span>).<span class="ident">unwrap</span>()
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">Obj</span>(<span class="ident">Obj</span>::<span class="ident">new</span>()
-            .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_pattern</span>, <span class="ident">Type</span>::<span class="ident">String</span>)
-            .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_flags</span>, <span class="ident">Type</span>::<span class="ident">String</span>)));
 }
 
 <span class="doccomment">/// Construct a syntax for a specific version of JavaScript.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">syntax</span>(<span class="ident">level</span>: <span class="ident">Level</span>) <span class="op">-&gt;</span> <span class="ident">Syntax</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">SyntaxBuilder</span>::<span class="ident">new</span>();
+
+    <span class="kw">let</span> <span class="ident">program</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">node_name</span>(<span class="string">&quot;Program&quot;</span>);
     <span class="kw">match</span> <span class="ident">level</span> {
-        <span class="ident">Level</span>::<span class="ident">ES5</span> <span class="op">=&gt;</span> {
+        <span class="ident">Level</span>::<span class="ident">Empty</span> <span class="op">=&gt;</span> {
+            <span class="ident">builder</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">program</span>).<span class="ident">unwrap</span>();
+            <span class="kw">return</span> <span class="ident">builder</span>.<span class="ident">into_syntax</span>(<span class="kw-2">&amp;</span><span class="ident">program</span>)
+        }
+        <span class="ident">Level</span>::<span class="ident">ES5</span>
+        <span class="op">|</span> <span class="ident">Level</span>::<span class="ident">Latest</span> <span class="op">=&gt;</span> {
             <span class="ident">setup_es5</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">builder</span>)
         }
     }
     <span class="ident">setup_binjs</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">builder</span>);
-    <span class="ident">builder</span>.<span class="ident">as_syntax</span>()
+    <span class="ident">builder</span>.<span class="ident">into_syntax</span>(<span class="kw-2">&amp;</span><span class="ident">program</span>)
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>

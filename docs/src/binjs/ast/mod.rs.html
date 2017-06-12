@@ -102,6 +102,8 @@
 <span id="57">57</span>
 <span id="58">58</span>
 <span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! This module defines the AST grammar and provides tools for manipulating</span>
 <span class="doccomment">//! representations of this AST.</span>
@@ -121,10 +123,10 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Each Interface Declaration consists in *all* of:</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! - one Name (e.g. `Expression`, `ExpressionStatement`, ...);</span>
-<span class="doccomment">//! - a (possibly empty) list of Names of Parent Interfaces.</span>
-<span class="doccomment">//! - optionally, one Tag (e.g. `ExpressionStatement`, but not `Expression`);</span>
-<span class="doccomment">//! - an Object Structure.</span>
+<span class="doccomment">//! - one **Name** (e.g. `Expression`, `ExpressionStatement`, ...);</span>
+<span class="doccomment">//! - a (possibly empty) list of **Name**s of Parent Interfaces.</span>
+<span class="doccomment">//! - optionally, one **Tag** (e.g. `ExpressionStatement`, but not `Expression`);</span>
+<span class="doccomment">//! - an object **Structure**.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! A **Name** is used to represent relationships between Interfaces. By opposition,</span>
 <span class="doccomment">//! A **Tag** is attached to actual nodes of the AST. For instance, `Expression`</span>
@@ -133,9 +135,11 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! FIXME: specify Enumerations.</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//! FIXME: specify Structure.</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! Each Field consists in *all* of:</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! - one Name (e.g. `body`);</span>
+<span class="doccomment">//! - one Property (e.g. `body`);</span>
 <span class="doccomment">//! - one Type.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Each Type is *one* of:</span>

@@ -94,6 +94,11 @@
 <span id="49">49</span>
 <span id="50">50</span>
 <span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A reference implementation for the BinJS binary source format for JavaScript.</span>
 <span class="doccomment">//!</span>
@@ -124,13 +129,18 @@
 <span class="doccomment">//! - the Token Streams (see module `token`);</span>
 <span class="doccomment">//! - the Byte Streams (see module `bytes`).</span>
 
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_imports</span>)]</span>
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">assert_matches</span>;
+
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">env_logger</span>;
 
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
-
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_json</span>;
+
 
 <span class="doccomment">/// Manipulating the AST.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">ast</span>;
@@ -145,7 +155,7 @@
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">source</span>;
 
 <span class="doccomment">/// Misc utilities.</span>
-<span class="kw">mod</span> <span class="ident">util</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">util</span>;
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

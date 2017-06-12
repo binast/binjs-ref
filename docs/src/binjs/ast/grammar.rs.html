@@ -541,6 +541,66 @@
 <span id="496">496</span>
 <span id="497">497</span>
 <span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Grammars for specifying an AST that this tool can manipulate.</span>
 <span class="doccomment">//!</span>
@@ -551,29 +611,25 @@
 <span class="kw">use</span> <span class="ident">std</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{ <span class="ident">HashMap</span>, <span class="ident">HashSet</span> };
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">hash</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Deref</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="kw-2">*</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Hash</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
-<span class="kw">enum</span> <span class="ident">InterfaceNameImpl</span> {
-    <span class="doccomment">/// Special hardcoded name, because it makes our life easier.</span>
-    <span class="ident">Null</span>,
-    <span class="ident">Named</span>(<span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>)
-}
-<span class="kw">impl</span> <span class="ident">InterfaceNameImpl</span> {
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Hash</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NodeName</span>(<span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>);
+<span class="kw">impl</span> <span class="ident">NodeName</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">String</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_ref</span>()
+    }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">InterfaceNameImpl</span>::<span class="ident">Null</span> <span class="op">=&gt;</span> <span class="string">&quot;null&quot;</span>,
-            <span class="ident">InterfaceNameImpl</span>::<span class="ident">Named</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=&gt;</span> <span class="ident">name</span>.<span class="ident">as_ref</span>()
-        }
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
-
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Hash</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InterfaceName</span>(<span class="ident">InterfaceNameImpl</span>);
-<span class="kw">impl</span> <span class="ident">InterfaceName</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">to_str</span>()
+<span class="kw">impl</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">NodeName</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">to_str</span>().<span class="ident">fmt</span>(<span class="ident">formatter</span>)
     }
 }
 
@@ -593,12 +649,23 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Field</span> {
     <span class="ident">name</span>: <span class="ident">FieldName</span>,
     <span class="ident">type_</span>: <span class="ident">Type</span>,
 }
+<span class="kw">impl</span> <span class="ident">Hash</span> <span class="kw">for</span> <span class="ident">Field</span> {
+    <span class="kw">fn</span> <span class="ident">hash</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">H</span>) <span class="kw">where</span> <span class="ident">H</span>: <span class="ident">Hasher</span> {
+        <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">hash</span>(<span class="ident">state</span>)
+    }
+}
 <span class="kw">impl</span> <span class="ident">Field</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">name</span>: <span class="ident">FieldName</span>, <span class="ident">type_</span>: <span class="ident">Type</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">Field</span> {
+            <span class="ident">name</span>,
+            <span class="ident">type_</span>
+        }
+    }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">FieldName</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">name</span>
     }
@@ -608,7 +675,7 @@
 }
 
 <span class="doccomment">/// A type, typically that of a field.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Type</span> {
     <span class="doccomment">/// An array of values of the same type.</span>
     <span class="ident">Array</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Type</span><span class="op">&gt;</span>),
@@ -617,7 +684,7 @@
     <span class="ident">Obj</span>(<span class="ident">Obj</span>),
 
     <span class="doccomment">/// A choice between several literals, e.g. `&quot;get&quot; | &quot;set&quot;`.</span>
-    <span class="ident">Enum</span>(<span class="ident">Enum</span>),
+    <span class="ident">Enum</span>(<span class="ident">NodeName</span>),
 
     <span class="doccomment">/// A value that may belong to one or more interfaces.</span>
     <span class="doccomment">///</span>
@@ -625,7 +692,10 @@
     <span class="doccomment">/// to sum types between their corresponding interfaces, e.g.</span>
     <span class="doccomment">/// `boolean | string | null` will be represented as</span>
     <span class="doccomment">/// `Boolean | String | Null`</span>
-    <span class="ident">Interfaces</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">InterfaceName</span><span class="op">&gt;</span>),
+    <span class="ident">Interfaces</span> {
+        <span class="ident">names</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">NodeName</span><span class="op">&gt;</span>,
+        <span class="ident">or_null</span>: <span class="ident">bool</span>
+    },
 
     <span class="comment">// Primitive types</span>
     <span class="ident">Boolean</span>,
@@ -635,35 +705,34 @@
 
 <span class="kw">impl</span> <span class="ident">Type</span> {
     <span class="doccomment">/// Shorthand constructor.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">interface</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">InterfaceName</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Type</span>::<span class="ident">Interfaces</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">name</span>.<span class="ident">clone</span>()])
-    }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">interfaces</span>(<span class="ident">names</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">InterfaceName</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Type</span>::<span class="ident">Interfaces</span>(<span class="ident">names</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>())
-    }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">one_of_strings</span>(<span class="ident">strings</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Type</span>::<span class="ident">Enum</span>(<span class="ident">Enum</span> {
-            <span class="ident">strings</span>: <span class="ident">strings</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">map</span>(<span class="ident">str</span>::<span class="ident">to_string</span>).<span class="ident">collect</span>(),
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">interface</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">Type</span>::<span class="ident">Interfaces</span> {
+            <span class="ident">names</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">name</span>.<span class="ident">clone</span>()],
             <span class="ident">or_null</span>: <span class="bool-val">false</span>
-        })
+        }
+    }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enumeration</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">Type</span>::<span class="ident">Enum</span>(<span class="ident">name</span>.<span class="ident">clone</span>())
+    }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">interfaces</span>(<span class="ident">names</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">NodeName</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">Type</span>::<span class="ident">Interfaces</span> {
+            <span class="ident">names</span>: <span class="ident">names</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>(),
+            <span class="ident">or_null</span>: <span class="bool-val">false</span>
+        }
     }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">array</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Type</span>::<span class="ident">Array</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="self">self</span>))
     }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">or_null</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Type</span>::<span class="ident">Enum</span>(<span class="ident">e</span>) <span class="op">=&gt;</span>
-                <span class="prelude-val">Some</span>(<span class="ident">Type</span>::<span class="ident">Enum</span>(<span class="ident">Enum</span> {
-                    <span class="ident">or_null</span>: <span class="bool-val">true</span>,
-                    .. <span class="ident">e</span>
-                })),
-            <span class="ident">Type</span>::<span class="ident">Interfaces</span>(<span class="kw-2">mut</span> <span class="ident">interfaces</span>) <span class="op">=&gt;</span> {
-                <span class="kw">if</span> <span class="ident">interfaces</span>.<span class="ident">iter</span>().<span class="ident">find</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">to_str</span>() <span class="op">==</span> <span class="string">&quot;null&quot;</span>).<span class="ident">is_some</span>() {
-                    <span class="prelude-val">Some</span>(<span class="ident">Type</span>::<span class="ident">Interfaces</span>(<span class="ident">interfaces</span>))
-                } <span class="kw">else</span> {
-                    <span class="ident">interfaces</span>.<span class="ident">push</span>(<span class="ident">InterfaceName</span>(<span class="ident">InterfaceNameImpl</span>::<span class="ident">Null</span>));
-                    <span class="prelude-val">Some</span>(<span class="ident">Type</span>::<span class="ident">Interfaces</span>(<span class="ident">interfaces</span>))
-                }
+            <span class="ident">Type</span>::<span class="ident">Interfaces</span> {
+                <span class="ident">names</span>,
+                <span class="ident">or_null</span>
+            } <span class="op">=&gt;</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">Type</span>::<span class="ident">Interfaces</span> {
+                    <span class="ident">names</span>,
+                    <span class="ident">or_null</span>: <span class="bool-val">true</span>
+                })
             },
             _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         }
@@ -675,6 +744,15 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Obj</span> {
     <span class="ident">fields</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;</span>,
 }
+<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">Obj</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">let</span> <span class="ident">me</span> : <span class="ident">HashSet</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">other</span> : <span class="ident">HashSet</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">other</span>.<span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
+        <span class="ident">me</span> <span class="op">==</span> <span class="ident">other</span>
+    }
+}
+<span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">Obj</span> {}
+
 <span class="kw">impl</span> <span class="ident">Obj</span> {
     <span class="doccomment">/// Create a new empty structure</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
@@ -690,9 +768,23 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">field</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">FieldName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Field</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">find</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">name</span> <span class="op">==</span> <span class="ident">name</span>)
     }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_own_field</span>(<span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">field</span>(<span class="ident">field</span>.<span class="ident">name</span>()).<span class="ident">is_some</span>() {
+            <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Field: attempting to overwrite {:?}&quot;</span>, <span class="ident">field</span>.<span class="ident">name</span>());
+            <span class="kw">return</span> <span class="self">self</span>
+        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fields</span>;
+        <span class="ident">fields</span>.<span class="ident">push</span>(<span class="ident">field</span>);
+        <span class="ident">Obj</span> {
+            <span class="ident">fields</span>
+        }
+    }
+
     <span class="doccomment">/// Extend a structure with a field.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_field</span>(<span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">FieldName</span>, <span class="ident">type_</span>: <span class="ident">Type</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">field</span>(<span class="ident">name</span>).<span class="ident">is_some</span>() {
+            <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Field: attempting to overwrite {:?}&quot;</span>, <span class="ident">name</span>);
             <span class="kw">return</span> <span class="self">self</span>
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fields</span>;
@@ -711,24 +803,17 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Enum</span> {
     <span class="doccomment">/// Unordered list of strings, without duplicates.</span>
     <span class="ident">strings</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// If `true`, `null` is an acceptable value.</span>
-    <span class="ident">or_null</span>: <span class="ident">bool</span>
 }
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Enum</span> {
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Enum</span> {
             <span class="ident">strings</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
-            <span class="ident">or_null</span>: <span class="bool-val">false</span>
         }
     }
 }
 <span class="kw">impl</span> <span class="ident">Enum</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">strings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">String</span>] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">strings</span>
-    }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">or_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">or_null</span>
     }
 
     <span class="doccomment">/// Add a string to the enum. Idempotent.</span>
@@ -751,7 +836,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Interface</span> {
     <span class="doccomment">/// The name of the interface, e.g. `Node`.</span>
-    <span class="ident">name</span>: <span class="ident">InterfaceName</span>,
+    <span class="ident">name</span>: <span class="ident">NodeName</span>,
 
     <span class="doccomment">/// The kind used to differentiate node that inhabit this</span>
     <span class="doccomment">/// interface from nodes inhabiting other interfaces.</span>
@@ -762,7 +847,7 @@
     <span class="ident">kind</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Kind</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// The parents of this interface.</span>
-    <span class="ident">parent_interfaces</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">InterfaceName</span><span class="op">&gt;</span>,
+    <span class="ident">parent_interfaces</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">NodeName</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// The contents of this interface, excluding the contents of parent interfaces.</span>
     <span class="ident">own_contents</span>: <span class="ident">Obj</span>,
@@ -776,7 +861,14 @@
         <span class="self">self</span>.<span class="ident">own_contents</span> <span class="op">=</span> <span class="ident">contents</span>.<span class="ident">with_field</span>(<span class="ident">name</span>, <span class="ident">type_</span>);
         <span class="self">self</span>
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">parent</span>: <span class="kw-2">&amp;</span><span class="ident">InterfaceName</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_own_field</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+        <span class="comment">// FIXME: There must be a better way to do this.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contents</span> <span class="op">=</span> <span class="ident">Obj</span>::<span class="ident">new</span>();
+        <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">swap</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">own_contents</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">contents</span>);
+        <span class="self">self</span>.<span class="ident">own_contents</span> <span class="op">=</span> <span class="ident">contents</span>.<span class="ident">with_own_field</span>(<span class="ident">field</span>);
+        <span class="self">self</span>
+    }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">parent</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">parent_interfaces</span>.<span class="ident">iter</span>().<span class="ident">find</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">x</span> <span class="op">==</span> <span class="ident">parent</span>).<span class="ident">is_none</span>() {
             <span class="self">self</span>.<span class="ident">parent_interfaces</span>.<span class="ident">push</span>(<span class="ident">parent</span>.<span class="ident">clone</span>())
         }
@@ -787,10 +879,10 @@
 <span class="doccomment">/// A data structure used to progressively construct the `Syntax`.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SyntaxBuilder</span> {
     <span class="doccomment">/// All the interfaces entered so far.</span>
-    <span class="ident">interfaces</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">InterfaceName</span>, <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Interface</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">interfaces</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">NodeName</span>, <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Interface</span><span class="op">&gt;&gt;</span>,
 
     <span class="doccomment">/// All the enums entered so far.</span>
-    <span class="ident">enums</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">InterfaceName</span>, <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Enum</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">enums</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">NodeName</span>, <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Enum</span><span class="op">&gt;&gt;</span>,
 
     <span class="ident">names</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;&gt;</span>,
 }
@@ -804,18 +896,15 @@
         }
     }
 
-    <span class="doccomment">/// Return an `InterfaceName` for a name. Equality comparison</span>
-    <span class="doccomment">/// on `InterfaceName` can be performed by checking physical</span>
+    <span class="doccomment">/// Return an `NodeName` for a name. Equality comparison</span>
+    <span class="doccomment">/// on `NodeName` can be performed by checking physical</span>
     <span class="doccomment">/// equality.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">interface_name</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">InterfaceName</span> {
-        <span class="kw">if</span> <span class="ident">name</span> <span class="op">==</span> <span class="string">&quot;null&quot;</span> {
-            <span class="kw">return</span> <span class="ident">InterfaceName</span>(<span class="ident">InterfaceNameImpl</span>::<span class="ident">Null</span>);
-        }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">node_name</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">NodeName</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">result</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">names</span>.<span class="ident">get</span>(<span class="ident">name</span>) {
-            <span class="kw">return</span> <span class="ident">InterfaceName</span>(<span class="ident">InterfaceNameImpl</span>::<span class="ident">Named</span>(<span class="ident">result</span>.<span class="ident">clone</span>()))
+            <span class="kw">return</span> <span class="ident">NodeName</span>(<span class="ident">result</span>.<span class="ident">clone</span>())
         }
         <span class="kw">let</span> <span class="ident">shared</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">name</span>.<span class="ident">to_string</span>());
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">InterfaceName</span>(<span class="ident">InterfaceNameImpl</span>::<span class="ident">Named</span>(<span class="ident">shared</span>.<span class="ident">clone</span>()));
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">NodeName</span>(<span class="ident">shared</span>.<span class="ident">clone</span>());
         <span class="self">self</span>.<span class="ident">names</span>.<span class="ident">insert</span>(<span class="ident">name</span>.<span class="ident">to_string</span>(), <span class="ident">shared</span>);
         <span class="ident">result</span>
     }
@@ -831,11 +920,8 @@
     }
 
     <span class="doccomment">/// Add an interface with a `kind` identical to its name.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">InterfaceName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RefMut</span><span class="op">&lt;</span><span class="ident">Interface</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">name</span>.<span class="number">0</span> {
-            <span class="ident">InterfaceNameImpl</span>::<span class="ident">Null</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
-            <span class="ident">InterfaceNameImpl</span>::<span class="ident">Named</span>(<span class="kw-2">ref</span> <span class="ident">rc</span>) <span class="op">=&gt;</span> <span class="ident">Kind</span>(<span class="ident">rc</span>.<span class="ident">clone</span>())
-        };
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RefMut</span><span class="op">&lt;</span><span class="ident">Interface</span><span class="op">&gt;&gt;</span> {
+        <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="ident">Kind</span>(<span class="ident">name</span>.<span class="number">0</span>.<span class="ident">clone</span>());
         <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">add_virtual_interface</span>(<span class="ident">name</span>)
             .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">result</span><span class="op">|</span> {<span class="ident">result</span>.<span class="ident">kind</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">kind</span>); <span class="ident">result</span>});
         <span class="ident">result</span>
@@ -844,7 +930,7 @@
     <span class="doccomment">/// Add a virtual interface, i.e. one that doesn&#39;t have a `kind`,</span>
     <span class="doccomment">/// i.e. one that does not have immediate inhabitants. Super-interfaces</span>
     <span class="doccomment">/// or sub-interfaces with a `kind` may have inhabitants.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">InterfaceName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RefMut</span><span class="op">&lt;</span><span class="ident">Interface</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RefMut</span><span class="op">&lt;</span><span class="ident">Interface</span><span class="op">&gt;&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">interfaces</span>.<span class="ident">get</span>(<span class="ident">name</span>).<span class="ident">is_some</span>() {
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
@@ -859,7 +945,7 @@
     }
 
     <span class="doccomment">/// Add a named enumeration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_enum</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">InterfaceName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RefMut</span><span class="op">&lt;</span><span class="ident">Enum</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_enum</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RefMut</span><span class="op">&lt;</span><span class="ident">Enum</span><span class="op">&gt;&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">enums</span>.<span class="ident">get</span>(<span class="ident">name</span>).<span class="ident">is_some</span>() {
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
@@ -869,16 +955,17 @@
     }
 
     <span class="doccomment">/// Generate the graph.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_syntax</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Syntax</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_syntax</span>(<span class="self">self</span>, <span class="ident">start</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="ident">Syntax</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">interfaces_by_name</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">interfaces_by_kind</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">names</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">kinds</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_names</span> : <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">FieldName</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
 
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">interfaces</span>.<span class="ident">get</span>(<span class="ident">start</span>).<span class="ident">is_some</span>(),
+            <span class="string">&quot;Cannot find start interface {:?}&quot;</span>, <span class="ident">start</span>);
 
         <span class="kw">for</span> (<span class="ident">name</span>, <span class="ident">interface</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">interfaces</span> {
-            <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;\nCompiling interface {:?}&quot;</span>, <span class="ident">name</span>);
             {
                 <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">to_str</span>().<span class="ident">to_string</span>();
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">names</span>.<span class="ident">insert</span>(<span class="ident">string</span>.<span class="ident">clone</span>(), <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">string</span>)).<span class="ident">is_none</span>());
@@ -886,6 +973,24 @@
 
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">kind</span>) <span class="op">=</span> <span class="ident">interface</span>.<span class="ident">borrow</span>().<span class="ident">kind</span> {
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">kinds</span>.<span class="ident">insert</span>(<span class="ident">kind</span>.<span class="ident">to_string</span>().<span class="ident">clone</span>(), <span class="ident">kind</span>.<span class="ident">clone</span>()).<span class="ident">is_none</span>());
+            }
+
+            {
+                <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">interface</span>.<span class="ident">borrow</span>().<span class="ident">own_contents</span>.<span class="ident">fields</span>() {
+                    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">field</span>.<span class="ident">type_</span>() {
+                        <span class="ident">Type</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="ident">field_name</span>) <span class="op">=&gt;</span>
+                            <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">enums</span>.<span class="ident">get</span>(<span class="ident">field_name</span>).<span class="ident">is_some</span>(),
+                                <span class="string">&quot;While compiling {:?}, could not find an enum named {:?}&quot;</span>,
+                                <span class="ident">name</span>, <span class="ident">field_name</span>),
+                        <span class="ident">Type</span>::<span class="ident">Interfaces</span> { <span class="kw-2">ref</span> <span class="ident">names</span>, .. } <span class="op">=&gt;</span>
+                            <span class="kw">for</span> <span class="ident">interface_name</span> <span class="kw">in</span> <span class="ident">names</span> {
+                                <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">interfaces</span>.<span class="ident">get</span>(<span class="ident">interface_name</span>).<span class="ident">is_some</span>(),
+                                    <span class="string">&quot;While compiling {:?}, could not find an interface named {:?}&quot;</span>,
+                                    <span class="ident">name</span>, <span class="ident">interface_name</span>)
+                            },
+                        _ <span class="op">=&gt;</span> {}
+                    }
+                }
             }
 
 
@@ -917,11 +1022,13 @@
                         .<span class="ident">or_insert_with</span>(<span class="op">||</span> <span class="ident">field</span>.<span class="ident">name</span>().<span class="ident">clone</span>())
                         .<span class="ident">clone</span>();
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">prev</span>) <span class="op">=</span> <span class="ident">my_fields</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>) {
-                        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Conflict: attempting to insert {:?}&quot;</span>, <span class="ident">name</span>);
-                        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Previous: {:?}&quot;</span>, <span class="ident">prev</span>);
-                        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Overwrite: {:?}&quot;</span>, <span class="ident">field</span>);
-                        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;While treating {:?}&quot;</span>, <span class="ident">root</span>);
-                        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Skipping&quot;</span>);
+                        <span class="kw">if</span> <span class="ident">prev</span> <span class="op">!=</span> <span class="ident">field</span>.<span class="ident">type_</span>() {
+                            <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Conflict: attempting to insert {:?}&quot;</span>, <span class="ident">name</span>);
+                            <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Previous: {:?}&quot;</span>, <span class="ident">prev</span>);
+                            <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Overwrite: {:?}&quot;</span>, <span class="ident">field</span>.<span class="ident">type_</span>());
+                            <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;While treating {:?}&quot;</span>, <span class="ident">root</span>);
+                        }
+                        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Skipping&quot;</span>);
                         <span class="comment">// FIXME: We should make more efforts to ensure that</span>
                         <span class="comment">// we always end up with the bottom-most version</span>
                         <span class="kw">continue</span>;
@@ -965,6 +1072,7 @@
             <span class="ident">names</span>,
             <span class="ident">kinds</span>,
             <span class="ident">fields</span>: <span class="ident">field_names</span>,
+            <span class="ident">start</span>: <span class="ident">start</span>.<span class="ident">clone</span>(),
         }
     }
 }
@@ -975,7 +1083,7 @@
     <span class="ident">interface</span>: <span class="ident">Interface</span>,
 
     <span class="doccomment">/// All the ancestors of this interface.</span>
-    <span class="ident">ancestors</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">InterfaceName</span><span class="op">&gt;</span>,
+    <span class="ident">ancestors</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">NodeName</span><span class="op">&gt;</span>,
 
     <span class="ident">full_contents</span>: <span class="ident">Obj</span>,
 }
@@ -990,7 +1098,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">full_contents</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">InterfaceName</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">NodeName</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">interface</span>.<span class="ident">name</span>
     }
 
@@ -1004,17 +1112,18 @@
 
 <span class="doccomment">/// Immutable representation of the syntax.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Syntax</span> {
-    <span class="ident">interfaces_by_name</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">InterfaceName</span>, <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">InterfaceNode</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">interfaces_by_name</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">NodeName</span>, <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">InterfaceNode</span><span class="op">&gt;&gt;</span>,
     <span class="ident">interfaces_by_kind</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Kind</span>, <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">InterfaceNode</span><span class="op">&gt;&gt;</span>,
-    <span class="ident">enums_by_name</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">InterfaceName</span>, <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Enum</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">enums_by_name</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">NodeName</span>, <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Enum</span><span class="op">&gt;&gt;</span>,
     <span class="ident">names</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;&gt;</span>,
     <span class="ident">kinds</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Kind</span><span class="op">&gt;</span>,
     <span class="ident">fields</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">FieldName</span><span class="op">&gt;</span>,
+    <span class="ident">start</span>: <span class="ident">NodeName</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Syntax</span> {
     <span class="doccomment">/// Return all the ancestors of an interface, including itself.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_ancestors_by_name_including_self</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">InterfaceName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">InterfaceName</span>]<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_ancestors_by_name_including_self</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">NodeName</span>]<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">interfaces_by_name</span>
             .<span class="ident">get</span>(<span class="ident">name</span>)
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">node</span><span class="op">|</span> <span class="ident">node</span>.<span class="ident">ancestors</span>.<span class="ident">as_slice</span>())
@@ -1024,10 +1133,15 @@
             .<span class="ident">get</span>(<span class="ident">kind</span>)
             .<span class="ident">map</span>(<span class="ident">Rc</span>::<span class="ident">deref</span>)
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_interface_by_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">InterfaceName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">InterfaceNode</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_interface_by_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">InterfaceNode</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">interfaces_by_name</span>
             .<span class="ident">get</span>(<span class="ident">name</span>)
             .<span class="ident">map</span>(<span class="ident">Rc</span>::<span class="ident">deref</span>)
+    }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_enum_by_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Ref</span><span class="op">&lt;</span><span class="ident">Enum</span><span class="op">&gt;&gt;</span> {
+        <span class="self">self</span>.<span class="ident">enums_by_name</span>
+            .<span class="ident">get</span>(<span class="ident">name</span>)
+            .<span class="ident">map</span>(<span class="ident">RefCell</span>::<span class="ident">borrow</span>)
     }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Kind</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">kinds</span>
@@ -1038,6 +1152,12 @@
         <span class="self">self</span>.<span class="ident">fields</span>
             .<span class="ident">get</span>(<span class="ident">name</span>)
             .<span class="ident">cloned</span>()
+    }
+
+    <span class="doccomment">/// The starting point for parsing.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_start</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">InterfaceNode</span> {
+        <span class="self">self</span>.<span class="ident">get_interface_by_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">start</span>)
+            .<span class="ident">unwrap</span>()
     }
 }</pre>
 </section>
