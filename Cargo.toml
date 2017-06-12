@@ -5,7 +5,7 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [features]
 default = []
-# If specified build with SpiderMonkey.
+# If specified, build support for using SpiderMonkey as a parser.
 spidermonkey = []
 
 [dependencies]
@@ -13,6 +13,7 @@ env_logger = "*"
 log ="*"
 serde_json = "1.0"
 assert_matches = "*"
+clap = "*" # Should be a dev-dependency, actually.
 
 [dev-dependencies]
 env_logger = "*"
