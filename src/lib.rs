@@ -35,7 +35,7 @@ extern crate env_logger;
 
 #[macro_use]
 extern crate log;
-
+extern crate rand;
 #[macro_use]
 extern crate serde_json;
 
