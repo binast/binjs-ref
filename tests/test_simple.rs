@@ -15,15 +15,6 @@ test!(test_simple_tokenization, {
     let parser = Babel::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
 
-    let program_kind = grammar.get_kind("Program")
-        .expect("This grammar does not have a kind `Program`");
-    let program_interface = grammar.get_interface_by_kind(&program_kind)
-        .expect("This grammar does not have an interface `Program`");
-    let program_type = Type::Interfaces {
-        names: vec![program_interface.name().clone()],
-        or_null: false
-    };
-
     for source in [
         "function foo() {}",
         "(function foo() {})",
@@ -46,7 +37,7 @@ test!(test_simple_tokenization, {
         let writer  = binjs::token::simple::TreeTokenWriter::new();
         let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
 
-        encoder.encode(&ast, &program_type)
+        encoder.encode(&ast)
             .expect("Could not encode AST");
         let writer = encoder.done();
 

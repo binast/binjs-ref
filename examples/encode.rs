@@ -26,16 +26,7 @@ fn main() {
 
     // Setup.
     let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
-
-    let program_kind = grammar.get_kind("Program")
-        .expect("This grammar does not have a kind `Program`");
-    let program_interface = grammar.get_interface_by_kind(&program_kind)
-        .expect("This grammar does not have an interface `Program`");
-    let program_type = Type::Interfaces {
-        names: vec![program_interface.name().clone()],
-        or_null: false
-    };
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
     println!("Parsing.");
     let ast    = parser.parse_file(source_path)
@@ -46,7 +37,7 @@ fn main() {
     let writer  = binjs::token::simple::TreeTokenWriter::new();
     let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
 
-    encoder.encode(&ast, &program_type)
+    encoder.encode(&ast)
         .expect("Could not encode AST");
     let writer = encoder.done();
 
