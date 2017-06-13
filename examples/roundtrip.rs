@@ -1,4 +1,4 @@
-//! Encode a text source to a BinJS.
+//! Encode a BinJS, then decode it, ensure that we obtain the same AST.
 
 extern crate binjs;
 #[macro_use]
@@ -7,7 +7,6 @@ extern crate env_logger;
 
 use binjs::source::*;
 
-use std::fs::*;
 use std::io::*;
 
 fn main() {
@@ -15,24 +14,19 @@ fn main() {
 
     let matches = clap_app!(myapp =>
         (author: "David Teller <dteller@mozilla.com>")
-        (about: "Encode a JavaScript text source to a JavaScript binary source in the BinJS format.")
-        (@arg INPUT: +required "Input file to use. Must be a JS source file.")
-        (@arg OUTPUT: +required "Output file to use. Will be overwritten.")
+        (about: "Check that encoding + decoding a file yields the same AST.")
+        (@arg INPUT: +required "Input file to use. Must be a BinJS source file.")
     ).get_matches();
 
     let source_path = matches.value_of("INPUT")
         .expect("Expected input file");
-    let dest_path = matches.value_of("OUTPUT")
-        .expect("Expected output file");
 
-    // Setup.
     let parser = Babel::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
     println!("Parsing.");
     let ast    = parser.parse_file(source_path)
         .expect("Could not parse source");
-
 
     println!("Encoding.");
     let writer  = binjs::token::simple::TreeTokenWriter::new();
@@ -42,9 +36,18 @@ fn main() {
         .expect("Could not encode AST");
     let writer = encoder.done();
 
-    println!("Writing.");
-    let mut dest = File::create(dest_path)
-        .expect("Could not create destination file");
-    dest.write(writer.data())
-        .expect("Could not write destination file");
+    println!("Decoding.");
+    let source = Cursor::new(writer.data());
+    let reader = binjs::token::simple::TreeTokenReader::new(source, &grammar);
+    let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+
+    let decoded = decoder.decode()
+        .expect("Could not decode");
+
+    println!("Checking.");
+    let equal = grammar.compare(&ast, &decoded)
+        .expect("Could not compare ASTs");
+    assert!(equal);
+
+    println!("Roundtrip success!");
 }

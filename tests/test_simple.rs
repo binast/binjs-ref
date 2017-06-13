@@ -4,7 +4,6 @@ extern crate env_logger;
 #[macro_use]
 extern crate test_logger;
 
-use binjs::ast::grammar::*;
 use binjs::source::*;
 
 use std::io::*;

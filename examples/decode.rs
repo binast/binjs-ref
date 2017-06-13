@@ -1,9 +1,10 @@
+//! Decode a BinJS to a text source.
+
 extern crate binjs;
 #[macro_use]
 extern crate clap;
 extern crate env_logger;
 
-use binjs::ast::grammar::*;
 use binjs::source::*;
 
 use std::fs::*;
@@ -14,7 +15,7 @@ fn main() {
 
     let matches = clap_app!(myapp =>
         (author: "David Teller <dteller@mozilla.com>")
-        (about: "Decode a JavaScript BinJS source to a JavaScript AST.")
+        (about: "Decode a JavaScript BinJS source to a JavaScript text source.")
         (@arg INPUT: +required "Input file to use. Must be a BinJS source file.")
         (@arg OUTPUT: +required "Output file to use. Will be overwritten.")
     ).get_matches();
@@ -29,7 +30,7 @@ fn main() {
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
     println!("Reading.");
-    let mut file = File::open(source_path)
+    let file = File::open(source_path)
         .expect("Could not open source");
     let stream = BufReader::new(file);
 
