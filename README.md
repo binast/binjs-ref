@@ -26,6 +26,7 @@ for communication between the browser and the server.
 1. Install dependencies (you will need `npm`)
 ```
 npm install babel-core
+npm install babylon
 npm install mktemp
 ```
 2. Pull the code.
