@@ -87,7 +87,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                     })?;
                 for candidate in enum_.strings() {
                     if candidate == string {
-                        let result = self.builder.borrow_mut().string(Some(&candidate))
+                        let result = self.builder.borrow_mut().string(&candidate)
                             .map_err(Error::TokenWriterError)?;
                         return Ok(result)
                     }
@@ -161,7 +161,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                         got: type_of(&value)
                     })?
                    .to_owned();
-                let result = self.builder.borrow_mut().string(Some(&value))
+                let result = self.builder.borrow_mut().string(&value)
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)
            }

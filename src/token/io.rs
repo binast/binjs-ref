@@ -35,10 +35,8 @@ pub trait TokenReader where Self::Error: Debug, Self: Sized {
 
     /// Read a single UTF-8 string.
     ///
-    /// Returns `None` for the `undefined` string.
-    ///
     /// The returned string MUST be valid UTF-8.
-    fn string(&mut self) -> Result<Option<String>, Self::Error>;
+    fn string(&mut self) -> Result<String, Self::Error>;
 
     /// Read a single `f64`. Note that all numbers are `f64`.
     fn float(&mut self) -> Result<f64, Self::Error>;
@@ -101,10 +99,10 @@ pub trait TokenWriter where Self::Error: Debug {
     /// be somehow recorded by the `TokenWriter`.
     fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, Self::Error>;
 
-    /// Write a single UTF-8 string or, if `None`, a representation of the `undefined` string.
+    /// Write a single UTF-8 string.
     ///
     /// If specified, the string MUST be UTF-8.
-    fn string(&mut self, Option<&str>) -> Result<Self::Tree, Self::Error>;
+    fn string(&mut self, &str) -> Result<Self::Tree, Self::Error>;
 
     /// Write a single number.
     fn float(&mut self, f64) -> Result<Self::Tree, Self::Error>;

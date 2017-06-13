@@ -71,8 +71,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             }
             String => {
                 let string = self.extractor.string()
-                    .map_err(Error::TokenReaderError)?
-                    .ok_or_else(|| Error::UnexpectedValue("(no string)".to_string()))?;
+                    .map_err(Error::TokenReaderError)?;
                 Ok(self.register(Value::String(string)))
             }
             Enum(ref name) => {
@@ -81,17 +80,12 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     .ok_or_else(|| Error::NoSuchEnum(name.to_string().clone()))?;
                 let string = self.extractor.string()
                     .map_err(Error::TokenReaderError)?;
-                match string {
-                    None => Err(Error::UnexpectedValue("(no string)".to_string())),
-                    Some(s) => {
-                        for candidate in enum_.strings() {
-                            if candidate == &s {
-                                return Ok(self.register(Value::String(s)))
-                            }
-                        }
-                        Err(Error::UnexpectedValue(s))
+                for candidate in enum_.strings() {
+                    if candidate == &string {
+                        return Ok(self.register(Value::String(string)))
                     }
                 }
+                Err(Error::UnexpectedValue(string))
             }
             Interfaces {
                 names: ref interfaces,
