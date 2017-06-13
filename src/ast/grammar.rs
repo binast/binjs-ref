@@ -353,7 +353,7 @@ impl SyntaxBuilder {
     pub fn into_syntax(self, start: &NodeName) -> Syntax {
         let mut interfaces_by_name = HashMap::new();
         let mut interfaces_by_kind = HashMap::new();
-        let mut names = HashMap::new();
+        let mut node_names = HashMap::new();
         let mut kinds = HashMap::new();
         let mut field_names : HashMap<String, FieldName> = HashMap::new();
 
@@ -363,7 +363,7 @@ impl SyntaxBuilder {
         for (name, interface) in &self.interfaces {
             {
                 let string = name.to_str().to_string();
-                assert!(names.insert(string.clone(), Rc::new(string)).is_none());
+                assert!(node_names.insert(string.clone(), name.clone()).is_none());
             }
 
             if let Some(ref kind) = interface.borrow().kind {
@@ -457,14 +457,14 @@ impl SyntaxBuilder {
         // Now handle `enums`.
         for key in self.enums.keys() {
             let string = key.to_str().to_string();
-            assert!(names.insert(string.clone(), Rc::new(string)).is_none());
+            assert!(node_names.insert(string.clone(), key.clone()).is_none());
         }
         let enums_by_name = self.enums;
         Syntax {
             interfaces_by_name,
             interfaces_by_kind,
             enums_by_name,
-            names,
+            node_names,
             kinds,
             fields: field_names,
             start: start.clone(),
@@ -514,7 +514,7 @@ pub struct Syntax {
     interfaces_by_name: HashMap<NodeName, Rc<InterfaceNode>>,
     interfaces_by_kind: HashMap<Kind, Rc<InterfaceNode>>,
     enums_by_name: HashMap<NodeName, RefCell<Enum>>,
-    names: HashMap<String, Rc<String>>,
+    node_names: HashMap<String, NodeName>,
     kinds: HashMap<String, Kind>,
     fields: HashMap<String, FieldName>,
     start: NodeName,
@@ -549,6 +549,11 @@ impl Syntax {
     }
     pub fn get_field_name(&self, name: &str) -> Option<FieldName> {
         self.fields
+            .get(name)
+            .cloned()
+    }
+    pub fn get_node_name(&self, name: &str) -> Option<NodeName> {
+        self.node_names
             .get(name)
             .cloned()
     }
