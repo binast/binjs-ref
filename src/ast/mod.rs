@@ -14,43 +14,78 @@
 //!
 //! A Grammar is composed of Interface Declarations and Enumeration Declarations.
 //!
+//! ## Interface Declaration
+//!
 //! Each Interface Declaration consists in *all* of:
 //!
-//! - one **Name** (e.g. `Expression`, `ExpressionStatement`, ...);
-//! - a (possibly empty) list of **Name**s of Parent Interfaces.
-//! - optionally, one **Tag** (e.g. `ExpressionStatement`, but not `Expression`);
-//! - an object **Structure**.
+//! - *name*: `InterfaceName` (e.g. `Expression`, `ExpressionStatement`, ...);
+//! - *tag*: `Tag`, optional (e.g. `ExpressionStatement`, but not `Expression`);
+//! - *parents*: `[InterfaceName]` a (possibly empty) list of Parent Interfaces.
+//! - *own_structure*: `Structure`
 //!
-//! A **Name** is used to represent relationships between Interfaces. By opposition,
-//! A **Tag** is attached to actual nodes of the AST. For instance, `Expression`
+//! Property *name* is used to represent relationships between Interfaces. By opposition,
+//! Property *tag** is attached to actual nodes of the AST. For instance, `Expression`
 //! is the name of a Parent Interface of many interfaces. However, this specific
-//! interface has no inhabitant and therefore no **Tag**.
+//! interface has no inhabitant and therefore no *tag*.
 //!
-//! FIXME: specify Enumerations.
+//! Property *own_structure* determines the list of fields defined by this interface.
+//! This does not include fields defined by parent interfaces.
 //!
-//! FIXME: specify Structure.
 //!
-//! Each Field consists in *all* of:
+//! ## Enumeration Declaration
 //!
-//! - one Property (e.g. `body`);
-//! - one Type.
+//! Each Enumeration Declaration consists in *all* of:
 //!
-//! Each Type is *one* of:
+//! - *name*: `EnumerationName`;
+//! - *cases*: `[String]` (not empty);
 //!
-//! - `OrNull(T)`, where T is a Type; or
-//! - one or more Name of Interfaces; or
-//! - the Name of an Enumeration; or
-//! - `Array(T)`, where T is a Type; or
-//! - `Boolean`; or
-//! - `String`; or
-//! - `Number`; or
-//! - `Null`.
+//! Enumerations describe one of several possible strings, e.g.: `"+" | "-" | "/" | "-"`.
+//!
+//! ## Types
+//!
+//! Each `Type` is *one* of:
+//!
+//! - `Enumeration`: `EnumerationName`; or
+//! - `Interfaces`: `([InterfaceName], Nullability)`;
+//! - `Boolean`: empty; or
+//! - `String`: empty; or
+//! - `Number`: empty; or
+//! - `Array`: `Type`
+//!
+//! `Nullability` is *one* of:
+//! - `CanBeNull`: empty; or
+//! - `CannotBeNull`: empty.
+//!
+//! ## Structures
+//!
+//! Each `Structure` is:
+//! - fields: `[Field]`;
+//!
+//! Each `Field` consists in *all* of:
+//!
+//! - *name*: `FieldName` (e.g. `body`);
+//! - *type*: `Type` (e.g. `Number`).
+//!
 //!
 //! # Inhabiting a grammar
+//!
+//! **Warning** The AST described here may be more expressive in places than the JavaScript source
+//! grammar. Therefore, it is possible that not all the inhabitants of the grammar are correct
+//! (or even syntactically-correct) JavaScript ASTs.
 //!
 //! FIXME: Specify.
 //!
 //! # Evolving the Grammar
+//!
+//! ## Adding new interfaces or enumerations
+//!
+//! FIXME: Specify.
+//!
+//! ## Patching an interface.
+//!
+//! FIXME: Specify.
+//!
+//! ## Patching an enumeration.
 //!
 //! FIXME: Specify.
 
