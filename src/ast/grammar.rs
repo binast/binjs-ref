@@ -361,6 +361,7 @@ impl SyntaxBuilder {
             "Cannot find start interface {:?}", start);
 
         for (name, interface) in &self.interfaces {
+            debug!("Registering name and interface.");
             {
                 let string = name.to_str().to_string();
                 assert!(node_names.insert(string.clone(), name.clone()).is_none());
@@ -370,6 +371,7 @@ impl SyntaxBuilder {
                 assert!(kinds.insert(kind.to_string().clone(), kind.clone()).is_none());
             }
 
+            debug!("Checking that all enums/interfaces are defined.");
             {
                 for field in interface.borrow().own_contents.fields() {
                     match *field.type_() {
