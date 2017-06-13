@@ -43,14 +43,13 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     let function_declaration = syntax.node_name("FunctionDeclaration");
     let identifier = syntax.node_name("Identifier");
     let if_statement = syntax.node_name("IfStatement");
-    let labelled_statement = syntax.node_name("LabelledStatement");
+    let labeled_statement = syntax.node_name("LabeledStatement");
     let literal = syntax.node_name("Literal");
     let logical_expression = syntax.node_name("LogicalExpression");
     let logical_operator = syntax.node_name("LogicalOperator");
     let member_expression = syntax.node_name("MemberExpression");
     let node = syntax.node_name("Node");
     let new_expression = syntax.node_name("NewExpression");
-    let null = syntax.node_name("Null");
     let null_literal = syntax.node_name("NullLiteral");
     let numeric_literal = syntax.node_name("NumericLiteral");
     let object_expression = syntax.node_name("ObjectExpression");
@@ -190,7 +189,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
         .with_field(&field_argument, Type::interface(&expression).or_null().unwrap())
         .with_parent(&statement);
 
-    syntax.add_kinded_interface(&labelled_statement).unwrap()
+    syntax.add_kinded_interface(&labeled_statement).unwrap()
         .with_field(&field_label, Type::interface(&identifier))
         .with_field(&field_body, Type::interface(&statement))
         .with_parent(&statement);
@@ -247,9 +246,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     syntax.add_kinded_interface(&for_statement).unwrap()
         .with_field(&field_init, Type::interfaces(&[
             &variable_declaration,
-            &expression,
-            &null
-        ]))
+            &expression
+        ]).or_null().unwrap())
         .with_field(&field_test, Type::interface(&expression).or_null().unwrap())
         .with_field(&field_update, Type::interface(&expression).or_null().unwrap())
         .with_field(&field_body, Type::interface(&statement))
