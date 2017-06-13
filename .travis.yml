@@ -8,3 +8,4 @@ node_js:
 before_install:
   - "npm install babylon"
   - "npm install esprima"
+  - "npm install mktemp"
