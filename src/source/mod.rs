@@ -12,8 +12,10 @@ pub mod spidermonkey;
 #[cfg(feature = "spidermonkey")]
 pub use self::spidermonkey::SpiderMonkey;
 
+#[cfg(feature = "esprima")]
 /// Using Node.js + Esprima to load an AST.
 pub mod esprima;
+#[cfg(feature = "esprima")]
 pub use self::esprima::Esprima;
 
 /// Using Node.js + Babel to load an AST.
