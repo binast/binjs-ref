@@ -64,6 +64,8 @@
 <span id="19">19</span>
 <span id="20">20</span>
 <span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Source-level operations.</span>
 <span class="doccomment">//!</span>
@@ -79,8 +81,10 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;spidermonkey&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">spidermonkey</span>::<span class="ident">SpiderMonkey</span>;
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;esprima&quot;</span>)]</span>
 <span class="doccomment">/// Using Node.js + Esprima to load an AST.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">esprima</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;esprima&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">esprima</span>::<span class="ident">Esprima</span>;
 
 <span class="doccomment">/// Using Node.js + Babel to load an AST.</span>

@@ -240,34 +240,6 @@
 <span id="195">195</span>
 <span id="196">196</span>
 <span id="197">197</span>
-<span id="198">198</span>
-<span id="199">199</span>
-<span id="200">200</span>
-<span id="201">201</span>
-<span id="202">202</span>
-<span id="203">203</span>
-<span id="204">204</span>
-<span id="205">205</span>
-<span id="206">206</span>
-<span id="207">207</span>
-<span id="208">208</span>
-<span id="209">209</span>
-<span id="210">210</span>
-<span id="211">211</span>
-<span id="212">212</span>
-<span id="213">213</span>
-<span id="214">214</span>
-<span id="215">215</span>
-<span id="216">216</span>
-<span id="217">217</span>
-<span id="218">218</span>
-<span id="219">219</span>
-<span id="220">220</span>
-<span id="221">221</span>
-<span id="222">222</span>
-<span id="223">223</span>
-<span id="224">224</span>
-<span id="225">225</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">grammar</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">token</span>::<span class="ident">io</span>::<span class="kw-2">*</span>;
@@ -348,23 +320,6 @@
                     .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">TokenWriterError</span>)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(<span class="ident">result</span>)
             }
-            <span class="ident">Obj</span>(<span class="kw-2">ref</span> <span class="ident">structure</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">as_object</span>()
-                    .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">Error</span>::<span class="ident">Mismatch</span> {
-                        <span class="ident">expected</span>: <span class="string">&quot;Object&quot;</span>.<span class="ident">to_string</span>(),
-                        <span class="ident">got</span>: <span class="ident">type_of</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>)
-                    })<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contents</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">encode_structure</span>(<span class="ident">object</span>, <span class="ident">structure</span>.<span class="ident">fields</span>(), <span class="ident">node</span>)<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">contents</span> : <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">contents</span>
-                    .<span class="ident">drain</span>(..)
-                    .<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">tree</span>)<span class="op">|</span> <span class="ident">tree</span>)
-                    .<span class="ident">collect</span>();
-                <span class="comment">// This is an anonymous structure, so we expect that the order</span>
-                <span class="comment">// of fields has been specified elsewhere.</span>
-                <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">builder</span>.<span class="ident">borrow_mut</span>().<span class="ident">untagged_tuple</span>(<span class="kw-2">&amp;</span><span class="ident">contents</span>)
-                    .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">TokenWriterError</span>)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(<span class="ident">result</span>)
-            }
             <span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">enum_</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">grammar</span>.<span class="ident">get_enum_by_name</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>)
                     .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">Error</span>::<span class="ident">NoSuchEnum</span>(<span class="ident">name</span>.<span class="ident">to_string</span>().<span class="ident">clone</span>()))<span class="question-mark">?</span>;
@@ -375,7 +330,7 @@
                     })<span class="question-mark">?</span>;
                 <span class="kw">for</span> <span class="ident">candidate</span> <span class="kw">in</span> <span class="ident">enum_</span>.<span class="ident">strings</span>() {
                     <span class="kw">if</span> <span class="ident">candidate</span> <span class="op">==</span> <span class="ident">string</span> {
-                        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">builder</span>.<span class="ident">borrow_mut</span>().<span class="ident">string</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">candidate</span>))
+                        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">builder</span>.<span class="ident">borrow_mut</span>().<span class="ident">string</span>(<span class="kw-2">&amp;</span><span class="ident">candidate</span>)
                             .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">TokenWriterError</span>)<span class="question-mark">?</span>;
                         <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">result</span>)
                     }
@@ -418,19 +373,8 @@
                <span class="comment">// to make sure that we expected this interface here.</span>
                <span class="comment">// FIXME: Is this really necessary?</span>
                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">interface</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">grammar</span>.<span class="ident">get_interface_by_kind</span>(<span class="kw-2">&amp;</span><span class="ident">kind</span>) {
-                   <span class="kw">if</span> <span class="self">self</span>.<span class="ident">grammar</span>
-                        .<span class="ident">get_ancestors_by_name_including_self</span>(<span class="ident">interface</span>.<span class="ident">name</span>())
-                        .<span class="ident">unwrap</span>()
-                        .<span class="ident">iter</span>()
-                        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">ancestor</span><span class="op">|</span>
-                            <span class="ident">interfaces</span>.<span class="ident">iter</span>()
-                                .<span class="ident">find</span>(<span class="op">|</span><span class="ident">candidate</span><span class="op">|</span> {
-                                    <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Looking for {:?} =?= {:?}&quot;</span>, <span class="ident">candidate</span>, <span class="ident">ancestor</span>);
-                                    <span class="ident">candidate</span> <span class="op">==</span> <span class="ident">ancestor</span>
-                                })
-                                .<span class="ident">is_some</span>()
-                        ).<span class="ident">is_none</span>() {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">NoSuchRefinement</span>(<span class="ident">kind</span>.<span class="ident">to_string</span>().<span class="ident">clone</span>()))
+                   <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">grammar</span>.<span class="ident">has_ancestor_in</span>(<span class="ident">interface</span>, <span class="ident">interfaces</span>) {
+                       <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">NoSuchRefinement</span>(<span class="ident">kind</span>.<span class="ident">to_string</span>().<span class="ident">clone</span>()))
                    }
                    <span class="kw">let</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">interface</span>.<span class="ident">contents</span>().<span class="ident">fields</span>();
                    <span class="kw">let</span> <span class="ident">contents</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">encode_structure</span>(<span class="ident">object</span>, <span class="ident">fields</span>, <span class="ident">interface</span>.<span class="ident">name</span>())<span class="question-mark">?</span>;
@@ -460,7 +404,7 @@
                         <span class="ident">got</span>: <span class="ident">type_of</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>)
                     })<span class="question-mark">?</span>
                    .<span class="ident">to_owned</span>();
-                <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">builder</span>.<span class="ident">borrow_mut</span>().<span class="ident">string</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>))
+                <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">builder</span>.<span class="ident">borrow_mut</span>().<span class="ident">string</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>)
                     .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">TokenWriterError</span>)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(<span class="ident">result</span>)
            }

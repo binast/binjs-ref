@@ -153,10 +153,6 @@
 <span id="108">108</span>
 <span id="109">109</span>
 <span id="110">110</span>
-<span id="111">111</span>
-<span id="112">112</span>
-<span id="113">113</span>
-<span id="114">114</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Mid-level API used to write individual components of an AST tree to a</span>
 <span class="doccomment">//! stream of tokens.</span>
@@ -188,17 +184,13 @@
     <span class="doccomment">/// or any of its parents will also raise an error.</span>
     <span class="kw">type</span> <span class="ident">Error</span>;
 
-    <span class="kw">fn</span> <span class="ident">position</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span>;
-
     <span class="doccomment">/// Skip to the end of the extractor.</span>
     <span class="kw">fn</span> <span class="ident">skip</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Read a single UTF-8 string.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns `None` for the `undefined` string.</span>
-    <span class="doccomment">///</span>
     <span class="doccomment">/// The returned string MUST be valid UTF-8.</span>
-    <span class="kw">fn</span> <span class="ident">string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Read a single `f64`. Note that all numbers are `f64`.</span>
     <span class="kw">fn</span> <span class="ident">float</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f64</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
@@ -261,10 +253,10 @@
     <span class="doccomment">/// be somehow recorded by the `TokenWriter`.</span>
     <span class="kw">fn</span> <span class="ident">list</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Tree</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Tree</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
-    <span class="doccomment">/// Write a single UTF-8 string or, if `None`, a representation of the `undefined` string.</span>
+    <span class="doccomment">/// Write a single UTF-8 string.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If specified, the string MUST be UTF-8.</span>
-    <span class="kw">fn</span> <span class="ident">string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Tree</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Tree</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Write a single number.</span>
     <span class="kw">fn</span> <span class="ident">float</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Tree</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;

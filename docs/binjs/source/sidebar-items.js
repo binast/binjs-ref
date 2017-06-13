@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["babel","Using Node.js + Babel to load an AST."],["esprima","Using Node.js + Esprima to load an AST."]],"trait":[["SourceParser","A source that can parse files to JSON ASTs."]]});
+initSidebarItems({"mod":[["babel","Using Node.js + Babel to load an AST."]],"trait":[["SourceParser","A source that can parse files to JSON ASTs."]]});
