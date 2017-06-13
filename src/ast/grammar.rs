@@ -566,6 +566,75 @@ impl Syntax {
             .unwrap()
     }
 
+    /// Ensure that a value is an inhabitant of the grammar.
+    pub fn validate(&self, a: &JSON) -> Result<(), ASTError> {
+        self.validate_from(a, &self.get_start().type_())
+    }
+
+    /// Ensure that a value is an inhabitant of the grammar.
+    pub fn validate_from(&self, a: &JSON, type_: &Type) -> Result<(), ASTError> {
+        use serde_json::Value::*;
+        match (type_, a) {
+            (&Type::Boolean, &Bool(_)) => Ok(()),
+            (&Type::String,  &String(_)) => Ok(()),
+            (&Type::Number,  &Number(_)) => Ok(()),
+            (&Type::Array(ref type_), &Array(ref values)) => {
+                for value in values {
+                    self.validate_from(value, type_)?;
+                }
+                Ok(())
+            }
+            (&Type::Enum(ref name), &String(ref a)) => {
+                let enum_ = self.get_enum_by_name(name)
+                    .expect("Could not find enum in grammar"); // At this stage, this shouldn't be possible.
+                enum_.strings.iter().find(|x| *x == a).
+                    ok_or_else(|| ASTError::InvalidValue {
+                            got: a.clone(),
+                            expected: format!("{:?}", enum_.strings)
+                    })?;
+                Ok(())
+            }
+            (&Type::Interfaces { or_null: true, .. }, &Null) => Ok(()),
+            (&Type::Interfaces { ref names, .. }, &Object(ref a))
+                if a.get("type").is_some() =>
+            {
+                let check_valid = |obj: &serde_json::Map<_, _>| {
+                    let type_ = obj.get("type").unwrap(); // Just checked above.
+                    let name = type_.as_str()
+                        .ok_or_else(|| ASTError::InvalidValue {
+                            expected: "String".to_string(),
+                            got: serde_json::to_string(type_).unwrap(),
+                        })?;
+                    let kind = self.get_kind(&name)
+                        .ok_or_else(|| ASTError::InvalidType(name.to_string()))?;
+                    let interface = self.get_interface_by_kind(&kind)
+                        .expect("Could not find interface by kind");
+                    if self.has_ancestor_in(interface, &names) {
+                        Ok(interface)
+                    } else {
+                        Err(ASTError::InvalidDescendent {
+                            got: kind.to_string().clone(),
+                            valid: names.iter().map(NodeName::to_string).cloned().collect()
+                        })
+                    }
+                };
+
+                let interface = check_valid(a)?;
+
+                for field in interface.full_contents.fields() {
+                    let a = a.get(field.name().to_str())
+                        .ok_or_else(|| ASTError::MissingField(field.name().to_string().clone()))?;
+                    self.validate_from(a, field.type_())?;
+                }
+                Ok(())
+            },
+            _ => Err(ASTError::InvalidValue {
+                expected: format!("{:?}", type_),
+                got: format!("{:?}", a)
+            })
+        }
+    }
+
     /// Compare two ASTs, restricting comparison to the
     /// items that appear in the grammar.
     ///
