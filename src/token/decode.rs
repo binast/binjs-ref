@@ -57,7 +57,6 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
         debug!("decode: {:?}", kind);
         match *kind {
             Array(ref kind) => {
-                let start = self.extractor.position();
                 let (len, extractor) = self.extractor.list()
                     .map_err(Error::TokenReaderError)?;
                 let mut decoder = Decoder::new(self.grammar, extractor);
@@ -65,8 +64,6 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 for _ in 0..len {
                     values.push(decoder.decode_from_type(kind)?);
                 }
-                let stop = self.extractor.position();
-                debug!("decode: decoded list {} => {} to {}", start, stop, serde_json::to_string(&values).unwrap());
                 Ok(self.register(Value::Array(values)))
             }
             String => {

@@ -3,7 +3,6 @@
 
 use ast::grammar::{ Field, Syntax };
 use token::io::*;
-use util::*;
 
 use std;
 use std::cell::RefCell;
@@ -36,7 +35,7 @@ pub enum TokenReaderError {
 }
 
 struct TreeTokenReaderImpl<'a, R> where R: Read + Seek {
-    reader: PositionRead<R>,
+    reader: R,
     grammar: &'a Syntax,
 }
 
@@ -47,9 +46,6 @@ pub struct TreeTokenReader<'a, R> where R: Read + Seek {
     parent_pending_error: Rc<RefCell<Option<TokenReaderError>>>,
 
     description: String,
-
-    /// The current position.
-    pos_current: u64,
 
     /// The position at which we started.
     pos_start: u64,
@@ -65,12 +61,11 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
     /// Create a new toplevel TreeTokenReader.
     pub fn new(reader: R, grammar: &'a Syntax) -> Self {
         let implem = TreeTokenReaderImpl {
-            reader: PositionRead::new(reader),
+            reader: reader,
             grammar, // FIXME: We probably don't need the grammar at this layer.
         };
         TreeTokenReader {
             description: "Top".to_owned(),
-            pos_current: 0,
             pos_start: 0,
             implem: Rc::new(RefCell::new(implem)),
             my_pending_error: Rc::new(RefCell::new(None)),
@@ -80,10 +75,17 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
         }
     }
 
+    fn position(&self) -> u64 {
+        self.implem
+            .borrow_mut()
+            .reader
+            .seek(std::io::SeekFrom::Current(0))
+            .expect("Could not check position")
+    }
+
     /// Derive a TreeTokenReader for reading a subset of the stream.
     fn sub(&self, options: SubOptions) -> Self {
-
-        let position = self.implem.borrow().reader.position();
+        let position = self.position();
         let pos_end = options.byte_len.map(|length| position + length);
         debug!("TreeTokenReader: sub {:?}, starting at {} => {:?}", options.suffix, position, pos_end);
         TreeTokenReader {
@@ -92,7 +94,6 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
             my_pending_error: Rc::new(RefCell::new(None)),
             pos_end,
             suffix: options.suffix,
-            pos_current: position,
             pos_start: position,
             description: options.description,
         }
@@ -111,16 +112,14 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
             return Err(error)
         }
         let ref mut reader = self.implem.borrow_mut().reader;
-        let result = match reader.read_exact(buf) {
+        match reader.read_exact(buf) {
             Ok(_) => Ok(buf.len()),
             Err(err) => {
                 let error = TokenReaderError::Reader(err);
                 *self.my_pending_error.borrow_mut() = Some(TokenReaderError::BailingOutBecauseOfPreviousError);
                 Err(error)
             }
-        };
-        self.pos_current = reader.position();
-        result
+        }
     }
 
     fn read_u32(&mut self) -> Result<u32, TokenReaderError> {
@@ -178,7 +177,7 @@ impl<'a, R> Drop for TreeTokenReader<'a, R> where R: Read + Seek {
         }
 
         // FIXME: Wait, we are relying upon order of destruction!
-        let position = { self.implem.borrow().reader.position() };
+        let position = self.position();
 
         // Check byte_len, if available.
         if let Some(expected) = self.pos_end {
@@ -215,14 +214,10 @@ impl<'a, R> Drop for TreeTokenReader<'a, R> where R: Read + Seek {
 impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
     type Error = TokenReaderError;
 
-    fn position(&self) -> u64 {
-        self.pos_current
-    }
-
     fn skip(&mut self) -> Result<(), Self::Error> {
         debug!("TreeTokenReader: skip");
         if let Some(end) = self.pos_end {
-            self.pos_current = self.implem.borrow_mut().reader.seek(SeekFrom::Start(end))
+            self.implem.borrow_mut().reader.seek(SeekFrom::Start(end))
                 .map_err(TokenReaderError::Reader)?;
             Ok(())
         } else {
@@ -247,19 +242,15 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
 
     fn string(&mut self) -> Result<String, Self::Error> {
         debug!("TreeTokenReader: string");
-        let mut bytes = Vec::new();
-        // Read until we get a \0.
-        loop {
-            let mut buf = [ 0 ];
-            self.read(&mut buf)?;
-            if buf[0] == 0 {
-                break;
-            }
-            bytes.push(buf[0]);
-        }
+        self.read_constant("<string>")?;
+        let byte_len = self.read_u32()?;
+
+        let mut bytes : Vec<u8> = vec![0 as u8; byte_len as usize];
+        self.read(&mut bytes)?;
         let result = String::from_utf8(bytes)
             .map_err(TokenReaderError::Encoding)?;
-        debug!("TreeTokenReader: string => {}", result);
+        debug!("TreeTokenReader: string => {:?}/{}", result, result);
+        self.read_constant("</string>")?;
         Ok(result)
     }
 
@@ -391,11 +382,21 @@ impl TokenWriter for TreeTokenWriter {
         Ok(self.register(result))
     }
 
-    // Strings are represented as UTF-8, \0-terminated.
+    // Strings are represented as len + UTF-8
     fn string(&mut self, data: &str) -> Result<Self::Tree, Self::Error> {
-        debug!("TreeTokenWriter: string {:?}", data);
-        let mut buf : Vec<_> = data.as_bytes().iter().cloned().collect();
-        buf.push(0);
+        debug!("TreeTokenWriter: string {:?} / {}", data, data);
+        let byte_len = data.len() as u32;
+        let buf_len : [u8; 4] = unsafe { std::mem::transmute(byte_len) };
+        assert!(std::mem::size_of_val(&buf_len) == std::mem::size_of_val(&byte_len));
+
+        debug!("TreeTokenWriter: string has {} bytes {} chars", byte_len, data.len());
+
+        let mut buf = Vec::new();
+        buf.extend_from_str("<string>");
+        buf.extend_from_slice(&buf_len);
+        buf.extend(data.bytes());
+        buf.extend_from_str("</string>");
+
         Ok(self.register(buf))
     }
 

@@ -28,8 +28,6 @@ pub trait TokenReader where Self::Error: Debug, Self: Sized {
     /// or any of its parents will also raise an error.
     type Error;
 
-    fn position(&self) -> u64;
-
     /// Skip to the end of the extractor.
     fn skip(&mut self) -> Result<(), Self::Error>;
 
