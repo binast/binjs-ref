@@ -1,3 +1,5 @@
+![Travis status](https://travis-ci.org/Yoric/binjs-ref.svg?branch=master)
+
 # About BinJs
 
 As websites become more sophisticated, the amount of JavaScript source code keeps
