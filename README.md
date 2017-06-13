@@ -33,7 +33,12 @@ npm install mktemp
 ```
 cargo build && cargo test
 ```
-
+4. Running examples
+```
+./target/debug/examples/encode source.js dest.binjs
+./target/debug/examples/decode dest.binjs source.js
+./target/debug/examples/roundtrip source.js
+```
 
 ## Compatibility with JavaScript source code
 
