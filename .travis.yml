@@ -6,6 +6,6 @@ rust:
 node_js:
   - "8"
 before_install:
-  - "npm install babylon"
+  - "npm install babel-core"
   - "npm install esprima"
   - "npm install mktemp"
