@@ -44,7 +44,7 @@ impl Babel {
             .map_err(Error::CouldNotCreateFile)?;
 
         let script = format!(r##"
-        var result  = (() => {{
+        var result  = (function() {{
             {}
         }})();
         var fs     = require('fs');
