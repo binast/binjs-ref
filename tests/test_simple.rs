@@ -46,14 +46,16 @@ test!(test_simple_tokenization, {
             &grammar);
         let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
 
-        let _decoded = decoder.decode(&program_type)
+        let decoded = decoder.decode()
             .expect("Could not decode AST");
-    }
 
-/*
-    FIXME: We first need to strip `ast` to the bits accepted by the grammar.
-    println!("Comparing ASTs.");
-    binjs::util::strip(&mut ast);
-    assert_eq!(decoded, ast);
-*/
+        let pretty = parser.to_source(&decoded)
+            .expect("Could not pretty-print");
+
+        println!("Decoded: {}", pretty);
+
+        let equal = grammar.compare(&ast, &decoded)
+            .expect("Could not compare ASTs");
+        assert!(equal)
+    }
 });

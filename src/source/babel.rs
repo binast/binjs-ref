@@ -55,8 +55,6 @@ impl Babel {
         "##,
         script);
 
-        println!("Executing script {} to {:?}", script, path);
-        println!("Root: {}", env!("CARGO_MANIFEST_DIR"));
         channel.write(script.as_bytes())
             .map_err(Error::CouldNotCreateFile)?;
 
@@ -81,11 +79,9 @@ impl Babel {
         let return_path = return_path
             .trim_right();
 
-        println!("Return path: '{}'", return_path);
         let mut file = std::fs::File::open(return_path)
             .map_err(Error::CouldNotReadFile)?;
 
-        println!("Opened file");
         let mut result = String::new();
         file.read_to_string(&mut result)
             .map_err(Error::CouldNotReadFile)?;

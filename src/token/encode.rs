@@ -77,23 +77,6 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)
             }
-            Obj(ref structure) => {
-                let object = value.as_object()
-                    .ok_or_else(|| Error::Mismatch {
-                        expected: "Object".to_string(),
-                        got: type_of(&value)
-                    })?;
-                let mut contents = self.encode_structure(object, structure.fields(), node)?;
-                let contents : Vec<_> = contents
-                    .drain(..)
-                    .map(|(_, tree)| tree)
-                    .collect();
-                // This is an anonymous structure, so we expect that the order
-                // of fields has been specified elsewhere.
-                let result = self.builder.borrow_mut().untagged_tuple(&contents)
-                    .map_err(Error::TokenWriterError)?;
-                Ok(result)
-            }
             Enum(ref name) => {
                 let enum_ = self.grammar.get_enum_by_name(&name)
                     .ok_or_else(|| Error::NoSuchEnum(name.to_string().clone()))?;
@@ -147,19 +130,8 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                // to make sure that we expected this interface here.
                // FIXME: Is this really necessary?
                if let Some(interface) = self.grammar.get_interface_by_kind(&kind) {
-                   if self.grammar
-                        .get_ancestors_by_name_including_self(interface.name())
-                        .unwrap()
-                        .iter()
-                        .find(|ancestor|
-                            interfaces.iter()
-                                .find(|candidate| {
-                                    debug!("Looking for {:?} =?= {:?}", candidate, ancestor);
-                                    candidate == ancestor
-                                })
-                                .is_some()
-                        ).is_none() {
-                        return Err(Error::NoSuchRefinement(kind.to_string().clone()))
+                   if !self.grammar.has_ancestor_in(interface, interfaces) {
+                       return Err(Error::NoSuchRefinement(kind.to_string().clone()))
                    }
                    let fields = interface.contents().fields();
                    let contents = self.encode_structure(object, fields, interface.name())?;

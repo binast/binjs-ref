@@ -69,18 +69,6 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 debug!("decode: decoded list {} => {} to {}", start, stop, serde_json::to_string(&values).unwrap());
                 Ok(self.register(Value::Array(values)))
             }
-            Obj(ref structure) => {
-                // At this stage, since there is no inheritance involved, use the built-in mapping.
-                let extractor = self.extractor.untagged_tuple()
-                    .map_err(Error::TokenReaderError)?;
-                let mut decoder = Decoder::new(self.grammar, extractor);
-                let mut object = Object::new();
-                for field in structure.fields() {
-                    let item = decoder.decode_from_type(field.type_())?;
-                    object.insert(field.name().to_string().clone(), item);
-                }
-                Ok(self.register(Value::Object(object)))
-            }
             String => {
                 let string = self.extractor.string()
                     .map_err(Error::TokenReaderError)?
@@ -125,17 +113,8 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     .ok_or_else(|| Error::NoSuchKind(kind_name))?;
 
                 if let Some(interface) = self.grammar.get_interface_by_kind(&kind) {
-                    if self.grammar
-                         .get_ancestors_by_name_including_self(interface.name())
-                         .unwrap()
-                         .iter()
-                         .find(|ancestor|
-                             interfaces.iter()
-                                 .find(|candidate| candidate == ancestor)
-                                 .is_some()
-                         ).is_none()
-                    {
-                         return Err(Error::NoSuchRefinement(kind.to_string().clone()))
+                    if !self.grammar.has_ancestor_in(interface, interfaces) {
+                        return Err(Error::NoSuchRefinement(kind.to_string().clone()))
                     }
 
                     // Read the fields **in the order** in which they appear in the stream.

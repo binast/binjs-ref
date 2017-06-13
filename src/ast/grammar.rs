@@ -2,7 +2,10 @@
 //!
 //! This abstracts away the concepts of [ESTree](https://github.com/estree/estree).
 
-#![allow(dead_code, unused)]
+use util::f64_of;
+
+use serde_json;
+use serde_json::Value as JSON;
 
 use std;
 use std::cell::*;
@@ -40,6 +43,9 @@ impl Kind {
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct FieldName(Rc<String>);
 impl FieldName {
+    pub fn to_str(&self) -> &str {
+        self.0.as_ref()
+    }
     pub fn to_string(&self) -> &String {
         self.0.as_ref()
     }
@@ -75,9 +81,6 @@ impl Field {
 pub enum Type {
     /// An array of values of the same type.
     Array(Box<Type>),
-
-    /// An object.
-    Obj(Obj),
 
     /// A choice between several literals, e.g. `"get" | "set"`.
     Enum(NodeName),
@@ -121,15 +124,11 @@ impl Type {
     }
     pub fn or_null(self) -> Option<Self> {
         match self {
-            Type::Interfaces {
-                names,
-                or_null
-            } => {
+            Type::Interfaces { names, .. } => 
                 Some(Type::Interfaces {
                     names,
                     or_null: true
-                })
-            },
+                }),
             _ => None
         }
     }
@@ -504,6 +503,10 @@ impl InterfaceNode {
             Some(ref x) => Some(x.clone())
         }
     }
+
+    pub fn type_(&self) -> Type {
+        Type::interfaces(&[self.name()])
+    }
 }
 
 /// Immutable representation of the syntax.
@@ -555,4 +558,136 @@ impl Syntax {
         self.get_interface_by_name(&self.start)
             .unwrap()
     }
+
+    /// Compare two ASTs, restricting comparison to the
+    /// items that appear in the grammar.
+    ///
+    /// This method assumes that both items are full ASTs.
+    pub fn compare(&self, a: &JSON, b: &JSON) -> Result<bool, ASTError> {
+        self.compare_from(a, b, &self.get_start().type_())
+    }
+
+    /// Compare two ASTs, restricting comparison to the
+    /// items that appear in the grammar.
+    pub fn compare_from(&self, a: &JSON, b: &JSON, type_: &Type) -> Result<bool, ASTError> {
+        use serde_json::Value::*;
+        match (type_, a, b) {
+            (&Type::Boolean, &Bool(ref a), &Bool(ref b)) =>
+                Ok(a == b),
+            (&Type::String, &String(ref a), &String(ref b)) =>
+                Ok(a == b),
+            (&Type::Number, &Number(ref a), &Number(ref b)) => {
+                Ok(f64_of(a) == f64_of(b))
+            }
+            (&Type::Array(ref type_), &Array(ref vec_a), &Array(ref vec_b)) => {
+                if vec_a.len() != vec_b.len() {
+                    Ok(false)
+                } else {
+                    for (a, b) in vec_a.iter().zip(vec_b.iter()) {
+                        if !self.compare_from(a, b, type_)? {
+                            return Ok(false)
+                        }
+                    }
+                    Ok(true)
+                }
+            }
+            (&Type::Enum(ref name), &String(ref a), &String(ref b)) => {
+                let enum_ = self.get_enum_by_name(name)
+                    .expect("Could not find enum in grammar"); // At this stage, this shouldn't be possible.
+                if enum_.strings.iter().find(|x| *x == a).is_some() {
+                    if enum_.strings.iter().find(|x| *x == b).is_some() {
+                        Ok(a == b)
+                    } else {
+                        Err(ASTError::InvalidValue {
+                            got: b.clone(),
+                            expected: format!("{:?}", enum_.strings)
+                        })
+                    }
+                } else {
+                    Err(ASTError::InvalidValue {
+                        got: a.clone(),
+                        expected: format!("{:?}", enum_.strings)
+                    })
+                }
+            }
+            (&Type::Interfaces { or_null: true, .. }, &Null, &Null) => Ok(true),
+            (&Type::Interfaces { ref names, .. }, &Object(ref a), &Object(ref b))
+                if a.get("type").is_some() && b.get("type").is_some() =>
+            {
+                let check_valid = |obj: &serde_json::Map<_, _>| {
+                    let type_ = obj.get("type").unwrap(); // Just checked above.
+                    let name = type_.as_str()
+                        .ok_or_else(|| ASTError::InvalidValue {
+                            expected: "String".to_string(),
+                            got: serde_json::to_string(type_).unwrap(),
+                        })?;
+                    let kind = self.get_kind(&name)
+                        .ok_or_else(|| ASTError::InvalidType(name.to_string()))?;
+                    let interface = self.get_interface_by_kind(&kind)
+                        .expect("Could not find interface by kind");
+                    if self.has_ancestor_in(interface, &names) {
+                        Ok(interface)
+                    } else {
+                        Err(ASTError::InvalidDescendent {
+                            got: kind.to_string().clone(),
+                            valid: names.iter().map(NodeName::to_string).cloned().collect()
+                        })
+                    }
+                };
+
+                let interface_a = check_valid(a)?;
+                let interface_b = check_valid(b)?; // Could generally be avoided.
+
+                if interface_a.name() != interface_b.name() {
+                    return Ok(false)
+                }
+                if interface_a.full_contents != interface_b.full_contents {
+                    return Ok(false)
+                }
+                for field in interface_a.full_contents.fields() {
+                    let a = a.get(field.name().to_str())
+                        .ok_or_else(|| ASTError::MissingField(field.name().to_string().clone()))?;
+                    let b = b.get(field.name().to_str())
+                        .ok_or_else(|| ASTError::MissingField(field.name().to_string().clone()))?;
+                    if !self.compare_from(a, b, field.type_())? {
+                        return Ok(false)
+                    }
+                }
+                Ok(true)
+            },
+            _ => Err(ASTError::InvalidValue {
+                expected: format!("{:?}", type_),
+                got: format!("{:?}", (a, b))
+            })
+        }
+    }
+
+    pub fn has_ancestor_in(&self, interface: &InterfaceNode, one_of: &[NodeName]) -> bool {
+        self.get_ancestors_by_name_including_self(interface.name())
+            .unwrap()
+            .iter()
+            .find(|ancestor|
+                one_of.iter()
+                    .find(|candidate| {
+                        debug!("Looking for {:?} =?= {:?}", candidate, ancestor);
+                        candidate == ancestor
+                    })
+                    .is_some()
+            ).is_some()
+    }
+}
+
+#[derive(Debug)]
+pub enum ASTError {
+    Mismatch(Type),
+    InvalidValue {
+        got: String,
+        expected: String,
+    },
+    InvalidType(String),
+    InvalidDescendent {
+        got: String,
+        valid: Vec<String>,
+    },
+    MissingField(String),
 }

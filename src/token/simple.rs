@@ -493,7 +493,7 @@ fn test_simple_io() {
         .with_own_field(field_string.clone())
         .with_own_field(field_number.clone());
 
-    let syntax = builder.into_syntax();
+    let syntax = builder.into_syntax(&kinded);
 
     debug!("Testing string I/O");
 
