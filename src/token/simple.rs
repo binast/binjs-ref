@@ -518,24 +518,26 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        writer.string(None)
-            .expect("Writing empty string");
-
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let empty_string = reader.string()
-            .expect("Reading empty string");
-        assert!(empty_string.is_none());
-    }
-
-    {
-        let mut writer = TreeTokenWriter::new();
-        writer.string(Some("simple string"))
+        writer.string("simple string")
             .expect("Writing simple string");
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let simple_string = reader.string()
             .expect("Reading simple string");
-        assert_matches!(simple_string, Some(ref s) if s == "simple string");
+        assert_eq!(&simple_string, "simple string");
+    }
+
+
+    {
+        let data = "string with escapes \u{0}\u{1}\u{0}";
+        let mut writer = TreeTokenWriter::new();
+        writer.string(data)
+            .expect("Writing string with escapes");
+
+        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
+        let escapes_string = reader.string()
+            .expect("Reading string with escapes");
+        assert_eq!(&escapes_string, data);
     }
 
     debug!("Testing untagged tuple I/O");
@@ -552,8 +554,8 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
-        let item_1 = writer.string(Some("bar")).unwrap();
+        let item_0 = writer.string("foo").unwrap();
+        let item_1 = writer.string("bar").unwrap();
         writer.untagged_tuple(&[item_0, item_1])
             .expect("Writing trivial untagged tuple");
 
@@ -562,17 +564,17 @@ fn test_simple_io() {
             .expect("Reading trivial untagged tuple");
         let simple_string = sub.string()
             .expect("Reading trivial tuple[0]");
-        assert_matches!(simple_string, Some(ref s) if s == "foo");
+        assert_eq!(&simple_string, "foo");
         let simple_string = sub.string()
             .expect("Reading trivial tuple[1]");
-        assert_matches!(simple_string, Some(ref s) if s == "bar");
+        assert_eq!(&simple_string, "bar");
     }
 
     debug!("Testing tagged tuple I/O");
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
+        let item_0 = writer.string("foo").unwrap();
         let item_1 = writer.float(3.1415).unwrap();
         writer.tagged_tuple(kinded.to_str(), &[(&field_string, item_0), (&field_number, item_1)])
             .expect("Writing trivial tagged tuple");
@@ -592,7 +594,7 @@ fn test_simple_io() {
                 .expect("Reading trivial tagged tuple[0]");
             let simple_float = sub.float()
                 .expect("Reading trivial tagged tuple[1]");
-            assert_matches!(simple_string, Some(ref s) if s == "foo");
+            assert_eq!(&simple_string, "foo");
             assert_eq!(simple_float, 3.1415);
         } else {
             assert_eq!(fields[1].name().to_string(), &"some_string".to_string());
@@ -603,7 +605,7 @@ fn test_simple_io() {
                 .expect("Reading trivial tagged tuple[1]");
             let simple_string = sub.string()
                 .expect("Reading trivial tagged tuple[0]");
-            assert_matches!(simple_string, Some(ref s) if s == "foo");
+            assert_eq!(&simple_string, "foo");
             assert_eq!(simple_float, 3.1415);
         }
     }
@@ -623,8 +625,8 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
-        let item_1 = writer.string(Some("bar")).unwrap();
+        let item_0 = writer.string("foo").unwrap();
+        let item_1 = writer.string("bar").unwrap();
         writer.list(vec![item_0, item_1])
             .expect("Writing trivial list");
 
@@ -635,16 +637,16 @@ fn test_simple_io() {
 
         let simple_string = sub.string()
             .expect("Reading trivial list[0]");
-        assert_matches!(simple_string, Some(ref s) if s == "foo");
+        assert_eq!(&simple_string, "foo");
         let simple_string = sub.string()
             .expect("Reading trivial list[1]");
-        assert_matches!(simple_string, Some(ref s) if s == "bar");
+        assert_eq!(&simple_string, "bar");
     }
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
-        let item_1 = writer.string(Some("bar")).unwrap();
+        let item_0 = writer.string("foo").unwrap();
+        let item_1 = writer.string("bar").unwrap();
         let list = writer.list(vec![item_0, item_1])
             .expect("Writing inner list");
         writer.list(vec![list])
@@ -661,61 +663,10 @@ fn test_simple_io() {
 
         let simple_string = sub.string()
             .expect("Reading trivial list[0]");
-        assert_matches!(simple_string, Some(ref s) if s == "foo");
+        assert_eq!(&simple_string, "foo");
         let simple_string = sub.string()
             .expect("Reading trivial list[1]");
-        assert_matches!(simple_string, Some(ref s) if s == "bar");
+        assert_eq!(&simple_string, "bar");
     }
 
-    {
-        let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(None).unwrap();
-        let item_1 = writer.string(Some("bar")).unwrap();
-        let list = writer.list(vec![item_0, item_1])
-            .expect("Writing inner list");
-        writer.list(vec![list])
-            .expect("Writing outer list");
-
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let (len, mut sub) = reader.list()
-            .expect("Reading outer list");
-        assert_eq!(len, 1);
-
-        let (len, mut sub) = sub.list()
-            .expect("Reading inner list");
-        assert_eq!(len, 2);
-
-        let simple_string = sub.string()
-            .expect("Reading trivial list[0]");
-        assert_matches!(simple_string, None);
-        let simple_string = sub.string()
-            .expect("Reading trivial list[1]");
-        assert_matches!(simple_string, Some(ref s) if s == "bar");
-    }
-
-    {
-        let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
-        let item_1 = writer.string(None).unwrap();
-        let list = writer.list(vec![item_0, item_1])
-            .expect("Writing inner list");
-        writer.list(vec![list])
-            .expect("Writing outer list");
-
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let (len, mut sub) = reader.list()
-            .expect("Reading outer list");
-        assert_eq!(len, 1);
-
-        let (len, mut sub) = sub.list()
-            .expect("Reading inner list");
-        assert_eq!(len, 2);
-
-        let simple_string = sub.string()
-            .expect("Reading trivial list[0]");
-        assert_matches!(simple_string, Some(ref s) if s == "foo");
-        let simple_string = sub.string()
-            .expect("Reading trivial list[1]");
-        assert_matches!(simple_string, None);
-    }
 }
