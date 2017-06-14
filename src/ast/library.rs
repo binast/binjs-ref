@@ -2,6 +2,9 @@
 
 use ast::grammar::*;
 
+static NULL_NAME: &'static str = "BINJS:Null";
+static SCOPE_NAME: &'static str = "BINJS:Scope";
+
 /// The set of features requested for a syntax.
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
@@ -14,15 +17,28 @@ pub enum Level {
     // FIXME: More levels to be implemented.
 }
 
-/// Hardcoding for https://github.com/estree/estree/blob/master/es5.md#exceptions
+/// Special nodes used by BINJS. Not visible at source level.
+fn setup_binjs(syntax: &mut SyntaxBuilder) {
+    // Special value used to encode `null` AST nodes (*not* `null` literals).
+    let binjs_null = syntax.node_name(NULL_NAME);
+    syntax.add_kinded_interface(&binjs_null).unwrap();
+
+    // A scope, used to attach annotations.
+    let binjs_scope = syntax.node_name(SCOPE_NAME);
+    syntax.add_virtual_interface(&binjs_scope).unwrap();
+}
+
+
+/// Hardcoding for the subset of https://github.com/babel/babylon/blob/master/ast/spec.md
+/// dedicated to ES5.
 fn setup_es5(syntax: &mut SyntaxBuilder) {
     // Interface names (by alphabetical order)
-
     let array_expression = syntax.node_name("ArrayExpression");
     let assignment_expression = syntax.node_name("AssignmentExpression");
     let assignment_operator = syntax.node_name("AssignmentOperator");
     let binary_expression = syntax.node_name("BinaryExpression");
     let binary_operator = syntax.node_name("BinaryOperator");
+    let binjs_scope = syntax.node_name(SCOPE_NAME);
     let block_statement = syntax.node_name("BlockStatement");
     let boolean_literal = syntax.node_name("BooleanLiteral");
     let break_statement = syntax.node_name("BreakStatement");
@@ -159,7 +175,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
         .with_field(&field_id, Type::interfaces(&[&identifier]).or_null().unwrap())
         .with_field(&field_params, Type::Array(Box::new(Type::interface(&pattern))))
         .with_field(&field_body, Type::interface(&block_statement))
-        .with_parent(&node);
+        .with_parent(&node)
+        .with_parent(&binjs_scope);
 
     // Statements
     syntax.add_virtual_interface(&statement).unwrap()
@@ -170,7 +187,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 
     syntax.add_kinded_interface(&block_statement).unwrap()
         .with_field(&field_body, Type::interface(&statement).array())
-        .with_parent(&statement);
+        .with_parent(&statement)
+        .with_parent(&binjs_scope);
 
     syntax.add_kinded_interface(&expression_statement).unwrap()
         .with_field(&field_expression, Type::interface(&expression))
@@ -274,7 +292,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     syntax.add_kinded_interface(&variable_declaration).unwrap()
         .with_field(&field_declarations, Type::interface(&variable_declarator).array())
         .with_field(&field_kind, Type::enumeration(&variable_kind))
-        .with_parent(&declaration);
+        .with_parent(&declaration)
+        .with_parent(&binjs_scope);
 
     syntax.add_enum(&variable_kind).unwrap()
         .with_strings(&[
@@ -300,7 +319,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
         .with_parent(&expression);
 
     syntax.add_kinded_interface(&object_expression).unwrap()
-        .with_field(&field_properties, Type::interfaces(&[ 
+        .with_field(&field_properties, Type::interfaces(&[
             &object_property,
             &object_method
         ]).array())
@@ -458,18 +477,13 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
         .with_parent(&node);
 }
 
-fn setup_binjs(syntax: &mut SyntaxBuilder) {
-    // Special value `Null`.
-    let null = syntax.node_name("Null");
-    syntax.add_kinded_interface(&null).unwrap();
-}
 
 /// Construct a syntax for a specific version of JavaScript.
 pub fn syntax(level: Level) -> Syntax {
     let mut builder = SyntaxBuilder::new();
 
-    let program = builder.node_name("Program");
-    let null    = builder.kind_name("Null");
+    let program    = builder.node_name("Program");
+    let binjs_null = builder.kind_name(NULL_NAME);
 
 
     match level {
@@ -484,7 +498,7 @@ pub fn syntax(level: Level) -> Syntax {
     setup_binjs(&mut builder);
     builder.into_syntax(SyntaxOptions {
         root: &program,
-        null: &null,
+        null: &binjs_null,
     })
 }
 
