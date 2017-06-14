@@ -48,7 +48,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
     }
 
     pub fn decode(&mut self) -> Result<Value, Error<E::Error>> {
-        let start = self.grammar.get_start();
+        let start = self.grammar.get_root();
         let kind = Type::interfaces(&[start.name()]);
         self.decode_from_type(&kind)
     }
@@ -93,7 +93,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 debug!("decoder: found kind {:?}", kind_name);
 
                 // Special case: `null`.
-                if or_null && kind_name.to_string() == "Null" {
+                if or_null && &kind_name == self.grammar.get_null().to_str() {
                     assert_eq!(mapped_field_names.len(), 0);
                     return Ok(self.register(Value::Null));
                 }

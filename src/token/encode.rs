@@ -54,7 +54,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
     /// Encode a JSON into a SerializeTree based on a grammar.
     /// This step doesn't perform any interesting check on the JSON.
     pub fn encode(&self, value: &Value) -> Result<Tree, Error<E>> {
-        let start = self.grammar.get_start();
+        let start = self.grammar.get_root();
         let kind = Type::interfaces(&[start.name()]);
         self.encode_from_type(value, &kind, start.name())
     }
@@ -101,9 +101,10 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                or_null: true,
                ..
            } if value.is_null() => {
+               let null_name = self.grammar.get_null();
                self.builder
                    .borrow_mut()
-                   .tagged_tuple(&"Null", &[])
+                   .tagged_tuple(null_name.to_str(), &[])
                    .map_err(Error::TokenWriterError)
            }
            Interfaces {

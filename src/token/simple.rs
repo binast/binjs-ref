@@ -504,6 +504,10 @@ fn test_simple_io() {
 
     debug!("Setting up syntax");
     let mut builder = SyntaxBuilder::new();
+    let null = builder.node_name("Null");
+    let null_kind = builder.kind_name("Null");
+    builder.add_kinded_interface(&null).unwrap();
+
     let kinded = builder.node_name("Kinded");
     let field_string = Field::new(builder.field_name("some_string"), Type::String);
     let field_number = Field::new(builder.field_name("some_number"), Type::Number);
@@ -512,7 +516,10 @@ fn test_simple_io() {
         .with_own_field(field_string.clone())
         .with_own_field(field_number.clone());
 
-    let syntax = builder.into_syntax(&kinded);
+    let syntax = builder.into_syntax(SyntaxOptions {
+        root: &kinded,
+        null: &null_kind,
+    });
 
     debug!("Testing string I/O");
 

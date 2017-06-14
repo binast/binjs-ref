@@ -38,6 +38,9 @@ impl Kind {
     pub fn to_string(&self) -> &String {
         self.0.as_ref()
     }
+    pub fn to_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -314,6 +317,16 @@ impl SyntaxBuilder {
         result
     }
 
+    pub fn kind_name(&mut self, name: &str) -> Kind {
+        if let Some(result) = self.names.get(name) {
+            return Kind(result.clone());
+        }
+        let shared = Rc::new(name.to_string());
+        let result = Kind(shared.clone());
+        self.names.insert(name.to_string(), shared);
+        result
+    }
+
     /// Add an interface with a `kind` identical to its name.
     pub fn add_kinded_interface(&mut self, name: &NodeName) -> Option<RefMut<Interface>> {
         let kind = Kind(name.0.clone());
@@ -350,15 +363,15 @@ impl SyntaxBuilder {
     }
 
     /// Generate the graph.
-    pub fn into_syntax(self, start: &NodeName) -> Syntax {
+    pub fn into_syntax<'a>(self, options: SyntaxOptions<'a>) -> Syntax {
         let mut interfaces_by_name = HashMap::new();
         let mut interfaces_by_kind = HashMap::new();
         let mut node_names = HashMap::new();
         let mut kinds = HashMap::new();
         let mut field_names : HashMap<String, FieldName> = HashMap::new();
 
-        assert!(self.interfaces.get(start).is_some(),
-            "Cannot find start interface {:?}", start);
+        assert!(self.interfaces.get(options.root).is_some(),
+            "Cannot find root interface {:?}", options.root);
 
         for (name, interface) in &self.interfaces {
             debug!("Registering name and interface.");
@@ -462,6 +475,10 @@ impl SyntaxBuilder {
             assert!(node_names.insert(string.clone(), key.clone()).is_none());
         }
         let enums_by_name = self.enums;
+
+        assert!(interfaces_by_kind.get(options.null).is_some(),
+            "Cannot find null interface {:?}", options.null);
+
         Syntax {
             interfaces_by_name,
             interfaces_by_kind,
@@ -469,7 +486,8 @@ impl SyntaxBuilder {
             node_names,
             kinds,
             fields: field_names,
-            start: start.clone(),
+            root: options.root.clone(),
+            null: options.null.clone(),
         }
     }
 }
@@ -482,6 +500,7 @@ pub struct InterfaceNode {
     /// All the ancestors of this interface.
     ancestors: Vec<NodeName>,
 
+    /// The full contents of this interface, including parents interfaces.
     full_contents: Obj,
 }
 
@@ -519,7 +538,8 @@ pub struct Syntax {
     node_names: HashMap<String, NodeName>,
     kinds: HashMap<String, Kind>,
     fields: HashMap<String, FieldName>,
-    start: NodeName,
+    root: NodeName,
+    null: Kind,
 }
 
 impl Syntax {
@@ -561,14 +581,18 @@ impl Syntax {
     }
 
     /// The starting point for parsing.
-    pub fn get_start(&self) -> &InterfaceNode {
-        self.get_interface_by_name(&self.start)
+    pub fn get_root(&self) -> &InterfaceNode {
+        self.get_interface_by_name(&self.root)
             .unwrap()
+    }
+
+    pub fn get_null(&self) -> &Kind {
+        &self.null
     }
 
     /// Ensure that a value is an inhabitant of the grammar.
     pub fn validate(&self, a: &JSON) -> Result<(), ASTError> {
-        self.validate_from(a, &self.get_start().type_())
+        self.validate_from(a, &self.get_root().type_())
     }
 
     /// Ensure that a value is an inhabitant of the grammar.
@@ -640,7 +664,7 @@ impl Syntax {
     ///
     /// This method assumes that both items are full ASTs.
     pub fn compare(&self, a: &JSON, b: &JSON) -> Result<bool, ASTError> {
-        self.compare_from(a, b, &self.get_start().type_())
+        self.compare_from(a, b, &self.get_root().type_())
     }
 
     /// Compare two ASTs, restricting comparison to the
@@ -766,4 +790,12 @@ pub enum ASTError {
         valid: Vec<String>,
     },
     MissingField(String),
+}
+
+pub struct SyntaxOptions<'a> {
+    /// The kind of the special node used to encode null AST nodes (NOT null literals).
+    pub null: &'a Kind,
+
+    /// The name of the node used to start encoding.
+    pub root: &'a NodeName,
 }

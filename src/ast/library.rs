@@ -2,11 +2,11 @@
 
 use ast::grammar::*;
 
-
 /// The set of features requested for a syntax.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
     /// Empty syntax, for testing purposes.
-    Empty,
+    Minimal,
     /// All the features for ES5.
     ES5,
     /// All the features of the latest version of JavaScript.
@@ -469,10 +469,12 @@ pub fn syntax(level: Level) -> Syntax {
     let mut builder = SyntaxBuilder::new();
 
     let program = builder.node_name("Program");
+    let null    = builder.kind_name("Null");
+
+
     match level {
-        Level::Empty => {
+        Level::Minimal => {
             builder.add_virtual_interface(&program).unwrap();
-            return builder.into_syntax(&program)
         }
         Level::ES5
         | Level::Latest => {
@@ -480,7 +482,10 @@ pub fn syntax(level: Level) -> Syntax {
         }
     }
     setup_binjs(&mut builder);
-    builder.into_syntax(&program)
+    builder.into_syntax(SyntaxOptions {
+        root: &program,
+        null: &null,
+    })
 }
 
 #[test]
