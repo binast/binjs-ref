@@ -34,13 +34,13 @@ pub trait TokenReader where Self::Error: Debug, Self: Sized {
     /// Read a single UTF-8 string.
     ///
     /// The returned string MUST be valid UTF-8.
-    fn string(&mut self) -> Result<String, Self::Error>;
+    fn string(&mut self) -> Result<Option<String>, Self::Error>;
 
     /// Read a single `f64`. Note that all numbers are `f64`.
-    fn float(&mut self) -> Result<f64, Self::Error>;
+    fn float(&mut self) -> Result<Option<f64>, Self::Error>;
 
     /// Read a single `bool`.
-    fn bool(&mut self) -> Result<bool, Self::Error>;
+    fn bool(&mut self) -> Result<Option<bool>, Self::Error>;
 
     /// Start reading a list.
     ///
@@ -100,11 +100,11 @@ pub trait TokenWriter where Self::Error: Debug {
     /// Write a single UTF-8 string.
     ///
     /// If specified, the string MUST be UTF-8.
-    fn string(&mut self, &str) -> Result<Self::Tree, Self::Error>;
+    fn string(&mut self, Option<&str>) -> Result<Self::Tree, Self::Error>;
 
     /// Write a single number.
-    fn float(&mut self, f64) -> Result<Self::Tree, Self::Error>;
+    fn float(&mut self, Option<f64>) -> Result<Self::Tree, Self::Error>;
 
     /// Write single bool.
-    fn bool(&mut self, bool) -> Result<Self::Tree, Self::Error>;
+    fn bool(&mut self, Option<bool>) -> Result<Self::Tree, Self::Error>;
 }

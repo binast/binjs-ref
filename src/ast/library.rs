@@ -140,7 +140,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 
     // Identifiers
     syntax.add_kinded_interface(&identifier).unwrap()
-        .with_field(&field_name, Type::String)
+        .with_field(&field_name, Type::string())
         .with_parent(&expression)
         .with_parent(&pattern);
 
@@ -148,19 +148,19 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     syntax.add_kinded_interface(&literal).unwrap()
         .with_parent(&expression);
     syntax.add_kinded_interface(&string_literal).unwrap()
-        .with_field(&field_value, Type::String)
+        .with_field(&field_value, Type::string())
         .with_parent(&literal);
     syntax.add_kinded_interface(&boolean_literal).unwrap()
-        .with_field(&field_value, Type::Boolean)
+        .with_field(&field_value, Type::bool())
         .with_parent(&literal);
     syntax.add_kinded_interface(&null_literal).unwrap()
         .with_parent(&literal);
     syntax.add_kinded_interface(&numeric_literal).unwrap()
-        .with_field(&field_value, Type::Number)
+        .with_field(&field_value, Type::number())
         .with_parent(&literal);
     syntax.add_kinded_interface(&regexp_literal).unwrap()
-        .with_field(&field_pattern, Type::String)
-        .with_field(&field_flags, Type::String)
+        .with_field(&field_pattern, Type::string())
+        .with_field(&field_flags, Type::string())
         .with_parent(&literal);
 
 
@@ -327,7 +327,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 
     syntax.add_kinded_interface(&object_member).unwrap()
         .with_field(&field_key, Type::interface(&expression))
-        .with_field(&field_computed, Type::Boolean)
+        .with_field(&field_computed, Type::bool())
         .with_parent(&node);
 
     syntax.add_kinded_interface(&object_property).unwrap()
@@ -352,7 +352,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
 
     syntax.add_kinded_interface(&unary_expression).unwrap()
         .with_field(&field_operator, Type::enumeration(&unary_operator))
-        .with_field(&field_prefix, Type::Boolean)
+        .with_field(&field_prefix, Type::bool())
         .with_field(&field_argument, Type::interface(&expression))
         .with_parent(&expression);
 
@@ -370,7 +370,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     syntax.add_kinded_interface(&update_expression).unwrap()
         .with_field(&field_operator, Type::enumeration(&update_operator))
         .with_field(&field_argument, Type::interface(&expression))
-        .with_field(&field_prefix, Type::Boolean)
+        .with_field(&field_prefix, Type::bool())
         .with_parent(&expression);
 
     syntax.add_enum(&update_operator).unwrap()
@@ -450,7 +450,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder) {
     syntax.add_kinded_interface(&member_expression).unwrap()
         .with_field(&field_object, Type::interface(&expression))
         .with_field(&field_property, Type::interface(&expression))
-        .with_field(&field_computed, Type::Boolean)
+        .with_field(&field_computed, Type::bool())
         .with_parent(&expression);
 
     syntax.add_kinded_interface(&conditional_expression).unwrap()

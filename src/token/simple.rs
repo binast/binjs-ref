@@ -10,12 +10,14 @@ use std::io::{ Read, Seek, SeekFrom };
 use std::rc::Rc;
 use std::string::FromUtf8Error;
 
+const NONE_FLOAT_REPR: u64 = 0x7FF0000000000001;
 
 #[derive(Debug)]
 pub enum TokenReaderError {
     Reader(std::io::Error),
     Encoding(FromUtf8Error),
     NotInList,
+    InvalidValue,
     NoSuchKind(String),
     NoSuchField(String),
     HeaderOrFooterNotFound {
@@ -225,33 +227,49 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
         }
     }
 
-    fn bool(&mut self) -> Result<bool, Self::Error> {
+    fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
         debug!("TreeTokenReader: bool");
         let mut buf : [u8; 1] = unsafe { std::mem::uninitialized() };
         self.read(&mut buf)?;
-        Ok(buf[0] != 0)
+        match buf[0] {
+            0 => Ok(Some(false)),
+            1 => Ok(Some(true)),
+            2 => Ok(None),
+            _ => Err(TokenReaderError::InvalidValue)
+        }
     }
 
-    fn float(&mut self) -> Result<f64, Self::Error> {
+    fn float(&mut self) -> Result<Option<f64>, Self::Error> {
         debug!("TreeTokenReader: float");
         let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
         assert!(std::mem::size_of_val(&buf) == std::mem::size_of::<f64>());
         self.read(&mut buf)?;
-        Ok(unsafe { std::mem::transmute::<_, f64>(buf) })
+        let as_float = unsafe { std::mem::transmute::<_, f64>(buf) };
+        let as_u64   = unsafe { std::mem::transmute::<_, u64>(buf) };
+        if as_u64 == NONE_FLOAT_REPR {
+            Ok(None)
+        } else {
+            Ok(Some(as_float))
+        }
     }
 
-    fn string(&mut self) -> Result<String, Self::Error> {
+    fn string(&mut self) -> Result<Option<String>, Self::Error> {
         debug!("TreeTokenReader: string");
         self.read_constant("<string>")?;
         let byte_len = self.read_u32()?;
 
         let mut bytes : Vec<u8> = vec![0 as u8; byte_len as usize];
         self.read(&mut bytes)?;
+
+        self.read_constant("</string>")?;
+
+        if byte_len == 2 && bytes[0] == 255 && bytes[1] == 0 {
+            return Ok(None)
+        }
         let result = String::from_utf8(bytes)
             .map_err(TokenReaderError::Encoding)?;
         debug!("TreeTokenReader: string => {:?}/{}", result, result);
-        self.read_constant("</string>")?;
-        Ok(result)
+        Ok(Some(result))
     }
 
     fn list(&mut self) -> Result<(u32, Self), Self::Error> {
@@ -367,34 +385,47 @@ impl TokenWriter for TreeTokenWriter {
     type Tree = Rc<Vec<u8>>;
     type Error = TokenWriterError;
 
-    fn float(&mut self, data: f64) -> Result<Self::Tree, Self::Error> {
+    fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
         debug!("TreeTokenWriter: float");
-        let buf : [u8; 8] = unsafe { std::mem::transmute(data) };
-        assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&data));
+        let buf : [u8; 8] = match data {
+            Some(float) => unsafe { std::mem::transmute(float) },
+            None        => unsafe { std::mem::transmute(NONE_FLOAT_REPR) }
+        };
         let result = buf.iter().cloned().collect();
         Ok(self.register(result))
     }
 
-    fn bool(&mut self, data: bool) -> Result<Self::Tree, Self::Error> {
+    fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
         debug!("TreeTokenWriter: bool");
-        let buf = [if data { 1 } else { 0 }];
+        let buf = match data {
+            None => [2],
+            Some(true) => [1],
+            Some(false) => [0]
+        };
         let result = buf.iter().cloned().collect();
         Ok(self.register(result))
     }
 
     // Strings are represented as len + UTF-8
-    fn string(&mut self, data: &str) -> Result<Self::Tree, Self::Error> {
-        debug!("TreeTokenWriter: string {:?} / {}", data, data);
-        let byte_len = data.len() as u32;
+    // The None string is represented as len + [255, 0]
+    fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
+        debug!("TreeTokenWriter: string {:?}", data);
+        const EMPTY_STRING: [u8; 2] = [255, 0];
+        let byte_len = match data {
+            None => EMPTY_STRING.len(),
+            Some(ref x) => x.len()
+        } as u32;
         let buf_len : [u8; 4] = unsafe { std::mem::transmute(byte_len) };
         assert!(std::mem::size_of_val(&buf_len) == std::mem::size_of_val(&byte_len));
 
-        debug!("TreeTokenWriter: string has {} bytes {} chars", byte_len, data.len());
 
         let mut buf = Vec::new();
         buf.extend_from_str("<string>");
         buf.extend_from_slice(&buf_len);
-        buf.extend(data.bytes());
+        match data {
+            None => buf.extend_from_slice(&EMPTY_STRING),
+            Some(ref x) => buf.extend(x.bytes())
+        }
         buf.extend_from_str("</string>");
 
         Ok(self.register(buf))
@@ -509,8 +540,8 @@ fn test_simple_io() {
     builder.add_kinded_interface(&null).unwrap();
 
     let kinded = builder.node_name("Kinded");
-    let field_string = Field::new(builder.field_name("some_string"), Type::String);
-    let field_number = Field::new(builder.field_name("some_number"), Type::Number);
+    let field_string = Field::new(builder.field_name("some_string"), Type::string());
+    let field_number = Field::new(builder.field_name("some_number"), Type::number());
 
     builder.add_kinded_interface(&kinded).unwrap()
         .with_own_field(field_string.clone())
@@ -525,12 +556,13 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        writer.string("simple string")
+        writer.string(Some("simple string"))
             .expect("Writing simple string");
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let simple_string = reader.string()
-            .expect("Reading simple string");
+            .expect("Reading simple string")
+            .expect("Non-null string");
         assert_eq!(&simple_string, "simple string");
     }
 
@@ -538,12 +570,13 @@ fn test_simple_io() {
     {
         let data = "string with escapes \u{0}\u{1}\u{0}";
         let mut writer = TreeTokenWriter::new();
-        writer.string(data)
+        writer.string(Some(data))
             .expect("Writing string with escapes");
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let escapes_string = reader.string()
-            .expect("Reading string with escapes");
+            .expect("Reading string with escapes")
+            .expect("Non-null string");
         assert_eq!(&escapes_string, data);
     }
 
@@ -561,8 +594,8 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string("foo").unwrap();
-        let item_1 = writer.string("bar").unwrap();
+        let item_0 = writer.string(Some("foo")).unwrap();
+        let item_1 = writer.string(Some("bar")).unwrap();
         writer.untagged_tuple(&[item_0, item_1])
             .expect("Writing trivial untagged tuple");
 
@@ -570,10 +603,12 @@ fn test_simple_io() {
         let mut sub = reader.untagged_tuple()
             .expect("Reading trivial untagged tuple");
         let simple_string = sub.string()
-            .expect("Reading trivial tuple[0]");
+            .expect("Reading trivial tuple[0]")
+            .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
         let simple_string = sub.string()
-            .expect("Reading trivial tuple[1]");
+            .expect("Reading trivial tuple[1]")
+            .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
     }
 
@@ -581,8 +616,8 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string("foo").unwrap();
-        let item_1 = writer.float(3.1415).unwrap();
+        let item_0 = writer.string(Some("foo")).unwrap();
+        let item_1 = writer.float(Some(3.1415)).unwrap();
         writer.tagged_tuple(kinded.to_str(), &[(&field_string, item_0), (&field_number, item_1)])
             .expect("Writing trivial tagged tuple");
 
@@ -594,24 +629,28 @@ fn test_simple_io() {
         // Order of fields is not deterministic
         if fields[0].name().to_string() == &"some_string".to_string() {
             assert_eq!(fields[0].name().to_string(), &"some_string".to_string());
-            assert_matches!(*fields[0].type_(), Type::String);
+            assert_eq!(*fields[0].type_(), Type::string());
             assert_eq!(fields[1].name().to_string(), &"some_number".to_string());
-            assert_matches!(*fields[1].type_(), Type::Number);
+            assert_eq!(*fields[1].type_(), Type::number());
             let simple_string = sub.string()
-                .expect("Reading trivial tagged tuple[0]");
+                .expect("Reading trivial tagged tuple[0]")
+                .expect("Reading a non-null string");
             let simple_float = sub.float()
-                .expect("Reading trivial tagged tuple[1]");
+                .expect("Reading trivial tagged tuple[1]")
+                .expect("Reading a non-null float");
             assert_eq!(&simple_string, "foo");
             assert_eq!(simple_float, 3.1415);
         } else {
             assert_eq!(fields[1].name().to_string(), &"some_string".to_string());
-            assert_matches!(*fields[1].type_(), Type::String);
+            assert_eq!(*fields[1].type_(), Type::string());
             assert_eq!(fields[0].name().to_string(), &"some_number".to_string());
-            assert_matches!(*fields[0].type_(), Type::Number);
+            assert_eq!(*fields[0].type_(), Type::number());
             let simple_float = sub.float()
-                .expect("Reading trivial tagged tuple[1]");
+                .expect("Reading trivial tagged tuple[1]")
+                .expect("Reading a non-null float");
             let simple_string = sub.string()
-                .expect("Reading trivial tagged tuple[0]");
+                .expect("Reading trivial tagged tuple[0]")
+                .expect("Reading a non-null string");
             assert_eq!(&simple_string, "foo");
             assert_eq!(simple_float, 3.1415);
         }
@@ -632,8 +671,8 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string("foo").unwrap();
-        let item_1 = writer.string("bar").unwrap();
+        let item_0 = writer.string(Some("foo")).unwrap();
+        let item_1 = writer.string(Some("bar")).unwrap();
         writer.list(vec![item_0, item_1])
             .expect("Writing trivial list");
 
@@ -643,17 +682,19 @@ fn test_simple_io() {
         assert_eq!(len, 2);
 
         let simple_string = sub.string()
-            .expect("Reading trivial list[0]");
+            .expect("Reading trivial list[0]")
+            .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
         let simple_string = sub.string()
-            .expect("Reading trivial list[1]");
+            .expect("Reading trivial list[1]")
+            .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
     }
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string("foo").unwrap();
-        let item_1 = writer.string("bar").unwrap();
+        let item_0 = writer.string(Some("foo")).unwrap();
+        let item_1 = writer.string(Some("bar")).unwrap();
         let list = writer.list(vec![item_0, item_1])
             .expect("Writing inner list");
         writer.list(vec![list])
@@ -669,10 +710,12 @@ fn test_simple_io() {
         assert_eq!(len, 2);
 
         let simple_string = sub.string()
-            .expect("Reading trivial list[0]");
+            .expect("Reading trivial list[0]")
+            .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
         let simple_string = sub.string()
-            .expect("Reading trivial list[1]");
+            .expect("Reading trivial list[1]")
+            .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
     }
 

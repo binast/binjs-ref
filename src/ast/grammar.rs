@@ -16,6 +16,7 @@ use std::ops::Deref;
 use std::rc::*;
 
 
+/// The name of an interface or enum.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct NodeName(Rc<String>);
 impl NodeName {
@@ -32,6 +33,8 @@ impl Debug for NodeName {
     }
 }
 
+/// The kind attached to an actual AST node, representing the interface
+/// it inhabits (aka "dynamic type").
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct Kind(Rc<String>);
 impl Kind {
@@ -43,6 +46,7 @@ impl Kind {
     }
 }
 
+/// The name of a field.
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct FieldName(Rc<String>);
 impl FieldName {
@@ -54,6 +58,7 @@ impl FieldName {
     }
 }
 
+/// Representation of a field in an object.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Field {
     name: FieldName,
@@ -89,20 +94,22 @@ pub enum Type {
     Enum(NodeName),
 
     /// A value that may belong to one or more interfaces.
-    ///
-    /// Note that sum types between primitive types MUST be upgraded
-    /// to sum types between their corresponding interfaces, e.g.
-    /// `boolean | string | null` will be represented as
-    /// `Boolean | String | Null`
     Interfaces {
+        /// The names of interfaces. Never empty.
         names: Vec<NodeName>,
+
+        /// If `true`, `null` is an acceptable value.
         or_null: bool
     },
 
-    // Primitive types
-    Boolean,
-    String,
-    Number,
+    /// A boolean.
+    Boolean { or_null: bool },
+
+    /// A string.
+    String { or_null: bool },
+
+    /// A number.
+    Number { or_null: bool },
 }
 
 impl Type {
@@ -122,28 +129,48 @@ impl Type {
             or_null: false
         }
     }
+    pub fn string() -> Self {
+        Type::String { or_null: false }
+    }
+    pub fn number() -> Self {
+        Type::Number { or_null: false }
+    }
+    pub fn bool() -> Self {
+        Type::Boolean { or_null: false }
+    }
     pub fn array(self) -> Self {
         Type::Array(Box::new(self))
     }
     pub fn or_null(self) -> Option<Self> {
         match self {
-            Type::Interfaces { names, .. } => 
+            Type::Interfaces { names, .. } =>
                 Some(Type::Interfaces {
                     names,
                     or_null: true
                 }),
+            Type::String { .. } =>
+                Some(Type::String { or_null: true }),
+            Type::Boolean { .. } =>
+                Some(Type::Boolean { or_null: true }),
+            Type::Number { .. } =>
+                Some(Type::Number { or_null: true }),
             _ => None
         }
     }
 }
 
-/// Obj of an object-like value.
+/// Representation of an object, i.e. a set of fields.
+///
+/// Field order is *not* specified, but is expected to remain stable during encoding
+/// operations and during decoding operations. Note in particular that the order may
+/// change between encoding and decoding.
 #[derive(Clone, Debug)]
 pub struct Obj {
     fields: Vec<Field>,
 }
 impl PartialEq for Obj {
     fn eq(&self, other: &Self) -> bool {
+        // Normalize order before comparing.
         let me : HashSet<_> = self.fields.iter().collect();
         let other : HashSet<_> = other.fields.iter().collect();
         me == other
@@ -196,7 +223,7 @@ impl Obj {
     }
 }
 
-/// Structure of an enum of strings.
+/// Structure of an enum of strings. `null` is never an acceptable value.
 #[derive(Clone, Debug)]
 pub struct Enum {
     /// Unordered list of strings, without duplicates.
@@ -599,9 +626,12 @@ impl Syntax {
     pub fn validate_from(&self, a: &JSON, type_: &Type) -> Result<(), ASTError> {
         use serde_json::Value::*;
         match (type_, a) {
-            (&Type::Boolean, &Bool(_)) => Ok(()),
-            (&Type::String,  &String(_)) => Ok(()),
-            (&Type::Number,  &Number(_)) => Ok(()),
+            (&Type::Boolean {..}, &Bool(_)) => Ok(()),
+            (&Type::Boolean {or_null: true}, &Null) => Ok(()),
+            (&Type::String {..},  &String(_)) => Ok(()),
+            (&Type::String {or_null: true}, &Null) => Ok(()),
+            (&Type::Number {..},  &Number(_)) => Ok(()),
+            (&Type::Number {or_null: true}, &Null) => Ok(()),
             (&Type::Array(ref type_), &Array(ref values)) => {
                 for value in values {
                     self.validate_from(value, type_)?;
@@ -672,12 +702,19 @@ impl Syntax {
     pub fn compare_from(&self, a: &JSON, b: &JSON, type_: &Type) -> Result<bool, ASTError> {
         use serde_json::Value::*;
         match (type_, a, b) {
-            (&Type::Boolean, &Bool(ref a), &Bool(ref b)) =>
+            (&Type::Boolean { .. }, &Bool(ref a), &Bool(ref b)) =>
                 Ok(a == b),
-            (&Type::String, &String(ref a), &String(ref b)) =>
+            (&Type::Boolean { or_null: true }, &Null, &Null) =>
+                Ok(true),
+            (&Type::String { .. }, &String(ref a), &String(ref b)) =>
                 Ok(a == b),
-            (&Type::Number, &Number(ref a), &Number(ref b)) => {
+            (&Type::String { or_null: true }, &Null, &Null) =>
+                Ok(true),
+            (&Type::Number { .. }, &Number(ref a), &Number(ref b)) => {
                 Ok(f64_of(a) == f64_of(b))
+            }
+            (&Type::Number { or_null: true }, &Null, &Null) => {
+                Ok(true)
             }
             (&Type::Array(ref type_), &Array(ref vec_a), &Array(ref vec_b)) => {
                 if vec_a.len() != vec_b.len() {

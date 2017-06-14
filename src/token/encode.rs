@@ -85,12 +85,12 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                         expected: format!("String (one of {:?}), while treating {:?}", enum_, node),
                         got: type_of(&value)
                     })?;
-                for candidate in enum_.strings() {
-                    if candidate == string {
-                        let result = self.builder.borrow_mut().string(&candidate)
-                            .map_err(Error::TokenWriterError)?;
-                        return Ok(result)
-                    }
+                if enum_.strings()
+                    .iter()
+                    .find(|c| c == &string)
+                    .is_some() {
+                    return self.builder.borrow_mut().string(Some(&string))
+                        .map_err(Error::TokenWriterError)
                 }
                 Err(Error::NoSuchLiteral {
                     strings: enum_.strings().iter().cloned().collect(),
@@ -145,40 +145,50 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                }
                return Err(Error::NoSuchRefinement(kind.to_string().clone()));
            }
-           Boolean => {
-                let value = value.as_bool()
-                    .ok_or_else(|| Error::Mismatch {
-                        expected: "bool".to_string(),
-                        got: type_of(&value)
-                    })?;
-                let result = self.builder.borrow_mut().bool(value)
-                    .map_err(Error::TokenWriterError)?;
-                Ok(result)
+           Boolean { or_null } => {
+               match *value {
+                   Value::Null if or_null =>
+                       self.builder.borrow_mut().bool(None)
+                           .map_err(Error::TokenWriterError),
+                   Value::Bool(b) =>
+                       self.builder.borrow_mut().bool(Some(b))
+                           .map_err(Error::TokenWriterError),
+                   _ =>
+                       Err(Error::Mismatch {
+                           expected: format!("bool {}", if or_null {"| null"} else {" (not null)"}),
+                           got: type_of(&value)
+                       })
+               }
            }
-           String => {
-                let value = value.as_str()
-                    .ok_or_else(|| Error::Mismatch {
-                        expected: "String".to_string(),
-                        got: type_of(&value)
-                    })?
-                   .to_owned();
-                let result = self.builder.borrow_mut().string(&value)
-                    .map_err(Error::TokenWriterError)?;
-                Ok(result)
+           String { or_null } => {
+               match *value {
+                   Value::Null if or_null =>
+                       self.builder.borrow_mut().string(None)
+                           .map_err(Error::TokenWriterError),
+                   Value::String(ref s) =>
+                       self.builder.borrow_mut().string(Some(s))
+                           .map_err(Error::TokenWriterError),
+                   _ =>
+                       Err(Error::Mismatch {
+                           expected: format!("string {}", if or_null {"| null"} else {" (not null)"}),
+                           got: type_of(&value)
+                       })
+               }
            }
-           Number => {
-                let value =
-                    if let serde_json::Value::Number(ref num) = *value {
-                        f64_of(num)
-                    } else {
-                        return Err(Error::Mismatch {
-                            expected: "Number".to_string(),
-                            got: type_of(&value)
-                        })
-                    };
-                let result = self.builder.borrow_mut().float(value)
-                   .map_err(Error::TokenWriterError)?;
-                Ok(result)
+           Number { or_null } => {
+               match *value {
+                   Value::Null if or_null =>
+                       self.builder.borrow_mut().float(None)
+                           .map_err(Error::TokenWriterError),
+                   Value::Number(ref x) =>
+                       self.builder.borrow_mut().float(Some(f64_of(x)))
+                           .map_err(Error::TokenWriterError),
+                   _ =>
+                       Err(Error::Mismatch {
+                           expected: format!("number {}", if or_null {"| null"} else {" (not null)"}),
+                           got: type_of(&value)
+                       })
+               }
            }
         }
     }

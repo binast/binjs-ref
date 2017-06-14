@@ -66,17 +66,13 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 }
                 Ok(self.register(Value::Array(values)))
             }
-            String => {
-                let string = self.extractor.string()
-                    .map_err(Error::TokenReaderError)?;
-                Ok(self.register(Value::String(string)))
-            }
             Enum(ref name) => {
                 // FIXME: Do we really need to check this here?
                 let enum_ = self.grammar.get_enum_by_name(&name)
                     .ok_or_else(|| Error::NoSuchEnum(name.to_string().clone()))?;
                 let string = self.extractor.string()
-                    .map_err(Error::TokenReaderError)?;
+                    .map_err(Error::TokenReaderError)?
+                    .ok_or_else(|| Error::UnexpectedValue("null string".to_owned()))?;
                 for candidate in enum_.strings() {
                     if candidate == &string {
                         return Ok(self.register(Value::String(string)))
@@ -123,15 +119,41 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     Err(Error::NoSuchKind(kind.to_string().clone()))
                 }
             }
-            Boolean => {
-                let value = self.extractor.bool()
-                    .map_err(|_| Error::InvalidValue("bool".to_string()))?;
-                Ok(self.register(Value::Bool(value)))
+            String { or_null } => {
+                let extracted = self.extractor.string()
+                    .map_err(Error::TokenReaderError)?;
+                match extracted {
+                    None if or_null =>
+                        Ok(self.register(Value::Null)),
+                    None =>
+                        Err(Error::UnexpectedValue("null string".to_owned())),
+                    Some(string) =>
+                        Ok(self.register(Value::String(string)))
+                }
             }
-            Number => {
-                let value = self.extractor.float()
-                    .map_err(|_| Error::InvalidValue("float".to_string()))?;
-                Ok(self.register(json!(value)))
+            Boolean { or_null } => {
+                let extracted = self.extractor.bool()
+                    .map_err(Error::TokenReaderError)?;
+                match extracted {
+                    None if or_null =>
+                        Ok(self.register(Value::Null)),
+                    None =>
+                        Err(Error::UnexpectedValue("null bool".to_owned())),
+                    Some(b) =>
+                        Ok(self.register(Value::Bool(b)))
+                }
+            }
+            Number { or_null } => {
+                let extracted = self.extractor.float()
+                    .map_err(Error::TokenReaderError)?;
+                match extracted {
+                    None if or_null =>
+                        Ok(self.register(Value::Null)),
+                    None =>
+                        Err(Error::UnexpectedValue("null float".to_owned())),
+                    Some(f) =>
+                        Ok(self.register(Value::from(f)))
+                }
             }
         }
     }
