@@ -530,8 +530,15 @@ impl ExtendFromUTF8 for Vec<u8> {
 
 #[test]
 fn test_simple_io() {
+    use ast::annotation::*;
     use ast::grammar::*;
+
+    use serde_json;
+    use serde_json::Value as JSON;
+
     use std::io::Cursor;
+
+    type Object = serde_json::Map<String, JSON>;
 
     debug!("Setting up syntax");
     let mut builder = SyntaxBuilder::new();
@@ -547,9 +554,23 @@ fn test_simple_io() {
         .with_own_field(field_string.clone())
         .with_own_field(field_number.clone());
 
+    struct FakeAnnotator;
+    impl Annotator for FakeAnnotator {
+        fn name(&self) -> String {
+            unimplemented!()
+        }
+        fn process_references_obj(&self, _: &Annotator, _: &mut RefContext, _: &mut Object, _: &str) -> Result<(), ASTError> {
+            unimplemented!()
+        }
+        fn process_declarations_obj(&self, _: &Annotator, _: &mut DeclContext, _: &mut Object, _: &str) -> Result<(), ASTError> {
+            unimplemented!()
+        }
+    }
+
     let syntax = builder.into_syntax(SyntaxOptions {
         root: &kinded,
         null: &null_kind,
+        annotator: Box::new(FakeAnnotator)
     });
 
     debug!("Testing string I/O");

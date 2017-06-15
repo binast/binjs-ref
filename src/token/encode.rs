@@ -143,7 +143,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                        .map_err(Error::TokenWriterError)?;
                    return Ok(labelled)
                }
-               return Err(Error::NoSuchRefinement(kind.to_string().clone()));
+               return Err(Error::NoSuchKind(kind.to_string().clone()));
            }
            Boolean { or_null } => {
                match *value {

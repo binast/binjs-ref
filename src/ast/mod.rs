@@ -94,3 +94,5 @@ pub mod grammar;
 
 /// A library of versions of EcmaScript.
 pub mod library;
+
+pub mod annotation;

@@ -2,6 +2,7 @@
 //!
 //! This abstracts away the concepts of [ESTree](https://github.com/estree/estree).
 
+use ast;
 use util::f64_of;
 
 use serde_json;
@@ -259,7 +260,7 @@ impl Enum {
 }
 
 #[derive(Clone, Debug)]
-pub struct Interface {
+pub struct InterfaceDeclaration {
     /// The name of the interface, e.g. `Node`.
     name: NodeName,
 
@@ -278,7 +279,7 @@ pub struct Interface {
     own_contents: Obj,
 }
 
-impl Interface {
+impl InterfaceDeclaration {
     pub fn with_field(&mut self, name: &FieldName, type_: Type) -> &mut Self {
         // FIXME: There must be a better way to do this.
         let mut contents = Obj::new();
@@ -293,6 +294,10 @@ impl Interface {
         self.own_contents = contents.with_own_field(field);
         self
     }
+    /// Add a parent to the interface.
+    /// An interface may have several parents. Each parent MUST be
+    /// an interface, however, parents may be added at any time before
+    /// the call to `into_syntax`.
     pub fn with_parent(&mut self, parent: &NodeName) -> &mut Self {
         if self.parent_interfaces.iter().find(|x| *x == parent).is_none() {
             self.parent_interfaces.push(parent.clone())
@@ -304,7 +309,7 @@ impl Interface {
 /// A data structure used to progressively construct the `Syntax`.
 pub struct SyntaxBuilder {
     /// All the interfaces entered so far.
-    interfaces: HashMap<NodeName, RefCell<Interface>>,
+    interfaces: HashMap<NodeName, RefCell<InterfaceDeclaration>>,
 
     /// All the enums entered so far.
     enums: HashMap<NodeName, RefCell<Enum>>,
@@ -355,7 +360,7 @@ impl SyntaxBuilder {
     }
 
     /// Add an interface with a `kind` identical to its name.
-    pub fn add_kinded_interface(&mut self, name: &NodeName) -> Option<RefMut<Interface>> {
+    pub fn add_kinded_interface(&mut self, name: &NodeName) -> Option<RefMut<InterfaceDeclaration>> {
         let kind = Kind(name.0.clone());
         let result = self.add_virtual_interface(name)
             .map(|mut result| {result.kind = Some(kind); result});
@@ -365,11 +370,11 @@ impl SyntaxBuilder {
     /// Add a virtual interface, i.e. one that doesn't have a `kind`,
     /// i.e. one that does not have immediate inhabitants. Super-interfaces
     /// or sub-interfaces with a `kind` may have inhabitants.
-    pub fn add_virtual_interface(&mut self, name: &NodeName) -> Option<RefMut<Interface>> {
+    pub fn add_virtual_interface(&mut self, name: &NodeName) -> Option<RefMut<InterfaceDeclaration>> {
         if self.interfaces.get(name).is_some() {
             return None;
         }
-        let interface = Interface {
+        let interface = InterfaceDeclaration {
             name: name.clone(),
             kind: None,
             own_contents: Obj::new(),
@@ -482,13 +487,14 @@ impl SyntaxBuilder {
             let fields = my_fields.drain()
                 .map(|(name, type_)| Field { name, type_ })
                 .collect();
-            let node = Rc::new(InterfaceNode {
+            let declaration = interface.borrow().clone();
+            let node = Rc::new(Interface {
                 ancestors: all_my_ancestors.drain().collect(),
-                interface: interface.borrow().clone(),
+                declaration,
                 full_contents: Obj { fields }
             });
 
-            if let Some(ref kind) = node.interface.kind {
+            if let Some(ref kind) = node.declaration.kind {
                 assert!(interfaces_by_kind.insert(kind.clone(), node.clone()).is_none());
             }
 
@@ -515,14 +521,15 @@ impl SyntaxBuilder {
             fields: field_names,
             root: options.root.clone(),
             null: options.null.clone(),
+            annotator: options.annotator
         }
     }
 }
 
-/// An interface, with additional data computed during the call to
+/// An interface, once compiled through
 /// `SyntaxBuilder::as_syntax`.
-pub struct InterfaceNode {
-    interface: Interface,
+pub struct Interface {
+    declaration: InterfaceDeclaration,
 
     /// All the ancestors of this interface.
     ancestors: Vec<NodeName>,
@@ -531,7 +538,7 @@ pub struct InterfaceNode {
     full_contents: Obj,
 }
 
-impl InterfaceNode {
+impl Interface {
     /// Returns the full list of fields for this structure.
     /// This method is in charge of:
     /// - ensuring that the fields of parent structures are properly accounted for;
@@ -542,11 +549,11 @@ impl InterfaceNode {
     }
 
     pub fn name(&self) -> &NodeName {
-        &self.interface.name
+        &self.declaration.name
     }
 
     pub fn kind(&self) -> Option<Kind> {
-        match self.interface.kind {
+        match self.declaration.kind {
             None => None,
             Some(ref x) => Some(x.clone())
         }
@@ -559,14 +566,15 @@ impl InterfaceNode {
 
 /// Immutable representation of the syntax.
 pub struct Syntax {
-    interfaces_by_name: HashMap<NodeName, Rc<InterfaceNode>>,
-    interfaces_by_kind: HashMap<Kind, Rc<InterfaceNode>>,
+    interfaces_by_name: HashMap<NodeName, Rc<Interface>>,
+    interfaces_by_kind: HashMap<Kind, Rc<Interface>>,
     enums_by_name: HashMap<NodeName, RefCell<Enum>>,
     node_names: HashMap<String, NodeName>,
     kinds: HashMap<String, Kind>,
     fields: HashMap<String, FieldName>,
     root: NodeName,
     null: Kind,
+    annotator: Box<ast::annotation::Annotator>,
 }
 
 impl Syntax {
@@ -576,12 +584,12 @@ impl Syntax {
             .get(name)
             .map(|node| node.ancestors.as_slice())
     }
-    pub fn get_interface_by_kind(&self, kind: &Kind) -> Option<&InterfaceNode> {
+    pub fn get_interface_by_kind(&self, kind: &Kind) -> Option<&Interface> {
         self.interfaces_by_kind
             .get(kind)
             .map(Rc::deref)
     }
-    pub fn get_interface_by_name(&self, name: &NodeName) -> Option<&InterfaceNode> {
+    pub fn get_interface_by_name(&self, name: &NodeName) -> Option<&Interface> {
         self.interfaces_by_name
             .get(name)
             .map(Rc::deref)
@@ -608,7 +616,7 @@ impl Syntax {
     }
 
     /// The starting point for parsing.
-    pub fn get_root(&self) -> &InterfaceNode {
+    pub fn get_root(&self) -> &Interface {
         self.get_interface_by_name(&self.root)
             .unwrap()
     }
@@ -687,6 +695,13 @@ impl Syntax {
                 got: format!("{:?}", a)
             })
         }
+    }
+
+    pub fn annotate(&self, tree: &mut JSON) -> Result<(), ASTError> {
+        use ast::annotation::*;
+        self.annotator.process_declarations(self.annotator.as_ref(), &mut DeclContext::new(), tree)?;
+        self.annotator.process_references(self.annotator.as_ref(),   &mut RefContext::new(),  tree)?;
+        Ok(())
     }
 
     /// Compare two ASTs, restricting comparison to the
@@ -799,7 +814,7 @@ impl Syntax {
         }
     }
 
-    pub fn has_ancestor_in(&self, interface: &InterfaceNode, one_of: &[NodeName]) -> bool {
+    pub fn has_ancestor_in(&self, interface: &Interface, one_of: &[NodeName]) -> bool {
         self.get_ancestors_by_name_including_self(interface.name())
             .unwrap()
             .iter()
@@ -828,11 +843,26 @@ pub enum ASTError {
     },
     MissingField(String),
 }
+impl ASTError {
+    pub fn invalid_value(value: &JSON, expected: &str) -> Self {
+        ASTError::InvalidValue {
+            got: serde_json::to_string(value).expect("Could not serialize value"),
+            expected: expected.to_string()
+        }
+    }
+    pub fn missing_field(name: &str) -> Self {
+        ASTError::MissingField(name.to_string())
+    }
+}
 
+/// Informations passed during the creation of a `Syntax` object.
 pub struct SyntaxOptions<'a> {
     /// The kind of the special node used to encode null AST nodes (NOT null literals).
     pub null: &'a Kind,
 
     /// The name of the node used to start encoding.
     pub root: &'a NodeName,
+
+    pub annotator: Box<ast::annotation::Annotator>,
 }
+

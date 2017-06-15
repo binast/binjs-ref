@@ -28,9 +28,13 @@ test!(test_simple_tokenization, {
     ].iter() {
         println!("Attempting to (de)tokenize {}", source);
 
-        let ast    = parser.parse_str(source)
+        println!("Parsing");
+        let mut ast  = parser.parse_str(source)
             .expect("Could not parse source");
 
+        println!("Annotating");
+        grammar.annotate(&mut ast)
+            .expect("Could not annotate AST");
 
         println!("Encoding sample");
         let writer  = binjs::token::simple::TreeTokenWriter::new();
