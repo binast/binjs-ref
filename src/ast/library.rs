@@ -1,7 +1,6 @@
 //! A library of specifications for versions of JavaScript.
 
 use ast::grammar::*;
-use ast::annotation;
 use ast::annotation::*;
 use util::JSONGetter;
 
@@ -54,22 +53,24 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
             "BaseAnnotator".to_string()
         }
 
-        fn process_references_obj(&self, me: &Annotator, ctx: &mut RefContext, object: &mut Object, kind: &str) -> Result<(), ASTError> {
-            println!("BaseAnnotator::process_references_obj {} {}", kind, me.name());
+        fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
+            println!("BaseAnnotator::process_references {} {}", ctx.contents().kind_str(), me.name());
             // Default case: no free variable here, just process.
-            let mut ctx = ctx.enter(annotation::RefPosition::other(kind));
-            for (_, field) in object.iter_mut() {
-                me.process_references(me, &mut ctx, field)?;
+            for (name, field) in object.iter_mut() {
+                if let Ok(mut ctx) = ctx.enter_field(name) {
+                    me.process_references_aux(me, &mut ctx, field)?;
+                }
             }
             // Dropping `ctx` will propagate everything to the parent.
             Ok(())
         }
-        fn process_declarations_obj(&self, me: &Annotator, ctx: &mut annotation::DeclContext, object: &mut Object, kind: &str) -> Result<(), ASTError> {
-            println!("BaseAnnotator::process_declarations_obj {} {}", kind, me.name());
+        fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError> {
+            println!("BaseAnnotator::process_declarations {} {}", ctx.contents().kind_str(), me.name());
             // Default case: no declaration here, just process.
-            let mut ctx = ctx.enter(annotation::DeclPosition::other(kind));
-            for (_, field) in object.iter_mut() {
-                me.process_declarations(me, &mut ctx, field)?;
+            for (name, field) in object.iter_mut() {
+                if let Ok(mut ctx) = ctx.enter_field(name) {
+                    me.process_declarations_aux(me, &mut ctx, field)?;
+                }
             }
             Ok(())
         }
@@ -77,7 +78,6 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
 
     Box::new(BaseAnnotator)
 }
-
 
 /// Hardcoding for the subset of https://github.com/babel/babylon/blob/master/ast/spec.md
 /// dedicated to ES5.
@@ -221,7 +221,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     // Functions (shared between function declaration, function statement, function expression)
     // Note that the scope information is stored as part of `field_body`.
     syntax.add_virtual_interface(&function).unwrap()
-        .with_field(&field_id, Type::interfaces(&[&identifier]).or_null().unwrap())
+        .with_field(&field_id, Type::interface(&identifier).or_null().unwrap())
         .with_field(&field_params, Type::interface(&pattern).array())
         .with_field(&field_body, Type::interface(&block_statement))
         .with_parent(&node);
@@ -534,160 +534,130 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
             "ES5Annotator".to_string()
         }
 
-        fn process_declarations_obj(&self, me: &Annotator, ctx: &mut annotation::DeclContext, object: &mut Object, kind: &str) -> Result<(), ASTError> {
+        fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError> {
             use ast::annotation::*;
-            println!("ES5Annotator::process_declarations_obj {}", kind);
-            match kind {
+            println!("ES5Annotator::process_declarations {}", ctx.contents().kind_str());
+            match ctx.kind_str() {
                 "Identifier" => {
                     // Collect the name of the identifier.
                     let name = object.get_string("name", "Field `name` of `Identifier`")?;
-                    ctx.add_identifier(name)?
+                    let parent = match ctx.contents().parent() {
+                        Some(parent) => parent,
+                        None => return Ok(()) // If we are at toplevel, we don't really care about all this.
+                    };
+                    let mut parent = parent.borrow_mut();
+                    match parent.kind_str() {
+                        // FIXME: This would probably be much nicer if we had an iterator of ancestors.
+                        "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
+                            if let Some("id") = parent.field_str() {
+                                // 1. If the declaration is at the toplevel, this is a `var`.
+                                // 2. If the declaration is in a function's toplevel block, this is a `var`.
+                                // 3. Otherwise, this is a `let`.
+                                if let Some(grand) = parent.parent() {
+                                    let grand = grand.borrow();
+                                    if let "BlockStatement" = grand.kind_str() {
+                                        if let Some(grandgrand) = grand.parent() {
+                                            let grandgrand = grandgrand.borrow();
+                                            match grandgrand.kind_str() {
+                                                "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
+                                                    // Case 2.
+                                                    ctx.add_var_name(name)
+                                                }
+                                                _ => ctx.add_lex_name(name)
+                                            }
+                                        } else {
+                                            ctx.add_lex_name(name)
+                                        }
+                                    } else {
+                                        ctx.add_var_name(name)
+                                    }
+                                } else {
+                                    // Case 1.
+                                    ctx.add_var_name(name);
+                                }
+                            }
+                            // Otherwise, skip. We cannot declare variables in params. Well, not
+                            // variables that deserve being stored.
+                        },
+                        "ForStatement" => {
+                            // Handle `for (c = 0; ...; ...)` where `c` is declared implicitly.
+                            if let Some("init") = parent.field_str() {
+                                if !ctx.is_lex_bound(&name) {
+                                    ctx.add_var_name(name);
+                                }
+                            }
+                        }
+                        "ForInStatement" => {
+                            // Handle `for (c in ...)` where `c` is declared implicitly.
+                            if let Some("left") = parent.field_str() {
+                                if !ctx.is_lex_bound(&name) {
+                                    ctx.add_var_name(name);
+                                }
+                            }
+                        }
+                        "VariableDeclarator" => {
+                            if let Some("id") = parent.field_str() {
+                                match parent.scope_kind() {
+                                    ScopeKind::VarDecl => parent.add_var_name(name),
+                                    ScopeKind::LexDecl => parent.add_lex_name(name),
+                                    _ => return Err(ASTError::InvalidScope)
+                                }
+                            }
+                            // Otherwise, skip. We cannot declare variables in `init`.
+                        }
+                        _ => {
+                            // Ignore identifier.
+                        }
+                    }
                 }
-                "BlockStatement" => {
-                    let mut ctx = ctx.enter(DeclPosition::Block);
-                    me.process_declarations_field(me, &mut ctx, object, "body")?;
+                "VariableDeclaration" => {
+                    // Configure the scope kind.
+                    let scope_kind = {
+                        let variable_kind = object.get_string("kind", "Field `kind` of `VariableDeclaration`")?;
+                        match variable_kind {
+                            "let" | "const" => ScopeKind::LexDecl,
+                            "var" => ScopeKind::VarDecl,
+                            _ => return Err(ASTError::invalid_value(
+                                object.get("kind").unwrap(), // Checked just above.
+                                "let | var | const"
+                            ))
+                        }
+                    };
+                    ctx.set_scope_kind(scope_kind);
+
+                    // Then proceed as usual.
+                    self.parent.process_declarations(me, ctx, object)?;
+                }
+                "BlockStatement" | "ForStatement" | "ForInStatement" => {
+                    // Adopt usual behavior.
+                    self.parent.process_declarations(me, ctx, object)?;
 
                     // Store available information.
                     ctx.store(object);
 
-                    // Dropping `ctx` ensures that LexDecl names are not propagated.
-                    // However, VarDecl names are propagated.
+                    // Drop LexDecl, keep VarDecl
+                    ctx.clear_lex_names();
                 }
                 "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
-                    {
-                        {
-                            let mut ctx = ctx.enter(DeclPosition::Function);
-                            {
-                                // At this stage, we are not interested in `params` – except to detect whether
-                                // they may reference `eval`.
-                                //
-                                // (we could check whether `eval` is also one of the arguments, to weed out
-                                // some other false positives, but this would complicate things).
-                                let mut ctx = ctx.enter(DeclPosition::FunctionArguments);
-                                me.process_declarations_field(me, &mut ctx, object, "params")?;
-                            }
-                            {
-                                // Now the body may contain anything.
-                                // Do NOT enter a new context for the body, we need to know that we are at
-                                // the toplevel of the function.
-                                me.process_declarations_field(me, &mut ctx, object, "body")?;
-                            }
-                            ctx.store(object);
-                        }
+                    // Adopt usual behavior.
+                    self.parent.process_declarations(me, ctx, object)?;
 
-                        // Dropping `ctx` ensures that LexicallyDeclaredNames and VarDeclaredNames are
-                        // not propagated.
-
-                        // Now export the `id`, if available.
-                        if kind == "FunctionDeclaration" {
-                            // ES specifications turn function declarations into a VarDecl if it happens
-                            // at the function's toplevel, a LexDecl otherwise.
-                            let position = if let DeclPosition::Function = ctx.position() {
-                                DeclPosition::VarDecl
-                            } else {
-                                DeclPosition::LexDecl
-                            };
-                            let mut ctx = ctx.enter(position);
-                            me.process_declarations_field(me, &mut ctx, object, "id")?;
-                        }
-
-                        // We do not store the scope information manually, as it is stored as part
-                        // of `field_body`.
-                    }
-                }
-                "VariableDeclarator" => {
-                    // Do NOT enter a ctx for `id`.
-                    {
-                        me.process_declarations_field(me, ctx, object, "id")?;
-                    }
-                    // DO enter a ctx for `init`, if specified.
-                    if let Some(init) = object.get_mut("init") {
-                        let mut ctx = ctx.enter(DeclPosition::Expression);
-                        me.process_declarations(me, &mut ctx, init)?;
-                    }
-                }
-                "VariableDeclaration" => {
-                    let scope = object.get_string("kind", "Field `kind` of `VariableDeclaration`")
-                        .map(str::to_string)?; // Avoid maintaining references.
-                    let position = match scope.as_ref() {
-                        "let" | "const" => Some(annotation::DeclPosition::LexDecl),
-                        "var" => Some(annotation::DeclPosition::VarDecl),
-                        _ => None
-                    }
-                        .ok_or_else(|| ASTError::InvalidValue {
-                            got: scope.clone(),
-                            expected: "var | let | const".to_string()
-                        })?;
-
-                    // Process declarations, both to add unclassified names
-                    // and to look at `init`.
-                    // Since position is VarDecl/LexDecl, `ctx` will classify the name
-                    // of `declaration` as such.
-                    let mut ctx = ctx.enter(position);
-                    me.process_declarations_field(me, &mut ctx, object, "declarations")?;
-                }
-                "ForStatement" => {
-                    // Special case: if `ForStatement` declares variables, it behaves as a scope.
-                    let decl_ctx =
-                        if let Ok(init) = object.get_object_mut("init", "" /*Field is optional, so errors are ignored*/) {
-                            let kind = init.get_string("type", "Field `type` of `VariableDeclaration`, treating `ForStatement`")
-                                .map(str::to_string)?;
-                            if let "VariableDeclaration" = kind.as_ref() {
-                                let mut ctx = ctx.enter(DeclPosition::other("init"));
-                                me.process_declarations_obj(me, &mut ctx, init, "VariableDeclaration")?;
-                                Some(ctx)
-                            } else {
-                                me.process_declarations_obj(me, ctx, init, &kind)?;
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                        .unwrap_or_else(DeclContext::new);
-                    decl_ctx.store(object);
-
-                    // Now fall through default behavior.
-                    // Any other var/lex declaration is stored as part of `field_body` (assuming
-                    // that `field_body` is a `BlockStatement` – otherwise, it cannot declare anything).
-                    let mut ctx = ctx.enter(DeclPosition::other("ForStatement"));
-                    self.parent.process_declarations_field(me, &mut ctx, object, "test")?;
-                    self.parent.process_declarations_field(me, &mut ctx, object, "update")?;
-                    self.parent.process_declarations_field(me, &mut ctx, object, "body")?;
-                }
-                "ForInStatement" => {
-                     let decl_ctx = {
-                        let init = object.get_object_mut("init", "Field `init` of `ForInStatement`")?;
-                        if let "VariableDeclaration" = init.get_string("type", "Field `type` of `ForInStatement[\"init\"]`")? {
-                            let mut ctx = ctx.enter(DeclPosition::other("init"));
-                            me.process_declarations_obj(me, &mut ctx, init, "VariableDeclaration")?;
-                            Some(ctx)
-                        } else {
-                            me.process_declarations_obj(me, ctx, init, "VariableDeclaration")?;
-                            None
-                        }
-                    }
-                         .unwrap_or_else(DeclContext::new);
-                    decl_ctx.store(object);
-
-                    // Now fall through default behavior.
-                    // Any other var/lex declaration is stored as part of `field_body` (assuming
-                    // that `field_body` is a `BlockStatement` – otherwise, it cannot declare anything).
-                    let mut ctx = ctx.enter(DeclPosition::other("ForInStatement"));
-                    self.parent.process_declarations_field(me, &mut ctx, object, "right")?;
-                    self.parent.process_declarations_field(me, &mut ctx, object, "body")?;
+                    // Drop LexDecl and VarDecl
+                    ctx.clear_lex_names();
+                    ctx.clear_var_names();
                 }
                 _ => {
                     // Default to parent implementation.
                     // Note that we still pass `me` to ensure dynamic dispatch.
-                    self.parent.process_declarations_obj(me, ctx, object, kind)?
+                    self.parent.process_declarations(me, ctx, object)?
                 }
             }
             Ok(())
         }
 
-        fn process_references_obj(&self, me: &Annotator, ctx: &mut RefContext, object: &mut Object, kind: &str) -> Result<(), ASTError> {
-            println!("ES5Annotator::process_references_obj {}", kind);
-            match kind {
+        fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
+            println!("ES5Annotator::process_references {}", ctx.contents().kind_str());
+            match ctx.kind_str() {
                 "Identifier" => {
                     // There are three sorts of identifiers:
                     // 1. declaring a variable;
@@ -695,68 +665,91 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // 3. misc stuff that are not variables (e.g. fields keys, labels).
                     //
                     // With the exception of parameters and recursive functions, we have
-                    // handled 1. in the previous pass, so we're just going to skil all
+                    // handled 1. in the previous pass, so we're just going to skip all
                     // declarations other than these two.
                     //
                     // We just skip any use of identifiers that is not a variable.
 
-                    // Do not enter a subcontext.
                     let name = object.get_string("name", "Field `name` of `Identifier`")?;
-                    ctx.add_identifier(name)
-                    // If the context is `DeclPosition::Callee`, RefContext will check whether `name` is `eval` and act accordingly.
-                    // If the context is `DeclPosition::FunctionArguments`, RefContext will add the name to the list of bound names,
-                    // otherwise, add to the list of used names.
-                }
-                // Variable bindings and scopes
-                "VariableDeclarator" => {
-                    // Simply ignore field `id`, it has already been processed at scope-level
-                    // by the previous pass.
-                    me.process_references_field(me, ctx, object, "init")?
-                }
-                "ForStatement" | "ForInStatement" | "BlockStatement" => {
-                    ctx.load(object);
-                    self.parent.process_references_obj(me, ctx, object, kind)?;
-                    ctx.store(object)
-                },
-                "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
-                    // This one is a little trickier, as we need to collect bindings from params as we go.
-                    let mut ctx = ctx.enter(RefPosition::other("function"));
-                    {
-                        let mut ctx = ctx.enter(RefPosition::FunctionArguments);
-                        {
-                            // `ctx` recognizes that `FunctionArguments` identifiers are bindings.
-                            me.process_references_field(me, &mut ctx, object, "params")?;
+                    let parent = match ctx.contents().parent() {
+                        Some(parent) => parent,
+                        None => return Ok(()) // If we are at toplevel, we don't really care about all this.
+                    };
+                    let mut parent = parent.borrow_mut();
+                    match parent.kind_str() {
+                        "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
+                            match parent.field_str() {
+                                Some("id") | Some("params") => parent.add_bound_name(name),
+                                _ => return Err(ASTError::InvalidField("<FIXME: specify field>".to_string())),
+                            }
+                        }
+                        "CatchClause" => {
+                            if let Some("param") = parent.field_str() {
+                                parent.add_bound_name(name)
+                            } else {
+                                return Err(ASTError::InvalidField("<FIXME: specify field>".to_string()))
+                            }
+                        }
+                        "CallExpression" if name == "eval" => {
+                            if let Some("callee") = parent.field_str() {
+                                parent.add_direct_eval()
+                            } else {
+                                parent.add_free_name(name)
+                            }
+                        }
+                        "LabeledStatement" | "BreakStatement" | "ContinueStatement" => {
+                            // Ignore identifier, not a variable.
                         }
 
-                        // `id` also behaves as a binding inside the function
-                        if let Ok(id) = object.get_string("id", "" /*Optional field*/) {
-                            ctx.add_identifier(id)
+                        "VariableDeclarator" => {
+                            if let Some("init") = parent.field_str() {
+                                // Variable declaration, already handled.
+                                // FIXME: Time for some sanity check.
+                            } else {
+                                parent.add_free_name(name)
+                            }
                         }
-                        // When `ctx` is dropped, the arguments should remain as bindings.
-                    }
+                        "ForInStatement" => {
+                            if let Some("left") = parent.field_str() {
+                                // Variable declaration, already handled.
+                                // FIXME: Time for some sanity check.
+                            } else {
+                                parent.add_free_name(name)
+                            }
+                        }
+                        "ExpressionStatement" | "WithStatement" | "ReturnStatement"
+                            | "IfStatement" | "SwitchStatement" | "SwitchCase"
+                            | "ThrowStatement" | "WhileStatement" | "DoWhileStatement"
+                            | "ForStatement" | "ArrayExpression"
+                            | "ObjectProperty" | "UnaryExpression" | "UpdateExpression"
+                            | "BinaryExpression" | "AssignmentExpression" | "LogicalExpression"
+                            | "MemberExpression" | "ConditionalExpression" | "CallExpression"
+                            | "NewExpression" | "SequenceExpression" => {
+                            parent.add_free_name(name);
+                        }
+                        _ => {
+                            panic!("I didn't expect to see a Identifier in {} {:?}", parent.kind_str(), parent.field_str())
+                        }
+                    };
+                }
+                "ForStatement" | "ForInStatement" | "BlockStatement" =>
+                {
+                    // Simply load the stored bindings, then handle fields.
                     ctx.load(object);
-                    {
-                        me.process_references_field(me, &mut ctx, object, "body")?;
-                    }
+                    self.parent.process_references(me, ctx, object)?;
                     ctx.store(object)
-                }
-                // Identifiers as something other than variables.
-                "LabeledStatement" => {
-                    // Simply ignore field `label`.
-                    me.process_references_field(me, ctx, object, "body")?
-                }
-                "BreakStatement" | "ContinueStatement" => {
-                    // Nothing to do.
-                }
+                },
                 "ObjectProperty" => {
                     // Simply ignore field `key`.
+                    // It is specified as an `Expression`, which doesn't really make sense, as it
+                    // must be either a literal or an identifier that is not a variable.
                     me.process_references_field(me, ctx, object, "value")?
                 }
                 "MemberExpression" => {
                     me.process_references_field(me, ctx, object, "object")?;
                     let computed = object.get_bool("computed", "Field `computed` of `MemberExpression`")?;
                     if computed {
-                        // Just an expression, nothing to see.
+                        // Just an expression, which could .
                         me.process_references_field(me, ctx, object, "property")?;
                     } else {
                         // Normally, `property` is an identifier, skip it.
@@ -771,23 +764,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                     }
                 }
-                "CallExpression" => {
-                    {
-                        {
-                            // Label `callee` as `DeclPosition::Callee`, to let the context handle `eval`.
-                            let mut ctx = ctx.enter(RefPosition::Callee);
-                            self.parent.process_references_field(me, &mut ctx, object, "callee")?;
-                        }
-                        {
-                            let mut ctx = ctx.enter(RefPosition::other("arguments"));
-                            self.parent.process_references_field(me, &mut ctx, object, "arguments")?;
-                        }
-                    }
-                }
                 _ => {
                     // Default to parent implementation.
                     // Note that we still pass `me` to ensure dynamic dispatch.
-                    self.parent.process_references_obj(me, ctx, object, kind)?
+                    self.parent.process_references(me, ctx, object)?
                 }
             }
             Ok(())

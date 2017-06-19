@@ -599,20 +599,17 @@ impl Syntax {
             .get(name)
             .map(RefCell::borrow)
     }
-    pub fn get_kind(&self, name: &str) -> Option<Kind> {
+    pub fn get_kind(&self, name: &str) -> Option<&Kind> {
         self.kinds
             .get(name)
-            .cloned()
     }
-    pub fn get_field_name(&self, name: &str) -> Option<FieldName> {
+    pub fn get_field_name(&self, name: &str) -> Option<&FieldName> {
         self.fields
             .get(name)
-            .cloned()
     }
-    pub fn get_node_name(&self, name: &str) -> Option<NodeName> {
+    pub fn get_node_name(&self, name: &str) -> Option<&NodeName> {
         self.node_names
             .get(name)
-            .cloned()
     }
 
     /// The starting point for parsing.
@@ -699,8 +696,8 @@ impl Syntax {
 
     pub fn annotate(&self, tree: &mut JSON) -> Result<(), ASTError> {
         use ast::annotation::*;
-        self.annotator.process_declarations(self.annotator.as_ref(), &mut DeclContext::new(), tree)?;
-        self.annotator.process_references(self.annotator.as_ref(),   &mut RefContext::new(),  tree)?;
+        self.annotator.process_declarations_aux(self.annotator.as_ref(), &mut Context::new(self), tree)?;
+        self.annotator.process_references_aux(self.annotator.as_ref(),   &mut Context::new(self), tree)?;
         Ok(())
     }
 
@@ -831,6 +828,8 @@ impl Syntax {
 
 #[derive(Debug)]
 pub enum ASTError {
+    InvalidKind(String),
+    InvalidField(String),
     Mismatch(Type),
     InvalidValue {
         got: String,
@@ -841,9 +840,17 @@ pub enum ASTError {
         got: String,
         valid: Vec<String>,
     },
+    MissingParent(String),
     MissingField(String),
+    InvalidScope
 }
 impl ASTError {
+    pub fn invalid_kind(kind: &str) -> Self {
+        ASTError::InvalidKind(kind.to_string())
+    }
+    pub fn invalid_field(name: &str) -> Self {
+        ASTError::InvalidField(name.to_string())
+    }
     pub fn invalid_value(value: &JSON, expected: &str) -> Self {
         ASTError::InvalidValue {
             got: serde_json::to_string(value).expect("Could not serialize value"),

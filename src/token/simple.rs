@@ -313,7 +313,7 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
         let obj = interface.contents();
         'fields: for field_name in field_names.drain(..) {
             for field in obj.fields() {
-                if field_name == *field.name() {
+                if field_name == field.name() {
                     fields.push(field.clone());
                     continue 'fields
                 }
@@ -559,10 +559,10 @@ fn test_simple_io() {
         fn name(&self) -> String {
             unimplemented!()
         }
-        fn process_references_obj(&self, _: &Annotator, _: &mut RefContext, _: &mut Object, _: &str) -> Result<(), ASTError> {
+        fn process_references(&self, _: &Annotator, _: &mut Context<RefContents>, _: &mut Object) -> Result<(), ASTError> {
             unimplemented!()
         }
-        fn process_declarations_obj(&self, _: &Annotator, _: &mut DeclContext, _: &mut Object, _: &str) -> Result<(), ASTError> {
+        fn process_declarations(&self, _: &Annotator, _: &mut Context<DeclContents>, _: &mut Object) -> Result<(), ASTError> {
             unimplemented!()
         }
     }

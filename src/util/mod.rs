@@ -308,3 +308,7 @@ impl JSONGetter for JSON {
         }
     }
 }
+
+pub trait Dispose {
+    fn dispose(&mut self);
+}
