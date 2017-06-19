@@ -95,4 +95,5 @@ pub mod grammar;
 /// A library of versions of EcmaScript.
 pub mod library;
 
+/// Collecting annotations on the AST (e.g. bound variables).
 pub mod annotation;

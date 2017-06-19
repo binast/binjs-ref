@@ -30,9 +30,12 @@ fn main() {
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
     println!("Parsing.");
-    let ast    = parser.parse_file(source_path)
+    let mut ast    = parser.parse_file(source_path)
         .expect("Could not parse source");
 
+    println!("Annotating.");
+    grammar.annotate(&mut ast)
+        .expect("Could not infer annotations");
 
     println!("Encoding.");
     let writer  = binjs::token::simple::TreeTokenWriter::new();
