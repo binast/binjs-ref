@@ -54,7 +54,6 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
         }
 
         fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
-            println!("BaseAnnotator::process_references {} {}", ctx.contents().kind_str(), me.name());
             // Default case: no free variable here, just process.
             for (name, field) in object.iter_mut() {
                 if let Ok(mut ctx) = ctx.enter_field(name) {
@@ -65,7 +64,6 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
             Ok(())
         }
         fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError> {
-            println!("BaseAnnotator::process_declarations {} {}", ctx.contents().kind_str(), me.name());
             // Default case: no declaration here, just process.
             for (name, field) in object.iter_mut() {
                 if let Ok(mut ctx) = ctx.enter_field(name) {
@@ -536,7 +534,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
         fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError> {
             use ast::annotation::*;
-            println!("ES5Annotator::process_declarations {}", ctx.contents().kind_str());
             match ctx.kind_str() {
                 "Identifier" => {
                     // Collect the name of the identifier.
@@ -582,16 +579,16 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         "ForStatement" => {
                             // Handle `for (c = 0; ...; ...)` where `c` is declared implicitly.
                             if let Some("init") = parent.field_str() {
-                                if !ctx.is_lex_bound(&name) {
-                                    ctx.add_var_name(name);
+                                if !parent.is_lex_bound(&name) {
+                                    parent.add_var_name(name);
                                 }
                             }
                         }
                         "ForInStatement" => {
                             // Handle `for (c in ...)` where `c` is declared implicitly.
                             if let Some("left") = parent.field_str() {
-                                if !ctx.is_lex_bound(&name) {
-                                    ctx.add_var_name(name);
+                                if !parent.is_lex_bound(&name) {
+                                    parent.add_var_name(name);
                                 }
                             }
                         }
@@ -656,7 +653,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         }
 
         fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
-            println!("ES5Annotator::process_references {}", ctx.contents().kind_str());
             match ctx.kind_str() {
                 "Identifier" => {
                     // There are three sorts of identifiers:
@@ -700,11 +696,18 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         "LabeledStatement" | "BreakStatement" | "ContinueStatement" => {
                             // Ignore identifier, not a variable.
                         }
-
                         "VariableDeclarator" => {
+                            if let Some("id") = parent.field_str() {
+                                // Variable declaration, already handled.
+                                assert!(parent.is_bound(&name), "Variable {} is declared explicitly, should have been marked as bound in the previous pass. Bound variables: {:?}", name, parent.bound_names());
+                            } else {
+                                parent.add_free_name(name)
+                            }
+                        }
+                        "ForStatement" => {
                             if let Some("init") = parent.field_str() {
                                 // Variable declaration, already handled.
-                                // FIXME: Time for some sanity check.
+                                assert!(parent.is_bound(&name), "Variable {} is declared by `for(;;)`, should have been marked as bound in the previous pass", name);
                             } else {
                                 parent.add_free_name(name)
                             }
@@ -712,7 +715,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         "ForInStatement" => {
                             if let Some("left") = parent.field_str() {
                                 // Variable declaration, already handled.
-                                // FIXME: Time for some sanity check.
+                                assert!(parent.is_bound(&name), "Variable {} is declared by `for(in)`, should have been marked as bound in the previous pass", name);
                             } else {
                                 parent.add_free_name(name)
                             }
@@ -720,7 +723,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         "ExpressionStatement" | "WithStatement" | "ReturnStatement"
                             | "IfStatement" | "SwitchStatement" | "SwitchCase"
                             | "ThrowStatement" | "WhileStatement" | "DoWhileStatement"
-                            | "ForStatement" | "ArrayExpression"
+                            | "ArrayExpression"
                             | "ObjectProperty" | "UnaryExpression" | "UpdateExpression"
                             | "BinaryExpression" | "AssignmentExpression" | "LogicalExpression"
                             | "MemberExpression" | "ConditionalExpression" | "CallExpression"

@@ -182,7 +182,7 @@ impl<'a> ContextContents<'a, RefContents> {
         self.data.has_direct_eval = true;
     }
 
-    fn is_bound(&self, name: &str) -> bool {
+    pub fn is_bound(&self, name: &str) -> bool {
         if self.data.bound.contains(name) {
             return true;
         }
@@ -192,6 +192,9 @@ impl<'a> ContextContents<'a, RefContents> {
         false
     }
 
+    pub fn bound_names(&self) -> &HashSet<String> {
+        &self.data.bound
+    }
     fn captured_names(&self) -> Vec<String> {
         let mut result = vec![];
         for name in &self.data.free {
@@ -241,7 +244,6 @@ impl<'a> Context<'a, RefContents> {
     }
 
     pub fn store(&self, object: &mut Object) {
-        println!("RefContext::store() {:?}", object.get_string("type", "").unwrap());
         // Make sure that we didn't forget the object during the previous pass.
         assert!(object.contains_key(BINJS_VAR_NAME));
         assert!(object.contains_key(BINJS_LEX_NAME));
@@ -396,7 +398,6 @@ impl<'a> Context<'a, DeclContents> {
     /// This makes sense only if the node implements `binjs`, otherwise all data
     /// will be stripped while encoding.
     pub fn store(&self, object: &mut Object) {
-        println!("DeclContext::store() {}", object.get_string("type", "").unwrap());
         assert!(!object.contains_key(BINJS_CAPTURED_NAME));
         assert!(!object.contains_key(BINJS_DIRECT_EVAL));
 
@@ -430,24 +431,22 @@ pub trait Annotator {
         // Only process object nodes.
         match *tree {
             JSON::Array(ref mut array) => {
-                println!("process_declarations: array");
                 for tree in array.iter_mut() {
                     me.process_declarations_aux(me, ctx, tree)?
                 }
             }
             JSON::Object(ref mut object) => {
-                println!("process_declarations: object");
                 if let Ok(kind) = object.get_string("type", "Field `type`")
                     .map(str::to_string)
                 {
                     let mut ctx = ctx.enter_obj(&kind)?;
                     me.process_declarations(me, &mut ctx, object)?
                 } else {
-                    println!("process_declarations: No type, not looking at {:?}", object);
+                    // No type, skipping.
                 }
             }
             _ => {
-                println!("process_declarations: Not object/array, not looking at {:?}", tree);
+                // Not object/array, skipping.
             }
         }
         Ok(())
@@ -477,24 +476,22 @@ pub trait Annotator {
         // Only process object nodes and array.
         match *tree {
             JSON::Array(ref mut array) => {
-                println!("process_references: array");
                 for tree in array.iter_mut() {
                     me.process_references_aux(me, ctx, tree)?
                 }
             }
             JSON::Object(ref mut object) => {
-                println!("process_references: object");
                 if let Ok(kind) = object.get_string("type", "Field `type`")
                     .map(str::to_string)
                 {
                     let mut ctx = ctx.enter_obj(&kind)?;
                     me.process_references(me, &mut ctx, object)?
                 } else {
-                    println!("process_references: No type, not looking at {:?}", object);
+                    // No type, skipping.
                 }
             }
             _ => {
-                println!("process_references: Not object/array, not looking at {:?}", tree);
+                // Not object/array, skipping.
             }
         }
         Ok(())
