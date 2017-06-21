@@ -244,9 +244,13 @@ impl<'a> Context<'a, RefContents> {
     }
 
     pub fn store(&self, object: &mut Object) {
+//        println!("Storing {:?} in {}", [BINJS_CAPTURED_NAME, BINJS_DIRECT_EVAL], object.get("type").unwrap());
+
         // Make sure that we didn't forget the object during the previous pass.
         assert!(object.contains_key(BINJS_VAR_NAME));
         assert!(object.contains_key(BINJS_LEX_NAME));
+        assert!(!object.contains_key(BINJS_CAPTURED_NAME));
+        assert!(!object.contains_key(BINJS_DIRECT_EVAL));
 
         let borrow = self.contents.borrow();
         let mut captured_names = borrow.captured_names();

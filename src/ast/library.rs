@@ -213,8 +213,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     // Programs
     syntax.add_kinded_interface(&program).unwrap()
-        .with_field(&field_body, Type::Array(Box::new(Type::interface(&statement))))
-        .with_parent(&node);
+        .with_field(&field_body, Type::interface(&statement).array())
+        .with_parent(&node)
+        .with_parent(&binjs_scope);
 
     // Functions (shared between function declaration, function statement, function expression)
     // Note that the scope information is stored as part of `field_body`.
@@ -625,7 +626,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Then proceed as usual.
                     self.parent.process_declarations(me, ctx, object)?;
                 }
-                "BlockStatement" | "ForStatement" | "ForInStatement" => {
+                "BlockStatement" | "ForStatement" | "ForInStatement" | "Program" => {
                     // Adopt usual behavior.
                     self.parent.process_declarations(me, ctx, object)?;
 
@@ -735,7 +736,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                     };
                 }
-                "ForStatement" | "ForInStatement" | "BlockStatement" =>
+                "ForStatement" | "ForInStatement" | "BlockStatement" | "Program" =>
                 {
                     // Simply load the stored bindings, then handle fields.
                     ctx.load(object);
