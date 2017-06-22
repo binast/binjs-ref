@@ -10,6 +10,7 @@
 //! Optimized implementations are expected to hardcode a specific version of ESTree.
 //!
 //! See:
+//!
 //! - the documentation of module `grammar` for the grammar of grammars;
 //! - the documentation of module `library` for the actual grammars of ES5, ES6, ...;
 

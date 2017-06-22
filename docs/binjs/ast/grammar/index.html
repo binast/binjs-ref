@@ -48,7 +48,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/binjs/ast/grammar.rs.html#1-1031' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../../src/binjs/ast/grammar.rs.html#1-1100' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Definition of a grammar, tools for describing the grammar.
 Grammars for specifying an AST that this tool can manipulate.</p>
 
@@ -69,15 +69,16 @@ and <code>right</code>, both of which are <code>Expression</code>s).</p>
 
 <ul>
 <li><em>name</em>: <code>InterfaceName</code> (e.g. <code>Expression</code>, <code>ExpressionStatement</code>, ...);</li>
-<li><em>tag</em>: <code>Tag</code>, optional (e.g. <code>ExpressionStatement</code>, but not <code>Expression</code>);</li>
+<li><em>virtual</em>: boolean;</li>
 <li><em>parents</em>: <code>[InterfaceName]</code> a (possibly empty) list of <code>InterfaceName</code>.</li>
 <li><em>own_structure</em>: <code>Structure</code></li>
 </ul>
 
-<p>Property <em>name</em> is used to represent relationships between Interfaces. By opposition,
-Property <em>tag</em>* is attached to actual nodes of the AST. For instance, <code>Expression</code>
-is the name of a Parent Interface of many interfaces. However, this specific
-interface has no inhabitant and therefore no <em>tag</em>.</p>
+<p>Property <em>name</em> is used to represent relationships between Interfaces.</p>
+
+<p>Some interfaces are purely virtual, insofar as there exist no nodes with their name
+(e.g. <code>Expression</code>). Other interfaces are concrete, insofar as there may be nodes with
+their name (e.g. <code>BinaryOperation</code>).</p>
 
 <p>Property <em>own_structure</em> determines the list of properties defined by this interface.
 This does not include properties defined by parent interfaces.</p>
@@ -189,7 +190,7 @@ appears either in
 <p>The Grammar start specifies the root node of an AST.</p>
 
 <ul>
-<li><code>root</code>: <code>Type</code>.</li>
+<li><code>root</code>: <code>InterfaceName</code>.</li>
 </ul>
 
 <h1 id='inhabiting-a-grammar' class='section-header'><a href='#inhabiting-a-grammar'>Inhabiting a grammar</a></h1>
@@ -204,7 +205,72 @@ snippets are syntactically incorrect:</p>
 let x;
 </code></pre>
 
-<p>FIXME: Specify.</p>
+<pre><code class="language-js">
+Grammar.prototype.inhabits = function(ast) {
+  return inhabitsType(ast, new Type.Interfaces([this.root()]), grammar);
+};
+
+Grammar.prototype.inhabitsType = function(ast, type) {
+  if (type.isString()) {
+    return typeof ast == &quot;string&quot; || (type.canBeNull() &amp;&amp; ast == null);
+  } else if (type.isBool()) {
+    return typeof ast == &quot;boolean&quot; || (type.canBeNull() &amp;&amp; ast == null);
+  } else if (type.isNumber()) {
+    return typeof ast == &quot;number&quot; || (type.canBeNull() &amp;&amp; ast == null);
+  } else if (type.isArray()) {
+    if (!Array.isArray(ast)) {
+      return false;
+    }
+    let wrapped = type.wrapped();
+    for (let subtree of ast) {
+      if (!this.inhabitsType(subtree, wrapped)) {
+        return false;
+      }
+    }
+    return true;
+  } else if (type.isEnumeration()) {
+    let name = type.enumerationName;
+    let enumeration = self.grammar.resolveEnumeration(name); // FIXME: Specify (affected by amendments)
+    if (typeof ast != &quot;string&quot;) {
+      return false;
+    }
+    for (let candidate of enumeration) {
+      if (candidate == ast) {
+        return true;
+      }
+    }
+    return false;
+  } else if (type.isInterfaceList()) {
+    if (type.canBeNull() &amp;&amp; ast == null) {
+       return true;
+    }
+    if (typeof ast != &quot;object&quot;) {
+      return false;
+    }
+    let interface  = self.grammar.resolveInterface(ast.name());   // FIXME: Specify
+    let list = type.interfaceList;
+    for (let candidateName of list) {
+      let parentInterface = self.grammar.resolveInterface(candidateName); // FIXME: Specify
+      if (interface.isInstanceOf(parentInterface)) {             // FIXME: Specify
+        // At this stage, `ast` has the right name.
+        // Now check that the contents of `ast` match the structure.
+        for (let property of interface.properties()) {           // FIXME: Specify (affected by inheritance and amendments)
+          // Determine whether `ast` has a property with the right type.
+          let value = ast.getProperty(property.name());
+          if (typeof value == &quot;undefined&quot;) {
+            return false;
+          }
+          if (!this.inhabitsType(value, property.type())) {        // FIXME: Specify (affected by amendments).
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+};
+</code></pre>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>

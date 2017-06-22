@@ -1075,6 +1075,75 @@
 <span id="1030">1030</span>
 <span id="1031">1031</span>
 <span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
+<span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
+<span id="1092">1092</span>
+<span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
+<span id="1097">1097</span>
+<span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Grammars for specifying an AST that this tool can manipulate.</span>
 <span class="doccomment">//!</span>
@@ -1098,14 +1167,15 @@
 <span class="doccomment">//! Each Interface Declaration consists in *all* of:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! - *name*: `InterfaceName` (e.g. `Expression`, `ExpressionStatement`, ...);</span>
-<span class="doccomment">//! - *tag*: `Tag`, optional (e.g. `ExpressionStatement`, but not `Expression`);</span>
+<span class="doccomment">//! - *virtual*: boolean;</span>
 <span class="doccomment">//! - *parents*: `[InterfaceName]` a (possibly empty) list of `InterfaceName`.</span>
 <span class="doccomment">//! - *own_structure*: `Structure`</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! Property *name* is used to represent relationships between Interfaces. By opposition,</span>
-<span class="doccomment">//! Property *tag** is attached to actual nodes of the AST. For instance, `Expression`</span>
-<span class="doccomment">//! is the name of a Parent Interface of many interfaces. However, this specific</span>
-<span class="doccomment">//! interface has no inhabitant and therefore no *tag*.</span>
+<span class="doccomment">//! Property *name* is used to represent relationships between Interfaces.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Some interfaces are purely virtual, insofar as there exist no nodes with their name</span>
+<span class="doccomment">//! (e.g. `Expression`). Other interfaces are concrete, insofar as there may be nodes with</span>
+<span class="doccomment">//! their name (e.g. `BinaryOperation`).</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Property *own_structure* determines the list of properties defined by this interface.</span>
 <span class="doccomment">//! This does not include properties defined by parent interfaces.</span>
@@ -1220,7 +1290,7 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The Grammar start specifies the root node of an AST.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! - `root`: `Type`.</span>
+<span class="doccomment">//! - `root`: `InterfaceName`.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Inhabiting a grammar</span>
 <span class="doccomment">//!</span>
@@ -1236,7 +1306,75 @@
 <span class="doccomment">//! let x;</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! FIXME: Specify.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```js</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Grammar.prototype.inhabits = function(ast) {</span>
+<span class="doccomment">//!   return inhabitsType(ast, new Type.Interfaces([this.root()]), grammar);</span>
+<span class="doccomment">//! };</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Grammar.prototype.inhabitsType = function(ast, type) {</span>
+<span class="doccomment">//!   if (type.isString()) {</span>
+<span class="doccomment">//!     return typeof ast == &quot;string&quot; || (type.canBeNull() &amp;&amp; ast == null);</span>
+<span class="doccomment">//!   } else if (type.isBool()) {</span>
+<span class="doccomment">//!     return typeof ast == &quot;boolean&quot; || (type.canBeNull() &amp;&amp; ast == null);</span>
+<span class="doccomment">//!   } else if (type.isNumber()) {</span>
+<span class="doccomment">//!     return typeof ast == &quot;number&quot; || (type.canBeNull() &amp;&amp; ast == null);</span>
+<span class="doccomment">//!   } else if (type.isArray()) {</span>
+<span class="doccomment">//!     if (!Array.isArray(ast)) {</span>
+<span class="doccomment">//!       return false;</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!     let wrapped = type.wrapped();</span>
+<span class="doccomment">//!     for (let subtree of ast) {</span>
+<span class="doccomment">//!       if (!this.inhabitsType(subtree, wrapped)) {</span>
+<span class="doccomment">//!         return false;</span>
+<span class="doccomment">//!       }</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!     return true;</span>
+<span class="doccomment">//!   } else if (type.isEnumeration()) {</span>
+<span class="doccomment">//!     let name = type.enumerationName;</span>
+<span class="doccomment">//!     let enumeration = self.grammar.resolveEnumeration(name); // FIXME: Specify (affected by amendments)</span>
+<span class="doccomment">//!     if (typeof ast != &quot;string&quot;) {</span>
+<span class="doccomment">//!       return false;</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!     for (let candidate of enumeration) {</span>
+<span class="doccomment">//!       if (candidate == ast) {</span>
+<span class="doccomment">//!         return true;</span>
+<span class="doccomment">//!       }</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!     return false;</span>
+<span class="doccomment">//!   } else if (type.isInterfaceList()) {</span>
+<span class="doccomment">//!     if (type.canBeNull() &amp;&amp; ast == null) {</span>
+<span class="doccomment">//!        return true;</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!     if (typeof ast != &quot;object&quot;) {</span>
+<span class="doccomment">//!       return false;</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!     let interface  = self.grammar.resolveInterface(ast.name());   // FIXME: Specify</span>
+<span class="doccomment">//!     let list = type.interfaceList;</span>
+<span class="doccomment">//!     for (let candidateName of list) {</span>
+<span class="doccomment">//!       let parentInterface = self.grammar.resolveInterface(candidateName); // FIXME: Specify</span>
+<span class="doccomment">//!       if (interface.isInstanceOf(parentInterface)) {             // FIXME: Specify</span>
+<span class="doccomment">//!         // At this stage, `ast` has the right name.</span>
+<span class="doccomment">//!         // Now check that the contents of `ast` match the structure.</span>
+<span class="doccomment">//!         for (let property of interface.properties()) {           // FIXME: Specify (affected by inheritance and amendments)</span>
+<span class="doccomment">//!           // Determine whether `ast` has a property with the right type.</span>
+<span class="doccomment">//!           let value = ast.getProperty(property.name());</span>
+<span class="doccomment">//!           if (typeof value == &quot;undefined&quot;) {</span>
+<span class="doccomment">//!             return false;</span>
+<span class="doccomment">//!           }</span>
+<span class="doccomment">//!           if (!this.inhabitsType(value, property.type())) {        // FIXME: Specify (affected by amendments).</span>
+<span class="doccomment">//!             return false;</span>
+<span class="doccomment">//!           }</span>
+<span class="doccomment">//!         }</span>
+<span class="doccomment">//!         return true;</span>
+<span class="doccomment">//!       }</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!     return false;</span>
+<span class="doccomment">//!   }</span>
+<span class="doccomment">//! };</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
 <span class="kw">use</span> <span class="ident">ast</span>;
 <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">f64_of</span>;
 

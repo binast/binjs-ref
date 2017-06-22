@@ -20,14 +20,15 @@
 //! Each Interface Declaration consists in *all* of:
 //!
 //! - *name*: `InterfaceName` (e.g. `Expression`, `ExpressionStatement`, ...);
-//! - *tag*: `Tag`, optional (e.g. `ExpressionStatement`, but not `Expression`);
+//! - *virtual*: boolean;
 //! - *parents*: `[InterfaceName]` a (possibly empty) list of `InterfaceName`.
 //! - *own_structure*: `Structure`
 //!
-//! Property *name* is used to represent relationships between Interfaces. By opposition,
-//! Property *tag** is attached to actual nodes of the AST. For instance, `Expression`
-//! is the name of a Parent Interface of many interfaces. However, this specific
-//! interface has no inhabitant and therefore no *tag*.
+//! Property *name* is used to represent relationships between Interfaces.
+//!
+//! Some interfaces are purely virtual, insofar as there exist no nodes with their name
+//! (e.g. `Expression`). Other interfaces are concrete, insofar as there may be nodes with
+//! their name (e.g. `BinaryOperation`).
 //!
 //! Property *own_structure* determines the list of properties defined by this interface.
 //! This does not include properties defined by parent interfaces.
@@ -142,7 +143,7 @@
 //!
 //! The Grammar start specifies the root node of an AST.
 //!
-//! - `root`: `Type`.
+//! - `root`: `InterfaceName`.
 //!
 //! # Inhabiting a grammar
 //!
@@ -158,7 +159,75 @@
 //! let x;
 //! ```
 //!
-//! FIXME: Specify.
+//!
+//! ```js
+//!
+//! Grammar.prototype.inhabits = function(ast) {
+//!   return inhabitsType(ast, new Type.Interfaces([this.root()]), grammar);
+//! };
+//!
+//! Grammar.prototype.inhabitsType = function(ast, type) {
+//!   if (type.isString()) {
+//!     return typeof ast == "string" || (type.canBeNull() && ast == null);
+//!   } else if (type.isBool()) {
+//!     return typeof ast == "boolean" || (type.canBeNull() && ast == null);
+//!   } else if (type.isNumber()) {
+//!     return typeof ast == "number" || (type.canBeNull() && ast == null);
+//!   } else if (type.isArray()) {
+//!     if (!Array.isArray(ast)) {
+//!       return false;
+//!     }
+//!     let wrapped = type.wrapped();
+//!     for (let subtree of ast) {
+//!       if (!this.inhabitsType(subtree, wrapped)) {
+//!         return false;
+//!       }
+//!     }
+//!     return true;
+//!   } else if (type.isEnumeration()) {
+//!     let name = type.enumerationName;
+//!     let enumeration = self.grammar.resolveEnumeration(name); // FIXME: Specify (affected by amendments)
+//!     if (typeof ast != "string") {
+//!       return false;
+//!     }
+//!     for (let candidate of enumeration) {
+//!       if (candidate == ast) {
+//!         return true;
+//!       }
+//!     }
+//!     return false;
+//!   } else if (type.isInterfaceList()) {
+//!     if (type.canBeNull() && ast == null) {
+//!        return true;
+//!     }
+//!     if (typeof ast != "object") {
+//!       return false;
+//!     }
+//!     let interface  = self.grammar.resolveInterface(ast.name());   // FIXME: Specify
+//!     let list = type.interfaceList;
+//!     for (let candidateName of list) {
+//!       let parentInterface = self.grammar.resolveInterface(candidateName); // FIXME: Specify
+//!       if (interface.isInstanceOf(parentInterface)) {             // FIXME: Specify
+//!         // At this stage, `ast` has the right name.
+//!         // Now check that the contents of `ast` match the structure.
+//!         for (let property of interface.properties()) {           // FIXME: Specify (affected by inheritance and amendments)
+//!           // Determine whether `ast` has a property with the right type.
+//!           let value = ast.getProperty(property.name());
+//!           if (typeof value == "undefined") {
+//!             return false;
+//!           }
+//!           if (!this.inhabitsType(value, property.type())) {        // FIXME: Specify (affected by amendments).
+//!             return false;
+//!           }
+//!         }
+//!         return true;
+//!       }
+//!     }
+//!     return false;
+//!   }
+//! };
+//! ```
+//!
 use ast;
 use util::f64_of;
 
