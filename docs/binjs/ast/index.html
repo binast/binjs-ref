@@ -48,7 +48,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/binjs/ast/mod.rs.html#1-96' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/binjs/ast/mod.rs.html#1-23' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Manipulating the AST.
 This module defines the AST grammar and provides tools for manipulating
 representations of this AST.</p>
@@ -61,87 +61,23 @@ any version of the specifications of ESTree.</p>
 
 <p>Optimized implementations are expected to hardcode a specific version of ESTree.</p>
 
-<h1 id='specifications' class='section-header'><a href='#specifications'>Specifications</a></h1>
-<p>A Grammar is composed of Interface Declarations and Enumeration Declarations.</p>
-
-<h2 id='interface-declaration' class='section-header'><a href='#interface-declaration'>Interface Declaration</a></h2>
-<p>Each Interface Declaration consists in <em>all</em> of:</p>
-
-<ul>
-<li><em>name</em>: <code>InterfaceName</code> (e.g. <code>Expression</code>, <code>ExpressionStatement</code>, ...);</li>
-<li><em>tag</em>: <code>Tag</code>, optional (e.g. <code>ExpressionStatement</code>, but not <code>Expression</code>);</li>
-<li><em>parents</em>: <code>[InterfaceName]</code> a (possibly empty) list of Parent Interfaces.</li>
-<li><em>own_structure</em>: <code>Structure</code></li>
-</ul>
-
-<p>Property <em>name</em> is used to represent relationships between Interfaces. By opposition,
-Property <em>tag</em>* is attached to actual nodes of the AST. For instance, <code>Expression</code>
-is the name of a Parent Interface of many interfaces. However, this specific
-interface has no inhabitant and therefore no <em>tag</em>.</p>
-
-<p>Property <em>own_structure</em> determines the list of fields defined by this interface.
-This does not include fields defined by parent interfaces.</p>
-
-<h2 id='enumeration-declaration' class='section-header'><a href='#enumeration-declaration'>Enumeration Declaration</a></h2>
-<p>Each Enumeration Declaration consists in <em>all</em> of:</p>
-
-<ul>
-<li><em>name</em>: <code>EnumerationName</code>;</li>
-<li><em>cases</em>: <code>[String]</code> (not empty);</li>
-</ul>
-
-<p>Enumerations describe one of several possible strings, e.g.: <code>&quot;+&quot; | &quot;-&quot; | &quot;/&quot; | &quot;-&quot;</code>.</p>
-
-<h2 id='types' class='section-header'><a href='#types'>Types</a></h2>
-<p>Each <code>Type</code> is <em>one</em> of:</p>
-
-<ul>
-<li><code>Enumeration</code>: <code>EnumerationName</code>; or</li>
-<li><code>Interfaces</code>: <code>([InterfaceName], Nullability)</code>;</li>
-<li><code>Boolean</code>: empty; or</li>
-<li><code>String</code>: empty; or</li>
-<li><code>Number</code>: empty; or</li>
-<li><code>Array</code>: <code>Type</code></li>
-</ul>
-
-<p><code>Nullability</code> is <em>one</em> of:
-- <code>CanBeNull</code>: empty; or
-- <code>CannotBeNull</code>: empty.</p>
-
-<h2 id='structures' class='section-header'><a href='#structures'>Structures</a></h2>
-<p>Each <code>Structure</code> is:
-- fields: <code>[Field]</code>;</p>
-
-<p>Each <code>Field</code> consists in <em>all</em> of:</p>
-
-<ul>
-<li><em>name</em>: <code>FieldName</code> (e.g. <code>body</code>);</li>
-<li><em>type</em>: <code>Type</code> (e.g. <code>Number</code>).</li>
-</ul>
-
-<h1 id='inhabiting-a-grammar' class='section-header'><a href='#inhabiting-a-grammar'>Inhabiting a grammar</a></h1>
-<p><strong>Warning</strong> The AST described here may be more expressive in places than the JavaScript source
-grammar. Therefore, it is possible that not all the inhabitants of the grammar are correct
-(or even syntactically-correct) JavaScript ASTs.</p>
-
-<p>FIXME: Specify.</p>
-
-<h1 id='evolving-the-grammar' class='section-header'><a href='#evolving-the-grammar'>Evolving the Grammar</a></h1>
-<h2 id='adding-new-interfaces-or-enumerations' class='section-header'><a href='#adding-new-interfaces-or-enumerations'>Adding new interfaces or enumerations</a></h2>
-<p>FIXME: Specify.</p>
-
-<h2 id='patching-an-interface' class='section-header'><a href='#patching-an-interface'>Patching an interface.</a></h2>
-<p>FIXME: Specify.</p>
-
-<h2 id='patching-an-enumeration' class='section-header'><a href='#patching-an-enumeration'>Patching an enumeration.</a></h2>
-<p>FIXME: Specify.</p>
+<p>See:
+- the documentation of module <code>grammar</code> for the grammar of grammars;
+- the documentation of module <code>library</code> for the actual grammars of ES5, ES6, ...;</p>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="annotation/index.html"
+                                  title='mod binjs::ast::annotation'>annotation</a></td>
+                           <td class='docblock-short'>
+                                <p>Collecting annotations on the AST (e.g. bound variables).</p>
+                           </td>
+                       </tr>
                        <tr class=' module-item'>
                            <td><a class="mod" href="grammar/index.html"
                                   title='mod binjs::ast::grammar'>grammar</a></td>
                            <td class='docblock-short'>
-                                <p>Tools for describing the grammar.
+                                <p>Definition of a grammar, tools for describing the grammar.
 Grammars for specifying an AST that this tool can manipulate.</p>
                            </td>
                        </tr>

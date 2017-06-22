@@ -49,7 +49,7 @@
                        [<span class='inner'>&#x2212;</span>]
                    </a>
                </span><a class='srclink' href='../../src/num_traits/sign.rs.html#7-41' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Signed: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="../../num_traits/trait.Num.html" title="trait num_traits::Num">Num</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/trait.Neg.html" title="trait core::ops::Neg">Neg</a>&lt;Output = Self&gt; {
+<pre class='rust trait'>pub trait Signed: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="../../num_traits/trait.Num.html" title="trait num_traits::Num">Num</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/arith/trait.Neg.html" title="trait core::ops::arith::Neg">Neg</a>&lt;Output = Self&gt; {
     fn <a href='#tymethod.abs' class='fnname'>abs</a>(&amp;self) -&gt; Self;
     fn <a href='#tymethod.abs_sub' class='fnname'>abs_sub</a>(&amp;self, other: &amp;Self) -&gt; Self;
     fn <a href='#tymethod.signum' class='fnname'>signum</a>(&amp;self) -&gt; Self;

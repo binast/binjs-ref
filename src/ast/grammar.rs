@@ -1,7 +1,164 @@
 //! Grammars for specifying an AST that this tool can manipulate.
 //!
 //! This abstracts away the concepts of [ESTree](https://github.com/estree/estree).
-
+//!
+//!
+//! # Specifications
+//!
+//! A Grammar is composed of Interfaces and Enumerations, which may be *declared*
+//! and *amended*.
+//!
+//! ## Declarations
+//!
+//! ### Interface Declaration
+//!
+//! Interfaces represent nodes in the AST. Interfaces are related to each other through
+//! inheritance (e.g. an `Identifier` is also a `Pattern`, so `Identifier` inherits from
+//! `Pattern`) or properties (e.g. a `BinaryExpression` has several properties, including `left`
+//! and `right`, both of which are `Expression`s).
+//!
+//! Each Interface Declaration consists in *all* of:
+//!
+//! - *name*: `InterfaceName` (e.g. `Expression`, `ExpressionStatement`, ...);
+//! - *tag*: `Tag`, optional (e.g. `ExpressionStatement`, but not `Expression`);
+//! - *parents*: `[InterfaceName]` a (possibly empty) list of `InterfaceName`.
+//! - *own_structure*: `Structure`
+//!
+//! Property *name* is used to represent relationships between Interfaces. By opposition,
+//! Property *tag** is attached to actual nodes of the AST. For instance, `Expression`
+//! is the name of a Parent Interface of many interfaces. However, this specific
+//! interface has no inhabitant and therefore no *tag*.
+//!
+//! Property *own_structure* determines the list of properties defined by this interface.
+//! This does not include properties defined by parent interfaces.
+//!
+//!
+//! ### Structure Declarations
+//!
+//! Each `Structure` is:
+//! - properties: `[Property]`, a (possibly empty) list of properties;
+//!
+//! Each `Property` consists in *all* of:
+//!
+//! - *name*: `PropertyName` (e.g. `body`);
+//! - *type*: `Type` (e.g. `Number`).
+//!
+//!
+//! ### Enumeration Declarations
+//!
+//! Each Enumeration Declaration consists in *all* of:
+//!
+//! - *name*: `EnumerationName`;
+//! - *cases*: `[String]` (a non empty list);
+//!
+//! Enumerations describe one of several possible strings, e.g.: `"+" | "-" | "/" | "-"`. Value`
+//! `null` is never an acceptable string.
+//!
+//!
+//! ### Type Declarations
+//!
+//! Each `Type` is *one* of:
+//!
+//! - `Enumeration`: `EnumerationName`; or
+//! - `Interfaces`: `([InterfaceName], Nullability)`;
+//! - `Boolean`: Nullability; or
+//! - `String`: Nullability; or
+//! - `Number`: Nullability; or
+//! - `Array`: `Type`
+//!
+//! `Nullability` is *one* of:
+//! - `CanBeNull`: empty; or
+//! - `CannotBeNull`: empty.
+//!
+//!
+//! ## Amendments
+//!
+//! Amendments are used to modify existing Interfaces and Enumerations, to let them handle more
+//! sophisticated cases.
+//!
+//! ## Interface Amendment
+//!
+//! An Interface Amendment modifies an existing Interface. The most common use of an Interface
+//! Amendment is to extend an Interface with new properties or to make an existing property
+//! accept values that it previously didn't accept.
+//!
+//! Interface Amendments CANNOT:
+//! - remove properties;
+//! - remove parent interfaces;
+//! - make a property reject any AST that would previously have been accepted (FIXME: Specify this).
+//!
+//! An Interface Amendment consists in *all* of:
+//!
+//! - `name`: an `InterfaceName`;
+//! - `structure`: a `StructureAmendment`.
+//!
+//! ## Structure Amendment
+//!
+//! Each `StructureAmendment` is:
+//! - properties: `[Property | PropertyAmendment]`, a (possibly empty) list of properties;
+//!
+//! If a property is an instance of `Property`, it MUST be a property that appears neither in
+//! - `own_structure` of the interface; nor in
+//! - `own_structure` of any of its ancestors.
+//!
+//! Conversely, if a property is an instance of `PropertyAmendment`, it MUST be a property that
+//! appears either in
+//! - `own_structure` of the interface; or in
+//! - `own_structure` of any of its ancestors.
+//!
+//! FIXME: Specify this as an algorithm.
+//!
+//! ## Property Amendment
+//!
+//! Each `PropertyAmendment` consists in *all* of:
+//!
+//! - *name*: `PropertyName` (e.g. `body`);
+//! - *type*: `TypeAmendment` (e.g. `Number`).
+//!
+//! ## Type Amendment
+//!
+//! Each `TypeAmendment` is *one* of:
+//!
+//! - `Interfaces`: `([InterfaceName], Nullability)` (a list of new interfaces supported by the property);
+//! - `Boolean`: CanBeNull; or
+//! - `String`: CanBeNull; or
+//! - `Number`: CanBeNull; or
+//! - `Array`: `TypeAmendment`
+//!
+//! A Type Amendment MUST NOT make an existing value be rejected.
+//!
+//! FIXME: Specify this as an algorithm.
+//!
+//! ## Enumeration Amendment
+//!
+//! An Enumeration Amendment adds new possible values to an enumeration.
+//!
+//! An `EnumerationAmendment` is:
+//! - *name*: `EnumerationName`;
+//! - *cases*: `[String]` (a non empty list of new accepted values).
+//!
+//!
+//! ## Grammar start
+//!
+//! The Grammar start specifies the root node of an AST.
+//!
+//! - `root`: `Type`.
+//!
+//! # Inhabiting a grammar
+//!
+//! **Warning** The AST described here may be more expressive in places than the JavaScript source
+//! grammar. Therefore, it is possible that not all the inhabitants of the grammar are correct
+//! (or even syntactically-correct) JavaScript ASTs.
+//!
+//! For instance, it is unlikely that any variant of the grammar can detect that the following
+//! snippets are syntactically incorrect:
+//!
+//! ```js
+//! let x;
+//! let x;
+//! ```
+//!
+//! FIXME: Specify.
 use ast;
 use util::f64_of;
 
