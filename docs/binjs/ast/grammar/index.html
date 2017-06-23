@@ -48,9 +48,17 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/binjs/ast/grammar.rs.html#1-1100' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../../src/binjs/ast/grammar.rs.html#1-1108' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Definition of a grammar, tools for describing the grammar.
 Grammars for specifying an AST that this tool can manipulate.</p>
+
+<p>One of the most important specificities of BinJS is that it is a format designed for a living
+language. Critically, a BinJS file that can be parsed today must still be parsed after any
+number of evolutions of the language, without having to write a distinct parser per version
+of the language.</p>
+
+<p>To ensure this, we define not only the AST of EcmaScript as the language is today, but
+the mechanism to define and evolve this AST, without incurring breaking changes in BinJS.</p>
 
 <p>This abstracts away the concepts of <a href="https://github.com/estree/estree">ESTree</a>.</p>
 
@@ -201,11 +209,12 @@ grammar. Therefore, it is possible that not all the inhabitants of the grammar a
 <p>For instance, it is unlikely that any variant of the grammar can detect that the following
 snippets are syntactically incorrect:</p>
 
-<pre><code class="language-js">let x;
+<pre><code class="language-javascript">let x;
 let x;
 </code></pre>
 
-<pre><code class="language-js">
+<h2 id='algorithm' class='section-header'><a href='#algorithm'>Algorithm</a></h2>
+<pre><code class="language-javascript">
 Grammar.prototype.inhabits = function(ast) {
   return inhabitsType(ast, new Type.Interfaces([this.root()]), grammar);
 };

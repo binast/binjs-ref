@@ -1,7 +1,14 @@
 //! Grammars for specifying an AST that this tool can manipulate.
 //!
-//! This abstracts away the concepts of [ESTree](https://github.com/estree/estree).
+//! One of the most important specificities of BinJS is that it is a format designed for a living
+//! language. Critically, a BinJS file that can be parsed today must still be parsed after any
+//! number of evolutions of the language, without having to write a distinct parser per version
+//! of the language.
 //!
+//! To ensure this, we define not only the AST of EcmaScript as the language is today, but
+//! the mechanism to define and evolve this AST, without incurring breaking changes in BinJS.
+//!
+//! This abstracts away the concepts of [ESTree](https://github.com/estree/estree).
 //!
 //! # Specifications
 //!
@@ -154,13 +161,14 @@
 //! For instance, it is unlikely that any variant of the grammar can detect that the following
 //! snippets are syntactically incorrect:
 //!
-//! ```js
+//! ```javascript
 //! let x;
 //! let x;
 //! ```
 //!
+//! ## Algorithm
 //!
-//! ```js
+//! ```javascript
 //!
 //! Grammar.prototype.inhabits = function(ast) {
 //!   return inhabitsType(ast, new Type.Interfaces([this.root()]), grammar);
