@@ -681,13 +681,13 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     match parent.kind_str() {
                         "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
                             match parent.field_str() {
-                                Some("id") | Some("params") => parent.add_bound_name(name),
+                                Some("id") | Some("params") => parent.add_binding(name),
                                 _ => return Err(ASTError::InvalidField("<FIXME: specify field>".to_string())),
                             }
                         }
                         "CatchClause" => {
                             if let Some("param") = parent.field_str() {
-                                parent.add_bound_name(name)
+                                parent.add_binding(name)
                             } else {
                                 return Err(ASTError::InvalidField("<FIXME: specify field>".to_string()))
                             }
@@ -705,7 +705,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         "VariableDeclarator" => {
                             if let Some("id") = parent.field_str() {
                                 // Variable declaration, already handled.
-                                assert!(parent.is_bound(&name), "Variable {} is declared explicitly, should have been marked as bound in the previous pass. Bound variables: {:?}", name, parent.bound_names());
+                                assert!(parent.is_bound(&name), "Variable {} is declared explicitly, should have been marked as bound in the previous pass. Bound variables: {:?}", name, parent.bindings());
                             } else {
                                 parent.add_free_name(name)
                             }
@@ -748,6 +748,12 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     self.parent.process_references(me, ctx, object)?;
                     ctx.store(object)
                 },
+                "FunctionExpression" | "FunctionDeclaration" | "ObjectMethod" => {
+                    ctx.set_entering_function();
+                    self.parent.process_references(me, ctx, object)?;
+                    // Dropping `ctx` will convert free variables into
+                    // free-in-nested-function variables.
+                }
                 "ObjectProperty" => {
                     // Simply ignore field `key`.
                     // It is specified as an `Expression`, which doesn't really make sense, as it

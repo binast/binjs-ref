@@ -162,12 +162,21 @@ impl<'a, T> ContextContents<'a, T> {
 /// The contents of a context used to annotate use of variables.
 #[derive(Default)]
 pub struct RefContents {
-    bound: HashSet<String>,
+    /// Bound names. Not propagated upwards.
+    binding: HashSet<String>,
+
+    /// Free names. Converted to free_in_nested_function when crossing function boundaries.
     free:  HashSet<String>,
+
+    /// Free names captured by a nested function.
+    free_in_nested_function: HashSet<String>,
 
     /// `true` if we have detected a call `eval("foo")` anywhere in the subtree
     /// (including subfunctions), where `eval` is a free name.
-    has_direct_eval: bool
+    has_direct_eval: bool,
+
+    /// `true` if this context is at the toplevel of a function.
+    is_function_toplevel: bool,
 }
 
 
@@ -175,15 +184,15 @@ impl<'a> ContextContents<'a, RefContents> {
     pub fn add_free_name(&mut self, name: &str) {
         self.data.free.insert(name.to_string());
     }
-    pub fn add_bound_name(&mut self, name: &str) {
-        self.data.bound.insert(name.to_string());
+    pub fn add_binding(&mut self, name: &str) {
+        self.data.binding.insert(name.to_string());
     }
     pub fn add_direct_eval(&mut self) {
         self.data.has_direct_eval = true;
     }
 
     pub fn is_bound(&self, name: &str) -> bool {
-        if self.data.bound.contains(name) {
+        if self.data.binding.contains(name) {
             return true;
         }
         if let Some(ref parent) = self.parent {
@@ -192,17 +201,8 @@ impl<'a> ContextContents<'a, RefContents> {
         false
     }
 
-    pub fn bound_names(&self) -> &HashSet<String> {
-        &self.data.bound
-    }
-    fn captured_names(&self) -> Vec<String> {
-        let mut result = vec![];
-        for name in &self.data.free {
-            if !self.data.bound.contains(name) {
-                result.push(name.to_string())
-            }
-        }
-        result
+    pub fn bindings(&self) -> &HashSet<String> {
+        &self.data.binding
     }
 }
 
@@ -211,12 +211,28 @@ impl<'a> Dispose for ContextContents<'a, RefContents> {
         if let Some(ref mut parent) = self.parent {
             let mut parent = parent.borrow_mut();
             parent.data.has_direct_eval |= self.data.has_direct_eval;
-            // Drop `bound`, keep `free`... unless the name is bound.
-            let mut bound = HashSet::new();
-            std::mem::swap(&mut self.data.bound, &mut bound); // Swap to avoid borrow issues.
+
+            // Drop `bind`.
+            let mut binding = HashSet::new();
+            std::mem::swap(&mut self.data.binding, &mut binding); // Swap to avoid borrow issues.
+
+            if self.data.is_function_toplevel {
+                // Merge `free` into `free_in_nested_function`...
+                for free in self.data.free.drain() {
+                    self.data.free_in_nested_function.insert(free);
+                }
+                self.data.free = HashSet::new();
+            }
+            // Keep `free`, `free_in_nested_function`... unless the name is bound
+
             for free in self.data.free.drain() {
-                if !bound.contains(&free) {
+                if !binding.contains(&free) {
                     parent.data.free.insert(free);
+                }
+            }
+            for free in self.data.free_in_nested_function.drain() {
+                if !binding.contains(&free) {
+                    parent.data.free_in_nested_function.insert(free);
                 }
             }
         }
@@ -233,8 +249,12 @@ impl<'a> Context<'a, RefContents> {
     pub fn add_free_name(&mut self, name: &str) {
         self.contents.borrow_mut().data.free.insert(name.to_string());
     }
-    pub fn add_bound_name(&mut self, name: &str) {
-        self.contents.borrow_mut().data.bound.insert(name.to_string());
+    pub fn add_binding(&mut self, name: &str) {
+        self.contents.borrow_mut().data.binding.insert(name.to_string());
+    }
+
+    pub fn set_entering_function(&mut self) {
+        self.contents.borrow_mut().data.is_function_toplevel = true;
     }
 
     /// Check whether the name is bound somewhere on the stack.
@@ -253,8 +273,15 @@ impl<'a> Context<'a, RefContents> {
         assert!(!object.contains_key(BINJS_CAPTURED_NAME));
         assert!(!object.contains_key(BINJS_DIRECT_EVAL));
 
+        let mut captured_names = vec![];
+
         let borrow = self.contents.borrow();
-        let mut captured_names = borrow.captured_names();
+        for name in &borrow.data.free_in_nested_function {
+            if borrow.data.binding.contains(name) {
+                captured_names.push(name.clone());
+            }
+        }
+
         captured_names.sort();
         assert!(object
             .insert(BINJS_CAPTURED_NAME.to_string(), json!(captured_names))
@@ -275,7 +302,7 @@ impl<'a> Context<'a, RefContents> {
             let item = item.as_str()
                 .expect("Item should be a string")
                 .to_string();
-            borrow.data.bound.insert(item);
+            borrow.data.binding.insert(item);
         }
 
         let let_names = object.get_array(BINJS_LET_NAME, "Repository of LexDecl bindings")
@@ -284,7 +311,7 @@ impl<'a> Context<'a, RefContents> {
             let item = item.as_str()
                 .expect("Item should be a string")
                 .to_string();
-            borrow.data.bound.insert(item);
+            borrow.data.binding.insert(item);
         }
 
         let const_names = object.get_array(BINJS_CONST_NAME, "Repository of LexDecl bindings")
@@ -293,7 +320,7 @@ impl<'a> Context<'a, RefContents> {
             let item = item.as_str()
                 .expect("Item should be a string")
                 .to_string();
-            borrow.data.bound.insert(item);
+            borrow.data.binding.insert(item);
         }
     }
 }
