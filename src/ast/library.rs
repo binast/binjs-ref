@@ -12,9 +12,10 @@ type Object = serde_json::Map<String, JSON>;
 pub static NULL_NAME: &'static str = "BINJS:Null";
 pub static SCOPE_NAME: &'static str = "BINJS:Scope";
 pub static BINJS_VAR_NAME: &'static str = "BINJS:VarDeclaredNames";
-pub static BINJS_LEX_NAME: &'static str = "BinJS:LexicallyDeclaredNames";
-pub static BINJS_CAPTURED_NAME: &'static str = "BinJS:CapturedNames";
-pub static BINJS_DIRECT_EVAL: &'static str = "BinJS::HasDirectEval";
+pub static BINJS_LET_NAME: &'static str = "BINJS:LetDeclaredNames";
+pub static BINJS_CONST_NAME: &'static str = "BINJS:ConstDeclaredNames";
+pub static BINJS_CAPTURED_NAME: &'static str = "BINJS:CapturedNames";
+pub static BINJS_DIRECT_EVAL: &'static str = "BINJS:HasDirectEval";
 
 /// The set of features requested for a syntax.
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -31,7 +32,8 @@ pub enum Level {
 /// Special nodes used by BINJS. Not visible at source level.
 fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     let field_var_decl_names = syntax.field_name(BINJS_VAR_NAME);
-    let field_lexically_declared_names = syntax.field_name(BINJS_LEX_NAME);
+    let field_let_declared_names = syntax.field_name(BINJS_LET_NAME);
+    let field_const_declared_names = syntax.field_name(BINJS_CONST_NAME);
     let field_captured_names = syntax.field_name(BINJS_CAPTURED_NAME);
     let field_has_direct_eval = syntax.field_name(BINJS_DIRECT_EVAL);
 
@@ -43,7 +45,8 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     let binjs_scope = syntax.node_name(SCOPE_NAME);
     syntax.add_virtual_interface(&binjs_scope).unwrap()
         .with_field(&field_var_decl_names, Type::string().array())
-        .with_field(&field_lexically_declared_names, Type::string().array())
+        .with_field(&field_let_declared_names, Type::string().array())
+        .with_field(&field_const_declared_names, Type::string().array())
         .with_field(&field_captured_names, Type::string().array())
         .with_field(&field_has_direct_eval, Type::bool());
 
@@ -215,7 +218,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&program).unwrap()
         .with_field(&field_body, Type::interface(&statement).array())
         .with_parent(&node)
-        .with_parent(&binjs_scope);
+        .with_parent(&binjs_scope); // FIXME: Might not be necessary.
 
     // Functions (shared between function declaration, function statement, function expression)
     // Note that the scope information is stored as part of `field_body`.
@@ -561,10 +564,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                                     // Case 2.
                                                     ctx.add_var_name(name)
                                                 }
-                                                _ => ctx.add_lex_name(name)
+                                                _ => ctx.add_let_name(name)
                                             }
                                         } else {
-                                            ctx.add_lex_name(name)
+                                            ctx.add_let_name(name)
                                         }
                                     } else {
                                         ctx.add_var_name(name)
@@ -597,7 +600,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             if let Some("id") = parent.field_str() {
                                 match parent.scope_kind() {
                                     ScopeKind::VarDecl => parent.add_var_name(name),
-                                    ScopeKind::LexDecl => parent.add_lex_name(name),
+                                    ScopeKind::LetDecl => parent.add_let_name(name),
+                                    ScopeKind::ConstDecl => parent.add_const_name(name),
                                     _ => return Err(ASTError::InvalidScope)
                                 }
                             }
@@ -613,7 +617,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     let scope_kind = {
                         let variable_kind = object.get_string("kind", "Field `kind` of `VariableDeclaration`")?;
                         match variable_kind {
-                            "let" | "const" => ScopeKind::LexDecl,
+                            "let" => ScopeKind::LetDecl,
+                            "const" => ScopeKind::ConstDecl,
                             "var" => ScopeKind::VarDecl,
                             _ => return Err(ASTError::invalid_value(
                                 object.get("kind").unwrap(), // Checked just above.

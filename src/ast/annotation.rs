@@ -1,7 +1,7 @@
 // FIXME: Too much copy&paste in this file.
 
 use ast::grammar::{ ASTError, FieldName, Kind, Syntax };
-use ast::library::{ BINJS_VAR_NAME, BINJS_LEX_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME };
+use ast::library::{ BINJS_CONST_NAME, BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME };
 use util::{ Dispose, JSONGetter };
 
 use serde_json;
@@ -248,7 +248,8 @@ impl<'a> Context<'a, RefContents> {
 
         // Make sure that we didn't forget the object during the previous pass.
         assert!(object.contains_key(BINJS_VAR_NAME));
-        assert!(object.contains_key(BINJS_LEX_NAME));
+        assert!(object.contains_key(BINJS_LET_NAME));
+        assert!(object.contains_key(BINJS_CONST_NAME));
         assert!(!object.contains_key(BINJS_CAPTURED_NAME));
         assert!(!object.contains_key(BINJS_DIRECT_EVAL));
 
@@ -277,9 +278,18 @@ impl<'a> Context<'a, RefContents> {
             borrow.data.bound.insert(item);
         }
 
-        let lex_names = object.get_array(BINJS_LEX_NAME, "Repository of LexDecl bindings")
+        let let_names = object.get_array(BINJS_LET_NAME, "Repository of LexDecl bindings")
             .expect("Could not fetch LexDecl repository");
-        for item in lex_names {
+        for item in let_names {
+            let item = item.as_str()
+                .expect("Item should be a string")
+                .to_string();
+            borrow.data.bound.insert(item);
+        }
+
+        let const_names = object.get_array(BINJS_CONST_NAME, "Repository of LexDecl bindings")
+            .expect("Could not fetch LexDecl repository");
+        for item in const_names {
             let item = item.as_str()
                 .expect("Item should be a string")
                 .to_string();
@@ -310,7 +320,8 @@ impl DeclPosition {
 }
 #[derive(Default)]
 pub struct DeclContents {
-    lex_names: HashSet<String>,
+    const_names: HashSet<String>,
+    let_names: HashSet<String>,
     var_names: HashSet<String>,
     scope_kind: ScopeKind,
 }
@@ -318,7 +329,8 @@ pub struct DeclContents {
 #[derive(Clone, Copy)]
 pub enum ScopeKind {
     VarDecl,
-    LexDecl,
+    LetDecl,
+    ConstDecl,
     Nothing
 }
 impl Default for ScopeKind {
@@ -328,7 +340,10 @@ impl Default for ScopeKind {
 }
 impl<'a> ContextContents<'a, DeclContents> {
     pub fn is_lex_bound(&self, name: &str) -> bool {
-        if self.data.lex_names.contains(name) {
+        if self.data.let_names.contains(name) {
+            return true;
+        }
+        if self.data.const_names.contains(name) {
             return true;
         }
         if let Some(ref parent) = self.parent {
@@ -348,8 +363,11 @@ impl<'a> ContextContents<'a, DeclContents> {
     pub fn add_var_name(&mut self, name: &str) {
         self.data.var_names.insert(name.to_string());
     }
-    pub fn add_lex_name(&mut self, name: &str) {
-        self.data.lex_names.insert(name.to_string());
+    pub fn add_let_name(&mut self, name: &str) {
+        self.data.let_names.insert(name.to_string());
+    }
+    pub fn add_const_name(&mut self, name: &str) {
+        self.data.const_names.insert(name.to_string());
     }
 }
 
@@ -361,7 +379,8 @@ impl<'a> Dispose for ContextContents<'a, DeclContents> {
             let mut parent = parent.borrow_mut();
             // Propagate everything.
             parent.data.var_names.extend(self.data.var_names.drain());
-            parent.data.lex_names.extend(self.data.lex_names.drain());
+            parent.data.let_names.extend(self.data.let_names.drain());
+            parent.data.const_names.extend(self.data.const_names.drain());
         }
     }
 }
@@ -370,8 +389,11 @@ impl<'a> Context<'a, DeclContents> {
     pub fn add_var_name(&mut self, name: &str) {
         self.contents.borrow_mut().add_var_name(name)
     }
-    pub fn add_lex_name(&mut self, name: &str) {
-        self.contents.borrow_mut().add_lex_name(name);
+    pub fn add_let_name(&mut self, name: &str) {
+        self.contents.borrow_mut().add_let_name(name);
+    }
+    pub fn add_const_name(&mut self, name: &str) {
+        self.contents.borrow_mut().add_const_name(name);
     }
     /// Check whether the name is lexically bound somewhere on the stack.
     pub fn is_lex_bound(&self, name: &str) -> bool {
@@ -393,7 +415,11 @@ impl<'a> Context<'a, DeclContents> {
     pub fn clear_lex_names(&mut self) {
         self.contents.borrow_mut()
             .data
-            .lex_names
+            .let_names
+            .clear();
+        self.contents.borrow_mut()
+            .data
+            .const_names
             .clear();
     }
 
@@ -414,12 +440,19 @@ impl<'a> Context<'a, DeclContents> {
             .is_none(),
             "This node already has a field {}", BINJS_VAR_NAME);
 
-        let mut lexically_declared_names: Vec<_> = borrow.data.lex_names.iter().collect();
-        lexically_declared_names.sort();
+        let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
+        let_decl_names.sort();
         assert!(object
-            .insert(BINJS_LEX_NAME.to_string(), json!(lexically_declared_names))
+            .insert(BINJS_LET_NAME.to_string(), json!(let_decl_names))
             .is_none(),
-            "This node already has a field {}", BINJS_LEX_NAME);
+            "This node already has a field {}", BINJS_LET_NAME);
+
+        let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
+        const_decl_names.sort();
+        assert!(object
+            .insert(BINJS_CONST_NAME.to_string(), json!(const_decl_names))
+            .is_none(),
+            "This node already has a field {}", BINJS_CONST_NAME);
     }
 }
 
