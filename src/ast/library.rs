@@ -665,11 +665,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         }
 
         fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
-            println!("\nDEBUG: Entering {} in {:?}.{:?}",
-                ctx.kind_str(),
-                ctx.contents().parent().map(|x| x.borrow().kind_str().to_string()),
-                ctx.contents().parent().map(|x| x.borrow().field_str().map(str::to_string))
-            );
             match ctx.kind_str() {
                 "Identifier" => {
                     // There are three sorts of identifiers:
@@ -822,7 +817,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     self.parent.process_references(me, ctx, object)?
                 }
             }
-            println!("\nDEBUG: Done with {} in {:?}", ctx.kind_str(), ctx.contents().parent().map(|x| x.borrow().kind_str().to_string()));
             Ok(())
         }
     }

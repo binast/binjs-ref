@@ -8,7 +8,7 @@ extern crate test_logger;
 use binjs::source::*;
 use serde_json::Value as JSON;
 
-test!(test_annotations_1, {
+test!(test_annotations_scopes, {
     println!("Preparing test.");
 
     let parser = Babel::new();
@@ -53,7 +53,7 @@ test!(test_annotations_1, {
     assert_eq!(body["BINJS:VarDeclaredNames"], json!(["y"]));
 });
 
-test!(test_annotations_2, {
+test!(test_annotations_scopes_2, {
     println!("Preparing test.");
 
     let parser = Babel::new();
@@ -100,7 +100,7 @@ test!(test_annotations_2, {
     assert_eq!(for_loop["BINJS:VarDeclaredNames"], json!(["i"]));
 });
 
-test!(test_annotations_3, {
+test!(test_annotations_capture, {
     println!("Preparing test.");
 
     let parser = Babel::new();
@@ -148,7 +148,7 @@ test!(test_annotations_3, {
 });
 
 
-test!(test_annotations_4, {
+test!(test_annotations_capture_2, {
     println!("Preparing test.");
 
     let parser = Babel::new();
@@ -195,20 +195,108 @@ test!(test_annotations_4, {
     assert_eq!(g["BINJS:VarDeclaredNames"], json!(["c", "d"]));
 });
 
+test!(test_annotations_capture_3, {
+    println!("Preparing test.");
+
+    let parser = Babel::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+
+    let source = "function f() { } function g() { var a = f; }";
+
+    let mut ast  = parser.parse_str(source)
+        .expect("Could not parse source");
+    grammar.annotate(&mut ast)
+        .expect("Could not annotate AST");
+
+    println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+
+    // Toplevel
+    assert_eq!(ast["BINJS:CapturedNames"], json!(["f"]));
+    assert_eq!(ast["BINJS:HasDirectEval"], json!(false));
+    assert_eq!(ast["BINJS:ConstDeclaredNames"], json!([]));
+    assert_eq!(ast["BINJS:LetDeclaredNames"], json!([]));
+    assert_eq!(ast["BINJS:VarDeclaredNames"], json!(["f", "g"]));
+});
+
+test!(test_annotations_scopes_3, {
+    println!("Preparing test.");
+
+    let parser = Babel::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+
+    let source = "function f() { let x; {/*1*/ const y = 5; function g() {} } }";
+
+    let mut ast  = parser.parse_str(source)
+        .expect("Could not parse source");
+    grammar.annotate(&mut ast)
+        .expect("Could not annotate AST");
+
+//    println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+
+    // Toplevel
+    assert_eq!(ast["BINJS:CapturedNames"], json!([]));
+    assert_eq!(ast["BINJS:HasDirectEval"], json!(false));
+    assert_eq!(ast["BINJS:ConstDeclaredNames"], json!([]));
+    assert_eq!(ast["BINJS:LetDeclaredNames"], json!([]));
+    assert_eq!(ast["BINJS:VarDeclaredNames"], json!(["f"]));
+
+    // Function scope
+    assert_eq!(&ast["body"][0]["BINJS:Scope"], &JSON::Null);
+
+    // Function body
+    let body = &ast["body"][0]["body"];
+    println!("{}", serde_json::to_string_pretty(&body).unwrap());
+    assert_eq!(body["BINJS:CapturedNames"], json!([]));
+    assert_eq!(body["BINJS:HasDirectEval"], json!(false));
+    assert_eq!(body["BINJS:ConstDeclaredNames"], json!([]));
+    assert_eq!(body["BINJS:LetDeclaredNames"], json!(["x"]));
+    assert_eq!(body["BINJS:VarDeclaredNames"], json!([]));
+
+    // Block 1
+    let block = &body["body"][1];
+    assert_eq!(block["BINJS:CapturedNames"], json!([]));
+    assert_eq!(block["BINJS:HasDirectEval"], json!(false));
+    assert_eq!(block["BINJS:ConstDeclaredNames"], json!(["y"]));
+    assert_eq!(block["BINJS:LetDeclaredNames"], json!(["g"]));
+    assert_eq!(block["BINJS:VarDeclaredNames"], json!([]));
+});
+
+test!(test_annotations_capture_4, {
+    println!("Preparing test.");
+
+    let parser = Babel::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+
+    let source = "function f() { var x; function g() { print(x); } }";
+
+    let mut ast  = parser.parse_str(source)
+        .expect("Could not parse source");
+    grammar.annotate(&mut ast)
+        .expect("Could not annotate AST");
+
+    println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+
+    // Toplevel
+    assert_eq!(ast["BINJS:CapturedNames"], json!([]));
+    assert_eq!(ast["BINJS:HasDirectEval"], json!(false));
+    assert_eq!(ast["BINJS:ConstDeclaredNames"], json!([]));
+    assert_eq!(ast["BINJS:LetDeclaredNames"], json!([]));
+    assert_eq!(ast["BINJS:VarDeclaredNames"], json!(["f"]));
+
+    // Function scope
+    assert_eq!(&ast["body"][0]["BINJS:Scope"], &JSON::Null);
+
+    // Function body
+    let body = &ast["body"][0]["body"];
+    println!("{}", serde_json::to_string_pretty(&body).unwrap());
+    assert_eq!(body["BINJS:CapturedNames"], json!(["x"]));
+    assert_eq!(body["BINJS:HasDirectEval"], json!(false));
+    assert_eq!(body["BINJS:ConstDeclaredNames"], json!([]));
+    assert_eq!(body["BINJS:LetDeclaredNames"], json!([]));
+    assert_eq!(body["BINJS:VarDeclaredNames"], json!(["g", "x"]));
+});
+
 /*
-        "function f() { } function g() { var a = f; }"
-        r#"
-        function f() {
-          let x;
-          {/*1*/ let y; function g() {} }
-        }
-        "#,
-        r#"
-        function f() {
-            var x;
-            function g() { print(x); }
-        }
-        "#,
         r#"
         function foo() {
             eval("abc");

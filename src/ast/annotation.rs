@@ -256,7 +256,6 @@ impl<'a> ContextContents<'a, RefContents> {
         self.data.free.insert(name.to_string());
     }
     pub fn add_binding(&mut self, name: &str) {
-        println!("DEBUG: add_binding {} in {}.{:?}", name, self.kind_str(), self.field_str());
         self.data.binding.insert(name.to_string());
     }
     pub fn add_direct_eval(&mut self) {
@@ -280,18 +279,13 @@ impl<'a> ContextContents<'a, RefContents> {
 
 impl<'a> Dispose for ContextContents<'a, RefContents> {
     fn dispose(&mut self) {
-        println!("DEBUG: Dropping {} {:?}", self.kind_str(), self.field_str());
         if let Some(ref mut parent) = self.parent {
             let mut parent = parent.borrow_mut();
-            println!("... in {}", parent.kind_str());
             parent.data.has_direct_eval |= self.data.has_direct_eval;
 
             // Drop `bind`.
             let mut binding = HashSet::new();
             std::mem::swap(&mut self.data.binding, &mut binding); // Swap to avoid borrow issues.
-            println!("DEBUG: Dropping binding {:?}", binding);
-            println!("DEBUG: Parent free {:?}", parent.data.free);
-            println!("DEBUG: Parent free_in_nested_function {:?}", parent.data.free_in_nested_function);
 
             if self.is_function_toplevel {
                 // Merge `free` into `free_in_nested_function`...
@@ -481,15 +475,12 @@ impl<'a> ContextContents<'a, DeclContents> {
         return self.data.scope_kind
     }
     pub fn add_var_name(&mut self, name: &str) {
-        println!("DEBUG: Adding var name {}", name);
         self.data.var_names.insert(name.to_string());
     }
     pub fn add_let_name(&mut self, name: &str) {
-        println!("DEBUG: Adding let name {}", name);
         self.data.let_names.insert(name.to_string());
     }
     pub fn add_const_name(&mut self, name: &str) {
-        println!("DEBUG: Adding const name {}", name);
         self.data.const_names.insert(name.to_string());
     }
 }
@@ -558,7 +549,6 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
         var_decl_names.sort();
-        println!("Storing varnames: {:?}", var_decl_names);
         assert!(object
             .insert(BINJS_VAR_NAME.to_string(), json!(var_decl_names))
             .is_none(),
@@ -566,7 +556,6 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
         let_decl_names.sort();
-        println!("Storing letnames: {:?}", let_decl_names);
         assert!(object
             .insert(BINJS_LET_NAME.to_string(), json!(let_decl_names))
             .is_none(),
@@ -574,7 +563,6 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
         const_decl_names.sort();
-        println!("Storing constnames: {:?}", const_decl_names);
         assert!(object
             .insert(BINJS_CONST_NAME.to_string(), json!(const_decl_names))
             .is_none(),
