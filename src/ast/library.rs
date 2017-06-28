@@ -612,6 +612,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                     }
                 }
+                "CatchClause" => {
+                    ctx.set_scope_kind(ScopeKind::LetDecl);
+                    self.parent.process_declarations(me, ctx, object)?;
+                }
                 "VariableDeclaration" => {
                     // Configure the scope kind.
                     let scope_kind = {
