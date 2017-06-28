@@ -43,7 +43,7 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
 
     // A scope, used to attach annotations.
     let binjs_scope = syntax.node_name(SCOPE_NAME);
-    syntax.add_virtual_interface(&binjs_scope).unwrap()
+    syntax.add_kinded_interface(&binjs_scope).unwrap()
         .with_field(&field_var_decl_names, Type::string().array())
         .with_field(&field_let_declared_names, Type::string().array())
         .with_field(&field_const_declared_names, Type::string().array())
@@ -151,6 +151,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let field_alternate = syntax.field_name("alternate");
     let field_argument = syntax.field_name("argument");
     let field_arguments = syntax.field_name("arguments");
+    let field_binjs_scope = syntax.field_name(SCOPE_NAME);
     let field_block = syntax.field_name("block");
     let field_callee = syntax.field_name("callee");
     let field_cases = syntax.field_name("cases");
@@ -226,6 +227,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_id, Type::interface(&identifier).or_null().unwrap())
         .with_field(&field_params, Type::interface(&pattern).array())
         .with_field(&field_body, Type::interface(&block_statement))
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).or_null().unwrap())
         .with_parent(&node);
 
     // Statements
@@ -542,13 +544,11 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                 "Identifier" => {
                     // Collect the name of the identifier.
                     let name = object.get_string("name", "Field `name` of `Identifier`")?;
-                    println!("DEBUG: I am an identifier: {}", name);
                     let parent = match ctx.contents().parent() {
                         Some(parent) => parent,
                         None => return Ok(()) // If we are at toplevel, we don't really care about all this.
                     };
                     let mut parent = parent.borrow_mut();
-                    println!("DEBUG: My parent is a {}, {:?}", parent.kind_str(), parent.field_str());
                     match parent.kind_str() {
                         // FIXME: This would probably be much nicer if we had an iterator of ancestors.
                         "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
@@ -558,11 +558,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 // 3. Otherwise, this is a `let`.
                                 if let Some(grand) = parent.parent() {
                                     let mut grand = grand.borrow_mut();
-                                    println!("DEBUG: My grand is a {}, {:?}", grand.kind_str(), grand.field_str());
                                     if let "BlockStatement" = grand.kind_str() {
                                         if let Some(grandgrand) = grand.parent() {
                                             let grandgrand = grandgrand.borrow();
-                                            println!("DEBUG: My gg is a {}, {:?}", grandgrand.kind_str(), grandgrand.field_str());
                                             match grandgrand.kind_str() {
                                                 "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
                                                     // Case 2.
@@ -667,6 +665,11 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         }
 
         fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
+            println!("\nDEBUG: Entering {} in {:?}.{:?}",
+                ctx.kind_str(),
+                ctx.contents().parent().map(|x| x.borrow().kind_str().to_string()),
+                ctx.contents().parent().map(|x| x.borrow().field_str().map(str::to_string))
+            );
             match ctx.kind_str() {
                 "Identifier" => {
                     // There are three sorts of identifiers:
@@ -689,7 +692,11 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     match parent.kind_str() {
                         "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
                             match parent.field_str() {
-                                Some("id") | Some("params") => parent.add_binding(name),
+                                Some("id") | Some("params") => {
+                                    let fun_scope = parent.fun_scope()
+                                        .expect("Expected a fun scope");
+                                    fun_scope.borrow_mut().add_binding(name);
+                                }
                                 _ => return Err(ASTError::InvalidField("<FIXME: specify field>".to_string())),
                             }
                         }
@@ -702,7 +709,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                         "CallExpression" if name == "eval" => {
                             if let Some("callee") = parent.field_str() {
-                                parent.add_direct_eval()
+                                if !parent.is_bound("eval") {
+                                    parent.add_direct_eval()
+                                }
                             } else {
                                 parent.add_free_name(name)
                             }
@@ -715,7 +724,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 // Variable declaration, already handled.
                                 assert!(parent.is_bound(&name), "Variable {} is declared explicitly, should have been marked as bound in the previous pass. Bound variables: {:?}", name, parent.bindings());
                             } else {
-                                parent.add_free_name(name)
+                                ctx.add_free_name(name)
                             }
                         }
                         "ForStatement" => {
@@ -723,7 +732,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 // Variable declaration, already handled.
                                 assert!(parent.is_bound(&name), "Variable {} is declared by `for(;;)`, should have been marked as bound in the previous pass", name);
                             } else {
-                                parent.add_free_name(name)
+                                ctx.add_free_name(name)
                             }
                         }
                         "ForInStatement" => {
@@ -731,7 +740,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 // Variable declaration, already handled.
                                 assert!(parent.is_bound(&name), "Variable {} is declared by `for(in)`, should have been marked as bound in the previous pass", name);
                             } else {
-                                parent.add_free_name(name)
+                                ctx.add_free_name(name)
                             }
                         }
                         "ExpressionStatement" | "WithStatement" | "ReturnStatement"
@@ -742,7 +751,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             | "BinaryExpression" | "AssignmentExpression" | "LogicalExpression"
                             | "MemberExpression" | "ConditionalExpression" | "CallExpression"
                             | "NewExpression" | "SequenceExpression" => {
-                            parent.add_free_name(name);
+                            ctx.add_free_name(name);
                         }
                         _ => {
                             panic!("I didn't expect to see a Identifier in {} {:?}", parent.kind_str(), parent.field_str())
@@ -757,8 +766,28 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     ctx.store(object)
                 },
                 "FunctionExpression" | "FunctionDeclaration" | "ObjectMethod" => {
-                    ctx.set_entering_function();
-                    self.parent.process_references(me, ctx, object)?;
+                    ctx.use_as_fun_scope();
+
+                    // Make sure that we handle the function id and the params before the body,
+                    // as they generally introduce bindings.
+                    for name in &["id", "params", "body"] {
+                        if let Some(mut field) = object.get_mut(*name) {
+                            if let Ok(mut ctx) = ctx.enter_field(name) {
+                                me.process_references_aux(me, &mut ctx, field)?;
+                            }
+                        }
+                    }
+
+                    if ctx.is_interesting() {
+                        // Store information on the function itself.
+                        let mut storage = json!({
+                            "type": SCOPE_NAME
+                        });
+                        ctx.store(storage.as_object_mut().unwrap());
+                        object.insert(SCOPE_NAME.to_string(), storage);
+                    } else {
+                        object.insert(SCOPE_NAME.to_string(), JSON::Null);
+                    }
                     // Dropping `ctx` will convert free variables into
                     // free-in-nested-function variables.
                 }
@@ -793,6 +822,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     self.parent.process_references(me, ctx, object)?
                 }
             }
+            println!("\nDEBUG: Done with {} in {:?}", ctx.kind_str(), ctx.contents().parent().map(|x| x.borrow().kind_str().to_string()));
             Ok(())
         }
     }

@@ -10,7 +10,7 @@ use serde_json::Value as JSON;
 use std;
 use std::cell::{ RefCell, Ref };
 use std::collections::HashSet;
-use std::rc::Rc;
+use std::rc::{ Rc, Weak };
 
 type Object = serde_json::Map<String, JSON>;
 
@@ -70,10 +70,40 @@ impl<'a, T> Context<'a, T> where T: Default, ContextContents<'a, T>: Dispose {
     pub fn new(syntax: &'a Syntax) -> Self {
         let contents = ContextContents::new(syntax);
         let position = contents.position.clone();
-        Context {
+        let mut result = Context {
             position,
             contents: Rc::new(RefCell::new(contents)),
-        }
+        };
+        result.use_as_lex_scope();
+        result.use_as_var_scope();
+        result
+    }
+    pub fn lex_scope(&self) -> Option<Rc<RefCell<ContextContents<'a, T>>>> {
+        self.contents.borrow().lex_scope()
+    }
+    pub fn fun_scope(&self) -> Option<Rc<RefCell<ContextContents<'a, T>>>> {
+        self.contents.borrow().fun_scope()
+    }
+    pub fn var_scope(&self) -> Option<Rc<RefCell<ContextContents<'a, T>>>> {
+        self.contents.borrow().var_scope()
+    }
+    pub fn use_as_fun_scope(&mut self) {
+        let weak = Rc::downgrade(&self.contents);
+        let mut borrow = self.contents.borrow_mut();
+        borrow.fun_scope = Some(weak);
+        borrow.is_function_toplevel = true;
+    }
+    pub fn use_as_lex_scope(&mut self) {
+        let weak = Rc::downgrade(&self.contents);
+        self.contents
+            .borrow_mut()
+            .lex_scope = Some(weak);
+    }
+    pub fn use_as_var_scope(&mut self) {
+        let weak = Rc::downgrade(&self.contents);
+        self.contents
+            .borrow_mut()
+            .var_scope = Some(weak);
     }
     pub fn enter_field(&mut self, field: &str) -> Result<Self, ASTError> {
         let position = {
@@ -84,11 +114,17 @@ impl<'a, T> Context<'a, T> where T: Default, ContextContents<'a, T>: Dispose {
                     .ok_or_else(|| ASTError::InvalidField(field.to_string()))?;
             Position::new(kind, Some(field))
         };
+        let lex_scope = self.contents.borrow().lex_scope.clone();
+        let fun_scope = self.contents.borrow().fun_scope.clone();
+        let var_scope = self.contents.borrow().var_scope.clone();
         Ok(Context {
             position: position.clone(),
             contents: Rc::new(RefCell::new(
                 ContextContents {
                     position,
+                    lex_scope,
+                    var_scope,
+                    fun_scope,
                     parent: Some(self.contents.clone()),
                     ..ContextContents::new(self.contents.borrow().grammar)
                 }
@@ -103,11 +139,17 @@ impl<'a, T> Context<'a, T> where T: Default, ContextContents<'a, T>: Dispose {
                 .ok_or_else(|| ASTError::InvalidKind(kind.to_string()))?;
             Position::new(&kind, None)
         };
+        let lex_scope = self.contents.borrow().lex_scope.clone();
+        let fun_scope = self.contents.borrow().fun_scope.clone();
+        let var_scope = self.contents.borrow().var_scope.clone();
         Ok(Context {
             position: position.clone(),
             contents: Rc::new(RefCell::new(
                 ContextContents {
                     position,
+                    fun_scope,
+                    lex_scope,
+                    var_scope,
                     parent: Some(self.contents.clone()),
                     ..ContextContents::new(self.contents.borrow().grammar)
                 }
@@ -130,6 +172,10 @@ pub struct ContextContents<'a, T> {
     position: Position,
     grammar: &'a Syntax,
     parent: Option<Rc<RefCell<ContextContents<'a, T>>>>,
+    is_function_toplevel: bool,
+    lex_scope: Option<Weak<RefCell<ContextContents<'a, T>>>>,
+    var_scope: Option<Weak<RefCell<ContextContents<'a, T>>>>,
+    fun_scope: Option<Weak<RefCell<ContextContents<'a, T>>>>,
 }
 
 impl<'a, T> ContextContents<'a, T> where T: Default {
@@ -143,6 +189,10 @@ impl<'a, T> ContextContents<'a, T> where T: Default {
             grammar: syntax,
             position: Position::new(&root, None),
             parent: None,
+            lex_scope: None,
+            var_scope: None,
+            fun_scope: None,
+            is_function_toplevel: false,
             data: Default::default()
         }
     }
@@ -163,6 +213,24 @@ impl<'a, T> ContextContents<'a, T> {
         }
         return self.parent.clone()
     }
+    pub fn fun_scope(&self) -> Option<Rc<RefCell<ContextContents<'a, T>>>> {
+        match self.fun_scope {
+            None => None,
+            Some(ref scope) => Some(Weak::upgrade(scope).expect("fun_scope has been garbage-collected"))
+        }
+    }
+    pub fn var_scope(&self) -> Option<Rc<RefCell<ContextContents<'a, T>>>> {
+        match self.var_scope {
+            None => None,
+            Some(ref scope) => Some(Weak::upgrade(scope).expect("var_scope has been garbage-collected"))
+        }
+    }
+    pub fn lex_scope(&self) -> Option<Rc<RefCell<ContextContents<'a, T>>>> {
+        match self.lex_scope {
+            None => None,
+            Some(ref scope) => Some(Weak::upgrade(scope).expect("lex_scope has been garbage-collected"))
+        }
+    }
 }
 
 /// The contents of a context used to annotate use of variables.
@@ -180,9 +248,6 @@ pub struct RefContents {
     /// `true` if we have detected a call `eval("foo")` anywhere in the subtree
     /// (including subfunctions), where `eval` is a free name.
     has_direct_eval: bool,
-
-    /// `true` if this context is at the toplevel of a function.
-    is_function_toplevel: bool,
 }
 
 
@@ -191,6 +256,7 @@ impl<'a> ContextContents<'a, RefContents> {
         self.data.free.insert(name.to_string());
     }
     pub fn add_binding(&mut self, name: &str) {
+        println!("DEBUG: add_binding {} in {}.{:?}", name, self.kind_str(), self.field_str());
         self.data.binding.insert(name.to_string());
     }
     pub fn add_direct_eval(&mut self) {
@@ -214,15 +280,20 @@ impl<'a> ContextContents<'a, RefContents> {
 
 impl<'a> Dispose for ContextContents<'a, RefContents> {
     fn dispose(&mut self) {
+        println!("DEBUG: Dropping {} {:?}", self.kind_str(), self.field_str());
         if let Some(ref mut parent) = self.parent {
             let mut parent = parent.borrow_mut();
+            println!("... in {}", parent.kind_str());
             parent.data.has_direct_eval |= self.data.has_direct_eval;
 
             // Drop `bind`.
             let mut binding = HashSet::new();
             std::mem::swap(&mut self.data.binding, &mut binding); // Swap to avoid borrow issues.
+            println!("DEBUG: Dropping binding {:?}", binding);
+            println!("DEBUG: Parent free {:?}", parent.data.free);
+            println!("DEBUG: Parent free_in_nested_function {:?}", parent.data.free_in_nested_function);
 
-            if self.data.is_function_toplevel {
+            if self.is_function_toplevel {
                 // Merge `free` into `free_in_nested_function`...
                 for free in self.data.free.drain() {
                     self.data.free_in_nested_function.insert(free);
@@ -233,14 +304,19 @@ impl<'a> Dispose for ContextContents<'a, RefContents> {
 
             for free in self.data.free.drain() {
                 if !binding.contains(&free) {
+                    println!("DEBUG: Free variable {} is still free", free);
                     parent.data.free.insert(free);
                 }
             }
             for free in self.data.free_in_nested_function.drain() {
                 if !binding.contains(&free) {
+                    println!("DEBUG: Free-in-nested variable {} is still free", free);
                     parent.data.free_in_nested_function.insert(free);
                 }
             }
+
+            println!("DEBUG: Propagating free {:?}", parent.data.free);
+            println!("DEBUG: Propagating free_in_nested_function {:?}", parent.data.free_in_nested_function);
         }
     }
 }
@@ -249,6 +325,27 @@ impl<'a> Dispose for ContextContents<'a, RefContents> {
 
 
 impl<'a> Context<'a, RefContents> {
+    pub fn is_interesting(&self) -> bool {
+        let borrow = self.contents.borrow();
+        if borrow.data.has_direct_eval {
+            return true;
+        }
+        if self.captured_names().len() > 0 {
+            return true;
+        }
+        return false;
+    }
+    fn captured_names(&self) -> Vec<String> {
+        let mut captured_names = vec![];
+
+        let borrow = self.contents.borrow();
+        for name in &borrow.data.free_in_nested_function {
+            if borrow.data.binding.contains(name) {
+                captured_names.push(name.clone());
+            }
+        }
+        captured_names
+    }
     pub fn add_direct_eval(&mut self) {
         self.contents.borrow_mut().data.has_direct_eval = true;
     }
@@ -256,11 +353,7 @@ impl<'a> Context<'a, RefContents> {
         self.contents.borrow_mut().data.free.insert(name.to_string());
     }
     pub fn add_binding(&mut self, name: &str) {
-        self.contents.borrow_mut().data.binding.insert(name.to_string());
-    }
-
-    pub fn set_entering_function(&mut self) {
-        self.contents.borrow_mut().data.is_function_toplevel = true;
+        self.contents.borrow_mut().add_binding(name);
     }
 
     /// Check whether the name is bound somewhere on the stack.
@@ -270,25 +363,19 @@ impl<'a> Context<'a, RefContents> {
     }
 
     pub fn store(&self, object: &mut Object) {
-//        println!("Storing {:?} in {}", [BINJS_CAPTURED_NAME, BINJS_DIRECT_EVAL], object.get("type").unwrap());
-
-        // Make sure that we didn't forget the object during the previous pass.
-        assert!(object.contains_key(BINJS_VAR_NAME));
-        assert!(object.contains_key(BINJS_LET_NAME));
-        assert!(object.contains_key(BINJS_CONST_NAME));
-        assert!(!object.contains_key(BINJS_CAPTURED_NAME));
-        assert!(!object.contains_key(BINJS_DIRECT_EVAL));
-
-        let mut captured_names = vec![];
-
-        let borrow = self.contents.borrow();
-        for name in &borrow.data.free_in_nested_function {
-            if borrow.data.binding.contains(name) {
-                captured_names.push(name.clone());
+        for name in &[BINJS_VAR_NAME, BINJS_LET_NAME, BINJS_CONST_NAME] {
+            let name = name.to_string();
+            if !object.contains_key(&name) {
+                object.insert(name, json!([]));
             }
         }
 
+        assert!(!object.contains_key(BINJS_CAPTURED_NAME));
+        assert!(!object.contains_key(BINJS_DIRECT_EVAL));
+
+        let mut captured_names = self.captured_names();
         captured_names.sort();
+        let borrow = self.contents.borrow();
         assert!(object
             .insert(BINJS_CAPTURED_NAME.to_string(), json!(captured_names))
             .is_none(),
@@ -417,9 +504,6 @@ impl<'a> Dispose for ContextContents<'a, DeclContents> {
             parent.data.var_names.extend(self.data.var_names.drain());
             parent.data.let_names.extend(self.data.let_names.drain());
             parent.data.const_names.extend(self.data.const_names.drain());
-            println!("DEBUG: Propagated var {:?}", parent.data.var_names);
-            println!("DEBUG: Propagated let {:?}", parent.data.let_names);
-            println!("DEBUG: Propagated const {:?}", parent.data.const_names);
         }
     }
 }
