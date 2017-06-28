@@ -542,11 +542,13 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                 "Identifier" => {
                     // Collect the name of the identifier.
                     let name = object.get_string("name", "Field `name` of `Identifier`")?;
+                    println!("DEBUG: I am an identifier: {}", name);
                     let parent = match ctx.contents().parent() {
                         Some(parent) => parent,
                         None => return Ok(()) // If we are at toplevel, we don't really care about all this.
                     };
                     let mut parent = parent.borrow_mut();
+                    println!("DEBUG: My parent is a {}, {:?}", parent.kind_str(), parent.field_str());
                     match parent.kind_str() {
                         // FIXME: This would probably be much nicer if we had an iterator of ancestors.
                         "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
@@ -555,22 +557,24 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 // 2. If the declaration is in a function's toplevel block, this is a `var`.
                                 // 3. Otherwise, this is a `let`.
                                 if let Some(grand) = parent.parent() {
-                                    let grand = grand.borrow();
+                                    let mut grand = grand.borrow_mut();
+                                    println!("DEBUG: My grand is a {}, {:?}", grand.kind_str(), grand.field_str());
                                     if let "BlockStatement" = grand.kind_str() {
                                         if let Some(grandgrand) = grand.parent() {
                                             let grandgrand = grandgrand.borrow();
+                                            println!("DEBUG: My gg is a {}, {:?}", grandgrand.kind_str(), grandgrand.field_str());
                                             match grandgrand.kind_str() {
                                                 "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
                                                     // Case 2.
-                                                    ctx.add_var_name(name)
+                                                    grand.add_var_name(name)
                                                 }
-                                                _ => ctx.add_let_name(name)
+                                                _ => grand.add_let_name(name)
                                             }
                                         } else {
-                                            ctx.add_let_name(name)
+                                            grand.add_let_name(name)
                                         }
                                     } else {
-                                        ctx.add_var_name(name)
+                                        grand.add_var_name(name)
                                     }
                                 } else {
                                     // Case 1.

@@ -121,7 +121,7 @@ impl<'a, T> Context<'a, T> where T: Default, ContextContents<'a, T>: Dispose {
         self.contents.borrow()
     }
     pub fn parent(&self) -> Option<Rc<RefCell<ContextContents<'a, T>>>> {
-        self.contents.borrow().parent.clone()
+        self.contents.borrow().parent()
     }
 }
 
@@ -155,7 +155,13 @@ impl<'a, T> ContextContents<'a, T> {
         self.position.kind.to_str()
     }
     pub fn parent(&self) -> Option<Rc<RefCell<ContextContents<'a, T>>>> {
-        self.parent.clone()
+        if let Some(ref p) = self.parent {
+            let borrow = p.borrow();
+            if borrow.field_str().is_none() {
+                return borrow.parent()
+            }
+        }
+        return self.parent.clone()
     }
 }
 
@@ -388,12 +394,15 @@ impl<'a> ContextContents<'a, DeclContents> {
         return self.data.scope_kind
     }
     pub fn add_var_name(&mut self, name: &str) {
+        println!("DEBUG: Adding var name {}", name);
         self.data.var_names.insert(name.to_string());
     }
     pub fn add_let_name(&mut self, name: &str) {
+        println!("DEBUG: Adding let name {}", name);
         self.data.let_names.insert(name.to_string());
     }
     pub fn add_const_name(&mut self, name: &str) {
+        println!("DEBUG: Adding const name {}", name);
         self.data.const_names.insert(name.to_string());
     }
 }
@@ -408,6 +417,9 @@ impl<'a> Dispose for ContextContents<'a, DeclContents> {
             parent.data.var_names.extend(self.data.var_names.drain());
             parent.data.let_names.extend(self.data.let_names.drain());
             parent.data.const_names.extend(self.data.const_names.drain());
+            println!("DEBUG: Propagated var {:?}", parent.data.var_names);
+            println!("DEBUG: Propagated let {:?}", parent.data.let_names);
+            println!("DEBUG: Propagated const {:?}", parent.data.const_names);
         }
     }
 }
@@ -462,6 +474,7 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
         var_decl_names.sort();
+        println!("Storing varnames: {:?}", var_decl_names);
         assert!(object
             .insert(BINJS_VAR_NAME.to_string(), json!(var_decl_names))
             .is_none(),
@@ -469,6 +482,7 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
         let_decl_names.sort();
+        println!("Storing letnames: {:?}", let_decl_names);
         assert!(object
             .insert(BINJS_LET_NAME.to_string(), json!(let_decl_names))
             .is_none(),
@@ -476,6 +490,7 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
         const_decl_names.sort();
+        println!("Storing constnames: {:?}", const_decl_names);
         assert!(object
             .insert(BINJS_CONST_NAME.to_string(), json!(const_decl_names))
             .is_none(),
