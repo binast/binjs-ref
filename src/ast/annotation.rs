@@ -1,7 +1,7 @@
 // FIXME: Too much copy&paste in this file.
 
 use ast::grammar::{ ASTError, FieldName, Kind, Syntax };
-use ast::library::{ BINJS_CONST_NAME, BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME };
+use ast::library::{ BINJS_CONST_NAME, BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME, SCOPE_NAME };
 use util::{ Dispose, JSONGetter };
 
 use serde_json;
@@ -319,16 +319,6 @@ impl<'a> Dispose for ContextContents<'a, RefContents> {
 
 
 impl<'a> Context<'a, RefContents> {
-    pub fn is_interesting(&self) -> bool {
-        let borrow = self.contents.borrow();
-        if borrow.data.has_direct_eval {
-            return true;
-        }
-        if self.captured_names().len() > 0 {
-            return true;
-        }
-        return false;
-    }
     fn captured_names(&self) -> Vec<String> {
         let mut captured_names = vec![];
 
@@ -356,7 +346,9 @@ impl<'a> Context<'a, RefContents> {
         borrow.is_bound(name)
     }
 
-    pub fn store(&self, object: &mut Object) {
+    pub fn store(&self, parent: &mut Object) {
+        let mut object = parent.get_object_mut(SCOPE_NAME, "Scope field")
+            .expect("Could not store captured names, etc.");
         for name in &[BINJS_VAR_NAME, BINJS_LET_NAME, BINJS_CONST_NAME] {
             let name = name.to_string();
             if !object.contains_key(&name) {
@@ -380,7 +372,10 @@ impl<'a> Context<'a, RefContents> {
             .is_none(),
             "This node already has a field {}", BINJS_DIRECT_EVAL);
     }
-    pub fn load(&mut self, object: &Object) {
+    pub fn load(&mut self, parent: &Object) {
+        let object = parent.get_object(SCOPE_NAME, "Scope field")
+            .expect("Could not load previous pass.");
+
         let mut borrow = self.contents.borrow_mut();
 
         let var_decl_names = object.get_array(BINJS_VAR_NAME, "Repository of VarDecl bindings")
@@ -537,36 +532,26 @@ impl<'a> Context<'a, DeclContents> {
             .clear();
     }
 
-    /// Store scope information in a node.
-    ///
-    /// This makes sense only if the node implements `binjs`, otherwise all data
-    /// will be stripped while encoding.
-    pub fn store(&self, object: &mut Object) {
-        assert!(!object.contains_key(BINJS_CAPTURED_NAME));
-        assert!(!object.contains_key(BINJS_DIRECT_EVAL));
-
+    /// Store scope information in a field "BINJS:Scope" of the node.
+    pub fn store(&self, parent: &mut Object) {
+        assert!(!parent.contains_key(SCOPE_NAME));
         let borrow = self.contents.borrow();
 
         let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
-        var_decl_names.sort();
-        assert!(object
-            .insert(BINJS_VAR_NAME.to_string(), json!(var_decl_names))
-            .is_none(),
-            "This node already has a field {}", BINJS_VAR_NAME);
+        var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
-        let_decl_names.sort();
-        assert!(object
-            .insert(BINJS_LET_NAME.to_string(), json!(let_decl_names))
-            .is_none(),
-            "This node already has a field {}", BINJS_LET_NAME);
+        let_decl_names.sort(); // To simplify testing (and hopefully improve compression)
 
         let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
         const_decl_names.sort();
-        assert!(object
-            .insert(BINJS_CONST_NAME.to_string(), json!(const_decl_names))
-            .is_none(),
-            "This node already has a field {}", BINJS_CONST_NAME);
+
+        parent.insert(SCOPE_NAME.to_string(), json!({
+            "type": SCOPE_NAME,
+            BINJS_VAR_NAME: var_decl_names,
+            BINJS_LET_NAME: let_decl_names,
+            BINJS_CONST_NAME: const_decl_names,
+        }));
     }
 }
 

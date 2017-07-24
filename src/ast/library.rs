@@ -218,8 +218,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     // Programs
     syntax.add_kinded_interface(&program).unwrap()
         .with_field(&field_body, Type::interface(&statement).array())
-        .with_parent(&node)
-        .with_parent(&binjs_scope); // FIXME: Might not be necessary.
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).or_null().unwrap())
+        .with_parent(&node);
 
     // Functions (shared between function declaration, function statement, function expression)
     // Note that the scope information is stored as part of `field_body`.
@@ -239,8 +239,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     syntax.add_kinded_interface(&block_statement).unwrap()
         .with_field(&field_body, Type::interface(&statement).array())
-        .with_parent(&statement)
-        .with_parent(&binjs_scope);
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).or_null().unwrap())
+        .with_parent(&statement);
 
     syntax.add_kinded_interface(&expression_statement).unwrap()
         .with_field(&field_expression, Type::interface(&expression))
@@ -321,8 +321,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_test, Type::interface(&expression).or_null().unwrap())
         .with_field(&field_update, Type::interface(&expression).or_null().unwrap())
         .with_field(&field_body, Type::interface(&statement))
-        .with_parent(&statement)
-        .with_parent(&binjs_scope);
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).or_null().unwrap())
+        .with_parent(&statement);
 
     syntax.add_kinded_interface(&for_in_statement).unwrap()
         .with_field(&field_left, Type::interfaces(&[
@@ -331,8 +331,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         ]))
         .with_field(&field_right, Type::interface(&expression))
         .with_field(&field_body, Type::interface(&statement))
-        .with_parent(&statement)
-        .with_parent(&binjs_scope);
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).or_null().unwrap())
+        .with_parent(&statement);
 
     // Declarations
     syntax.add_virtual_interface(&declaration).unwrap()
@@ -651,6 +651,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Adopt usual behavior.
                     self.parent.process_declarations(me, ctx, object)?;
 
+                    // Store available information.
+                    ctx.store(object);
+
                     // Drop LexDecl and VarDecl
                     ctx.clear_lex_names();
                     ctx.clear_var_names();
@@ -773,16 +776,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                     }
 
-                    if ctx.is_interesting() {
-                        // Store information on the function itself.
-                        let mut storage = json!({
-                            "type": SCOPE_NAME
-                        });
-                        ctx.store(storage.as_object_mut().unwrap());
-                        object.insert(SCOPE_NAME.to_string(), storage);
-                    } else {
-                        object.insert(SCOPE_NAME.to_string(), JSON::Null);
-                    }
+                    // Store information on the function itself.
+                    ctx.store(object);
                     // Dropping `ctx` will convert free variables into
                     // free-in-nested-function variables.
                 }

@@ -1,5 +1,7 @@
 extern crate binjs;
 extern crate env_logger;
+extern crate serde_json;
+
 
 #[macro_use]
 extern crate test_logger;
@@ -36,7 +38,7 @@ test!(test_simple_tokenization, {
         grammar.annotate(&mut ast)
             .expect("Could not annotate AST");
 
-        println!("Encoding sample");
+        println!("Encoding sample {}", serde_json::to_string_pretty(&ast).unwrap());
         let writer  = binjs::token::simple::TreeTokenWriter::new();
         let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
 
