@@ -433,6 +433,7 @@ pub struct DeclContents {
     let_names: HashSet<String>,
     var_names: HashSet<String>,
     scope_kind: ScopeKind,
+    uses_strict: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -448,6 +449,18 @@ impl Default for ScopeKind {
     }
 }
 impl<'a> ContextContents<'a, DeclContents> {
+    pub fn uses_strict(&self) -> bool {
+        if self.data.uses_strict {
+            return true;
+        }
+        if let Some(ref parent) = self.parent {
+            return parent.borrow().uses_strict();
+        }
+        false
+    }
+    pub fn set_uses_strict(&mut self, value: bool) {
+        self.data.uses_strict = value
+    }
     pub fn is_lex_bound(&self, name: &str) -> bool {
         if self.data.let_names.contains(name) {
             return true;
@@ -531,7 +544,12 @@ impl<'a> Context<'a, DeclContents> {
             .const_names
             .clear();
     }
-
+    pub fn uses_strict(&self) -> bool {
+        self.contents.borrow().uses_strict()
+    }
+    pub fn set_uses_strict(&mut self, value: bool) {
+        self.contents.borrow_mut().set_uses_strict(value)
+    }
     /// Store scope information in a field "BINJS:Scope" of the node.
     pub fn store(&self, parent: &mut Object) {
         assert!(!parent.contains_key(SCOPE_NAME));

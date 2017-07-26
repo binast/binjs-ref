@@ -29,6 +29,25 @@ pub enum Level {
     // FIXME: More levels to be implemented.
 }
 
+fn uses_strict(object: &Object) -> bool {
+    if let Some(directives) = object["directives"].as_array() {
+        if directives
+            .iter()
+            .find(|v| {
+                if let Some("use strict") = v["value"]["value"].as_str() {
+                    true
+                } else {
+                    false
+                }
+            }
+            ).is_some()
+        {
+            return true;
+        }
+    }
+    false
+}
+
 /// Special nodes used by BINJS. Not visible at source level.
 fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     let field_var_decl_names = syntax.field_name(BINJS_VAR_NAME);
@@ -99,6 +118,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let continue_statement = syntax.node_name("ContinueStatement");
     let debugger_statement = syntax.node_name("DebuggerStatement");
     let declaration = syntax.node_name("Declaration");
+    let directive = syntax.node_name("Directive");
+    let directive_literal = syntax.node_name("DirectiveLiteral");
     let do_while_statement = syntax.node_name("DoWhileStatement");
     let empty_statement = syntax.node_name("EmptyStatement");
     let expression = syntax.node_name("Expression");
@@ -159,6 +180,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let field_computed = syntax.field_name("computed");
     let field_body = syntax.field_name("body");
     let field_declarations = syntax.field_name("declarations");
+    let field_directives = syntax.field_name("directives");
     let field_discriminant = syntax.field_name("discriminant");
     let field_elements = syntax.field_name("elements");
     let field_expression = syntax.field_name("expression");
@@ -214,11 +236,14 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_pattern, Type::string())
         .with_field(&field_flags, Type::string())
         .with_parent(&literal);
+    syntax.add_kinded_interface(&directive_literal).unwrap()
+        .with_parent(&string_literal);
 
     // Programs
     syntax.add_kinded_interface(&program).unwrap()
         .with_field(&field_body, Type::interface(&statement).array())
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).or_null().unwrap())
+        .with_field(&field_directives, Type::interface(&directive).array())
         .with_parent(&node);
 
     // Functions (shared between function declaration, function statement, function expression)
@@ -240,6 +265,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&block_statement).unwrap()
         .with_field(&field_body, Type::interface(&statement).array())
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).or_null().unwrap())
+        .with_field(&field_directives, Type::interface(&directive).array()) // FIXME: This seems like a waste of space. Shouldn't we allow this only for functions?
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&expression_statement).unwrap()
@@ -529,6 +555,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_virtual_interface(&pattern).unwrap()
         .with_parent(&node);
 
+    syntax.add_kinded_interface(&directive).unwrap()
+        .with_field(&field_value, Type::interface(&directive_literal))
+        .with_parent(&node);
 
     struct ES5Annotator {
         parent: Box<Annotator>,
@@ -637,7 +666,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Then proceed as usual.
                     self.parent.process_declarations(me, ctx, object)?;
                 }
-                "BlockStatement" | "ForStatement" | "ForInStatement" | "Program" => {
+                "BlockStatement" | "ForStatement" | "ForInStatement" => {
                     // Adopt usual behavior.
                     self.parent.process_declarations(me, ctx, object)?;
 
@@ -647,7 +676,41 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Drop LexDecl, keep VarDecl
                     ctx.clear_lex_names();
                 }
-                "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
+                "Program" => {
+                    // Check directives
+                    if uses_strict(object) {
+                        ctx.set_uses_strict(true);
+                    }
+
+                    // Adopt usual behavior.
+                    self.parent.process_declarations(me, ctx, object)?;
+
+                    // Store available information.
+                    ctx.store(object);
+                }
+                "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression"  => {
+                    // Check directives.
+                    let uses_strict = ctx.uses_strict() ||
+                        if let Some(body) = object["body"].as_object() {
+                            uses_strict(body)
+                        } else {
+                            false
+                        };
+                    if uses_strict {
+                        ctx.set_uses_strict(true);
+                        // Babel allows any string to be used as a directive.
+                        // This doesn't seem canonical.
+                        object["body"].as_object_mut().unwrap().insert("directives".to_string(), json!([{
+                            "type": "Directive",
+                            "value": {
+                                "type": "DirectiveLiteral",
+                                "value": "use strict"
+                            }
+                        }]));
+                    } else {
+                        object["body"].as_object_mut().unwrap().insert("directives".to_string(), json!([]));
+                    }
+
                     // Adopt usual behavior.
                     self.parent.process_declarations(me, ctx, object)?;
 

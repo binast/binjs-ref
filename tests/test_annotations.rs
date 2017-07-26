@@ -1,9 +1,13 @@
+#[macro_use]
+extern crate assert_matches;
 extern crate binjs;
 extern crate env_logger;
 #[macro_use]
 extern crate serde_json;
 #[macro_use]
 extern crate test_logger;
+
+use serde_json::Value as JSON;
 
 use binjs::source::*;
 
@@ -458,4 +462,93 @@ test!(test_annotations_eval_2, {
         "BINJS:LetDeclaredNames": [],
         "BINJS:VarDeclaredNames": []
     }));
+});
+
+test!(test_directives_1, {
+    println!("Preparing test.");
+
+    let parser = Babel::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+
+    let source = "function foo() { function bar() {} }";
+
+    let mut ast  = parser.parse_str(source)
+        .expect("Could not parse source");
+    grammar.annotate(&mut ast)
+        .expect("Could not annotate AST");
+
+    println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+
+    assert_eq!(ast["directives"].as_array().unwrap().len(), 0);
+
+    let ref foo = ast["body"][0];
+    assert_eq!(foo["body"]["directives"].as_array().unwrap().len(), 0);
+
+    let ref bar = foo["body"]["body"][0];
+    assert_eq!(bar["body"]["directives"].as_array().unwrap().len(), 0);
+});
+
+test!(test_directives_2, {
+    println!("Preparing test.");
+
+    let parser = Babel::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+
+    let source = r#"function foo() { function bar() { "use strict"; } }"#;
+
+    let mut ast  = parser.parse_str(source)
+        .expect("Could not parse source");
+    grammar.annotate(&mut ast)
+        .expect("Could not annotate AST");
+
+    println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+
+    assert_eq!(ast["directives"].as_array().unwrap().len(), 0);
+
+    let ref foo = ast["body"][0];
+    assert_eq!(foo["body"]["directives"].as_array().unwrap().len(), 0);
+
+    let ref bar = foo["body"]["body"][0];
+    let array = bar["body"]["directives"].as_array().unwrap();
+    assert_eq!(array.len(), 1);
+    assert_eq!(array[0], json!({
+        "type": "Directive",
+        "value": {
+            "type": "DirectiveLiteral",
+            "value": "use strict"
+        }
+    }));
+});
+
+
+test!(test_directives_3, {
+    println!("Preparing test.");
+
+    let parser = Babel::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+
+    let source = r#"function foo() { "use strict"; function bar() { "something different"; } }"#;
+
+    let mut ast  = parser.parse_str(source)
+        .expect("Could not parse source");
+    grammar.annotate(&mut ast)
+        .expect("Could not annotate AST");
+
+    println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+
+    assert_eq!(ast["directives"].as_array().unwrap().len(), 0);
+
+    let ref foo = ast["body"][0];
+    let array = foo["body"]["directives"].as_array().unwrap();
+    assert_eq!(array.len(), 1);
+    assert_eq!(array[0]["type"], json!("Directive"));
+    assert_eq!(array[0]["value"]["type"], json!("DirectiveLiteral"));
+    assert_eq!(array[0]["value"]["value"], json!("use strict"));
+
+    let ref bar = foo["body"]["body"][0];
+    let array = bar["body"]["directives"].as_array().unwrap();
+    assert_eq!(array.len(), 1);
+    assert_eq!(array[0]["type"], json!("Directive"));
+    assert_eq!(array[0]["value"]["type"], json!("DirectiveLiteral"));
+    assert_eq!(array[0]["value"]["value"], json!("use strict"));
 });
