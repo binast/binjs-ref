@@ -808,14 +808,14 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             | "IfStatement" | "SwitchStatement" | "SwitchCase"
                             | "ThrowStatement" | "WhileStatement" | "DoWhileStatement"
                             | "ArrayExpression"
-                            | "ObjectProperty" | "UnaryExpression" | "UpdateExpression"
+                            | "ObjectProperty" | "ObjectExpression" | "UnaryExpression" | "UpdateExpression"
                             | "BinaryExpression" | "AssignmentExpression" | "LogicalExpression"
                             | "MemberExpression" | "ConditionalExpression" | "CallExpression"
                             | "NewExpression" | "SequenceExpression" => {
                             ctx.add_free_name(name);
                         }
                         _ => {
-                            panic!("I didn't expect to see a Identifier in {} {:?}", parent.kind_str(), parent.field_str())
+                            panic!("I didn't expect to see a Identifier (namely \"{}\") in {} {:?}", name, parent.kind_str(), parent.field_str())
                         }
                     };
                 }
