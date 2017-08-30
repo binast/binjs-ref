@@ -454,11 +454,16 @@ impl TokenWriter for TreeTokenWriter {
 
         // Placeholder for `byte_len`
         result.extend_from_slice(&buf);
+
+        // Actual number of items
         result.extend_from_slice(&buf);
+
+        // Put actual data
         for item in items {
             result.extend_from_slice(&*item)
         }
 
+        // Now compute bytelength and put it back
         let byte_len = (result.len() - prefix.len() - std::mem::size_of_val(&buf)) as u32;
         assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&byte_len));
         buf = unsafe { std::mem::transmute(byte_len) };
