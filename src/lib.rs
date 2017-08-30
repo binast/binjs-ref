@@ -30,12 +30,12 @@
 #[allow(unused_imports)]
 #[macro_use]
 extern crate assert_matches;
-
 extern crate env_logger;
 
 #[macro_use]
 extern crate log;
 extern crate rand;
+extern crate serde;
 #[macro_use]
 extern crate serde_json;
 

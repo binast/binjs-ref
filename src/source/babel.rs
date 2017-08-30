@@ -1,3 +1,4 @@
+use serde;
 use serde_json;
 use serde_json::Value as JSON;
 
@@ -93,7 +94,9 @@ impl Babel {
 
         // Now attempt to parse JSON
         let data = Cursor::new(stdout);
-        serde_json::from_reader(data)
+        let mut deserializer = serde_json::de::Deserializer::from_reader(data)
+            .with_recursion_limit(255);
+        serde::de::Deserialize::deserialize(&mut deserializer)
             .map_err(Error::JsonError)
     }
 
