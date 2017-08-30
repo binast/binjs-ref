@@ -327,6 +327,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&catch_clause).unwrap()
         .with_field(&field_param, Type::interface(&pattern))
         .with_field(&field_body, Type::interface(&block_statement))
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).or_null().unwrap())
         .with_parent(&node);
 
     syntax.add_kinded_interface(&while_statement).unwrap()
@@ -627,6 +628,14 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 }
                             }
                         }
+                        "CatchClause" => {
+                            // Handle `catch (e) { ...} ` where `e` is declared implicitly.
+                            if let Some("param") = parent.field_str() {
+                                if !parent.is_lex_bound(&name) {
+                                    parent.add_let_name(name);
+                                }
+                            }
+                        }
                         "VariableDeclarator" => {
                             if let Some("id") = parent.field_str() {
                                 match parent.scope_kind() {
@@ -646,6 +655,12 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                 "CatchClause" => {
                     ctx.set_scope_kind(ScopeKind::LetDecl);
                     self.parent.process_declarations(me, ctx, object)?;
+
+                    // Store available information.
+                    ctx.store(object);
+
+                    // Drop LexDecl, keep VarDecl
+                    ctx.clear_lex_names();
                 }
                 "VariableDeclaration" => {
                     // Configure the scope kind.
@@ -819,7 +834,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                     };
                 }
-                "ForStatement" | "ForInStatement" | "BlockStatement" | "Program" =>
+                "ForStatement" | "ForInStatement" | "BlockStatement" | "Program" | "CatchClause" =>
                 {
                     // Simply load the stored bindings, then handle fields.
                     ctx.load(object);
@@ -832,7 +847,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Make sure that we handle the function id and the params before the body,
                     // as they generally introduce bindings.
                     for name in &["id", "params", "body"] {
-                        if let Some(mut field) = object.get_mut(*name) {
+                        if let Some(field) = object.get_mut(*name) {
                             if let Ok(mut ctx) = ctx.enter_field(name) {
                                 me.process_references_aux(me, &mut ctx, field)?;
                             }
