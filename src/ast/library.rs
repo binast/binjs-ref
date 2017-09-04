@@ -531,7 +531,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_object, Type::interface(&expression))
         .with_field(&field_property, Type::interface(&expression))
         .with_field(&field_computed, Type::bool())
-        .with_parent(&expression);
+        .with_parent(&expression)
+        .with_parent(&pattern);
 
     syntax.add_kinded_interface(&conditional_expression).unwrap()
         .with_field(&field_test, Type::interface(&expression))
