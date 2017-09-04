@@ -347,7 +347,7 @@ impl<'a> Context<'a, RefContents> {
     }
 
     pub fn store(&self, parent: &mut Object) {
-        let mut object = parent.get_object_mut(SCOPE_NAME, "Scope field")
+        let object = parent.get_object_mut(SCOPE_NAME, "Scope field")
             .expect("Could not store captured names, etc.");
         for name in &[BINJS_VAR_NAME, BINJS_LET_NAME, BINJS_CONST_NAME] {
             let name = name.to_string();
@@ -432,6 +432,7 @@ pub struct DeclContents {
     const_names: HashSet<String>,
     let_names: HashSet<String>,
     var_names: HashSet<String>,
+    unknown_names: HashSet<String>,
     scope_kind: ScopeKind,
     uses_strict: bool,
 }
@@ -491,6 +492,9 @@ impl<'a> ContextContents<'a, DeclContents> {
     pub fn add_const_name(&mut self, name: &str) {
         self.data.const_names.insert(name.to_string());
     }
+    pub fn add_unknown_name(&mut self, name: &str) {
+        self.data.unknown_names.insert(name.to_string());
+    }
 }
 
 impl<'a> Dispose for ContextContents<'a, DeclContents> {
@@ -503,6 +507,7 @@ impl<'a> Dispose for ContextContents<'a, DeclContents> {
             parent.data.var_names.extend(self.data.var_names.drain());
             parent.data.let_names.extend(self.data.let_names.drain());
             parent.data.const_names.extend(self.data.const_names.drain());
+            parent.data.unknown_names.extend(self.data.unknown_names.drain());
         }
     }
 }
@@ -528,21 +533,31 @@ impl<'a> Context<'a, DeclContents> {
     pub fn set_scope_kind(&mut self, kind: ScopeKind) {
         self.contents.borrow_mut().data.scope_kind = kind
     }
+    pub fn promote_unknown_names_to_var(&mut self) {
+        let mut borrow = self.contents.borrow_mut();
+        let mut unknown_names = HashSet::new();
+        std::mem::swap(&mut borrow.data.unknown_names, &mut unknown_names);
+        for name in unknown_names.drain() {
+            borrow.data.var_names.insert(name);
+        }
+    }
     pub fn clear_var_names(&mut self) {
-        self.contents.borrow_mut()
-            .data
-            .var_names
-            .clear();
+        let mut borrow = self.contents.borrow_mut();
+        let mut var_names = HashSet::new();
+        std::mem::swap(&mut borrow.data.var_names, &mut var_names);
+        for name in var_names.drain() {
+            borrow.data.unknown_names.remove(&name);
+        }
     }
     pub fn clear_lex_names(&mut self) {
-        self.contents.borrow_mut()
-            .data
-            .let_names
-            .clear();
-        self.contents.borrow_mut()
-            .data
-            .const_names
-            .clear();
+        let mut borrow = self.contents.borrow_mut();
+        let mut let_names = HashSet::new();
+        std::mem::swap(&mut borrow.data.let_names, &mut let_names);
+        let mut const_names = HashSet::new();
+        std::mem::swap(&mut borrow.data.const_names, &mut const_names);
+        for name in let_names.drain().chain(const_names.drain()) {
+            borrow.data.unknown_names.remove(&name);
+        }
     }
     pub fn uses_strict(&self) -> bool {
         self.contents.borrow().uses_strict()
@@ -557,12 +572,15 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
         var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
+        println!("Storing vars {:?} in {:?}", var_decl_names, parent["type"]);
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
         let_decl_names.sort(); // To simplify testing (and hopefully improve compression)
+        println!("Storing let {:?} in {:?}", let_decl_names, parent["type"]);
 
         let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
         const_decl_names.sort();
+        println!("Storing const {:?} in {:?}", const_decl_names, parent["type"]);
 
         parent.insert(SCOPE_NAME.to_string(), json!({
             "type": SCOPE_NAME,

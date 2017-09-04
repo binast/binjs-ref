@@ -648,7 +648,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             // Otherwise, skip. We cannot declare variables in `init`.
                         }
                         _ => {
-                            // Ignore identifier.
+                            // We don't know what this identifier is yet. Could be declared
+                            // in some enclosing scope or never, in which case it is implicitly
+                            // a global variable.
+                            parent.add_unknown_name(name)
                         }
                     }
                 }
@@ -701,6 +704,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     self.parent.process_declarations(me, ctx, object)?;
 
                     // Store available information.
+                    ctx.promote_unknown_names_to_var();
                     ctx.store(object);
                 }
                 "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression"  => {
@@ -814,7 +818,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         "ForInStatement" => {
                             if let Some("left") = parent.field_str() {
                                 // Variable declaration, already handled.
-                                assert!(parent.is_bound(&name), "Variable {} is declared by `for(in)`, should have been marked as bound in the previous pass", name);
+                                assert!(parent.is_bound(&name), "Variable {} is used by `for(in)`, should have been marked as bound in the previous pass", name);
                             } else {
                                 ctx.add_free_name(name)
                             }
