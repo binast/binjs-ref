@@ -312,7 +312,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&switch_case).unwrap()
         .with_field(&field_test, Type::interface(&expression).or_null().unwrap())
         .with_field(&field_consequent, Type::interface(&statement).array())
-        .with_parent(&statement);
+        .with_parent(&node);
 
     syntax.add_kinded_interface(&throw_statement).unwrap()
         .with_field(&field_argument, Type::interface(&expression))
