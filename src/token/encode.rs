@@ -13,7 +13,7 @@ type Object = serde_json::Map<String, Value>;
 pub enum Error<E> {
     Mismatch { expected: String, got: String },
     NoSuchInterface(String),
-    NoSuchRefinement(String),
+    NoSuchRefinement { expected: String, got: Vec<String> },
     NoSuchEnum(String),
     NoSuchKind(String),
     MissingField(String),
@@ -132,7 +132,10 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                // FIXME: Is this really necessary?
                if let Some(interface) = self.grammar.get_interface_by_kind(&kind) {
                    if !self.grammar.has_ancestor_in(interface, interfaces) {
-                       return Err(Error::NoSuchRefinement(kind.to_string().clone()))
+                       return Err(Error::NoSuchRefinement {
+                           expected: kind.to_string().clone(),
+                           got: interfaces.iter().map(NodeName::to_string).cloned().collect()
+                       });
                    }
                    let fields = interface.contents().fields();
                    let contents = self.encode_structure(object, fields, interface.name())?;
