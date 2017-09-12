@@ -94,8 +94,7 @@ impl Babel {
 
         // Now attempt to parse JSON
         let data = Cursor::new(stdout);
-        let mut deserializer = serde_json::de::Deserializer::from_reader(data)
-            .with_recursion_limit(255);
+        let mut deserializer = serde_json::de::Deserializer::from_reader(data);
         serde::de::Deserialize::deserialize(&mut deserializer)
             .map_err(Error::JsonError)
     }
