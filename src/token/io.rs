@@ -77,6 +77,8 @@ pub trait TokenWriter where Self::Error: Debug {
     /// of this `TokenWriter`.
     type Error;
 
+    fn done(&mut self);
+
     /// Write a tagged tuple.
     ///
     /// The number of items is specified by the grammar, so it MAY not be

@@ -2,6 +2,7 @@
 //! Used for testing purposes. Not included in release builds.
 
 use ast::grammar::{ Field, Syntax };
+use bytes;
 use token::io::*;
 
 use std;
@@ -9,8 +10,6 @@ use std::cell::RefCell;
 use std::io::{ Read, Seek, SeekFrom };
 use std::rc::Rc;
 use std::string::FromUtf8Error;
-
-const NONE_FLOAT_REPR: u64 = 0x7FF0000000000001;
 
 #[derive(Debug)]
 pub enum TokenReaderError {
@@ -240,17 +239,9 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
     }
 
     fn float(&mut self) -> Result<Option<f64>, Self::Error> {
-        debug!("TreeTokenReader: float");
         let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
-        assert!(std::mem::size_of_val(&buf) == std::mem::size_of::<f64>());
         self.read(&mut buf)?;
-        let as_float = unsafe { std::mem::transmute::<_, f64>(buf) };
-        let as_u64   = unsafe { std::mem::transmute::<_, u64>(buf) };
-        if as_u64 == NONE_FLOAT_REPR {
-            Ok(None)
-        } else {
-            Ok(Some(as_float))
-        }
+        Ok(bytes::float::float_of_bytes(&buf))
     }
 
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
@@ -385,14 +376,13 @@ impl TokenWriter for TreeTokenWriter {
     type Tree = Rc<Vec<u8>>;
     type Error = TokenWriterError;
 
+    fn done(&mut self) {
+        // Nothing to do.
+    }
+
     fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
-        debug!("TreeTokenWriter: float");
-        let buf : [u8; 8] = match data {
-            Some(float) => unsafe { std::mem::transmute(float) },
-            None        => unsafe { std::mem::transmute(NONE_FLOAT_REPR) }
-        };
-        let result = buf.iter().cloned().collect();
-        Ok(self.register(result))
+        let bytes = bytes::float::bytes_of_float(data);
+        Ok(self.register(bytes.iter().cloned().collect()))
     }
 
     fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
@@ -538,10 +528,12 @@ fn test_simple_io() {
     use ast::annotation::*;
     use ast::grammar::*;
 
+    use std::fs::*;
+
     use serde_json;
     use serde_json::Value as JSON;
 
-    use std::io::Cursor;
+    use std::io::{ Cursor, Write };
 
     type Object = serde_json::Map<String, JSON>;
 
@@ -551,9 +543,9 @@ fn test_simple_io() {
     let null_kind = builder.kind_name("Null");
     builder.add_kinded_interface(&null).unwrap();
 
-    let kinded = builder.node_name("Kinded");
-    let field_string = Field::new(builder.field_name("some_string"), Type::string());
-    let field_number = Field::new(builder.field_name("some_number"), Type::number());
+    let kinded = builder.node_name("Pattern");
+    let field_string = Field::new(builder.field_name("id"), Type::string());
+    let field_number = Field::new(builder.field_name("value"), Type::number());
 
     builder.add_kinded_interface(&kinded).unwrap()
         .with_own_field(field_string.clone())
@@ -585,6 +577,9 @@ fn test_simple_io() {
         writer.string(Some("simple string"))
             .expect("Writing simple string");
 
+        File::create("/tmp/test-simple-string.binjs").unwrap()
+            .write_all(writer.data()).unwrap();
+
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let simple_string = reader.string()
             .expect("Reading simple string")
@@ -598,6 +593,9 @@ fn test_simple_io() {
         let mut writer = TreeTokenWriter::new();
         writer.string(Some(data))
             .expect("Writing string with escapes");
+
+        File::create("/tmp/test-string-with-escapes.binjs").unwrap()
+            .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let escapes_string = reader.string()
@@ -613,6 +611,9 @@ fn test_simple_io() {
         writer.untagged_tuple(&[])
             .expect("Writing empty untagged tuple");
 
+        File::create("/tmp/test-empty-untagged-tuple.binjs").unwrap()
+            .write_all(writer.data()).unwrap();
+
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let _ = reader.untagged_tuple()
             .expect("Reading empty untagged tuplelist");
@@ -624,6 +625,9 @@ fn test_simple_io() {
         let item_1 = writer.string(Some("bar")).unwrap();
         writer.untagged_tuple(&[item_0, item_1])
             .expect("Writing trivial untagged tuple");
+
+        File::create("/tmp/test-trivial-untagged-tuple.binjs").unwrap()
+            .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let mut sub = reader.untagged_tuple()
@@ -647,16 +651,19 @@ fn test_simple_io() {
         writer.tagged_tuple(kinded.to_str(), &[(&field_string, item_0), (&field_number, item_1)])
             .expect("Writing trivial tagged tuple");
 
+        File::create("/tmp/test-simple-tagged-tuple.binjs").unwrap()
+            .write_all(writer.data()).unwrap();
+
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let (name, fields, mut sub) = reader.tagged_tuple()
             .expect("Reading trivial tagged tuple");
-        assert_eq!(name, "Kinded".to_string());
+        assert_eq!(name, "Pattern".to_string());
 
         // Order of fields is not deterministic
-        if fields[0].name().to_string() == &"some_string".to_string() {
-            assert_eq!(fields[0].name().to_string(), &"some_string".to_string());
+        if fields[0].name().to_string() == &"id".to_string() {
+            assert_eq!(fields[0].name().to_string(), &"id".to_string());
             assert_eq!(*fields[0].type_(), Type::string());
-            assert_eq!(fields[1].name().to_string(), &"some_number".to_string());
+            assert_eq!(fields[1].name().to_string(), &"value".to_string());
             assert_eq!(*fields[1].type_(), Type::number());
             let simple_string = sub.string()
                 .expect("Reading trivial tagged tuple[0]")
@@ -667,9 +674,9 @@ fn test_simple_io() {
             assert_eq!(&simple_string, "foo");
             assert_eq!(simple_float, 3.1415);
         } else {
-            assert_eq!(fields[1].name().to_string(), &"some_string".to_string());
+            assert_eq!(fields[1].name().to_string(), &"id".to_string());
             assert_eq!(*fields[1].type_(), Type::string());
-            assert_eq!(fields[0].name().to_string(), &"some_number".to_string());
+            assert_eq!(fields[0].name().to_string(), &"value".to_string());
             assert_eq!(*fields[0].type_(), Type::number());
             let simple_float = sub.float()
                 .expect("Reading trivial tagged tuple[1]")
@@ -689,6 +696,9 @@ fn test_simple_io() {
         writer.list(vec![])
             .expect("Writing empty list");
 
+        File::create("/tmp/test-empty-list.binjs").unwrap()
+                .write_all(writer.data()).unwrap();
+
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let (len, _) = reader.list()
             .expect("Reading empty list");
@@ -701,6 +711,9 @@ fn test_simple_io() {
         let item_1 = writer.string(Some("bar")).unwrap();
         writer.list(vec![item_0, item_1])
             .expect("Writing trivial list");
+
+        File::create("/tmp/test-trivial-list.binjs").unwrap()
+            .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let (len, mut sub) = reader.list()
@@ -725,6 +738,9 @@ fn test_simple_io() {
             .expect("Writing inner list");
         writer.list(vec![list])
             .expect("Writing outer list");
+
+        File::create("/tmp/test-nested-lists.binjs").unwrap()
+            .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
         let (len, mut sub) = reader.list()
