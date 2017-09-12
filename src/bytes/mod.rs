@@ -5,3 +5,4 @@
 
 pub mod atoms;
 pub mod varnum;
+pub mod float;
