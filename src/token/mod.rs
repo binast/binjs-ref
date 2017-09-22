@@ -15,3 +15,5 @@ pub mod encode;
 
 /// Simple implementation of TokenReader/TokenWriter for testing purposes.
 pub mod simple;
+
+pub mod multipart;

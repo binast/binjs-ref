@@ -1,33 +1,114 @@
 //! Encode a text source to a BinJS.
 
 extern crate binjs;
-#[macro_use]
 extern crate clap;
 extern crate env_logger;
 
+use binjs::bytes::compress::*;
+use binjs::token::encode::*;
 use binjs::source::*;
 
 use std::fs::*;
 use std::io::*;
 
+use clap::*;
+
+fn parse_compression(name: Option<&str>) -> Compression {
+    match name {
+        None | Some("identity") => Compression::Identity,
+        Some("lzw") => Compression::Lzw,
+        Some("br") => Compression::Brotli,
+        Some("gzip") => Compression::Gzip,
+        Some("deflate") => Compression::Deflate,
+        Some(x) => panic!("Unexpected compression name {}", x)
+    }
+}
+
 fn main() {
     env_logger::init().unwrap();
 
-    let matches = clap_app!(myapp =>
-        (author: "David Teller <dteller@mozilla.com>")
-        (about: "Encode a JavaScript text source to a JavaScript binary source in the BinJS format.")
-        (@arg INPUT: +required "Input file to use. Must be a JS source file.")
-        (@arg OUTPUT: +required "Output file to use. Will be overwritten.")
-    ).get_matches();
+    let matches = App::new("BinJS encoder")
+        .author("David Teller, <dteller@mozilla.com>")
+        .about("Encode a JavaScript text source to a JavaScript binary source in the BinJS format.")
+        .args(&[
+            Arg::with_name("INPUT")
+                .required(true)
+                .help("Input file to use. Must be a JS source file."),
+            Arg::with_name("OUTPUT")
+                .required(true)
+                .help("Output file to use. Will be overwritten."),
+            Arg::with_name("format")
+                .long("format")
+                .takes_value(true)
+                .possible_values(&["simple", "multipart"])
+                .help("Format to use for writing to OUTPUT. Defaults to simple unless --strings, --grammar or --tree is specified."),
+            Arg::with_name("strings")
+                .long("strings")
+                .takes_value(true)
+                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
+                .help("Compression format for strings. Defaults to identity."),
+            Arg::with_name("grammar")
+                .long("grammar")
+                .takes_value(true)
+                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
+                .help("Compression format for the grammar table. Defaults to identity."),
+            Arg::with_name("tree")
+                .long("tree")
+                .takes_value(true)
+                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
+                .help("Compression format for the tree. Defaults to identity."),
+        ])
+        .group(ArgGroup::with_name("multipart")
+            .args(&["strings", "grammar", "tree"])
+            .multiple(true)
+        )
+        .get_matches();
 
     let source_path = matches.value_of("INPUT")
         .expect("Expected input file");
     let dest_path = matches.value_of("OUTPUT")
         .expect("Expected output file");
+    let compression = {
+        let mut is_compressed = false;
+        if matches.value_of("strings").is_some()
+        || matches.value_of("grammar").is_some()
+        || matches.value_of("tree").is_some() {
+            match matches.value_of("format") {
+                None | Some("multipart") => {
+                    is_compressed = true;
+                }
+                _ => {
+                    println!("Error: Cannot specify `strings`, `grammar` or `tree` with this format.\n{}", matches.usage());
+                    std::process::exit(-1);
+                }
+            }
+        }
+        if let Some("multipart") = matches.value_of("format") {
+            is_compressed = true;
+        }
+        if is_compressed {
+            let strings = parse_compression(matches.value_of("strings"));
+            let grammar = parse_compression(matches.value_of("grammar"));
+            let tree = parse_compression(matches.value_of("tree"));
+            println!("Format: multipart\n\tstrings table: {:?}, grammar table: {:?}, tree: {:?}", strings, grammar, tree);
+            Some(binjs::token::multipart::WriteOptions {
+                strings_table: strings,
+                grammar_table: grammar,
+                tree
+            })
+        } else {
+            println!("Format: simple");
+            None
+        }
+    };
 
     // Setup.
     let parser = Babel::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
+
+    let source_len = std::fs::metadata(source_path)
+        .expect("Could not open source")
+        .len();
 
     println!("Parsing.");
     let mut ast    = parser.parse_file(source_path)
@@ -38,16 +119,39 @@ fn main() {
         .expect("Could not infer annotations");
 
     println!("Encoding.");
-    let writer  = binjs::token::simple::TreeTokenWriter::new();
-    let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+    let result = {
+        match compression {
+            None => {
+                let writer = binjs::token::simple::TreeTokenWriter::new();
+                let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+                encoder
+                    .encode(&ast)
+                    .expect("Could not encode AST");
+                encoder.done()
+                    .map(|data| Box::new(data) as Box<AsRef<[u8]>>)
+            }
+            Some(options) => {
+                let writer = binjs::token::multipart::TreeTokenWriter::new(options, &grammar);
+                let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+                encoder
+                    .encode(&ast)
+                    .expect("Could not encode AST");
+                encoder.done()
+                    .map(|data| Box::new(data) as Box<AsRef<[u8]>>)
+            }
+        }
+    };
 
-    encoder.encode(&ast)
-        .expect("Could not encode AST");
-    let writer = encoder.done();
+    let data = result
+        .expect("Could not finalize AST encoding");
+
+    let dest_len = data.as_ref().as_ref().len();
 
     println!("Writing.");
     let mut dest = File::create(dest_path)
         .expect("Could not create destination file");
-    dest.write(writer.data())
+    dest.write((*data).as_ref())
         .expect("Could not write destination file");
+
+    println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
 }
