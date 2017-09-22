@@ -1,5 +1,4 @@
 extern crate binjs;
-extern crate env_logger;
 extern crate serde_json;
 
 
@@ -7,6 +6,7 @@ extern crate serde_json;
 extern crate test_logger;
 
 use binjs::source::*;
+use binjs::token::encode::*;
 
 use std::io::*;
 
@@ -44,10 +44,11 @@ test!(test_simple_tokenization, {
 
         encoder.encode(&ast)
             .expect("Could not encode AST");
-        let writer = encoder.done();
+        let data = encoder.done()
+            .expect("Could not finalize encoding");
 
         println!("Decoding sample");
-        let reader = binjs::token::simple::TreeTokenReader::new(Cursor::new(writer.data()),
+        let reader = binjs::token::simple::TreeTokenReader::new(Cursor::new(data),
             &grammar);
         let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
 
