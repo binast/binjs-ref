@@ -43,6 +43,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
         self.latest = value.clone();
         value
     }
+
     pub fn latest(&self) -> &Value {
         &self.latest
     }
@@ -57,13 +58,14 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
         debug!("decode: {:?}", kind);
         match *kind {
             Array(ref kind) => {
-                let (len, extractor) = self.extractor.list()
+                let (len, guard) = self.extractor.list()
                     .map_err(Error::TokenReaderError)?;
-                let mut decoder = Decoder::new(self.grammar, extractor);
                 let mut values = Vec::with_capacity(len as usize);
                 for _ in 0..len {
-                    values.push(decoder.decode_from_type(kind)?);
+                    values.push(self.decode_from_type(kind)?);
                 }
+                guard.done()
+                    .map_err(Error::TokenReaderError)?;
                 Ok(self.register(Value::Array(values)))
             }
             Enum(ref name) => {
@@ -84,36 +86,43 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 names: ref interfaces,
                 or_null
             } => {
-                let (kind_name, mapped_field_names, extractor) = self.extractor.tagged_tuple()
+                let (kind_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
                     .map_err(Error::TokenReaderError)?;
                 debug!("decoder: found kind {:?}", kind_name);
 
                 // Special case: `null`.
                 if or_null && &kind_name == self.grammar.get_null().to_str() {
                     assert_eq!(mapped_field_names.len(), 0);
+                    guard.done()
+                        .map_err(Error::TokenReaderError)?;
                     return Ok(self.register(Value::Null));
                 }
 
                 // We have a kind, so we know how to parse the data. We just need
                 // to make sure that we expected this interface here.
                 let kind = self.grammar.get_kind(&kind_name)
-                    .ok_or_else(|| Error::NoSuchKind(kind_name))?;
+                    .ok_or_else(|| {
+                        self.extractor.poison();
+                        Error::NoSuchKind(kind_name)
+                    })?;
 
                 if let Some(interface) = self.grammar.get_interface_by_kind(&kind) {
                     if !self.grammar.has_ancestor_in(interface, interfaces) {
+                        self.extractor.poison();
                         return Err(Error::NoSuchRefinement(kind.to_string().clone()))
                     }
 
                     // Read the fields **in the order** in which they appear in the stream.
-                    let mut decoder = Decoder::new(self.grammar, extractor);
                     let mut object = Object::new();
                     for field in mapped_field_names.as_ref().iter() {
-                        let item = decoder.decode_from_type(field.type_())?;
+                        let item = self.decode_from_type(field.type_())?;
                         object.insert(field.name().to_string().clone(), item);
                     }
 
                     // Don't forget `"type"`.
                     object.insert("type".to_owned(), Value::String(kind.to_string().clone()));
+                    guard.done()
+                        .map_err(Error::TokenReaderError)?;
                     Ok(self.register(Value::Object(object)))
                 } else {
                     Err(Error::NoSuchKind(kind.to_string().clone()))

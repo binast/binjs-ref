@@ -4,10 +4,11 @@
 use ast::grammar::{ Field, Syntax };
 use bytes;
 use token::io::*;
+use util::Pos;
 
 use std;
 use std::cell::RefCell;
-use std::io::{ Read, Seek, SeekFrom };
+use std::io::{ Read, Seek };
 use std::rc::Rc;
 use std::string::FromUtf8Error;
 
@@ -22,10 +23,8 @@ pub enum TokenReaderError {
     HeaderOrFooterNotFound {
         expected: String,
         found: Vec<u8>,
-        description: String,
     },
     EndOffsetError {
-        suffix: Option<String>,
         start: u64,
         expected: u64,
         found: u64,
@@ -38,97 +37,50 @@ pub enum TokenReaderError {
 struct TreeTokenReaderImpl<'a, R> where R: Read + Seek {
     reader: R,
     grammar: &'a Syntax,
+    poisoned: bool,
 }
-
-pub struct TreeTokenReader<'a, R> where R: Read + Seek {
-    // Shared with all children.
-    implem: Rc<RefCell<TreeTokenReaderImpl<'a, R>>>,
-    my_pending_error: Rc<RefCell<Option<TokenReaderError>>>,
-    parent_pending_error: Rc<RefCell<Option<TokenReaderError>>>,
-
-    description: String,
-
-    /// The position at which we started.
-    pos_start: u64,
-
-    /// If specified, the position at which extraction must end.
-    pos_end: Option<u64>,
-
-    /// If specified, a suffix for the extraction.
-    /// This suffix appears *after* `pos_end`.
-    suffix: Option<String>
-}
-impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
+impl<'a, R> TreeTokenReaderImpl<'a, R> where R: Read + Seek {
     /// Create a new toplevel TreeTokenReader.
     pub fn new(reader: R, grammar: &'a Syntax) -> Self {
-        let implem = TreeTokenReaderImpl {
-            reader: reader,
-            grammar, // FIXME: We probably don't need the grammar at this layer.
-        };
-        TreeTokenReader {
-            description: "Top".to_owned(),
-            pos_start: 0,
-            implem: Rc::new(RefCell::new(implem)),
-            my_pending_error: Rc::new(RefCell::new(None)),
-            parent_pending_error: Rc::new(RefCell::new(None)),
-            pos_end: None,
-            suffix: None,
+        TreeTokenReaderImpl {
+            reader,
+            grammar,
+            poisoned: false
         }
     }
 
-    fn position(&self) -> u64 {
-        self.implem
-            .borrow_mut()
-            .reader
-            .seek(std::io::SeekFrom::Current(0))
-            .expect("Could not check position")
-    }
-
-    /// Derive a TreeTokenReader for reading a subset of the stream.
-    fn sub(&self, options: SubOptions) -> Self {
-        let position = self.position();
-        let pos_end = options.byte_len.map(|length| position + length);
-        debug!("TreeTokenReader: sub {:?}, starting at {} => {:?}", options.suffix, position, pos_end);
-        TreeTokenReader {
-            implem: self.implem.clone(),
-            parent_pending_error: self.my_pending_error.clone(),
-            my_pending_error: Rc::new(RefCell::new(None)),
-            pos_end,
-            suffix: options.suffix,
-            pos_start: position,
-            description: options.description,
-        }
+    fn position(&mut self) -> u64 {
+        self.reader.pos() as u64
     }
 
     /// Read data to a buffer.
     ///
-    /// If an error is pending, propagate the error.
-    /// If reading causes an error, any further call to `read()` will
-    /// cause an error of type
-    /// `TokenReaderError::BailingOutBecauseOfPreviousError`.
+    /// # Panics
+    ///
+    /// If `self` is poisoned.
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, TokenReaderError> {
-        let error = self.my_pending_error.borrow_mut().take();
-        if let Some(error) = error {
-            *self.my_pending_error.borrow_mut() = Some(TokenReaderError::BailingOutBecauseOfPreviousError);
-            return Err(error)
-        }
-        let ref mut reader = self.implem.borrow_mut().reader;
-        match reader.read_exact(buf) {
+        assert!(!self.poisoned, "TreeTokenReader is poisoned");
+        match self.reader.read_exact(buf) {
             Ok(_) => Ok(buf.len()),
-            Err(err) => {
-                let error = TokenReaderError::Reader(err);
-                *self.my_pending_error.borrow_mut() = Some(TokenReaderError::BailingOutBecauseOfPreviousError);
-                Err(error)
-            }
+            Err(err) => self.fail(TokenReaderError::Reader(err))
         }
     }
 
+    fn fail<T>(&mut self, err: TokenReaderError) -> Result<T, TokenReaderError> {
+        self.poisoned = true;
+        Err(err)
+    }
+
     fn read_u32(&mut self) -> Result<u32, TokenReaderError> {
-        let result : u32;
         let mut buf : [u8; 4] = unsafe { std::mem::uninitialized() };
         debug_assert!(std::mem::size_of::<u32>() == std::mem::size_of_val(&buf));
         self.read(&mut buf)?;
-        result = unsafe { std::mem::transmute(buf) };
+
+        let result =
+              buf[0] as u32
+            | (buf[1] as u32) << 8
+            | (buf[2] as u32) << 16
+            | (buf[3] as u32) << 24;
         Ok(result)
     }
 
@@ -138,8 +90,10 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
         loop {
             self.read(&mut buf)?;
             if buf[0] == 0 {
-                return String::from_utf8(bytes)
-                    .map_err(TokenReaderError::Encoding);
+                return match String::from_utf8(bytes) {
+                    Ok(s) => Ok(s),
+                    Err(err) => self.fail(TokenReaderError::Encoding(err))
+                }
             }
             bytes.push(buf[0])
         }
@@ -150,200 +104,261 @@ impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek {
         self.read(&mut buf)?;
         for (expected, found) in buf.iter().zip(value.bytes()) {
             if *expected != found {
-                return Err(TokenReaderError::HeaderOrFooterNotFound {
+                return self.fail(TokenReaderError::HeaderOrFooterNotFound {
                     found: buf.clone(),
                     expected: value.to_string(),
-                    description: self.description.clone(),
                 });
             }
         }
         Ok(())
     }
 }
-impl<'a, R> Drop for TreeTokenReader<'a, R> where R: Read + Seek {
-    fn drop(&mut self) {
-        {
-            if self.parent_pending_error.borrow().is_some() {
-                // Propagate error.
-                return;
-            }
-        }
-        {
-            let my_pending_error = self.my_pending_error.borrow_mut().take();
-            if my_pending_error.is_some() {
-                // Propagate error.
-                *self.parent_pending_error.borrow_mut() = my_pending_error;
-                return;
-            }
-        }
 
-        // FIXME: Wait, we are relying upon order of destruction!
-        let position = self.position();
+pub struct TreeTokenReader<'a, R> where R: Read + Seek + 'a {
+    owner: Rc<RefCell<TreeTokenReaderImpl<'a, R>>>,
+}
 
-        // Check byte_len, if available.
-        if let Some(expected) = self.pos_end {
-            if position != expected {
-                *self.parent_pending_error.borrow_mut() =
-                    Some(TokenReaderError::EndOffsetError {
-                        start: self.pos_start,
-                        suffix: self.suffix.clone(),
-                        expected,
-                        found: position,
-                        description: self.description.clone()
-                    });
-                warn!("TokenTreeReader: This subextractor goes {} => {}, expected {} => {}, ({})",
-                    self.pos_start,
-                    position,
-                    self.pos_start,
-                    expected,
-                    self.description);
-                return;
-            }
+impl<'a, R> TreeTokenReader<'a, R> where R: Read + Seek + 'a {
+    pub fn new(reader: R, grammar: &'a Syntax) -> Self {
+        let owner = TreeTokenReaderImpl::new(reader, grammar);
+        TreeTokenReader {
+            owner: Rc::new(RefCell::new(owner))
         }
-        // Check suffix, if available.
-        if let Some(ref suffix) = self.suffix.take() {
-            if let Err(err) = self.read_constant(suffix) {
-                *self.parent_pending_error.borrow_mut() = Some(err);
-                warn!("TokenTreeReader: This subextractor should end with {} ({})", suffix, self.description);
-                return;
-            }
-        }
-
-        debug!("TreeTokenReader: drop() {:?} {:?} OK", self.pos_end, self.suffix);
     }
 }
-impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek {
+
+pub struct ListGuard<'a, R> where R: Read + Seek + 'a {
+    finalized: bool,
+    expected_end: u64,
+    start: u64,
+    owner: Rc<RefCell<TreeTokenReaderImpl<'a, R>>>,
+}
+
+impl<'a, R> ListGuard<'a, R> where R: Read + Seek + 'a {
+    fn new(owner: Rc<RefCell<TreeTokenReaderImpl<'a, R>>>, byte_len: u64) -> Self {
+        let start = owner.borrow_mut().position();
+        ListGuard {
+            finalized: false,
+            start,
+            expected_end: start + byte_len,
+            owner
+        }
+    }
+}
+impl<'a, R> Guard for ListGuard<'a, R> where R: Read + Seek + 'a {
+    type Error = TokenReaderError;
+    fn done(mut self) -> Result<(), Self::Error> {
+        self.finalized = true;
+        let mut owner = self.owner.borrow_mut();
+        if owner.poisoned {
+            return Ok(())
+        }
+
+        let found = owner.position();
+        if found != self.expected_end {
+            return owner.fail(TokenReaderError::EndOffsetError {
+                start: self.start,
+                expected: self.expected_end,
+                found,
+                description: "list".to_string()
+            })
+        }
+
+        owner.read_constant("</list>")
+    }
+}
+impl<'a, R> Drop for ListGuard<'a, R> where R: Read + Seek + 'a {
+    fn drop(&mut self) {
+        if self.owner.borrow().poisoned {
+            return;
+        }
+        assert!(self.finalized)
+    }
+}
+
+
+pub struct TaggedGuard<'a, R> where R: Read + Seek + 'a {
+    finalized: bool,
+    owner: Rc<RefCell<TreeTokenReaderImpl<'a, R>>>,
+}
+
+impl<'a, R> TaggedGuard<'a, R> where R: Read + Seek + 'a {
+    fn new(owner: Rc<RefCell<TreeTokenReaderImpl<'a, R>>>) -> Self {
+        TaggedGuard {
+            finalized: false,
+            owner
+        }
+    }
+}
+impl<'a, R> Guard for TaggedGuard<'a, R> where R: Read + Seek + 'a {
+    type Error = TokenReaderError;
+    fn done(mut self) -> Result<(), Self::Error> {
+        self.finalized = true;
+        let mut owner = self.owner.borrow_mut();
+        if owner.poisoned {
+            return Ok(())
+        }
+
+        owner.read_constant("</tuple>")
+    }
+}
+impl<'a, R> Drop for TaggedGuard<'a, R> where R: Read + Seek + 'a {
+    fn drop(&mut self) {
+        if self.owner.borrow().poisoned {
+            return;
+        }
+        assert!(self.finalized)
+    }
+}
+
+
+pub struct UntaggedGuard<'a, R> where R: Read + Seek + 'a {
+    finalized: bool,
+    owner: Rc<RefCell<TreeTokenReaderImpl<'a, R>>>,
+}
+
+impl<'a, R> UntaggedGuard<'a, R> where R: Read + Seek + 'a {
+    fn new(owner: Rc<RefCell<TreeTokenReaderImpl<'a, R>>>) -> Self {
+        UntaggedGuard {
+            finalized: false,
+            owner
+        }
+    }
+}
+impl<'a, R> Guard for UntaggedGuard<'a, R> where R: Read + Seek + 'a {
+    type Error = TokenReaderError;
+    fn done(mut self) -> Result<(), Self::Error> {
+        self.finalized = true;
+        let mut owner = self.owner.borrow_mut();
+        if owner.poisoned {
+            return Ok(())
+        }
+
+        owner.read_constant("</tuple>")
+    }
+}
+impl<'a, R> Drop for UntaggedGuard<'a, R> where R: Read + Seek + 'a {
+    fn drop(&mut self) {
+        if self.owner.borrow().poisoned {
+            return;
+        }
+        assert!(self.finalized)
+    }
+}
+
+impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek + 'a {
+    type ListGuard = ListGuard<'a, R>;
+    type TaggedGuard = TaggedGuard<'a, R>;
+    type UntaggedGuard = UntaggedGuard<'a, R>;
     type Error = TokenReaderError;
 
-    fn skip(&mut self) -> Result<(), Self::Error> {
-        debug!("TreeTokenReader: skip");
-        if let Some(end) = self.pos_end {
-            self.implem.borrow_mut().reader.seek(SeekFrom::Start(end))
-                .map_err(TokenReaderError::Reader)?;
-            Ok(())
-        } else {
-            Err(TokenReaderError::NotInList)
-        }
+    fn poison(&mut self) {
+        self.owner.borrow_mut().poisoned = true;
     }
 
     fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
         debug!("TreeTokenReader: bool");
         let mut buf : [u8; 1] = unsafe { std::mem::uninitialized() };
-        self.read(&mut buf)?;
-        match buf[0] {
-            0 => Ok(Some(false)),
-            1 => Ok(Some(true)),
-            2 => Ok(None),
-            _ => Err(TokenReaderError::InvalidValue)
+        let mut owner = self.owner.borrow_mut();
+        owner.read(&mut buf)?;
+        match bytes::bool::bool_of_bytes(&buf) {
+            Ok(x) => Ok(x),
+            Err(_) => owner.fail(TokenReaderError::InvalidValue)
         }
     }
 
     fn float(&mut self) -> Result<Option<f64>, Self::Error> {
         let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
-        self.read(&mut buf)?;
+        let mut owner = self.owner.borrow_mut();
+        owner.read(&mut buf)?;
         Ok(bytes::float::float_of_bytes(&buf))
     }
 
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
         debug!("TreeTokenReader: string");
-        self.read_constant("<string>")?;
-        let byte_len = self.read_u32()?;
+        let mut owner = self.owner.borrow_mut();
+        owner.read_constant("<string>")?;
+        let byte_len = owner.read_u32()?;
 
         let mut bytes : Vec<u8> = vec![0 as u8; byte_len as usize];
-        self.read(&mut bytes)?;
+        owner.read(&mut bytes)?;
 
-        self.read_constant("</string>")?;
+        owner.read_constant("</string>")?;
 
         if byte_len == 2 && bytes[0] == 255 && bytes[1] == 0 {
             return Ok(None)
         }
-        let result = String::from_utf8(bytes)
-            .map_err(TokenReaderError::Encoding)?;
-        debug!("TreeTokenReader: string => {:?}/{}", result, result);
-        Ok(Some(result))
-    }
-
-    fn list(&mut self) -> Result<(u32, Self), Self::Error> {
-        debug!("TreeTokenReader: list");
-        self.read_constant("<list>")?;
-        let byte_len = self.read_u32()?;
-        let mut extractor = self.sub(SubOptions {
-            description: "list".to_owned(),
-            byte_len: Some(byte_len as u64),
-            suffix: Some("</list>".to_string())
-        });
-        let list_len = extractor.read_u32()?;
-        debug!("TreeTokenReader: list has {} items, {} bytes", list_len, byte_len);
-        Ok((list_len, extractor))
-    }
-
-    fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[Field]>>, Self), Self::Error> {
-        debug!("TreeTokenReader: tagged_tuple");
-        self.read_constant("<tuple>")?;
-        self.read_constant("<head>")?;
-
-        // Read (and validate) the kind.
-        let kind_name = self.read_string()?;
-        let kind = { self.implem.borrow().grammar.get_kind(&kind_name)
-            .ok_or_else(|| TokenReaderError::NoSuchKind(kind_name.clone()))? };
-        let interface = { self.implem.borrow().grammar.get_interface_by_kind(&kind)
-            .ok_or_else(|| TokenReaderError::NoSuchKind(kind_name.clone()))? };
-
-        // Read the field names
-        let len = self.read_u32()?;
-        let mut field_names = Vec::with_capacity(len as usize);
-        for _ in 0..len {
-            let string_name = self.read_string()?;
-            let field_name = self.implem.borrow().grammar.get_field_name(&string_name)
-                .ok_or_else(|| TokenReaderError::NoSuchField(string_name.clone()))?;
-            field_names.push(field_name);
+        match String::from_utf8(bytes) {
+            Ok(x) => Ok(Some(x)),
+            Err(err) => owner.fail(TokenReaderError::Encoding(err))
         }
 
-        // Attach types
-        let mut fields = Vec::with_capacity(len as usize);
-        let obj = interface.contents();
-        'fields: for field_name in field_names.drain(..) {
-            for field in obj.fields() {
-                if field_name == field.name() {
-                    fields.push(field.clone());
-                    continue 'fields
+    }
+
+    fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error> {
+        debug!("TreeTokenReader: list");
+        let byte_len = {
+            let mut owner = self.owner.borrow_mut();
+            owner.read_constant("<list>")?;
+            owner.read_u32()?
+        };
+        let guard = ListGuard::new(self.owner.clone(), byte_len as u64);
+        let list_len = {
+            let mut owner = self.owner.borrow_mut();
+            owner.read_u32()?
+        };
+        debug!("TreeTokenReader: list has {} items, {} bytes", list_len, byte_len);
+        Ok((list_len, guard))
+    }
+
+    fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[Field]>>, Self::TaggedGuard), Self::Error> {
+        debug!("TreeTokenReader: tagged_tuple");
+        let (kind_name, fields) = {
+            let mut owner = self.owner.borrow_mut();
+            owner.read_constant("<tuple>")?;
+            owner.read_constant("<head>")?;
+
+            // Read (and validate) the kind.
+            let kind_name = owner.read_string()?;
+            let kind = owner.grammar.get_kind(&kind_name)
+                .ok_or_else(|| TokenReaderError::NoSuchKind(kind_name.clone()))?;
+            let interface = owner.grammar.get_interface_by_kind(&kind)
+                .ok_or_else(|| TokenReaderError::NoSuchKind(kind_name.clone()))?;
+
+            // Read the field names
+            let len = owner.read_u32()?;
+            let mut field_names = Vec::with_capacity(len as usize);
+            for _ in 0..len {
+                let string_name = owner.read_string()?;
+                let field_name = owner.grammar.get_field_name(&string_name)
+                    .ok_or_else(|| TokenReaderError::NoSuchField(string_name.clone()))?;
+                field_names.push(field_name);
+            }
+
+            // Attach types
+            let mut fields = Vec::with_capacity(len as usize);
+            let obj = interface.contents();
+            'fields: for field_name in field_names.drain(..) {
+                for field in obj.fields() {
+                    if field_name == field.name() {
+                        fields.push(field.clone());
+                        continue 'fields
+                    }
                 }
             }
-        }
-        self.read_constant("</head>")?;
-        let extractor = self.sub(SubOptions {
-            description: format!("Tagged tuple: {}", kind_name),
-            suffix: Some("</tuple>".to_string()),
-            ..SubOptions::default()
-        });
+            owner.read_constant("</head>")?;
+            (kind_name, fields)
+        };
+        let guard = TaggedGuard::new(self.owner.clone());
 
         debug!("TreeTokenReader: tagged_tuple has name {:?}, fields {:?}", kind_name, fields);
-        Ok((kind_name, Rc::new(fields.into_boxed_slice()), extractor))
+        Ok((kind_name, Rc::new(fields.into_boxed_slice()), guard))
     }
 
-    fn untagged_tuple(&mut self) -> Result<Self, Self::Error> {
+    fn untagged_tuple(&mut self) -> Result<Self::UntaggedGuard, Self::Error> {
         debug!("TreeTokenReader: untagged_tuple");
-        self.read_constant("<tuple>")?;
-        Ok(self.sub(SubOptions {
-            description: "Untagged tuple".to_owned(),
-            suffix: Some("</tuple>".to_string()),
-            ..SubOptions::default()
-        }))
-    }
-}
-
-struct SubOptions {
-    description: String,
-    byte_len: Option<u64>,
-    suffix: Option<String>,
-}
-impl Default for SubOptions {
-    fn default() -> Self {
-        SubOptions {
-            description: "".to_owned(),
-            byte_len: None,
-            suffix: None,
-        }
+        { self.owner.borrow_mut().read_constant("<tuple>")?; }
+        Ok(UntaggedGuard::new(self.owner.clone()))
     }
 }
 
@@ -368,6 +383,13 @@ impl TreeTokenWriter {
     }
 }
 
+pub struct Data(pub Rc<Vec<u8>>);
+impl AsRef<[u8]> for Data {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref().as_ref()
+    }
+}
+
 #[derive(Debug)]
 pub enum TokenWriterError {
     MissingKind,
@@ -375,9 +397,10 @@ pub enum TokenWriterError {
 impl TokenWriter for TreeTokenWriter {
     type Tree = Rc<Vec<u8>>;
     type Error = TokenWriterError;
+    type Data = Data;
 
-    fn done(&mut self) {
-        // Nothing to do.
+    fn done(self) -> Result<Self::Data, Self::Error> {
+        Ok(Data(self.root))
     }
 
     fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
@@ -387,12 +410,7 @@ impl TokenWriter for TreeTokenWriter {
 
     fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
         debug!("TreeTokenWriter: bool");
-        let buf = match data {
-            None => [2],
-            Some(true) => [1],
-            Some(false) => [0]
-        };
-        let result = buf.iter().cloned().collect();
+        let result = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
         Ok(self.register(result))
     }
 
@@ -405,7 +423,7 @@ impl TokenWriter for TreeTokenWriter {
             None => EMPTY_STRING.len(),
             Some(ref x) => x.len()
         } as u32;
-        let buf_len : [u8; 4] = unsafe { std::mem::transmute(byte_len) };
+        let buf_len : [u8; 4] = unsafe { std::mem::transmute(byte_len) }; // FIXME: Make this little-endian
         assert!(std::mem::size_of_val(&buf_len) == std::mem::size_of_val(&byte_len));
 
 
@@ -615,8 +633,12 @@ fn test_simple_io() {
             .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let _ = reader.untagged_tuple()
-            .expect("Reading empty untagged tuplelist");
+        let guard = reader.untagged_tuple()
+            .expect("Reading empty untagged tuple");
+
+        guard.done()
+            .expect("Empty untagged tuple read properly");
+
     }
 
     {
@@ -630,16 +652,19 @@ fn test_simple_io() {
             .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let mut sub = reader.untagged_tuple()
+        let guard = reader.untagged_tuple()
             .expect("Reading trivial untagged tuple");
-        let simple_string = sub.string()
+        let simple_string = reader.string()
             .expect("Reading trivial tuple[0]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
-        let simple_string = sub.string()
+        let simple_string = reader.string()
             .expect("Reading trivial tuple[1]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
+
+        guard.done()
+            .expect("Untagged tuple read properly");
     }
 
     debug!("Testing tagged tuple I/O");
@@ -655,7 +680,7 @@ fn test_simple_io() {
             .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let (name, fields, mut sub) = reader.tagged_tuple()
+        let (name, fields, guard) = reader.tagged_tuple()
             .expect("Reading trivial tagged tuple");
         assert_eq!(name, "Pattern".to_string());
 
@@ -665,10 +690,10 @@ fn test_simple_io() {
             assert_eq!(*fields[0].type_(), Type::string());
             assert_eq!(fields[1].name().to_string(), &"value".to_string());
             assert_eq!(*fields[1].type_(), Type::number());
-            let simple_string = sub.string()
+            let simple_string = reader.string()
                 .expect("Reading trivial tagged tuple[0]")
                 .expect("Reading a non-null string");
-            let simple_float = sub.float()
+            let simple_float = reader.float()
                 .expect("Reading trivial tagged tuple[1]")
                 .expect("Reading a non-null float");
             assert_eq!(&simple_string, "foo");
@@ -678,15 +703,18 @@ fn test_simple_io() {
             assert_eq!(*fields[1].type_(), Type::string());
             assert_eq!(fields[0].name().to_string(), &"value".to_string());
             assert_eq!(*fields[0].type_(), Type::number());
-            let simple_float = sub.float()
+            let simple_float = reader.float()
                 .expect("Reading trivial tagged tuple[1]")
                 .expect("Reading a non-null float");
-            let simple_string = sub.string()
+            let simple_string = reader.string()
                 .expect("Reading trivial tagged tuple[0]")
                 .expect("Reading a non-null string");
             assert_eq!(&simple_string, "foo");
             assert_eq!(simple_float, 3.1415);
         }
+
+        guard.done()
+            .expect("Trivial tagged tuple read properly");
     }
 
     debug!("Testing list I/O");
@@ -700,9 +728,12 @@ fn test_simple_io() {
                 .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let (len, _) = reader.list()
+        let (len, guard) = reader.list()
             .expect("Reading empty list");
         assert_eq!(len, 0);
+
+        guard.done()
+            .expect("Empty list read properly");
     }
 
     {
@@ -716,18 +747,21 @@ fn test_simple_io() {
             .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let (len, mut sub) = reader.list()
+        let (len, guard) = reader.list()
             .expect("Reading trivial list");
         assert_eq!(len, 2);
 
-        let simple_string = sub.string()
+        let simple_string = reader.string()
             .expect("Reading trivial list[0]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
-        let simple_string = sub.string()
+        let simple_string = reader.string()
             .expect("Reading trivial list[1]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
+
+        guard.done()
+            .expect("Trivial list read properly");
     }
 
     {
@@ -743,22 +777,28 @@ fn test_simple_io() {
             .write_all(writer.data()).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()), &syntax);
-        let (len, mut sub) = reader.list()
+        let (len, guard) = reader.list()
             .expect("Reading outer list");
         assert_eq!(len, 1);
 
-        let (len, mut sub) = sub.list()
+        let (len, inner_guard) = reader.list()
             .expect("Reading inner list");
         assert_eq!(len, 2);
 
-        let simple_string = sub.string()
+        let simple_string = reader.string()
             .expect("Reading trivial list[0]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
-        let simple_string = sub.string()
+        let simple_string = reader.string()
             .expect("Reading trivial list[1]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
+
+        inner_guard.done()
+            .expect("Inner list read properly");
+        guard.done()
+            .expect("Inner list read properly");
+
     }
 
 }

@@ -2,6 +2,7 @@ use ast::grammar::*;
 use token::io::*;
 use util::{ f64_of, type_of };
 
+use std;
 use std::cell::*;
 use std::fmt::Debug;
 
@@ -33,6 +34,11 @@ impl<E> Error<E> {
     }
 }
 
+pub trait Encode {
+    type Data;
+    fn encode(&self, value: &Value) -> Result<(), std::io::Error>;
+    fn done(self) -> Result<Self::Data, std::io::Error>;
+}
 
 pub struct Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
     grammar: &'a Syntax,
@@ -44,11 +50,6 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             grammar: syntax,
             builder: RefCell::new(builder),
         }
-    }
-
-    /// Finalize the encoder, recover the builder.
-    pub fn done(self) -> B {
-        self.builder.into_inner()
     }
 
     /// Encode a JSON into a SerializeTree based on a grammar.
@@ -207,5 +208,23 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             }
         }
         Ok(result)
+    }
+}
+
+
+impl<'a, B, Tree, E> Encode for Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
+    type Data = B::Data;
+    fn encode(&self, value: &Value) -> Result<(), std::io::Error> {
+        (self as &Encoder<'a, B, Tree, E>).encode(value)
+            .map(|_| ())
+            .map_err(|err| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", err))
+            })
+    }
+    fn done(self) -> Result<Self::Data, std::io::Error> {
+        self.builder.into_inner().done()
+            .map_err(|err| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", err))
+            })
     }
 }
