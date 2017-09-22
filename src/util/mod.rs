@@ -6,6 +6,7 @@ use serde_json::{ Value as JSON, Number };
 
 use std;
 use std::fs::File;
+use std::io::Seek;
 use std::path::*;
 
 type Object = serde_json::Map<String, JSON>;
@@ -311,4 +312,44 @@ impl JSONGetter for JSON {
 
 pub trait Dispose {
     fn dispose(&mut self);
+}
+
+
+pub trait Pos {
+    fn pos(&mut self) -> usize;
+    fn size(&mut self) -> usize;
+}
+impl<T> Pos for T where T: Seek {
+    fn pos(&mut self) -> usize {
+        self.seek(std::io::SeekFrom::Current(0))
+            .expect("Could not check position")
+        as usize
+    }
+    fn size(&mut self) -> usize {
+        let old = self.seek(std::io::SeekFrom::Current(0))
+            .expect("Could not check position");
+        let size = self.seek(std::io::SeekFrom::End(0))
+            .expect("Could not look for end of stream");
+        self.seek(std::io::SeekFrom::Start(old))
+            .expect("Could not rewind");
+        size as usize
+    }
+}
+
+pub trait ReadConst {
+    fn read_const(&mut self, bytes: &[u8]) -> Result<(), std::io::Error>;
+}
+impl<T> ReadConst for T where T: std::io::Read {
+    fn read_const(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
+        let mut buf = Vec::with_capacity(data.len());
+        unsafe { buf.set_len(data.len()); }
+        let bytes = self.read(&mut buf)?;
+        if bytes != data.len() {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, String::from_utf8_lossy(data)));
+        }
+        if &buf as &[u8] != data {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, String::from_utf8_lossy(data)));
+        }
+        Ok(())
+    }
 }
