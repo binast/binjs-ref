@@ -1,6 +1,6 @@
 [package]
 name = "binjs"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [features]
@@ -10,12 +10,17 @@ spidermonkey = []
 esprima = []
 
 [dependencies]
-env_logger = "*"
-log ="*"
-serde_json = "1.0"
 assert_matches = "*"
+brotli = "1.*"
 clap = "*" # Should be a dev-dependency, actually.
+env_logger = "*"
+flate2 = "0.2"
+log = "*"
+lzw = "*"
 rand = "*"
+serde = "*"
+serde_json = "*"
+vec_map = "*"
 
 [dev-dependencies]
 env_logger = "*"
