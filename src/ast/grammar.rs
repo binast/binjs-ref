@@ -796,6 +796,15 @@ impl Interface {
     pub fn type_(&self) -> Type {
         Type::interfaces(&[self.name()])
     }
+
+    pub fn get_field_by_name(&self, name: &FieldName) -> Option<&Field> {
+        for field in self.contents().fields() {
+            if name == field.name() {
+                return Some(field)
+            }
+        }
+        None
+    }
 }
 
 /// Immutable representation of the syntax.
