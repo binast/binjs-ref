@@ -1,13 +1,8 @@
-#[macro_use]
-extern crate assert_matches;
 extern crate binjs;
-extern crate env_logger;
 #[macro_use]
 extern crate serde_json;
 #[macro_use]
 extern crate test_logger;
-
-use serde_json::Value as JSON;
 
 use binjs::source::*;
 
@@ -336,11 +331,11 @@ test!(test_annotations_capture_4, {
     // Toplevel
     assert_eq!(ast["BINJS:Scope"], json!({
         "type": "BINJS:Scope",
-        "BINJS:CapturedNames": [],
+        "BINJS:CapturedNames": ["print"],
         "BINJS:HasDirectEval": false,
         "BINJS:ConstDeclaredNames": [],
         "BINJS:LetDeclaredNames": [],
-        "BINJS:VarDeclaredNames": ["f"]
+        "BINJS:VarDeclaredNames": ["f", "print"]
     }));
 
     // Function body
@@ -348,7 +343,7 @@ test!(test_annotations_capture_4, {
     println!("{}", serde_json::to_string_pretty(&body).unwrap());
     assert_eq!(body["BINJS:Scope"], json!({
         "type": "BINJS:Scope",
-        "BINJS:CapturedNames": ["x"],
+        "BINJS:CapturedNames": ["x"], // FIXME: Is this right? Should `print` be considered captured?
         "BINJS:HasDirectEval": false,
         "BINJS:ConstDeclaredNames": [],
         "BINJS:LetDeclaredNames": [],

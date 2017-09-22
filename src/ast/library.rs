@@ -705,6 +705,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     self.parent.process_declarations(me, ctx, object)?;
 
                     // Store available information.
+                    ctx.clear_special_unknown_names(&["eval"]);
                     ctx.promote_unknown_names_to_var();
                     ctx.store(object);
                 }
@@ -770,6 +771,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         None => return Ok(()) // If we are at toplevel, we don't really care about all this.
                     };
                     let mut parent = parent.borrow_mut();
+
                     match parent.kind_str() {
                         "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
                             match parent.field_str() {

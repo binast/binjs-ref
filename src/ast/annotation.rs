@@ -298,19 +298,14 @@ impl<'a> Dispose for ContextContents<'a, RefContents> {
 
             for free in self.data.free.drain() {
                 if !binding.contains(&free) {
-                    println!("DEBUG: Free variable {} is still free", free);
                     parent.data.free.insert(free);
                 }
             }
             for free in self.data.free_in_nested_function.drain() {
                 if !binding.contains(&free) {
-                    println!("DEBUG: Free-in-nested variable {} is still free", free);
                     parent.data.free_in_nested_function.insert(free);
                 }
             }
-
-            println!("DEBUG: Propagating free {:?}", parent.data.free);
-            println!("DEBUG: Propagating free_in_nested_function {:?}", parent.data.free_in_nested_function);
         }
     }
 }
@@ -541,6 +536,12 @@ impl<'a> Context<'a, DeclContents> {
             borrow.data.var_names.insert(name);
         }
     }
+    pub fn clear_special_unknown_names(&mut self, names: &[&str]) {
+        let mut borrow = self.contents.borrow_mut();
+        for name in names {
+            borrow.data.unknown_names.remove(*name);
+        }
+    }
     pub fn clear_var_names(&mut self) {
         let mut borrow = self.contents.borrow_mut();
         let mut var_names = HashSet::new();
@@ -572,15 +573,12 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
         var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
-        println!("Storing vars {:?} in {:?}", var_decl_names, parent["type"]);
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
         let_decl_names.sort(); // To simplify testing (and hopefully improve compression)
-        println!("Storing let {:?} in {:?}", let_decl_names, parent["type"]);
 
         let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
         const_decl_names.sort();
-        println!("Storing const {:?} in {:?}", const_decl_names, parent["type"]);
 
         parent.insert(SCOPE_NAME.to_string(), json!({
             "type": SCOPE_NAME,
