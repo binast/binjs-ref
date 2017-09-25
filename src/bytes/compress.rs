@@ -23,6 +23,12 @@ pub enum Compression {
     Lzw,
 }
 
+#[derive(Debug)]
+pub struct CompressionResult {
+    pub before: usize,
+    pub after: usize,
+}
+
 impl Compression {
     pub fn values() -> Box<[Self]> {
         use self::Compression::*;
@@ -33,9 +39,9 @@ impl Compression {
     // - compression type (string);
     // - compressed byte length (varnum);
     // - data.
-    pub fn compress<W: Write>(&self, data: &[u8], out: &mut W) -> Result<(), std::io::Error> {
-        println!("Compressing {:?}, {} bytes", self, data.len());
-        let bytes = match *self {
+    pub fn compress<W: Write>(&self, data: &[u8], out: &mut W) -> Result<CompressionResult, std::io::Error> {
+        let before = data.len();
+        let after = match *self {
             Compression::Identity => {
                 out.write_all(b"identity;")?;
                 out.write_varnum(data.len() as u32)?;
@@ -99,8 +105,10 @@ impl Compression {
                 buffer.len()
             }
         };
-        println!("=> {}", bytes);
-        Ok(())
+        Ok(CompressionResult {
+            before,
+            after
+        })
     }
 
     pub fn decompress<R: Read, T>(inp: &mut R, deserializer: &T) -> Result<T::Target, std::io::Error> where T: Deserializer {
