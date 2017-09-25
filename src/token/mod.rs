@@ -2,7 +2,7 @@
 //! (as defined in `io::*`).
 
 
-use ast::grammar::{ FieldName, NodeName };
+use ast::grammar::NodeName;
 use std;
 
 /// Definition of token streams.
@@ -27,7 +27,7 @@ pub enum GrammarError {
     NoSuchKind(String),
     NoSuchField {
         kind: NodeName,
-        field: FieldName
+        field: String
     }
 }
 
@@ -35,4 +35,23 @@ pub enum GrammarError {
 pub enum TokenWriterError {
     GrammarError(GrammarError),
     WriteError(std::io::Error),
+}
+
+
+#[derive(Debug)]
+pub enum TokenReaderError {
+    ReadError(std::io::Error),
+    BadLength { expected: usize, got: usize },
+    BadHeader,
+    BadCompression(std::io::Error),
+    GrammarError(GrammarError),
+    EndOffsetError {
+        start: u64,
+        expected: u64,
+        found: u64,
+        description: String,
+    },
+    BadStringIndex(u32),
+    InvalidValue,
+    BadKindIndex(u32),
 }

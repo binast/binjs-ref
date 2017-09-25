@@ -2,7 +2,6 @@ use std;
 use std::cell::RefCell;
 use std::io::{ Cursor, Read, Seek };
 use std::rc::Rc;
-use std::string::FromUtf8Error;
 
 use vec_map::VecMap;
 
@@ -11,35 +10,10 @@ use bytes;
 use bytes::compress::*;
 use bytes::varnum::*;
 use bytes::serialize::*;
-use token::GrammarError;
+use token::{ GrammarError, TokenReaderError };
 use token::io::*;
 use token::multipart::{ FormatInTable, HEADER_GRAMMAR_TABLE, HEADER_STRINGS_TABLE, HEADER_TREE };
-use util::{ Pos, ReadConst };
-
-
-
-#[derive(Debug)]
-pub enum TokenReaderError {
-    ReadError(std::io::Error),
-    Encoding(FromUtf8Error),
-    EmptyValue,
-    BadLength { expected: usize, got: usize },
-    BadHeader,
-    BadCompression(std::io::Error),
-    InvalidNodeName(Option<String>),
-    InvalidFieldName(Option<String>),
-    NotInList,
-    EndOffsetError {
-        start: u64,
-        expected: u64,
-        found: u64,
-        description: String,
-    },
-    BadStringIndex(u32),
-    InvalidValue,
-    BadKindIndex(u32),
-    GrammarError(GrammarError),
-}
+use util::{ PoisonLock, Pos, ReadConst };
 
 impl Into<std::io::Error> for TokenReaderError {
     fn into(self) -> std::io::Error {
@@ -47,6 +21,7 @@ impl Into<std::io::Error> for TokenReaderError {
     }
 }
 
+/// Deserialize a bunch of bytes into itself.
 struct BufDeserializer;
 impl Deserializer for BufDeserializer {
     type Target = Vec<u8>;
@@ -59,7 +34,7 @@ impl Deserializer for BufDeserializer {
     }
 }
 
-
+/// Deserialize a String|null
 impl Deserializer for Option<String> {
     type Target = Self;
     fn read<R: Read>(&self, inp: &mut R) -> Result<Self, std::io::Error> {
@@ -78,64 +53,24 @@ impl Deserializer for Option<String> {
     }
 }
 
-
-
-struct ReaderTable<Value> {
+/// A table of entries indexed by a varnum.
+pub struct Table<Value> {
     map: VecMap<Value>,
 }
-impl<Value> ReaderTable<Value> {
+impl<Value> Table<Value> {
     fn get(&self, key: u32) -> Option<&Value> {
         self.map.get(key as usize)
     }
 }
 
-struct NodeDescriptionDeserializer<'a> {
-    syntax: &'a Syntax
-}
-
-impl<'a> Deserializer for NodeDescriptionDeserializer<'a> {
-    type Target = ReaderNodeDescription<'a>;
-    fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
-        // Extract kind
-        let strings_deserializer : Option<String> = None;
-        let name = match strings_deserializer.read(inp)? {
-            None => return Err(TokenReaderError::InvalidNodeName(None).into()),
-            Some(x) => x
-        };
-
-        let kind = match self.syntax.get_node_name(&name) {
-            None => return Err(TokenReaderError::InvalidNodeName(Some(name)).into()),
-            Some(x) => x.clone()
-        };
-
-        // Extract fields
-        let mut number_of_entries = 0;
-        inp.read_varnum(&mut number_of_entries)?;
-
-        let mut fields = Vec::with_capacity(number_of_entries as usize);
-        for _ in 0..number_of_entries {
-            let name = match strings_deserializer.read(inp)? {
-                None => return Err(TokenReaderError::InvalidFieldName(None).into()),
-                Some(x) => x
-            };
-            let field = match self.syntax.get_field_name(&name) {
-                None => return Err(TokenReaderError::InvalidFieldName(Some(name)).into()),
-                Some(x) => x
-            };
-            fields.push(field.clone())
-        }
-
-        ReaderNodeDescription::new(self.syntax, kind, fields)
-            .map_err(|err| TokenReaderError::GrammarError(err).into())
-    }
-}
-
-struct ReaderTableDeserializer<D> where D: Deserializer {
+/// Deserialize a `Table`.
+struct TableDeserializer<D> where D: Deserializer {
+    /// The deserializer used for entries in the table.
     deserializer: D,
 }
 
-impl<'a, D> Deserializer for ReaderTableDeserializer<D> where D: Deserializer, D::Target: FormatInTable {
-    type Target = ReaderTable<D::Target>;
+impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Target: FormatInTable {
+    type Target = Table<D::Target>;
     fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
         // Get number of entries.
         let mut number_of_entries = 0;
@@ -173,23 +108,24 @@ impl<'a, D> Deserializer for ReaderTableDeserializer<D> where D: Deserializer, D
             }
         }
 
-        Ok(ReaderTable { map })
+        Ok(Table { map })
     }
 }
 
-
-
-
-pub struct ReaderNodeDescription<'a> {
+/// Description of a node in the table.
+pub struct NodeDescription<'a> {
     fields: Rc<Box<[Field]>>,
     kind: &'a Interface,
 }
 
-impl<'a> FormatInTable for ReaderNodeDescription<'a> {
+impl<'a> FormatInTable for NodeDescription<'a> {
     const HAS_LENGTH_INDEX : bool = true;
 }
 
-impl<'a> ReaderNodeDescription<'a> {
+impl<'a> NodeDescription<'a> {
+    /// Attempt to create a `NodeDescription`.
+    ///
+    /// May fail if the kind_name doesn't exist or the field_names do not appear in this interface.
     pub fn new(syntax: &'a Syntax, kind_name: NodeName, field_names: Vec<FieldName>) -> Result<Self, GrammarError> {
         // Get the kind
         let kind = syntax.get_kind(kind_name.to_str())
@@ -203,65 +139,86 @@ impl<'a> ReaderNodeDescription<'a> {
             let field = interface.get_field_by_name(field_name)
                 .ok_or_else(|| GrammarError::NoSuchField {
                     kind: kind_name.clone(),
-                    field: field_name.clone()
+                    field: field_name.to_string().clone()
                 })?;
             fields.push(field.clone())
         }
 
-        Ok(ReaderNodeDescription {
+        Ok(NodeDescription {
             kind: interface,
             fields: Rc::new(fields.into_boxed_slice())
         })
     }
 }
 
-
-struct TreeTokenReaderImpl<'a> {
-    reader: Cursor<Vec<u8>>,
-    strings_table: ReaderTable<Option<String>>,
-    grammar_table: ReaderTable<ReaderNodeDescription<'a>>,
-    poisoned: bool,
+/// Deserialize a `NodeDescription`.
+///
+/// Used as part of the deserialization of `Table<NodeDescription>`.
+struct NodeDescriptionDeserializer<'a> {
+    syntax: &'a Syntax
 }
-impl<'a> TreeTokenReaderImpl<'a> {
-    fn position(&mut self) -> u64 {
+
+impl<'a> Deserializer for NodeDescriptionDeserializer<'a> {
+    type Target = NodeDescription<'a>;
+    fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
+        // Extract kind
+        let strings_deserializer : Option<String> = None;
+        let name = match strings_deserializer.read(inp)? {
+            None => return Err(TokenReaderError::GrammarError(GrammarError::NoSuchKind("<none>".to_string())).into()),
+            Some(x) => x
+        };
+
+        let kind = match self.syntax.get_node_name(&name) {
+            None => return Err(TokenReaderError::GrammarError(GrammarError::NoSuchKind(name.to_string())).into()),
+            Some(x) => x.clone()
+        };
+
+        // Extract fields
+        let mut number_of_entries = 0;
+        inp.read_varnum(&mut number_of_entries)?;
+
+        let mut fields = Vec::with_capacity(number_of_entries as usize);
+        for _ in 0..number_of_entries {
+            let name = match strings_deserializer.read(inp)? {
+                None => return Err(TokenReaderError::GrammarError(GrammarError::NoSuchField {
+                    kind: kind.clone(),
+                    field: "<none>".to_string()
+                }).into()),
+                Some(x) => x
+            };
+            let field = match self.syntax.get_field_name(&name) {
+                None => return Err(TokenReaderError::GrammarError(GrammarError::NoSuchField {
+                    kind: kind.clone(),
+                    field: name.to_string()
+                }).into()),
+                Some(x) => x
+            };
+            fields.push(field.clone())
+        }
+
+        NodeDescription::new(self.syntax, kind, fields)
+            .map_err(|err| TokenReaderError::GrammarError(err).into())
+    }
+}
+
+/// The state of the `TreeTokenReader`.
+///
+/// Use a `PoisonLock` to access this state.
+pub struct ReaderState<'a> {
+    reader: Cursor<Vec<u8>>,
+    pub strings_table: Table<Option<String>>,
+    pub grammar_table: Table<NodeDescription<'a>>,
+}
+
+impl<'a> ReaderState<'a> {
+    pub fn position(&mut self) -> u64 {
         self.reader.position()
-    }
-
-    fn try<T, E, F>(&mut self, f: F) -> Result<T, E> where F: FnOnce(&mut Self) -> Result<T, E> {
-        assert!(!self.poisoned, "TreeTokenReader is poisoned");
-        f(self)
-            .map_err(|err| {
-                self.poisoned = true;
-                err
-            })
-    }
-
-    /// Read data to a buffer.
-    ///
-    /// # Panics
-    ///
-    /// If `self` is poisoned.
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, TokenReaderError> {
-        self.try(move |me| {
-            me.reader.read_exact(buf)
-                .map_err(TokenReaderError::ReadError)?;
-            Ok(buf.len())
-        })
-    }
-
-    fn read_varnum(&mut self) -> Result<u32, TokenReaderError> {
-        self.try(|me| {
-            let mut result = 0;
-            me.reader.read_varnum(&mut result)
-                .map_err(TokenReaderError::ReadError)?;
-            Ok(result)
-        })
     }
 }
 
 pub struct TreeTokenReader<'a> {
     // Shared with all children.
-    owner: Rc<RefCell<TreeTokenReaderImpl<'a>>>,
+    owner: Rc<RefCell<PoisonLock<ReaderState<'a>>>>,
 }
 
 
@@ -293,7 +250,7 @@ impl<'a> TreeTokenReader<'a> {
             .map_err(TokenReaderError::ReadError)?;
 
         // Read grammar table
-        let grammar_deserializer = ReaderTableDeserializer {
+        let grammar_deserializer = TableDeserializer {
             deserializer: NodeDescriptionDeserializer {
                 syntax: syntax
             }
@@ -307,7 +264,7 @@ impl<'a> TreeTokenReader<'a> {
         reader.read_const(HEADER_STRINGS_TABLE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
         println!("TreeTokenReader::new() reading strings table");
-        let strings_deserializer = ReaderTableDeserializer {
+        let strings_deserializer = TableDeserializer {
             deserializer: None /* Option<String> */
         };
         let strings_table = Compression::decompress(&mut reader, &strings_deserializer)
@@ -320,25 +277,24 @@ impl<'a> TreeTokenReader<'a> {
             .map_err(TokenReaderError::ReadError)?;
         let decompressed_tree = Compression::decompress(&mut reader, &BufDeserializer)
             .map_err(TokenReaderError::BadCompression)?;
-        let implem = TreeTokenReaderImpl {
-            grammar_table,
+        let implem = ReaderState {
             strings_table,
-            reader: Cursor::new(decompressed_tree),
-            poisoned: false,
+            grammar_table,
+            reader: Cursor::new(decompressed_tree)
         };
 
         Ok(TreeTokenReader {
-            owner: Rc::new(RefCell::new(implem))
+            owner: Rc::new(RefCell::new(PoisonLock::new(implem)))
         })
     }
 }
 
 pub struct SimpleGuard<'a> {
     parent: TrivialGuard<TokenReaderError>,
-    owner: Rc<RefCell<TreeTokenReaderImpl<'a>>>,
+    owner: Rc<RefCell<PoisonLock<ReaderState<'a>>>>,
 }
 impl<'a> SimpleGuard<'a> {
-    fn new(owner: Rc<RefCell<TreeTokenReaderImpl<'a>>>) -> Self {
+    fn new(owner: Rc<RefCell<PoisonLock<ReaderState<'a>>>>) -> Self {
         SimpleGuard {
             parent: TrivialGuard::new(),
             owner
@@ -354,7 +310,7 @@ impl<'a> Guard for SimpleGuard<'a> {
 }
 impl<'a> Drop for SimpleGuard<'a> {
     fn drop(&mut self) {
-        if self.owner.borrow().poisoned {
+        if self.owner.borrow().is_poisoned() {
             // Don't trigger an assertion failure if we had to bailout because of an exception.
             self.parent.finalized = true;
         }
@@ -369,7 +325,7 @@ pub struct ListGuard<'a> {
 }
 
 impl<'a> ListGuard<'a> {
-    fn new(owner: Rc<RefCell<TreeTokenReaderImpl<'a>>>, start: u64, byte_len: u64) -> Self {
+    fn new(owner: Rc<RefCell<PoisonLock<ReaderState<'a>>>>, start: u64, byte_len: u64) -> Self {
         ListGuard {
             parent: SimpleGuard::new(owner),
             start,
@@ -383,13 +339,13 @@ impl<'a> Guard for ListGuard<'a> {
         self.parent.parent.finalized = true;
 
         let mut owner = self.parent.owner.borrow_mut();
-        if owner.poisoned {
+        if owner.is_poisoned() {
             return Ok(())
         }
 
-        let found = owner.position();
+        let found = owner.try(|owner| Ok(owner.position()))?;
         if found != self.expected_end {
-            owner.poisoned = true;
+            owner.poison();
             return Err(TokenReaderError::EndOffsetError {
                 start: self.start,
                 expected: self.expected_end,
@@ -414,12 +370,13 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
     type ListGuard = ListGuard<'a>;
 
     fn poison(&mut self) {
-        self.owner.borrow_mut().poisoned = true;
+        self.owner.borrow_mut().poison();
     }
 
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
         self.owner.borrow_mut().try(|owner| {
-            let index = owner.read_varnum()?;
+            let index = owner.reader.read_varnum_2()
+                .map_err(TokenReaderError::ReadError)?;
             match owner.strings_table.get(index) {
                 Some(result) => Ok(result.clone()),
                 None => Err(TokenReaderError::BadStringIndex(index))
@@ -432,7 +389,8 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
     fn float(&mut self) -> Result<Option<f64>, Self::Error> {
         self.owner.borrow_mut().try(|owner| {
             let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
-            owner.read(&mut buf)?;
+            owner.reader.read(&mut buf)
+                .map_err(TokenReaderError::ReadError)?;
             Ok(bytes::float::float_of_bytes(&buf))
         })
     }
@@ -441,7 +399,8 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
     fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
         self.owner.borrow_mut().try(|owner| {
             let mut buf : [u8; 1] = unsafe { std::mem::uninitialized() };
-            owner.read(&mut buf)?;
+            owner.reader.read(&mut buf)
+                .map_err(TokenReaderError::ReadError)?;
             bytes::bool::bool_of_bytes(&buf)
                 .map_err(|_| TokenReaderError::InvalidValue)
         })
@@ -455,9 +414,11 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
     fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(move |owner| {
-            let byte_len = owner.read_varnum()?;
+            let byte_len = owner.reader.read_varnum_2()
+                .map_err(TokenReaderError::ReadError)?;
             let guard = ListGuard::new(clone, owner.position(), byte_len as u64);
-            let list_len = owner.read_varnum()?;
+            let list_len = owner.reader.read_varnum_2()
+                .map_err(TokenReaderError::ReadError)?;
             Ok((list_len, guard))
         })
     }
@@ -472,7 +433,8 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
     fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[Field]>>, Self::TaggedGuard), Self::Error> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|owner| {
-            let index = owner.read_varnum()?;
+            let index = owner.reader.read_varnum_2()
+                .map_err(TokenReaderError::ReadError)?;
             let description = owner.grammar_table.get(index)
                 .ok_or(TokenReaderError::BadKindIndex(index))?;
 

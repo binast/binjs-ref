@@ -361,3 +361,43 @@ impl<T> ReadConst for T where T: std::io::Read {
         Ok(())
     }
 }
+
+/// A structure used to make sure that every access to a state
+/// goes through `try` and that any error poisons the state.
+pub struct PoisonLock<S> {
+    state: S,
+    poisoned: bool
+}
+
+impl<S> PoisonLock<S> {
+    pub fn new(state: S) -> Self {
+        PoisonLock {
+            state,
+            poisoned: false
+        }
+    }
+
+    /// Access the state for an operation.
+    ///
+    /// If the operation fails, the state is poisoned.
+    ///
+    /// # Panics
+    ///
+    /// If the `ReaderState` is poisoned.
+    pub fn try<T, E, F>(&mut self, f: F) -> Result<T, E> where F: FnOnce(&mut S) -> Result<T, E> {
+        assert!(!self.poisoned, "State is poisoned");
+        f(&mut self.state)
+            .map_err(|err| {
+                self.poisoned = true;
+                err
+            })
+    }
+
+    pub fn poison(&mut self) {
+        self.poisoned = true;
+    }
+
+    pub fn is_poisoned(&self) -> bool {
+        self.poisoned
+    }
+}

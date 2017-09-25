@@ -6,6 +6,7 @@ pub trait WriteVarNum {
 }
 
 pub trait ReadVarNum {
+    fn read_varnum_2(&mut self) -> Result<u32, std::io::Error>;
     fn read_varnum(&mut self, num: &mut u32) -> Result<usize, std::io::Error>;
 }
 
@@ -28,6 +29,12 @@ impl<T> WriteVarNum for T where T: Write {
 }
 
 impl<T> ReadVarNum for T where T: Read {
+    fn read_varnum_2(&mut self) -> Result<u32, std::io::Error> {
+        let mut result = 0;
+        self.read_varnum(&mut result)?;
+        Ok(result)
+    }
+
     fn read_varnum(&mut self, num: &mut u32) -> Result<usize, std::io::Error> {
         let mut bytes = 0;
         let mut result : u32 = 0;

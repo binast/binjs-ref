@@ -74,14 +74,22 @@
 //!     - for each field
 //!       - the token
 
+/// Implementation of the token reader.
 mod read;
+
+/// Implementation of the token writer.
 mod write;
 
+/// The header of the strings table section.
 const HEADER_STRINGS_TABLE : &str = "[STRINGS]";
+
+/// The header of the grammars table section.
 const HEADER_GRAMMAR_TABLE: &str = "[GRAMMAR]";
+
+/// The header of the tree section.
 const HEADER_TREE: &str = "[TREE]";
 
-
+/// A trait specifying whether a piece of data needs the addition of a length index.
 trait FormatInTable {
     const HAS_LENGTH_INDEX : bool;
 }
