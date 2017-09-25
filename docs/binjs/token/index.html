@@ -29,7 +29,7 @@
 
     <nav class="sidebar">
         
-        <p class='location'>Module token</p><div class="block items"><ul><li><a href="#modules">Modules</a></li></ul></div><p class='location'><a href='../index.html'>binjs</a></p><script>window.sidebarCurrent = {name: 'token', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+        <p class='location'>Module token</p><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#enums">Enums</a></li></ul></div><p class='location'><a href='../index.html'>binjs</a></p><script>window.sidebarCurrent = {name: 'token', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
     </nav>
 
     <nav class="sub">
@@ -48,13 +48,10 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/binjs/token/mod.rs.html#1-17' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/binjs/token/mod.rs.html#1-58' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Encoding/decoding an AST to/from a stream of tokens.
 Transformations between an AST (as defined in <code>ast::*</code>) and stream of tokens
 (as defined in <code>io::*</code>).</p>
-
-<h1 id='specifications' class='section-header'><a href='#specifications'>Specifications</a></h1>
-<p>TODO</p>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>
@@ -83,12 +80,44 @@ stream of tokens.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
+                           <td><a class="mod" href="multipart/index.html"
+                                  title='mod binjs::token::multipart'>multipart</a></td>
+                           <td class='docblock-short'>
+                                <p>An implementation of TokenReader/TokenWriter that splits grammar, strings
+and the tree itself into separate &quot;parts&quot;, each of which may be individually
+compressed.
+A multipart format, in which each part can be compressed independently.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
                            <td><a class="mod" href="simple/index.html"
                                   title='mod binjs::token::simple'>simple</a></td>
                            <td class='docblock-short'>
                                 <p>Simple implementation of TokenReader/TokenWriter for testing purposes.
 Minimal implementation of encoding/decoding to binary.
 Used for testing purposes. Not included in release builds.</p>
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.GrammarError.html"
+                                  title='enum binjs::token::GrammarError'>GrammarError</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.TokenReaderError.html"
+                                  title='enum binjs::token::TokenReaderError'>TokenReaderError</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.TokenWriterError.html"
+                                  title='enum binjs::token::TokenWriterError'>TokenWriterError</a></td>
+                           <td class='docblock-short'>
+                                
                            </td>
                        </tr></table></section>
     <section id='search' class="content hidden"></section>

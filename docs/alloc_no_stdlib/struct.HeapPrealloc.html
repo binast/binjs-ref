@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `HeapPrealloc` struct in crate `alloc_no_stdlib`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, HeapPrealloc">
+
+    <title>alloc_no_stdlib::HeapPrealloc - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Struct HeapPrealloc</p><div class="block items"><ul><li><a href="#methods">Methods</a></li><li><a href="#implementations">Trait Implementations</a></li></ul></div><p class='location'><a href='index.html'>alloc_no_stdlib</a></p><script>window.sidebarCurrent = {name: 'HeapPrealloc', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>alloc_no_stdlib</a>::<wbr><a class="struct" href=''>HeapPrealloc</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/alloc_no_stdlib/heap_alloc.rs.html#99-101' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct HeapPrealloc&lt;'a, T:&nbsp;'a&gt; { /* fields omitted */ }</pre>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'a, T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + 'a&gt; <a class="struct" href="../alloc_no_stdlib/struct.HeapPrealloc.html" title="struct alloc_no_stdlib::HeapPrealloc">HeapPrealloc</a>&lt;'a, T&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/heap_alloc.rs.html#104-133' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new_allocator' class="method"><span id='new_allocator.v' class='invisible'><code>fn <a href='#method.new_allocator' class='fnname'>new_allocator</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;freelist_size: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;memory_pool: &amp;'a mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">[</a>T<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;, <br>&nbsp;&nbsp;&nbsp;&nbsp;initializer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.fn.html">fn</a>(_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [T]</a>)<br>) -&gt; <a class="struct" href="../alloc_no_stdlib/struct.StackAllocator.html" title="struct alloc_no_stdlib::StackAllocator">StackAllocator</a>&lt;'a, T, <a class="struct" href="../alloc_no_stdlib/struct.HeapPrealloc.html" title="struct alloc_no_stdlib::HeapPrealloc">HeapPrealloc</a>&lt;'a, T&gt;&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/heap_alloc.rs.html#112-126' title='goto source code'>[src]</a></span></h4>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Default' class='impl'><span class='in-band'><code>impl&lt;'a, T:&nbsp;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default">Default</a> for <a class="struct" href="../alloc_no_stdlib/struct.HeapPrealloc.html" title="struct alloc_no_stdlib::HeapPrealloc">HeapPrealloc</a>&lt;'a, T&gt;</code><a href='#impl-Default' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#59-65' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.default' class="method"><span id='default.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default' class='fnname'>default</a>() -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#60-64' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the &quot;default value&quot; for a type. <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Read more</a></p>
+</div></div><h3 id='impl-SliceWrapper&lt;&amp;&#39;a mut [T]&gt;' class='impl'><span class='in-band'><code>impl&lt;'a, T:&nbsp;'a&gt; <a class="trait" href="../alloc_no_stdlib/trait.SliceWrapper.html" title="trait alloc_no_stdlib::SliceWrapper">SliceWrapper</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [T]</a>&gt; for <a class="struct" href="../alloc_no_stdlib/struct.HeapPrealloc.html" title="struct alloc_no_stdlib::HeapPrealloc">HeapPrealloc</a>&lt;'a, T&gt;</code><a href='#impl-SliceWrapper&lt;&amp;&#39;a mut [T]&gt;' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#81-85' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.slice' class="method"><span id='slice.v' class='invisible'><code>fn <a href='../alloc_no_stdlib/trait.SliceWrapper.html#tymethod.slice' class='fnname'>slice</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [T]</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#82-84' title='goto source code'>[src]</a></span></h4>
+</div><h3 id='impl-SliceWrapperMut&lt;&amp;&#39;a mut [T]&gt;' class='impl'><span class='in-band'><code>impl&lt;'a, T:&nbsp;'a&gt; <a class="trait" href="../alloc_no_stdlib/trait.SliceWrapperMut.html" title="trait alloc_no_stdlib::SliceWrapperMut">SliceWrapperMut</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [T]</a>&gt; for <a class="struct" href="../alloc_no_stdlib/struct.HeapPrealloc.html" title="struct alloc_no_stdlib::HeapPrealloc">HeapPrealloc</a>&lt;'a, T&gt;</code><a href='#impl-SliceWrapperMut&lt;&amp;&#39;a mut [T]&gt;' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#86-90' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.slice_mut' class="method"><span id='slice_mut.v' class='invisible'><code>fn <a href='../alloc_no_stdlib/trait.SliceWrapperMut.html#tymethod.slice_mut' class='fnname'>slice_mut</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [T]</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#87-89' title='goto source code'>[src]</a></span></h4>
+</div><h3 id='impl-Index&lt;usize&gt;' class='impl'><span class='in-band'><code>impl&lt;'a, T:&nbsp;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html" title="trait core::ops::index::Index">Index</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>&gt; for <a class="struct" href="../alloc_no_stdlib/struct.HeapPrealloc.html" title="struct alloc_no_stdlib::HeapPrealloc">HeapPrealloc</a>&lt;'a, T&gt;</code><a href='#impl-Index&lt;usize&gt;' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#91-96' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Output' class="type"><span id='Output.t' class='invisible'><code>type <a href='https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html#associatedtype.Output' class="type">Output</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">[</a>T<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></code></span></h4>
+<div class='docblock'><p>The returned type after indexing.</p>
+</div><h4 id='method.index' class="method"><span id='index.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html#tymethod.index' class='fnname'>index</a>&lt;'b&gt;(&amp;'b self, _index: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'b [T]</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#93-95' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs the indexing (<code>container[index]</code>) operation.</p>
+</div></div><h3 id='impl-IndexMut&lt;usize&gt;' class='impl'><span class='in-band'><code>impl&lt;'a, T:&nbsp;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/index/trait.IndexMut.html" title="trait core::ops::index::IndexMut">IndexMut</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>&gt; for <a class="struct" href="../alloc_no_stdlib/struct.HeapPrealloc.html" title="struct alloc_no_stdlib::HeapPrealloc">HeapPrealloc</a>&lt;'a, T&gt;</code><a href='#impl-IndexMut&lt;usize&gt;' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#98-102' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.index_mut' class="method"><span id='index_mut.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/index/trait.IndexMut.html#tymethod.index_mut' class='fnname'>index_mut</a>&lt;'b&gt;(&amp;'b mut self, _index: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'b mut [T]</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/alloc_no_stdlib/init.rs.html#99-101' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs the mutable indexing (<code>container[index]</code>) operation.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "alloc_no_stdlib";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

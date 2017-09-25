@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `AdvHasher` struct in crate `brotli`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, AdvHasher">
+
+    <title>brotli::enc::backward_references::AdvHasher - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Struct AdvHasher</p><div class="block items"><ul><li><a href="#fields">Fields</a></li><li><a href="#implementations">Trait Implementations</a></li></ul></div><p class='location'><a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>backward_references</a></p><script>window.sidebarCurrent = {name: 'AdvHasher', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>backward_references</a>::<wbr><a class="struct" href=''>AdvHasher</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#459-471' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct AdvHasher&lt;Specialization:&nbsp;<a class="trait" href="../../../brotli/enc/backward_references/trait.AdvHashSpecialization.html" title="trait brotli::enc::backward_references::AdvHashSpecialization">AdvHashSpecialization</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>, AllocU16:&nbsp;<a class="trait" href="../../../brotli/enc/writer/trait.Allocator.html" title="trait brotli::enc::writer::Allocator">Allocator</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a>&gt;, AllocU32:&nbsp;<a class="trait" href="../../../brotli/enc/writer/trait.Allocator.html" title="trait brotli::enc::writer::Allocator">Allocator</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;&gt; {
+    pub GetHasherCommon: <a class="struct" href="../../../brotli/enc/backward_references/struct.Struct1.html" title="struct brotli::enc::backward_references::Struct1">Struct1</a>,
+    pub bucket_size_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+    pub block_size_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+    pub specialization: Specialization,
+    pub hash_shift_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>,
+    pub block_mask_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    pub num: AllocU16::<a class="type" href="../../../brotli/enc/writer/trait.Allocator.html#associatedtype.AllocatedMemory" title="type brotli::enc::writer::Allocator::AllocatedMemory">AllocatedMemory</a>,
+    pub buckets: AllocU32::<a class="type" href="../../../brotli/enc/writer/trait.Allocator.html#associatedtype.AllocatedMemory" title="type brotli::enc::writer::Allocator::AllocatedMemory">AllocatedMemory</a>,
+}</pre><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.GetHasherCommon" class="structfield small-section-header">
+                           <a href="#structfield.GetHasherCommon" class="anchor field"></a>
+                           <span id="GetHasherCommon.v" class='invisible'>
+                           <code>GetHasherCommon: <a class="struct" href="../../../brotli/enc/backward_references/struct.Struct1.html" title="struct brotli::enc::backward_references::Struct1">Struct1</a></code>
+                           </span></span><span id="structfield.bucket_size_" class="structfield small-section-header">
+                           <a href="#structfield.bucket_size_" class="anchor field"></a>
+                           <span id="bucket_size_.v" class='invisible'>
+                           <code>bucket_size_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a></code>
+                           </span></span><span id="structfield.block_size_" class="structfield small-section-header">
+                           <a href="#structfield.block_size_" class="anchor field"></a>
+                           <span id="block_size_.v" class='invisible'>
+                           <code>block_size_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a></code>
+                           </span></span><span id="structfield.specialization" class="structfield small-section-header">
+                           <a href="#structfield.specialization" class="anchor field"></a>
+                           <span id="specialization.v" class='invisible'>
+                           <code>specialization: Specialization</code>
+                           </span></span><span id="structfield.hash_shift_" class="structfield small-section-header">
+                           <a href="#structfield.hash_shift_" class="anchor field"></a>
+                           <span id="hash_shift_.v" class='invisible'>
+                           <code>hash_shift_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a></code>
+                           </span></span><span id="structfield.block_mask_" class="structfield small-section-header">
+                           <a href="#structfield.block_mask_" class="anchor field"></a>
+                           <span id="block_mask_.v" class='invisible'>
+                           <code>block_mask_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code>
+                           </span></span><span id="structfield.num" class="structfield small-section-header">
+                           <a href="#structfield.num" class="anchor field"></a>
+                           <span id="num.v" class='invisible'>
+                           <code>num: AllocU16::<a class="type" href="../../../brotli/enc/writer/trait.Allocator.html#associatedtype.AllocatedMemory" title="type brotli::enc::writer::Allocator::AllocatedMemory">AllocatedMemory</a></code>
+                           </span></span><span id="structfield.buckets" class="structfield small-section-header">
+                           <a href="#structfield.buckets" class="anchor field"></a>
+                           <span id="buckets.v" class='invisible'>
+                           <code>buckets: AllocU32::<a class="type" href="../../../brotli/enc/writer/trait.Allocator.html#associatedtype.AllocatedMemory" title="type brotli::enc::writer::Allocator::AllocatedMemory">AllocatedMemory</a></code>
+                           </span></span>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-AnyHasher' class='impl'><span class='in-band'><code>impl&lt;Specialization:&nbsp;<a class="trait" href="../../../brotli/enc/backward_references/trait.AdvHashSpecialization.html" title="trait brotli::enc::backward_references::AdvHashSpecialization">AdvHashSpecialization</a>, AllocU16:&nbsp;<a class="trait" href="../../../brotli/enc/writer/trait.Allocator.html" title="trait brotli::enc::writer::Allocator">Allocator</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a>&gt;, AllocU32:&nbsp;<a class="trait" href="../../../brotli/enc/writer/trait.Allocator.html" title="trait brotli::enc::writer::Allocator">Allocator</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;&gt; <a class="trait" href="../../../brotli/enc/backward_references/trait.AnyHasher.html" title="trait brotli::enc::backward_references::AnyHasher">AnyHasher</a> for <a class="struct" href="../../../brotli/enc/backward_references/struct.AdvHasher.html" title="struct brotli::enc::backward_references::AdvHasher">AdvHasher</a>&lt;Specialization, AllocU16, AllocU32&gt;</code><a href='#impl-AnyHasher' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#525-754' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.PrepareDistanceCache' class="method"><span id='PrepareDistanceCache.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.PrepareDistanceCache' class='fnname'>PrepareDistanceCache</a>(&amp;self, distance_cache: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#527-547' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.StitchToPreviousBlock' class="method"><span id='StitchToPreviousBlock.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.StitchToPreviousBlock' class='fnname'>StitchToPreviousBlock</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;num_bytes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;position: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;ringbuffer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;ringbuffer_mask: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a><br>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#548-558' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.Prepare' class="method"><span id='Prepare.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.Prepare' class='fnname'>Prepare</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;one_shot: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;input_size: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;data: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a><br>) -&gt; <a class="enum" href="../../../brotli/enc/backward_references/enum.HowPrepared.html" title="enum brotli::enc::backward_references::HowPrepared">HowPrepared</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#559-576' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.GetHasherCommon' class="method"><span id='GetHasherCommon.v-1' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.GetHasherCommon' class='fnname'>GetHasherCommon</a>(&amp;mut self) -&gt; &amp;mut <a class="struct" href="../../../brotli/enc/backward_references/struct.Struct1.html" title="struct brotli::enc::backward_references::Struct1">Struct1</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#578-580' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.HashTypeLength' class="method"><span id='HashTypeLength.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.HashTypeLength' class='fnname'>HashTypeLength</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#581-583' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.StoreLookahead' class="method"><span id='StoreLookahead.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.StoreLookahead' class='fnname'>StoreLookahead</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#584-586' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.HashBytes' class="method"><span id='HashBytes.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.HashBytes' class='fnname'>HashBytes</a>(&amp;self, data: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#587-591' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.Store' class="method"><span id='Store.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.Store' class='fnname'>Store</a>(&amp;mut self, data: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, mask: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, ix: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#592-603' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.StoreRange' class="method"><span id='StoreRange.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.StoreRange' class='fnname'>StoreRange</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;data: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;mask: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;ix_start: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;ix_end: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a><br>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#604-613' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.FindLongestMatch' class="method"><span id='FindLongestMatch.v' class='invisible'><code>fn <a href='../../../brotli/enc/backward_references/trait.AnyHasher.html#tymethod.FindLongestMatch' class='fnname'>FindLongestMatch</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;dictionary: &amp;<a class="struct" href="../../../brotli/enc/static_dict/struct.BrotliDictionary.html" title="struct brotli::enc::static_dict::BrotliDictionary">BrotliDictionary</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;dictionary_hash: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;data: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;ring_buffer_mask: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;distance_cache: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;cur_ix: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;max_length: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;max_backward: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;out: &amp;mut <a class="struct" href="../../../brotli/enc/backward_references/struct.HasherSearchResult.html" title="struct brotli::enc::backward_references::HasherSearchResult">HasherSearchResult</a><br>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#615-753' title='goto source code'>[src]</a></span></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "brotli";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

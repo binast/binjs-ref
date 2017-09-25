@@ -823,15 +823,15 @@
 <span class="doccomment">//!   warn for hello. In both cases the log message must include a single digit</span>
 <span class="doccomment">//!   number followed by &#39;scopes&#39;.</span>
 
-<span class="attribute">#<span class="op">!</span>[<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;http://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png&quot;</span>,
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;http://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png&quot;</span>,
        <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;http://www.rust-lang.org/favicon.ico&quot;</span>,
        <span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;http://doc.rust-lang.org/env_logger/&quot;</span>)]</span>
-<span class="attribute">#<span class="op">!</span>[<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">deny</span>(<span class="ident">warnings</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">deny</span>(<span class="ident">warnings</span>))]</span>
 
 <span class="comment">// When compiled for the rustc compiler itself we want to make sure that this is</span>
 <span class="comment">// an unstable crate</span>
-<span class="attribute">#<span class="op">!</span>[<span class="ident">cfg_attr</span>(<span class="ident">rustbuild</span>, <span class="ident">feature</span>(<span class="ident">staged_api</span>, <span class="ident">rustc_private</span>))]</span>
-<span class="attribute">#<span class="op">!</span>[<span class="ident">cfg_attr</span>(<span class="ident">rustbuild</span>, <span class="ident">unstable</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rustc_private&quot;</span>, <span class="ident">issue</span> <span class="op">=</span> <span class="string">&quot;27812&quot;</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">rustbuild</span>, <span class="ident">feature</span>(<span class="ident">staged_api</span>, <span class="ident">rustc_private</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">rustbuild</span>, <span class="ident">unstable</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rustc_private&quot;</span>, <span class="ident">issue</span> <span class="op">=</span> <span class="string">&quot;27812&quot;</span>))]</span>
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
 

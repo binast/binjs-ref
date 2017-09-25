@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `H41` struct in crate `brotli`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, H41">
+
+    <title>brotli::enc::backward_references::H41 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Struct H41</p><div class="block items"><ul><li><a href="#fields">Fields</a></li></ul></div><p class='location'><a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>backward_references</a></p><script>window.sidebarCurrent = {name: 'H41', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>backward_references</a>::<wbr><a class="struct" href=''>H41</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#796-804' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct H41 {
+    pub common: <a class="struct" href="../../../brotli/enc/backward_references/struct.Struct1.html" title="struct brotli::enc::backward_references::Struct1">Struct1</a>,
+    pub addr: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 32768]</a>,
+    pub head: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 32768]</a>,
+    pub tiny_hash: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 65536]</a>,
+    pub banks: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="struct" href="../../../brotli/enc/backward_references/struct.BankH41.html" title="struct brotli::enc::backward_references::BankH41">BankH41</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 1]</a>,
+    pub free_slot_idx: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 1]</a>,
+    pub max_hops: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
+}</pre><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.common" class="structfield small-section-header">
+                           <a href="#structfield.common" class="anchor field"></a>
+                           <span id="common.v" class='invisible'>
+                           <code>common: <a class="struct" href="../../../brotli/enc/backward_references/struct.Struct1.html" title="struct brotli::enc::backward_references::Struct1">Struct1</a></code>
+                           </span></span><span id="structfield.addr" class="structfield small-section-header">
+                           <a href="#structfield.addr" class="anchor field"></a>
+                           <span id="addr.v" class='invisible'>
+                           <code>addr: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 32768]</a></code>
+                           </span></span><span id="structfield.head" class="structfield small-section-header">
+                           <a href="#structfield.head" class="anchor field"></a>
+                           <span id="head.v" class='invisible'>
+                           <code>head: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 32768]</a></code>
+                           </span></span><span id="structfield.tiny_hash" class="structfield small-section-header">
+                           <a href="#structfield.tiny_hash" class="anchor field"></a>
+                           <span id="tiny_hash.v" class='invisible'>
+                           <code>tiny_hash: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 65536]</a></code>
+                           </span></span><span id="structfield.banks" class="structfield small-section-header">
+                           <a href="#structfield.banks" class="anchor field"></a>
+                           <span id="banks.v" class='invisible'>
+                           <code>banks: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="struct" href="../../../brotli/enc/backward_references/struct.BankH41.html" title="struct brotli::enc::backward_references::BankH41">BankH41</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 1]</a></code>
+                           </span></span><span id="structfield.free_slot_idx" class="structfield small-section-header">
+                           <a href="#structfield.free_slot_idx" class="anchor field"></a>
+                           <span id="free_slot_idx.v" class='invisible'>
+                           <code>free_slot_idx: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 1]</a></code>
+                           </span></span><span id="structfield.max_hops" class="structfield small-section-header">
+                           <a href="#structfield.max_hops" class="anchor field"></a>
+                           <span id="max_hops.v" class='invisible'>
+                           <code>max_hops: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code>
+                           </span></span></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "brotli";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["AssopTag",""],["BinopTag",""],["LogopTag",""],["Semi",""],["UnopTag",""]],"struct":[["Op",""]],"trait":[["Precedence",""],["ToOp",""]],"type":[["Assop",""],["Binop",""],["Logop",""],["Unop",""]]});

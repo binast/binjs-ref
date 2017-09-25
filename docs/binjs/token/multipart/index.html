@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `multipart` mod in crate `binjs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, multipart">
+
+    <title>binjs::token::multipart - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Module multipart</p><div class="block items"><ul><li><a href="#structs">Structs</a></li></ul></div><p class='location'><a href='../../index.html'>binjs</a>::<wbr><a href='../index.html'>token</a></p><script>window.sidebarCurrent = {name: 'multipart', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>binjs</a>::<wbr><a href='../index.html'>token</a>::<wbr><a class="mod" href=''>multipart</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/binjs/token/multipart/mod.rs.html#1-421' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>An implementation of TokenReader/TokenWriter that splits grammar, strings
+and the tree itself into separate &quot;parts&quot;, each of which may be individually
+compressed.
+A multipart format, in which each part can be compressed independently.</p>
+
+<h1 id='format' class='section-header'><a href='#format'>Format</a></h1>
+<p>The entire file is formatted as:</p>
+
+<ul>
+<li>the characters <code>&quot;BINJS&quot;</code>;</li>
+<li>a container version number (varnum, currently 0);</li>
+<li>the compressed grammar table (see below);</li>
+<li>the compressed strings table (see below);</li>
+<li>the compressed tree (see below).</li>
+</ul>
+
+<h2 id='grammar-table' class='section-header'><a href='#grammar-table'>Grammar table</a></h2>
+<p>The grammar table serves to map tagged tuple indices to actual constructions in the JS grammar.</p>
+
+<ul>
+<li>the characters <code>&quot;[GRAMMAR]&quot;</code>;</li>
+<li>a <code>prefix</code> identifying the compression format used for the grammar (one of &quot;identity;&quot;, &quot;br;&quot;, &quot;gzip;&quot;, &quot;compress;&quot;, &quot;deflate;&quot;).</li>
+<li>the number of compressed bytes (varnum);</li>
+<li>compressed in the format identified by <code>prefix</code>;
+
+<ul>
+<li>the number of entries (varnum);</li>
+<li>for each entry,
+
+<ul>
+<li>byte length of entry (varnum);</li>
+</ul></li>
+<li>for each entry,
+
+<ul>
+<li>byte length of node name (varnum);</li>
+<li>number of fields (varnum);</li>
+<li>for each field</li>
+<li>byte length of field name (varnum);</li>
+<li>field name (utf-8 encoded string).</li>
+</ul></li>
+</ul></li>
+</ul>
+
+<h2 id='strings-table' class='section-header'><a href='#strings-table'>Strings table</a></h2>
+<p>The grammar table serves to map tagged tuple indices to strings.</p>
+
+<ul>
+<li>the characters <code>&quot;[STRINGS]&quot;</code>;</li>
+<li>a <code>prefix</code> identifying the compression format used for the grammar (one of &quot;identity;&quot;, &quot;br;&quot;, &quot;gzip;&quot;, &quot;compress;&quot;, &quot;deflate;&quot;).</li>
+<li>the number of compressed bytes (varnum);</li>
+<li>compressed in the format identified by <code>prefix</code>;
+
+<ul>
+<li>the number of entries (varnum);</li>
+<li>for each entry,
+
+<ul>
+<li>byte length of string (varnum);</li>
+<li>one of</li>
+<li>the invalid strings <a href="representing%20the%20null%20string,%20only%20valid%20if%20byte%20length%20is%202">255, 0</a>;</li>
+<li>a utf-8 encoded string of byte length bytes (utf-8 encoded).</li>
+</ul></li>
+</ul></li>
+</ul>
+
+<h2 id='the-tree' class='section-header'><a href='#the-tree'>The tree</a></h2>
+<p>This contains the actual tree for a specific grammar. The file does not contain all the information
+to determine the nature of next token. Rather, this must be led by the grammar.</p>
+
+<ul>
+<li>the characters <code>&quot;[TREE]&quot;</code>;</li>
+<li>a <code>prefix</code> identifying the compression format used for the grammar (one of &quot;identity;&quot;, &quot;br;&quot;, &quot;gzip;&quot;, &quot;compress;&quot;, &quot;deflate;&quot;).</li>
+<li>the number of compressed bytes (varnum);</li>
+<li>one tree token.</li>
+</ul>
+
+<h3 id='tree-token' class='section-header'><a href='#tree-token'>Tree token</a></h3>
+<p>A tree token is defined as one of
+  - a null float, represented as a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),
+  - a non-null float, represented as a low-endian IEEE764 64-bit floating point value non-signalling NaN (8 bytes),
+  - a null boolean, represented as a single byte with value 2 (one byte);
+  - a non-null boolean, represented as a single byte with value 0 (false) or 1 (true) (one byte);
+  - a string, representing an entry in the table of strings (varnum);
+  - a list, represented as
+    - byte length (varnum);
+    - number of items (varnum);
+    - for each item
+       - the token;
+  - a untagged tuple, represented as
+    - for each item
+      - the token;
+  - a tagged tuple, represented as
+    - an entry in the grammar table (varnum);
+    - for each field
+      - the token</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TreeTokenReader.html"
+                                  title='struct binjs::token::multipart::TreeTokenReader'>TreeTokenReader</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TreeTokenWriter.html"
+                                  title='struct binjs::token::multipart::TreeTokenWriter'>TreeTokenWriter</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.WriteOptions.html"
+                                  title='struct binjs::token::multipart::WriteOptions'>WriteOptions</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "binjs";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

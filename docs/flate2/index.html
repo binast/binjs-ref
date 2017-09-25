@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `flate2` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, flate2">
+
+    <title>flate2 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Crate flate2</p><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'flate2', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>flate2</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/flate2/lib.rs.html#1-242' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>A DEFLATE-based stream compression/decompression library</p>
+
+<p>This library is meant to supplement/replace the standard distributon&#39;s
+libflate library by providing a streaming encoder/decoder rather than purely
+an in-memory encoder/decoder.</p>
+
+<p>Like with libflate, flate2 is based on <a href="https://code.google.com/p/miniz/"><code>miniz.c</code></a></p>
+
+<h1 id='organization' class='section-header'><a href='#organization'>Organization</a></h1>
+<p>This crate consists mainly of two modules, <code>read</code> and <code>write</code>. Each
+module contains a number of types used to encode and decode various streams
+of data. All types in the <code>write</code> module work on instances of <code>Write</code>,
+whereas all types in the <code>read</code> module work on instances of <code>Read</code>.</p>
+
+<p>Other various types are provided at the top-level of the crate for
+management and dealing with encoders/decoders.</p>
+
+<h1 id='helper-traits' class='section-header'><a href='#helper-traits'>Helper traits</a></h1>
+<p>There are two helper traits provided: <code>FlateReader</code> and <code>FlateWriter</code>.
+These provide convenience methods for creating a decoder/encoder out of an
+already existing stream to chain construction.</p>
+
+<h1 id='async-io' class='section-header'><a href='#async-io'>Async I/O</a></h1>
+<p>This crate optionally can support async I/O streams with the Tokio stack via
+the <code>tokio</code> feature of this crate:</p>
+
+<pre><code class="language-toml">flate2 = { version = &quot;0.2&quot;, features = [&quot;tokio&quot;] }
+</code></pre>
+
+<p>All methods are internally capable of working with streams that may return
+<code>ErrorKind::WouldBlock</code> when they&#39;re not ready to perform the particular
+operation.</p>
+
+<p>Note that care needs to be taken when using these objects, however. The
+Tokio runtime, in particular, requires that data is fully flushed before
+dropping streams. For compatibility with blocking streams all streams are
+flushed/written when they are dropped, and this is not always a suitable
+time to perform I/O. If I/O streams are flushed before drop, however, then
+these operations will be a noop.</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="bufread/index.html"
+                                  title='mod flate2::bufread'>bufread</a></td>
+                           <td class='docblock-short'>
+                                <p>Types which operate over <code>BufRead</code> streams, both encoders and decoders for
+various formats.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="read/index.html"
+                                  title='mod flate2::read'>read</a></td>
+                           <td class='docblock-short'>
+                                <p>Types which operate over <code>Read</code> streams, both encoders and decoders for
+various formats.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="write/index.html"
+                                  title='mod flate2::write'>write</a></td>
+                           <td class='docblock-short'>
+                                <p>Types which operate over <code>Write</code> streams, both encoders and decoders for
+various formats.</p>
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Compress.html"
+                                  title='struct flate2::Compress'>Compress</a></td>
+                           <td class='docblock-short'>
+                                <p>Raw in-memory compression stream for blocks of data.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Crc.html"
+                                  title='struct flate2::Crc'>Crc</a></td>
+                           <td class='docblock-short'>
+                                <p>The CRC calculated by a CrcReader.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.CrcReader.html"
+                                  title='struct flate2::CrcReader'>CrcReader</a></td>
+                           <td class='docblock-short'>
+                                <p>A wrapper around a <code>std::io::Read</code> that calculates the CRC.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.DataError.html"
+                                  title='struct flate2::DataError'>DataError</a></td>
+                           <td class='docblock-short'>
+                                <p>Error returned when a decompression object finds that the input stream of
+bytes was not a valid input stream of bytes.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Decompress.html"
+                                  title='struct flate2::Decompress'>Decompress</a></td>
+                           <td class='docblock-short'>
+                                <p>Raw in-memory decompression stream for blocks of data.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.GzBuilder.html"
+                                  title='struct flate2::GzBuilder'>GzBuilder</a></td>
+                           <td class='docblock-short'>
+                                <p>A builder structure to create a new gzip Encoder.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.GzHeader.html"
+                                  title='struct flate2::GzHeader'>GzHeader</a></td>
+                           <td class='docblock-short'>
+                                <p>A structure representing the header of a gzip stream.</p>
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Compression.html"
+                                  title='enum flate2::Compression'>Compression</a></td>
+                           <td class='docblock-short'>
+                                <p>When compressing data, the compression level can be specified by a value in
+this enum.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Flush.html"
+                                  title='enum flate2::Flush'>Flush</a></td>
+                           <td class='docblock-short'>
+                                <p>Values which indicate the form of flushing to be used when compressing or
+decompressing in-memory data.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Status.html"
+                                  title='enum flate2::Status'>Status</a></td>
+                           <td class='docblock-short'>
+                                <p>Possible status results of compressing some data or successfully
+decompressing a block of data.</p>
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.FlateReadExt.html"
+                                  title='trait flate2::FlateReadExt'>FlateReadExt</a></td>
+                           <td class='docblock-short'>
+                                <p>A helper trait to create encoder/decoders with method syntax.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.FlateWriteExt.html"
+                                  title='trait flate2::FlateWriteExt'>FlateWriteExt</a></td>
+                           <td class='docblock-short'>
+                                <p>A helper trait to create encoder/decoders with method syntax.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "flate2";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

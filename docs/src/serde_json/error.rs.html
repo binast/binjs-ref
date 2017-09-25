@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.2/src/error.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.3/src/error.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>error.rs.html -- source</title>
@@ -449,6 +449,14 @@
 <span id="404">404</span>
 <span id="405">405</span>
 <span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -839,6 +847,14 @@
                     <span class="ident">column</span>: <span class="number">0</span>,
                 },
             ),
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">invalid_type</span>(<span class="ident">unexp</span>: <span class="ident">de</span>::<span class="ident">Unexpected</span>, <span class="ident">exp</span>: <span class="kw-2">&amp;</span><span class="ident">de</span>::<span class="ident">Expected</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">de</span>::<span class="ident">Unexpected</span>::<span class="ident">Unit</span> <span class="op">=</span> <span class="ident">unexp</span> {
+            <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;invalid type: null, expected {}&quot;</span>, <span class="ident">exp</span>))
+        } <span class="kw">else</span> {
+            <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;invalid type: {}, expected {}&quot;</span>, <span class="ident">unexp</span>, <span class="ident">exp</span>))
         }
     }
 }

@@ -786,139 +786,91 @@
 <span id="741">741</span>
 <span id="742">742</span>
 <span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Minimal implementation of encoding/decoding to binary.</span>
 <span class="doccomment">//! Used for testing purposes. Not included in release builds.</span>
 
 <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">grammar</span>::{ <span class="ident">Field</span>, <span class="ident">Syntax</span> };
+<span class="kw">use</span> <span class="ident">bytes</span>;
+<span class="kw">use</span> <span class="ident">token</span>::{ <span class="ident">GrammarError</span>, <span class="ident">TokenReaderError</span>, <span class="ident">TokenWriterError</span> };
 <span class="kw">use</span> <span class="ident">token</span>::<span class="ident">io</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">util</span>::{ <span class="ident">PoisonLock</span>, <span class="ident">Pos</span>, <span class="ident">ReadConst</span> };
 
 <span class="kw">use</span> <span class="ident">std</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{ <span class="ident">Read</span>, <span class="ident">Seek</span>, <span class="ident">SeekFrom</span> };
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{ <span class="ident">Read</span>, <span class="ident">Seek</span> };
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">string</span>::<span class="ident">FromUtf8Error</span>;
 
-<span class="kw">const</span> <span class="ident">NONE_FLOAT_REPR</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">0x7FF0000000000001</span>;
-
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">TokenReaderError</span> {
-    <span class="ident">Reader</span>(<span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Error</span>),
-    <span class="ident">Encoding</span>(<span class="ident">FromUtf8Error</span>),
-    <span class="ident">NotInList</span>,
-    <span class="ident">InvalidValue</span>,
-    <span class="ident">NoSuchKind</span>(<span class="ident">String</span>),
-    <span class="ident">NoSuchField</span>(<span class="ident">String</span>),
-    <span class="ident">HeaderOrFooterNotFound</span> {
-        <span class="ident">expected</span>: <span class="ident">String</span>,
-        <span class="ident">found</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-        <span class="ident">description</span>: <span class="ident">String</span>,
-    },
-    <span class="ident">EndOffsetError</span> {
-        <span class="ident">suffix</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-        <span class="ident">start</span>: <span class="ident">u64</span>,
-        <span class="ident">expected</span>: <span class="ident">u64</span>,
-        <span class="ident">found</span>: <span class="ident">u64</span>,
-        <span class="ident">description</span>: <span class="ident">String</span>,
-    },
-    <span class="ident">BailingOutBecauseOfPreviousError</span>,
-    <span class="ident">ChildBytesNotConsumed</span>,
-}
-
-<span class="kw">struct</span> <span class="ident">TreeTokenReaderImpl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> {
+<span class="doccomment">/// The state of the `TreeTokenReader`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Use a `PoisonLock` to access this state.</span>
+<span class="kw">struct</span> <span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> {
     <span class="ident">reader</span>: <span class="ident">R</span>,
     <span class="ident">grammar</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Syntax</span>,
 }
-
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TreeTokenReader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> {
-    <span class="comment">// Shared with all children.</span>
-    <span class="ident">implem</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">TreeTokenReaderImpl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">my_pending_error</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TokenReaderError</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">parent_pending_error</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TokenReaderError</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
-
-    <span class="ident">description</span>: <span class="ident">String</span>,
-
-    <span class="doccomment">/// The position at which we started.</span>
-    <span class="ident">pos_start</span>: <span class="ident">u64</span>,
-
-    <span class="doccomment">/// If specified, the position at which extraction must end.</span>
-    <span class="ident">pos_end</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// If specified, a suffix for the extraction.</span>
-    <span class="doccomment">/// This suffix appears *after* `pos_end`.</span>
-    <span class="ident">suffix</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>
-}
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">TreeTokenReader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> {
-    <span class="doccomment">/// Create a new toplevel TreeTokenReader.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">reader</span>: <span class="ident">R</span>, <span class="ident">grammar</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Syntax</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">implem</span> <span class="op">=</span> <span class="ident">TreeTokenReaderImpl</span> {
-            <span class="ident">reader</span>: <span class="ident">reader</span>,
-            <span class="ident">grammar</span>, <span class="comment">// FIXME: We probably don&#39;t need the grammar at this layer.</span>
-        };
-        <span class="ident">TreeTokenReader</span> {
-            <span class="ident">description</span>: <span class="string">&quot;Top&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">pos_start</span>: <span class="number">0</span>,
-            <span class="ident">implem</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">implem</span>)),
-            <span class="ident">my_pending_error</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>)),
-            <span class="ident">parent_pending_error</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>)),
-            <span class="ident">pos_end</span>: <span class="prelude-val">None</span>,
-            <span class="ident">suffix</span>: <span class="prelude-val">None</span>,
-        }
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="self">self</span>.<span class="ident">reader</span>.<span class="ident">pos</span>() <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">position</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
-        <span class="self">self</span>.<span class="ident">implem</span>
-            .<span class="ident">borrow_mut</span>()
-            .<span class="ident">reader</span>
-            .<span class="ident">seek</span>(<span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">SeekFrom</span>::<span class="ident">Current</span>(<span class="number">0</span>))
-            .<span class="ident">expect</span>(<span class="string">&quot;Could not check position&quot;</span>)
-    }
-
-    <span class="doccomment">/// Derive a TreeTokenReader for reading a subset of the stream.</span>
-    <span class="kw">fn</span> <span class="ident">sub</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">options</span>: <span class="ident">SubOptions</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">position</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">position</span>();
-        <span class="kw">let</span> <span class="ident">pos_end</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">byte_len</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">length</span><span class="op">|</span> <span class="ident">position</span> <span class="op">+</span> <span class="ident">length</span>);
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: sub {:?}, starting at {} =&gt; {:?}&quot;</span>, <span class="ident">options</span>.<span class="ident">suffix</span>, <span class="ident">position</span>, <span class="ident">pos_end</span>);
-        <span class="ident">TreeTokenReader</span> {
-            <span class="ident">implem</span>: <span class="self">self</span>.<span class="ident">implem</span>.<span class="ident">clone</span>(),
-            <span class="ident">parent_pending_error</span>: <span class="self">self</span>.<span class="ident">my_pending_error</span>.<span class="ident">clone</span>(),
-            <span class="ident">my_pending_error</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>)),
-            <span class="ident">pos_end</span>,
-            <span class="ident">suffix</span>: <span class="ident">options</span>.<span class="ident">suffix</span>,
-            <span class="ident">pos_start</span>: <span class="ident">position</span>,
-            <span class="ident">description</span>: <span class="ident">options</span>.<span class="ident">description</span>,
-        }
-    }
-
-    <span class="doccomment">/// Read data to a buffer.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If an error is pending, propagate the error.</span>
-    <span class="doccomment">/// If reading causes an error, any further call to `read()` will</span>
-    <span class="doccomment">/// cause an error of type</span>
-    <span class="doccomment">/// `TokenReaderError::BailingOutBecauseOfPreviousError`.</span>
-    <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">TokenReaderError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">error</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">my_pending_error</span>.<span class="ident">borrow_mut</span>().<span class="ident">take</span>();
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">error</span> {
-            <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">my_pending_error</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">TokenReaderError</span>::<span class="ident">BailingOutBecauseOfPreviousError</span>);
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>)
-        }
-        <span class="kw">let</span> <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">implem</span>.<span class="ident">borrow_mut</span>().<span class="ident">reader</span>;
-        <span class="kw">match</span> <span class="ident">reader</span>.<span class="ident">read_exact</span>(<span class="ident">buf</span>) {
-            <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">buf</span>.<span class="ident">len</span>()),
-            <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">error</span> <span class="op">=</span> <span class="ident">TokenReaderError</span>::<span class="ident">Reader</span>(<span class="ident">err</span>);
-                <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">my_pending_error</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">TokenReaderError</span>::<span class="ident">BailingOutBecauseOfPreviousError</span>);
-                <span class="prelude-val">Err</span>(<span class="ident">error</span>)
-            }
-        }
-    }
-
-    <span class="kw">fn</span> <span class="ident">read_u32</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u32</span>, <span class="ident">TokenReaderError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">result</span> : <span class="ident">u32</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_u32</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u32</span>, <span class="ident">TokenReaderError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> : [<span class="ident">u8</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>() <span class="op">==</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of_val</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>));
-        <span class="self">self</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
-        <span class="ident">result</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">buf</span>) };
+        <span class="self">self</span>.<span class="ident">reader</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)
+            .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
+
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span>
+              <span class="ident">buf</span>[<span class="number">0</span>] <span class="kw">as</span> <span class="ident">u32</span>
+            <span class="op">|</span> (<span class="ident">buf</span>[<span class="number">1</span>] <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">&lt;&lt;</span> <span class="number">8</span>
+            <span class="op">|</span> (<span class="ident">buf</span>[<span class="number">2</span>] <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">&lt;&lt;</span> <span class="number">16</span>
+            <span class="op">|</span> (<span class="ident">buf</span>[<span class="number">3</span>] <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">&lt;&lt;</span> <span class="number">24</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">result</span>)
     }
 
@@ -926,222 +878,313 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span>: [<span class="ident">u8</span>;<span class="number">1</span>] <span class="op">=</span> [<span class="number">0</span>];
         <span class="kw">loop</span> {
-            <span class="self">self</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">reader</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
             <span class="kw">if</span> <span class="ident">buf</span>[<span class="number">0</span>] <span class="op">==</span> <span class="number">0</span> {
                 <span class="kw">return</span> <span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">bytes</span>)
-                    .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">Encoding</span>);
+                    .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">Encoding</span>)
             }
             <span class="ident">bytes</span>.<span class="ident">push</span>(<span class="ident">buf</span>[<span class="number">0</span>])
         }
     }
+}
 
-    <span class="kw">fn</span> <span class="ident">read_constant</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">TokenReaderError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> : <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">bytes</span>().<span class="ident">collect</span>();
-        <span class="self">self</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
-        <span class="kw">for</span> (<span class="ident">expected</span>, <span class="ident">found</span>) <span class="kw">in</span> <span class="ident">buf</span>.<span class="ident">iter</span>().<span class="ident">zip</span>(<span class="ident">value</span>.<span class="ident">bytes</span>()) {
-            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">expected</span> <span class="op">!=</span> <span class="ident">found</span> {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">HeaderOrFooterNotFound</span> {
-                    <span class="ident">found</span>: <span class="ident">buf</span>.<span class="ident">clone</span>(),
-                    <span class="ident">expected</span>: <span class="ident">value</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">description</span>: <span class="self">self</span>.<span class="ident">description</span>.<span class="ident">clone</span>(),
-                });
-            }
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Pos</span> <span class="kw">for</span> <span class="ident">PoisonLock</span><span class="op">&lt;</span><span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> {
+    <span class="kw">fn</span> <span class="ident">pos</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">let</span> <span class="ident">result</span> : <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">pos</span>())
+        });
+        <span class="ident">result</span>.<span class="ident">unwrap</span>() <span class="comment">// closure cannot fail.</span>
+    }
+    <span class="kw">fn</span> <span class="ident">size</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">let</span> <span class="ident">result</span> : <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">size</span>())
+        });
+        <span class="ident">result</span>.<span class="ident">unwrap</span>() <span class="comment">// closure cannot fail.</span>
+    }
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ListGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="ident">finalized</span>: <span class="ident">bool</span>,
+    <span class="ident">expected_end</span>: <span class="ident">u64</span>,
+    <span class="ident">start</span>: <span class="ident">u64</span>,
+    <span class="ident">owner</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">PoisonLock</span><span class="op">&lt;</span><span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">ListGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">owner</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">PoisonLock</span><span class="op">&lt;</span><span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>, <span class="ident">start</span>: <span class="ident">u64</span>, <span class="ident">byte_len</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">ListGuard</span> {
+            <span class="ident">finalized</span>: <span class="bool-val">false</span>,
+            <span class="ident">start</span>,
+            <span class="ident">expected_end</span>: <span class="ident">start</span> <span class="op">+</span> <span class="ident">byte_len</span>,
+            <span class="ident">owner</span>
         }
+    }
+}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Guard</span> <span class="kw">for</span> <span class="ident">ListGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">TokenReaderError</span>;
+    <span class="kw">fn</span> <span class="ident">done</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">finalized</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="kw">if</span> <span class="ident">owner</span>.<span class="ident">is_poisoned</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(())
+        }
+
+        <span class="ident">owner</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="ident">found</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">pos</span>() <span class="kw">as</span> <span class="ident">u64</span>;
+            <span class="kw">if</span> <span class="ident">found</span> <span class="op">!=</span> <span class="self">self</span>.<span class="ident">expected_end</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">EndOffsetError</span> {
+                    <span class="ident">start</span>: <span class="self">self</span>.<span class="ident">start</span>,
+                    <span class="ident">expected</span>: <span class="self">self</span>.<span class="ident">expected_end</span>,
+                    <span class="ident">found</span>,
+                    <span class="ident">description</span>: <span class="string">&quot;list&quot;</span>.<span class="ident">to_string</span>()
+                })
+            }
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;/list&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)
+        })<span class="question-mark">?</span>;
+
         <span class="prelude-val">Ok</span>(())
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">TreeTokenReader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">ListGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        {
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">parent_pending_error</span>.<span class="ident">borrow</span>().<span class="ident">is_some</span>() {
-                <span class="comment">// Propagate error.</span>
-                <span class="kw">return</span>;
-            }
+        <span class="kw">let</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="kw">if</span> <span class="ident">owner</span>.<span class="ident">is_poisoned</span>() {
+            <span class="kw">return</span>;
         }
-        {
-            <span class="kw">let</span> <span class="ident">my_pending_error</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">my_pending_error</span>.<span class="ident">borrow_mut</span>().<span class="ident">take</span>();
-            <span class="kw">if</span> <span class="ident">my_pending_error</span>.<span class="ident">is_some</span>() {
-                <span class="comment">// Propagate error.</span>
-                <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">parent_pending_error</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="ident">my_pending_error</span>;
-                <span class="kw">return</span>;
-            }
-        }
-
-        <span class="comment">// FIXME: Wait, we are relying upon order of destruction!</span>
-        <span class="kw">let</span> <span class="ident">position</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">position</span>();
-
-        <span class="comment">// Check byte_len, if available.</span>
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">expected</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">pos_end</span> {
-            <span class="kw">if</span> <span class="ident">position</span> <span class="op">!=</span> <span class="ident">expected</span> {
-                <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">parent_pending_error</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span>
-                    <span class="prelude-val">Some</span>(<span class="ident">TokenReaderError</span>::<span class="ident">EndOffsetError</span> {
-                        <span class="ident">start</span>: <span class="self">self</span>.<span class="ident">pos_start</span>,
-                        <span class="ident">suffix</span>: <span class="self">self</span>.<span class="ident">suffix</span>.<span class="ident">clone</span>(),
-                        <span class="ident">expected</span>,
-                        <span class="ident">found</span>: <span class="ident">position</span>,
-                        <span class="ident">description</span>: <span class="self">self</span>.<span class="ident">description</span>.<span class="ident">clone</span>()
-                    });
-                <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;TokenTreeReader: This subextractor goes {} =&gt; {}, expected {} =&gt; {}, ({})&quot;</span>,
-                    <span class="self">self</span>.<span class="ident">pos_start</span>,
-                    <span class="ident">position</span>,
-                    <span class="self">self</span>.<span class="ident">pos_start</span>,
-                    <span class="ident">expected</span>,
-                    <span class="self">self</span>.<span class="ident">description</span>);
-                <span class="kw">return</span>;
-            }
-        }
-        <span class="comment">// Check suffix, if available.</span>
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">suffix</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">suffix</span>.<span class="ident">take</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_constant</span>(<span class="ident">suffix</span>) {
-                <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">parent_pending_error</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>);
-                <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;TokenTreeReader: This subextractor should end with {} ({})&quot;</span>, <span class="ident">suffix</span>, <span class="self">self</span>.<span class="ident">description</span>);
-                <span class="kw">return</span>;
-            }
-        }
-
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: drop() {:?} {:?} OK&quot;</span>, <span class="self">self</span>.<span class="ident">pos_end</span>, <span class="self">self</span>.<span class="ident">suffix</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">finalized</span>)
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">TokenReader</span> <span class="kw">for</span> <span class="ident">TreeTokenReader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> {
+
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="ident">finalized</span>: <span class="ident">bool</span>,
+    <span class="ident">owner</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">PoisonLock</span><span class="op">&lt;</span><span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">TaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">owner</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">PoisonLock</span><span class="op">&lt;</span><span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">TaggedGuard</span> {
+            <span class="ident">finalized</span>: <span class="bool-val">false</span>,
+            <span class="ident">owner</span>
+        }
+    }
+}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Guard</span> <span class="kw">for</span> <span class="ident">TaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">TokenReaderError</span>;
+    <span class="kw">fn</span> <span class="ident">done</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">finalized</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="kw">if</span> <span class="ident">owner</span>.<span class="ident">is_poisoned</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(())
+        }
+
+        <span class="ident">owner</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;/tuple&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)
+        })<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">TaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow</span>().<span class="ident">is_poisoned</span>() {
+            <span class="kw">return</span>;
+        }
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">finalized</span>)
+    }
+}
+
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UntaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="ident">finalized</span>: <span class="ident">bool</span>,
+    <span class="ident">owner</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">PoisonLock</span><span class="op">&lt;</span><span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">UntaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">owner</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">PoisonLock</span><span class="op">&lt;</span><span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">UntaggedGuard</span> {
+            <span class="ident">finalized</span>: <span class="bool-val">false</span>,
+            <span class="ident">owner</span>
+        }
+    }
+}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Guard</span> <span class="kw">for</span> <span class="ident">UntaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">TokenReaderError</span>;
+    <span class="kw">fn</span> <span class="ident">done</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">finalized</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="kw">if</span> <span class="ident">owner</span>.<span class="ident">is_poisoned</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(())
+        }
+
+        <span class="ident">owner</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;/tuple&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)
+        })<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">UntaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow</span>().<span class="ident">is_poisoned</span>() {
+            <span class="kw">return</span>;
+        }
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">finalized</span>)
+    }
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TreeTokenReader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="ident">owner</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">PoisonLock</span><span class="op">&lt;</span><span class="ident">ReaderState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">TreeTokenReader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">reader</span>: <span class="ident">R</span>, <span class="ident">grammar</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Syntax</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">let</span> <span class="ident">owner</span> <span class="op">=</span> <span class="ident">ReaderState</span> {
+            <span class="ident">reader</span>,
+            <span class="ident">grammar</span>
+        };
+        <span class="ident">TreeTokenReader</span> {
+            <span class="ident">owner</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">PoisonLock</span>::<span class="ident">new</span>(<span class="ident">owner</span>)))
+        }
+    }
+}
+
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">TokenReader</span> <span class="kw">for</span> <span class="ident">TreeTokenReader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    <span class="kw">type</span> <span class="ident">ListGuard</span> <span class="op">=</span> <span class="ident">ListGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="ident">TaggedGuard</span> <span class="op">=</span> <span class="ident">TaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="ident">UntaggedGuard</span> <span class="op">=</span> <span class="ident">UntaggedGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span>;
     <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">TokenReaderError</span>;
 
-    <span class="kw">fn</span> <span class="ident">skip</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: skip&quot;</span>);
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">end</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">pos_end</span> {
-            <span class="self">self</span>.<span class="ident">implem</span>.<span class="ident">borrow_mut</span>().<span class="ident">reader</span>.<span class="ident">seek</span>(<span class="ident">SeekFrom</span>::<span class="ident">Start</span>(<span class="ident">end</span>))
-                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">Reader</span>)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(())
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">NotInList</span>)
-        }
+    <span class="kw">fn</span> <span class="ident">poison</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>().<span class="ident">poison</span>();
     }
 
     <span class="kw">fn</span> <span class="ident">bool</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: bool&quot;</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> : [<span class="ident">u8</span>; <span class="number">1</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
-        <span class="self">self</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
-        <span class="kw">match</span> <span class="ident">buf</span>[<span class="number">0</span>] {
-            <span class="number">0</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="bool-val">false</span>)),
-            <span class="number">1</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="bool-val">true</span>)),
-            <span class="number">2</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">InvalidValue</span>)
-        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="ident">owner</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
+            <span class="kw">match</span> <span class="ident">bytes</span>::<span class="ident">bool</span>::<span class="ident">bool_of_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>) {
+                <span class="prelude-val">Ok</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">x</span>),
+                <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">InvalidValue</span>)
+            }
+        })
     }
 
     <span class="kw">fn</span> <span class="ident">float</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: float&quot;</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> : [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of_val</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>) <span class="op">==</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>());
-        <span class="self">self</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">as_float</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span>_, <span class="ident">f64</span><span class="op">&gt;</span>(<span class="ident">buf</span>) };
-        <span class="kw">let</span> <span class="ident">as_u64</span>   <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span>_, <span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">buf</span>) };
-        <span class="kw">if</span> <span class="ident">as_u64</span> <span class="op">==</span> <span class="ident">NONE_FLOAT_REPR</span> {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">as_float</span>))
-        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="ident">owner</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> : [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">bytes</span>::<span class="ident">float</span>::<span class="ident">float_of_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>))
+        })
     }
 
     <span class="kw">fn</span> <span class="ident">string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: string&quot;</span>);
-        <span class="self">self</span>.<span class="ident">read_constant</span>(<span class="string">&quot;&lt;string&gt;&quot;</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">byte_len</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_u32</span>()<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="ident">owner</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;string&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">byte_len</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">read_u32</span>()<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span> : <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span> <span class="kw">as</span> <span class="ident">u8</span>; <span class="ident">byte_len</span> <span class="kw">as</span> <span class="ident">usize</span>];
-        <span class="self">self</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">bytes</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span> : <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span> <span class="kw">as</span> <span class="ident">u8</span>; <span class="ident">byte_len</span> <span class="kw">as</span> <span class="ident">usize</span>];
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">bytes</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
 
-        <span class="self">self</span>.<span class="ident">read_constant</span>(<span class="string">&quot;&lt;/string&gt;&quot;</span>)<span class="question-mark">?</span>;
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;/string&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
 
-        <span class="kw">if</span> <span class="ident">byte_len</span> <span class="op">==</span> <span class="number">2</span> <span class="op">&amp;&amp;</span> <span class="ident">bytes</span>[<span class="number">0</span>] <span class="op">==</span> <span class="number">255</span> <span class="op">&amp;&amp;</span> <span class="ident">bytes</span>[<span class="number">1</span>] <span class="op">==</span> <span class="number">0</span> {
-            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
-        }
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">bytes</span>)
-            .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">Encoding</span>)<span class="question-mark">?</span>;
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: string =&gt; {:?}/{}&quot;</span>, <span class="ident">result</span>, <span class="ident">result</span>);
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">result</span>))
+            <span class="kw">if</span> <span class="ident">byte_len</span> <span class="op">==</span> <span class="number">2</span> <span class="op">&amp;&amp;</span> <span class="ident">bytes</span>[<span class="number">0</span>] <span class="op">==</span> <span class="number">255</span> <span class="op">&amp;&amp;</span> <span class="ident">bytes</span>[<span class="number">1</span>] <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+            }
+            <span class="kw">match</span> <span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">bytes</span>) {
+                <span class="prelude-val">Ok</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">x</span>)),
+                <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">Encoding</span>(<span class="ident">err</span>))
+            }
+        })
     }
 
-    <span class="kw">fn</span> <span class="ident">list</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">u32</span>, <span class="self">Self</span>), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">list</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">u32</span>, <span class="self">Self</span>::<span class="ident">ListGuard</span>), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: list&quot;</span>);
-        <span class="self">self</span>.<span class="ident">read_constant</span>(<span class="string">&quot;&lt;list&gt;&quot;</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">byte_len</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_u32</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">extractor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sub</span>(<span class="ident">SubOptions</span> {
-            <span class="ident">description</span>: <span class="string">&quot;list&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">byte_len</span>: <span class="prelude-val">Some</span>(<span class="ident">byte_len</span> <span class="kw">as</span> <span class="ident">u64</span>),
-            <span class="ident">suffix</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;/list&gt;&quot;</span>.<span class="ident">to_string</span>())
-        });
-        <span class="kw">let</span> <span class="ident">list_len</span> <span class="op">=</span> <span class="ident">extractor</span>.<span class="ident">read_u32</span>()<span class="question-mark">?</span>;
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: list has {} items, {} bytes&quot;</span>, <span class="ident">list_len</span>, <span class="ident">byte_len</span>);
-        <span class="prelude-val">Ok</span>((<span class="ident">list_len</span>, <span class="ident">extractor</span>))
+        <span class="kw">let</span> <span class="ident">clone</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">clone</span>();
+        <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>().<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;list&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">byte_len</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">read_u32</span>()<span class="question-mark">?</span>;
+
+            <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">ListGuard</span>::<span class="ident">new</span>(<span class="ident">clone</span>, <span class="ident">state</span>.<span class="ident">position</span>() <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">byte_len</span> <span class="kw">as</span> <span class="ident">u64</span>);
+            <span class="kw">let</span> <span class="ident">list_len</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">read_u32</span>()<span class="question-mark">?</span>;
+            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: list has {} items, {} bytes&quot;</span>, <span class="ident">list_len</span>, <span class="ident">byte_len</span>);
+            <span class="prelude-val">Ok</span>((<span class="ident">list_len</span>, <span class="ident">guard</span>))
+        })
     }
 
-    <span class="kw">fn</span> <span class="ident">tagged_tuple</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span>[<span class="ident">Field</span>]<span class="op">&gt;&gt;</span>, <span class="self">Self</span>), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">tagged_tuple</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span>[<span class="ident">Field</span>]<span class="op">&gt;&gt;</span>, <span class="self">Self</span>::<span class="ident">TaggedGuard</span>), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: tagged_tuple&quot;</span>);
-        <span class="self">self</span>.<span class="ident">read_constant</span>(<span class="string">&quot;&lt;tuple&gt;&quot;</span>)<span class="question-mark">?</span>;
-        <span class="self">self</span>.<span class="ident">read_constant</span>(<span class="string">&quot;&lt;head&gt;&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">clone</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">clone</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="ident">owner</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;tuple&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;head&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
 
-        <span class="comment">// Read (and validate) the kind.</span>
-        <span class="kw">let</span> <span class="ident">kind_name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_string</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> { <span class="self">self</span>.<span class="ident">implem</span>.<span class="ident">borrow</span>().<span class="ident">grammar</span>.<span class="ident">get_kind</span>(<span class="kw-2">&amp;</span><span class="ident">kind_name</span>)
-            .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">TokenReaderError</span>::<span class="ident">NoSuchKind</span>(<span class="ident">kind_name</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span> };
-        <span class="kw">let</span> <span class="ident">interface</span> <span class="op">=</span> { <span class="self">self</span>.<span class="ident">implem</span>.<span class="ident">borrow</span>().<span class="ident">grammar</span>.<span class="ident">get_interface_by_kind</span>(<span class="kw-2">&amp;</span><span class="ident">kind</span>)
-            .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">TokenReaderError</span>::<span class="ident">NoSuchKind</span>(<span class="ident">kind_name</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span> };
+            <span class="comment">// Read (and validate) the kind.</span>
+            <span class="kw">let</span> <span class="ident">kind_name</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">read_string</span>()<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">grammar</span>.<span class="ident">get_kind</span>(<span class="kw-2">&amp;</span><span class="ident">kind_name</span>)
+                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">TokenReaderError</span>::<span class="ident">GrammarError</span>(<span class="ident">GrammarError</span>::<span class="ident">NoSuchKind</span>(<span class="ident">kind_name</span>.<span class="ident">clone</span>())))<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">interface</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">grammar</span>.<span class="ident">get_interface_by_kind</span>(<span class="kw-2">&amp;</span><span class="ident">kind</span>)
+                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">TokenReaderError</span>::<span class="ident">GrammarError</span>(<span class="ident">GrammarError</span>::<span class="ident">NoSuchKind</span>(<span class="ident">kind_name</span>.<span class="ident">clone</span>())))<span class="question-mark">?</span>;
 
-        <span class="comment">// Read the field names</span>
-        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_u32</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_names</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span>);
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">len</span> {
-            <span class="kw">let</span> <span class="ident">string_name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_string</span>()<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">implem</span>.<span class="ident">borrow</span>().<span class="ident">grammar</span>.<span class="ident">get_field_name</span>(<span class="kw-2">&amp;</span><span class="ident">string_name</span>)
-                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">TokenReaderError</span>::<span class="ident">NoSuchField</span>(<span class="ident">string_name</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span>;
-            <span class="ident">field_names</span>.<span class="ident">push</span>(<span class="ident">field_name</span>);
-        }
+            <span class="comment">// Read the field names</span>
+            <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">read_u32</span>()<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_names</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span>);
+            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">len</span> {
+                <span class="kw">let</span> <span class="ident">string_name</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">read_string</span>()<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">grammar</span>.<span class="ident">get_field_name</span>(<span class="kw-2">&amp;</span><span class="ident">string_name</span>)
+                    .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">TokenReaderError</span>::<span class="ident">GrammarError</span>(<span class="ident">GrammarError</span>::<span class="ident">NoSuchField</span> {
+                        <span class="ident">kind</span>: <span class="ident">interface</span>.<span class="ident">name</span>().<span class="ident">clone</span>(),
+                        <span class="ident">field</span>: <span class="ident">string_name</span>.<span class="ident">clone</span>()
+                    }))<span class="question-mark">?</span>;
+                <span class="ident">field_names</span>.<span class="ident">push</span>(<span class="ident">field_name</span>);
+            }
 
-        <span class="comment">// Attach types</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span>);
-        <span class="kw">let</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">interface</span>.<span class="ident">contents</span>();
-        <span class="lifetime">&#39;fields</span>: <span class="kw">for</span> <span class="ident">field_name</span> <span class="kw">in</span> <span class="ident">field_names</span>.<span class="ident">drain</span>(..) {
-            <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">obj</span>.<span class="ident">fields</span>() {
-                <span class="kw">if</span> <span class="ident">field_name</span> <span class="op">==</span> <span class="ident">field</span>.<span class="ident">name</span>() {
-                    <span class="ident">fields</span>.<span class="ident">push</span>(<span class="ident">field</span>.<span class="ident">clone</span>());
-                    <span class="kw">continue</span> <span class="lifetime">&#39;fields</span>
+            <span class="comment">// Attach types</span>
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span>);
+            <span class="kw">let</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">interface</span>.<span class="ident">contents</span>();
+            <span class="lifetime">&#39;fields</span>: <span class="kw">for</span> <span class="ident">field_name</span> <span class="kw">in</span> <span class="ident">field_names</span>.<span class="ident">drain</span>(..) {
+                <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">obj</span>.<span class="ident">fields</span>() {
+                    <span class="kw">if</span> <span class="ident">field_name</span> <span class="op">==</span> <span class="ident">field</span>.<span class="ident">name</span>() {
+                        <span class="ident">fields</span>.<span class="ident">push</span>(<span class="ident">field</span>.<span class="ident">clone</span>());
+                        <span class="kw">continue</span> <span class="lifetime">&#39;fields</span>
+                    }
                 }
             }
-        }
-        <span class="self">self</span>.<span class="ident">read_constant</span>(<span class="string">&quot;&lt;/head&gt;&quot;</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">extractor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sub</span>(<span class="ident">SubOptions</span> {
-            <span class="ident">description</span>: <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Tagged tuple: {}&quot;</span>, <span class="ident">kind_name</span>),
-            <span class="ident">suffix</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;/tuple&gt;&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">SubOptions</span>::<span class="ident">default</span>()
-        });
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;/head&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)<span class="question-mark">?</span>;
 
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: tagged_tuple has name {:?}, fields {:?}&quot;</span>, <span class="ident">kind_name</span>, <span class="ident">fields</span>);
-        <span class="prelude-val">Ok</span>((<span class="ident">kind_name</span>, <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">fields</span>.<span class="ident">into_boxed_slice</span>()), <span class="ident">extractor</span>))
+            <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">TaggedGuard</span>::<span class="ident">new</span>(<span class="ident">clone</span>);
+
+            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: tagged_tuple has name {:?}, fields {:?}&quot;</span>, <span class="ident">kind_name</span>, <span class="ident">fields</span>);
+            <span class="prelude-val">Ok</span>((<span class="ident">kind_name</span>, <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">fields</span>.<span class="ident">into_boxed_slice</span>()), <span class="ident">guard</span>))
+        })
     }
 
-    <span class="kw">fn</span> <span class="ident">untagged_tuple</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">untagged_tuple</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">UntaggedGuard</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenReader: untagged_tuple&quot;</span>);
-        <span class="self">self</span>.<span class="ident">read_constant</span>(<span class="string">&quot;&lt;tuple&gt;&quot;</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">sub</span>(<span class="ident">SubOptions</span> {
-            <span class="ident">description</span>: <span class="string">&quot;Untagged tuple&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">suffix</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;/tuple&gt;&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">SubOptions</span>::<span class="ident">default</span>()
-        }))
-    }
-}
-
-<span class="kw">struct</span> <span class="ident">SubOptions</span> {
-    <span class="ident">description</span>: <span class="ident">String</span>,
-    <span class="ident">byte_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="ident">suffix</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-}
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SubOptions</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">SubOptions</span> {
-            <span class="ident">description</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">byte_len</span>: <span class="prelude-val">None</span>,
-            <span class="ident">suffix</span>: <span class="prelude-val">None</span>,
-        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">owner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">borrow_mut</span>();
+        <span class="ident">owner</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
+            <span class="ident">state</span>.<span class="ident">reader</span>.<span class="ident">read_const</span>(<span class="string">b&quot;&lt;tuple&gt;&quot;</span>)
+                .<span class="ident">map_err</span>(<span class="ident">TokenReaderError</span>::<span class="ident">ReadError</span>)
+        })<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">UntaggedGuard</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">owner</span>.<span class="ident">clone</span>()))
     }
 }
 
@@ -1166,32 +1209,30 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">TokenWriterError</span> {
-    <span class="ident">MissingKind</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Data</span>(<span class="kw">pub</span> <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span>);
+<span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Data</span> {
+    <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_ref</span>().<span class="ident">as_ref</span>()
+    }
 }
+
 <span class="kw">impl</span> <span class="ident">TokenWriter</span> <span class="kw">for</span> <span class="ident">TreeTokenWriter</span> {
     <span class="kw">type</span> <span class="ident">Tree</span> <span class="op">=</span> <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span>;
     <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">TokenWriterError</span>;
+    <span class="kw">type</span> <span class="ident">Data</span> <span class="op">=</span> <span class="ident">Data</span>;
+
+    <span class="kw">fn</span> <span class="ident">done</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Data</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">Data</span>(<span class="self">self</span>.<span class="ident">root</span>))
+    }
 
     <span class="kw">fn</span> <span class="ident">float</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">data</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Tree</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenWriter: float&quot;</span>);
-        <span class="kw">let</span> <span class="ident">buf</span> : [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> <span class="kw">match</span> <span class="ident">data</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">float</span>) <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">float</span>) },
-            <span class="prelude-val">None</span>        <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">NONE_FLOAT_REPR</span>) }
-        };
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>();
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">register</span>(<span class="ident">result</span>))
+        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">bytes</span>::<span class="ident">float</span>::<span class="ident">bytes_of_float</span>(<span class="ident">data</span>);
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">register</span>(<span class="ident">bytes</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>()))
     }
 
     <span class="kw">fn</span> <span class="ident">bool</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">data</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Tree</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;TreeTokenWriter: bool&quot;</span>);
-        <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">data</span> {
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> [<span class="number">2</span>],
-            <span class="prelude-val">Some</span>(<span class="bool-val">true</span>) <span class="op">=&gt;</span> [<span class="number">1</span>],
-            <span class="prelude-val">Some</span>(<span class="bool-val">false</span>) <span class="op">=&gt;</span> [<span class="number">0</span>]
-        };
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">bytes</span>::<span class="ident">bool</span>::<span class="ident">bytes_of_bool</span>(<span class="ident">data</span>).<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>();
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">register</span>(<span class="ident">result</span>))
     }
 
@@ -1204,7 +1245,7 @@
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">EMPTY_STRING</span>.<span class="ident">len</span>(),
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">x</span>.<span class="ident">len</span>()
         } <span class="kw">as</span> <span class="ident">u32</span>;
-        <span class="kw">let</span> <span class="ident">buf_len</span> : [<span class="ident">u8</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">byte_len</span>) };
+        <span class="kw">let</span> <span class="ident">buf_len</span> : [<span class="ident">u8</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">byte_len</span>) }; <span class="comment">// FIXME: Make this little-endian</span>
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of_val</span>(<span class="kw-2">&amp;</span><span class="ident">buf_len</span>) <span class="op">==</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of_val</span>(<span class="kw-2">&amp;</span><span class="ident">byte_len</span>));
 
 
@@ -1243,11 +1284,16 @@
 
         <span class="comment">// Placeholder for `byte_len`</span>
         <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>);
+
+        <span class="comment">// Actual number of items</span>
         <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>);
+
+        <span class="comment">// Put actual data</span>
         <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">items</span> {
             <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">item</span>)
         }
 
+        <span class="comment">// Now compute bytelength and put it back</span>
         <span class="kw">let</span> <span class="ident">byte_len</span> <span class="op">=</span> (<span class="ident">result</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">prefix</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of_val</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>)) <span class="kw">as</span> <span class="ident">u32</span>;
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of_val</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>) <span class="op">==</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of_val</span>(<span class="kw-2">&amp;</span><span class="ident">byte_len</span>));
         <span class="ident">buf</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">byte_len</span>) };
@@ -1322,10 +1368,12 @@
     <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">annotation</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">grammar</span>::<span class="kw-2">*</span>;
 
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="kw-2">*</span>;
+
     <span class="kw">use</span> <span class="ident">serde_json</span>;
     <span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="kw">as</span> <span class="ident">JSON</span>;
 
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Cursor</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{ <span class="ident">Cursor</span>, <span class="ident">Write</span> };
 
     <span class="kw">type</span> <span class="ident">Object</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">JSON</span><span class="op">&gt;</span>;
 
@@ -1335,9 +1383,9 @@
     <span class="kw">let</span> <span class="ident">null_kind</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">kind_name</span>(<span class="string">&quot;Null&quot;</span>);
     <span class="ident">builder</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">null</span>).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">kinded</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">node_name</span>(<span class="string">&quot;Kinded&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_string</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">new</span>(<span class="ident">builder</span>.<span class="ident">field_name</span>(<span class="string">&quot;some_string&quot;</span>), <span class="ident">Type</span>::<span class="ident">string</span>());
-    <span class="kw">let</span> <span class="ident">field_number</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">new</span>(<span class="ident">builder</span>.<span class="ident">field_name</span>(<span class="string">&quot;some_number&quot;</span>), <span class="ident">Type</span>::<span class="ident">number</span>());
+    <span class="kw">let</span> <span class="ident">kinded</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">node_name</span>(<span class="string">&quot;Pattern&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_string</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">new</span>(<span class="ident">builder</span>.<span class="ident">field_name</span>(<span class="string">&quot;id&quot;</span>), <span class="ident">Type</span>::<span class="ident">string</span>());
+    <span class="kw">let</span> <span class="ident">field_number</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">new</span>(<span class="ident">builder</span>.<span class="ident">field_name</span>(<span class="string">&quot;value&quot;</span>), <span class="ident">Type</span>::<span class="ident">number</span>());
 
     <span class="ident">builder</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">kinded</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_own_field</span>(<span class="ident">field_string</span>.<span class="ident">clone</span>())
@@ -1369,6 +1417,9 @@
         <span class="ident">writer</span>.<span class="ident">string</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;simple string&quot;</span>))
             .<span class="ident">expect</span>(<span class="string">&quot;Writing simple string&quot;</span>);
 
+        <span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;/tmp/test-simple-string.binjs&quot;</span>).<span class="ident">unwrap</span>()
+            .<span class="ident">write_all</span>(<span class="ident">writer</span>.<span class="ident">data</span>()).<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">TreeTokenReader</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">writer</span>.<span class="ident">data</span>()), <span class="kw-2">&amp;</span><span class="ident">syntax</span>);
         <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading simple string&quot;</span>)
@@ -1382,6 +1433,9 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">writer</span> <span class="op">=</span> <span class="ident">TreeTokenWriter</span>::<span class="ident">new</span>();
         <span class="ident">writer</span>.<span class="ident">string</span>(<span class="prelude-val">Some</span>(<span class="ident">data</span>))
             .<span class="ident">expect</span>(<span class="string">&quot;Writing string with escapes&quot;</span>);
+
+        <span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;/tmp/test-string-with-escapes.binjs&quot;</span>).<span class="ident">unwrap</span>()
+            .<span class="ident">write_all</span>(<span class="ident">writer</span>.<span class="ident">data</span>()).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">TreeTokenReader</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">writer</span>.<span class="ident">data</span>()), <span class="kw-2">&amp;</span><span class="ident">syntax</span>);
         <span class="kw">let</span> <span class="ident">escapes_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
@@ -1397,9 +1451,16 @@
         <span class="ident">writer</span>.<span class="ident">untagged_tuple</span>(<span class="kw-2">&amp;</span>[])
             .<span class="ident">expect</span>(<span class="string">&quot;Writing empty untagged tuple&quot;</span>);
 
+        <span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;/tmp/test-empty-untagged-tuple.binjs&quot;</span>).<span class="ident">unwrap</span>()
+            .<span class="ident">write_all</span>(<span class="ident">writer</span>.<span class="ident">data</span>()).<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">TreeTokenReader</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">writer</span>.<span class="ident">data</span>()), <span class="kw-2">&amp;</span><span class="ident">syntax</span>);
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">untagged_tuple</span>()
-            .<span class="ident">expect</span>(<span class="string">&quot;Reading empty untagged tuplelist&quot;</span>);
+        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">untagged_tuple</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Reading empty untagged tuple&quot;</span>);
+
+        <span class="ident">guard</span>.<span class="ident">done</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Empty untagged tuple read properly&quot;</span>);
+
     }
 
     {
@@ -1409,17 +1470,23 @@
         <span class="ident">writer</span>.<span class="ident">untagged_tuple</span>(<span class="kw-2">&amp;</span>[<span class="ident">item_0</span>, <span class="ident">item_1</span>])
             .<span class="ident">expect</span>(<span class="string">&quot;Writing trivial untagged tuple&quot;</span>);
 
+        <span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;/tmp/test-trivial-untagged-tuple.binjs&quot;</span>).<span class="ident">unwrap</span>()
+            .<span class="ident">write_all</span>(<span class="ident">writer</span>.<span class="ident">data</span>()).<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">TreeTokenReader</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">writer</span>.<span class="ident">data</span>()), <span class="kw-2">&amp;</span><span class="ident">syntax</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sub</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">untagged_tuple</span>()
+        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">untagged_tuple</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial untagged tuple&quot;</span>);
-        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">string</span>()
+        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tuple[0]&quot;</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Non-null string&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">simple_string</span>, <span class="string">&quot;foo&quot;</span>);
-        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">string</span>()
+        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tuple[1]&quot;</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Non-null string&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">simple_string</span>, <span class="string">&quot;bar&quot;</span>);
+
+        <span class="ident">guard</span>.<span class="ident">done</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Untagged tuple read properly&quot;</span>);
     }
 
     <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Testing tagged tuple I/O&quot;</span>);
@@ -1431,39 +1498,45 @@
         <span class="ident">writer</span>.<span class="ident">tagged_tuple</span>(<span class="ident">kinded</span>.<span class="ident">to_str</span>(), <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span><span class="ident">field_string</span>, <span class="ident">item_0</span>), (<span class="kw-2">&amp;</span><span class="ident">field_number</span>, <span class="ident">item_1</span>)])
             .<span class="ident">expect</span>(<span class="string">&quot;Writing trivial tagged tuple&quot;</span>);
 
+        <span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;/tmp/test-simple-tagged-tuple.binjs&quot;</span>).<span class="ident">unwrap</span>()
+            .<span class="ident">write_all</span>(<span class="ident">writer</span>.<span class="ident">data</span>()).<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">TreeTokenReader</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">writer</span>.<span class="ident">data</span>()), <span class="kw-2">&amp;</span><span class="ident">syntax</span>);
-        <span class="kw">let</span> (<span class="ident">name</span>, <span class="ident">fields</span>, <span class="kw-2">mut</span> <span class="ident">sub</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">tagged_tuple</span>()
+        <span class="kw">let</span> (<span class="ident">name</span>, <span class="ident">fields</span>, <span class="ident">guard</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">tagged_tuple</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tagged tuple&quot;</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">name</span>, <span class="string">&quot;Kinded&quot;</span>.<span class="ident">to_string</span>());
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">name</span>, <span class="string">&quot;Pattern&quot;</span>.<span class="ident">to_string</span>());
 
         <span class="comment">// Order of fields is not deterministic</span>
-        <span class="kw">if</span> <span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="string">&quot;some_string&quot;</span>.<span class="ident">to_string</span>() {
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;some_string&quot;</span>.<span class="ident">to_string</span>());
+        <span class="kw">if</span> <span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>() {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">string</span>());
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;some_number&quot;</span>.<span class="ident">to_string</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">number</span>());
-            <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">string</span>()
+            <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tagged tuple[0]&quot;</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading a non-null string&quot;</span>);
-            <span class="kw">let</span> <span class="ident">simple_float</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">float</span>()
+            <span class="kw">let</span> <span class="ident">simple_float</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">float</span>()
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tagged tuple[1]&quot;</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading a non-null float&quot;</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">simple_string</span>, <span class="string">&quot;foo&quot;</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">simple_float</span>, <span class="number">3.1415</span>);
         } <span class="kw">else</span> {
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;some_string&quot;</span>.<span class="ident">to_string</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">string</span>());
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;some_number&quot;</span>.<span class="ident">to_string</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">number</span>());
-            <span class="kw">let</span> <span class="ident">simple_float</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">float</span>()
+            <span class="kw">let</span> <span class="ident">simple_float</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">float</span>()
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tagged tuple[1]&quot;</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading a non-null float&quot;</span>);
-            <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">string</span>()
+            <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tagged tuple[0]&quot;</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading a non-null string&quot;</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">simple_string</span>, <span class="string">&quot;foo&quot;</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">simple_float</span>, <span class="number">3.1415</span>);
         }
+
+        <span class="ident">guard</span>.<span class="ident">done</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Trivial tagged tuple read properly&quot;</span>);
     }
 
     <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Testing list I/O&quot;</span>);
@@ -1473,10 +1546,16 @@
         <span class="ident">writer</span>.<span class="ident">list</span>(<span class="macro">vec</span><span class="macro">!</span>[])
             .<span class="ident">expect</span>(<span class="string">&quot;Writing empty list&quot;</span>);
 
+        <span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;/tmp/test-empty-list.binjs&quot;</span>).<span class="ident">unwrap</span>()
+                .<span class="ident">write_all</span>(<span class="ident">writer</span>.<span class="ident">data</span>()).<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">TreeTokenReader</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">writer</span>.<span class="ident">data</span>()), <span class="kw-2">&amp;</span><span class="ident">syntax</span>);
-        <span class="kw">let</span> (<span class="ident">len</span>, _) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">list</span>()
+        <span class="kw">let</span> (<span class="ident">len</span>, <span class="ident">guard</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">list</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading empty list&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">len</span>, <span class="number">0</span>);
+
+        <span class="ident">guard</span>.<span class="ident">done</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Empty list read properly&quot;</span>);
     }
 
     {
@@ -1486,19 +1565,25 @@
         <span class="ident">writer</span>.<span class="ident">list</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">item_0</span>, <span class="ident">item_1</span>])
             .<span class="ident">expect</span>(<span class="string">&quot;Writing trivial list&quot;</span>);
 
+        <span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;/tmp/test-trivial-list.binjs&quot;</span>).<span class="ident">unwrap</span>()
+            .<span class="ident">write_all</span>(<span class="ident">writer</span>.<span class="ident">data</span>()).<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">TreeTokenReader</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">writer</span>.<span class="ident">data</span>()), <span class="kw-2">&amp;</span><span class="ident">syntax</span>);
-        <span class="kw">let</span> (<span class="ident">len</span>, <span class="kw-2">mut</span> <span class="ident">sub</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">list</span>()
+        <span class="kw">let</span> (<span class="ident">len</span>, <span class="ident">guard</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">list</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial list&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">len</span>, <span class="number">2</span>);
 
-        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">string</span>()
+        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial list[0]&quot;</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Non-null string&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">simple_string</span>, <span class="string">&quot;foo&quot;</span>);
-        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">string</span>()
+        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial list[1]&quot;</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Non-null string&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">simple_string</span>, <span class="string">&quot;bar&quot;</span>);
+
+        <span class="ident">guard</span>.<span class="ident">done</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Trivial list read properly&quot;</span>);
     }
 
     {
@@ -1510,23 +1595,32 @@
         <span class="ident">writer</span>.<span class="ident">list</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">list</span>])
             .<span class="ident">expect</span>(<span class="string">&quot;Writing outer list&quot;</span>);
 
+        <span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;/tmp/test-nested-lists.binjs&quot;</span>).<span class="ident">unwrap</span>()
+            .<span class="ident">write_all</span>(<span class="ident">writer</span>.<span class="ident">data</span>()).<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">TreeTokenReader</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">writer</span>.<span class="ident">data</span>()), <span class="kw-2">&amp;</span><span class="ident">syntax</span>);
-        <span class="kw">let</span> (<span class="ident">len</span>, <span class="kw-2">mut</span> <span class="ident">sub</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">list</span>()
+        <span class="kw">let</span> (<span class="ident">len</span>, <span class="ident">guard</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">list</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading outer list&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">len</span>, <span class="number">1</span>);
 
-        <span class="kw">let</span> (<span class="ident">len</span>, <span class="kw-2">mut</span> <span class="ident">sub</span>) <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">list</span>()
+        <span class="kw">let</span> (<span class="ident">len</span>, <span class="ident">inner_guard</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">list</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading inner list&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">len</span>, <span class="number">2</span>);
 
-        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">string</span>()
+        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial list[0]&quot;</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Non-null string&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">simple_string</span>, <span class="string">&quot;foo&quot;</span>);
-        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">sub</span>.<span class="ident">string</span>()
+        <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial list[1]&quot;</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Non-null string&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">simple_string</span>, <span class="string">&quot;bar&quot;</span>);
+
+        <span class="ident">inner_guard</span>.<span class="ident">done</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Inner list read properly&quot;</span>);
+        <span class="ident">guard</span>.<span class="ident">done</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Inner list read properly&quot;</span>);
+
     }
 
 }

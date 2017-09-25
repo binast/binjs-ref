@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `BrotliEncoderParams` struct in crate `brotli`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, BrotliEncoderParams">
+
+    <title>brotli::enc::backward_references::BrotliEncoderParams - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Struct BrotliEncoderParams</p><div class="block items"><ul><li><a href="#fields">Fields</a></li></ul></div><p class='location'><a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>backward_references</a></p><script>window.sidebarCurrent = {name: 'BrotliEncoderParams', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>backward_references</a>::<wbr><a class="struct" href=''>BrotliEncoderParams</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/brotli/enc/backward_references.rs.html#46-54' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct BrotliEncoderParams {
+    pub mode: <a class="enum" href="../../../brotli/enc/backward_references/enum.BrotliEncoderMode.html" title="enum brotli::enc::backward_references::BrotliEncoderMode">BrotliEncoderMode</a>,
+    pub quality: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>,
+    pub lgwin: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>,
+    pub lgblock: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>,
+    pub size_hint: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
+    pub disable_literal_context_modeling: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>,
+    pub hasher: <a class="struct" href="../../../brotli/enc/backward_references/struct.BrotliHasherParams.html" title="struct brotli::enc::backward_references::BrotliHasherParams">BrotliHasherParams</a>,
+}</pre><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.mode" class="structfield small-section-header">
+                           <a href="#structfield.mode" class="anchor field"></a>
+                           <span id="mode.v" class='invisible'>
+                           <code>mode: <a class="enum" href="../../../brotli/enc/backward_references/enum.BrotliEncoderMode.html" title="enum brotli::enc::backward_references::BrotliEncoderMode">BrotliEncoderMode</a></code>
+                           </span></span><span id="structfield.quality" class="structfield small-section-header">
+                           <a href="#structfield.quality" class="anchor field"></a>
+                           <span id="quality.v" class='invisible'>
+                           <code>quality: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a></code>
+                           </span></span><span id="structfield.lgwin" class="structfield small-section-header">
+                           <a href="#structfield.lgwin" class="anchor field"></a>
+                           <span id="lgwin.v" class='invisible'>
+                           <code>lgwin: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a></code>
+                           </span></span><span id="structfield.lgblock" class="structfield small-section-header">
+                           <a href="#structfield.lgblock" class="anchor field"></a>
+                           <span id="lgblock.v" class='invisible'>
+                           <code>lgblock: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a></code>
+                           </span></span><span id="structfield.size_hint" class="structfield small-section-header">
+                           <a href="#structfield.size_hint" class="anchor field"></a>
+                           <span id="size_hint.v" class='invisible'>
+                           <code>size_hint: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code>
+                           </span></span><span id="structfield.disable_literal_context_modeling" class="structfield small-section-header">
+                           <a href="#structfield.disable_literal_context_modeling" class="anchor field"></a>
+                           <span id="disable_literal_context_modeling.v" class='invisible'>
+                           <code>disable_literal_context_modeling: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a></code>
+                           </span></span><span id="structfield.hasher" class="structfield small-section-header">
+                           <a href="#structfield.hasher" class="anchor field"></a>
+                           <span id="hasher.v" class='invisible'>
+                           <code>hasher: <a class="struct" href="../../../brotli/enc/backward_references/struct.BrotliHasherParams.html" title="struct brotli::enc::backward_references::BrotliHasherParams">BrotliHasherParams</a></code>
+                           </span></span></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "brotli";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

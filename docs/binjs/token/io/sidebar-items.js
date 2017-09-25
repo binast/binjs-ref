@@ -1,1 +1,1 @@
-initSidebarItems({"trait":[["TokenReader","An API for reading tokens."],["TokenWriter","Build an in-memory representation of a BinTree."]]});
+initSidebarItems({"struct":[["TrivialGuard","Trivial implementation of a guard."]],"trait":[["Guard","A guard used to ensure that some subset of the input stream was read properly."],["TokenReader","An API for reading tokens."],["TokenWriter","Build an in-memory representation of a BinTree."]]});

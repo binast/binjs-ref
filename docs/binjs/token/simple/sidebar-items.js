@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["TokenReaderError",""],["TokenWriterError",""]],"struct":[["TreeTokenReader",""],["TreeTokenWriter","A trivial tree writer, without any kind of optimization."]]});
+initSidebarItems({"struct":[["Data",""],["ListGuard",""],["TaggedGuard",""],["TreeTokenReader",""],["TreeTokenWriter","A trivial tree writer, without any kind of optimization."],["UntaggedGuard",""]]});

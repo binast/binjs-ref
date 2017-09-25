@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["BROTLI_UNALIGNED_LOAD32",""],["BROTLI_UNALIGNED_LOAD64",""],["BROTLI_UNALIGNED_STORE64",""],["BrotliGetDictionary",""],["FindMatchLengthWithLimit",""],["Hash",""],["IsMatch",""]],"static":[["kBrotliEncDictionary",""]],"struct":[["BrotliDictionary",""]]});

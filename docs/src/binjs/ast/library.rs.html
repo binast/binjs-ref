@@ -863,6 +863,129 @@
 <span id="818">818</span>
 <span id="819">819</span>
 <span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+<span id="886">886</span>
+<span id="887">887</span>
+<span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
+<span id="893">893</span>
+<span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
+<span id="914">914</span>
+<span id="915">915</span>
+<span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
+<span id="919">919</span>
+<span id="920">920</span>
+<span id="921">921</span>
+<span id="922">922</span>
+<span id="923">923</span>
+<span id="924">924</span>
+<span id="925">925</span>
+<span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
+<span id="942">942</span>
+<span id="943">943</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A library of specifications for versions of JavaScript.</span>
 
@@ -878,9 +1001,10 @@
 <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">NULL_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BINJS:Null&quot;</span>;
 <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">SCOPE_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BINJS:Scope&quot;</span>;
 <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">BINJS_VAR_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BINJS:VarDeclaredNames&quot;</span>;
-<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">BINJS_LEX_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BinJS:LexicallyDeclaredNames&quot;</span>;
-<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">BINJS_CAPTURED_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BinJS:CapturedNames&quot;</span>;
-<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">BINJS_DIRECT_EVAL</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BinJS::HasDirectEval&quot;</span>;
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">BINJS_LET_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BINJS:LetDeclaredNames&quot;</span>;
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">BINJS_CONST_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BINJS:ConstDeclaredNames&quot;</span>;
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">BINJS_CAPTURED_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BINJS:CapturedNames&quot;</span>;
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">BINJS_DIRECT_EVAL</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;BINJS:HasDirectEval&quot;</span>;
 
 <span class="doccomment">/// The set of features requested for a syntax.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>)]</span>
@@ -894,10 +1018,30 @@
     <span class="comment">// FIXME: More levels to be implemented.</span>
 }
 
+<span class="kw">fn</span> <span class="ident">uses_strict</span>(<span class="ident">object</span>: <span class="kw-2">&amp;</span><span class="ident">Object</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">directives</span>) <span class="op">=</span> <span class="ident">object</span>[<span class="string">&quot;directives&quot;</span>].<span class="ident">as_array</span>() {
+        <span class="kw">if</span> <span class="ident">directives</span>
+            .<span class="ident">iter</span>()
+            .<span class="ident">find</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;use strict&quot;</span>) <span class="op">=</span> <span class="ident">v</span>[<span class="string">&quot;value&quot;</span>][<span class="string">&quot;value&quot;</span>].<span class="ident">as_str</span>() {
+                    <span class="bool-val">true</span>
+                } <span class="kw">else</span> {
+                    <span class="bool-val">false</span>
+                }
+            }
+            ).<span class="ident">is_some</span>()
+        {
+            <span class="kw">return</span> <span class="bool-val">true</span>;
+        }
+    }
+    <span class="bool-val">false</span>
+}
+
 <span class="doccomment">/// Special nodes used by BINJS. Not visible at source level.</span>
 <span class="kw">fn</span> <span class="ident">setup_binjs</span>(<span class="ident">syntax</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SyntaxBuilder</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Annotator</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">field_var_decl_names</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="ident">BINJS_VAR_NAME</span>);
-    <span class="kw">let</span> <span class="ident">field_lexically_declared_names</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="ident">BINJS_LEX_NAME</span>);
+    <span class="kw">let</span> <span class="ident">field_let_declared_names</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="ident">BINJS_LET_NAME</span>);
+    <span class="kw">let</span> <span class="ident">field_const_declared_names</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="ident">BINJS_CONST_NAME</span>);
     <span class="kw">let</span> <span class="ident">field_captured_names</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="ident">BINJS_CAPTURED_NAME</span>);
     <span class="kw">let</span> <span class="ident">field_has_direct_eval</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="ident">BINJS_DIRECT_EVAL</span>);
 
@@ -907,9 +1051,10 @@
 
     <span class="comment">// A scope, used to attach annotations.</span>
     <span class="kw">let</span> <span class="ident">binjs_scope</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="ident">SCOPE_NAME</span>);
-    <span class="ident">syntax</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>).<span class="ident">unwrap</span>()
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_var_decl_names</span>, <span class="ident">Type</span>::<span class="ident">string</span>().<span class="ident">array</span>())
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_lexically_declared_names</span>, <span class="ident">Type</span>::<span class="ident">string</span>().<span class="ident">array</span>())
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_let_declared_names</span>, <span class="ident">Type</span>::<span class="ident">string</span>().<span class="ident">array</span>())
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_const_declared_names</span>, <span class="ident">Type</span>::<span class="ident">string</span>().<span class="ident">array</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_captured_names</span>, <span class="ident">Type</span>::<span class="ident">string</span>().<span class="ident">array</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_has_direct_eval</span>, <span class="ident">Type</span>::<span class="ident">bool</span>());
 
@@ -962,6 +1107,8 @@
     <span class="kw">let</span> <span class="ident">continue_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;ContinueStatement&quot;</span>);
     <span class="kw">let</span> <span class="ident">debugger_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;DebuggerStatement&quot;</span>);
     <span class="kw">let</span> <span class="ident">declaration</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Declaration&quot;</span>);
+    <span class="kw">let</span> <span class="ident">directive</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Directive&quot;</span>);
+    <span class="kw">let</span> <span class="ident">directive_literal</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;DirectiveLiteral&quot;</span>);
     <span class="kw">let</span> <span class="ident">do_while_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;DoWhileStatement&quot;</span>);
     <span class="kw">let</span> <span class="ident">empty_statement</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;EmptyStatement&quot;</span>);
     <span class="kw">let</span> <span class="ident">expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">node_name</span>(<span class="string">&quot;Expression&quot;</span>);
@@ -1014,6 +1161,7 @@
     <span class="kw">let</span> <span class="ident">field_alternate</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;alternate&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_argument</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;argument&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_arguments</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;arguments&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_binjs_scope</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="ident">SCOPE_NAME</span>);
     <span class="kw">let</span> <span class="ident">field_block</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;block&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_callee</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;callee&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_cases</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;cases&quot;</span>);
@@ -1021,6 +1169,7 @@
     <span class="kw">let</span> <span class="ident">field_computed</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;computed&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_body</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;body&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_declarations</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;declarations&quot;</span>);
+    <span class="kw">let</span> <span class="ident">field_directives</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;directives&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_discriminant</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;discriminant&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_elements</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;elements&quot;</span>);
     <span class="kw">let</span> <span class="ident">field_expression</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">field_name</span>(<span class="string">&quot;expression&quot;</span>);
@@ -1076,12 +1225,15 @@
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_pattern</span>, <span class="ident">Type</span>::<span class="ident">string</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_flags</span>, <span class="ident">Type</span>::<span class="ident">string</span>())
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">literal</span>);
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">directive_literal</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">string_literal</span>);
 
     <span class="comment">// Programs</span>
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">program</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>).<span class="ident">array</span>())
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>)
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>);
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_binjs_scope</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_directives</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">directive</span>).<span class="ident">array</span>())
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
 
     <span class="comment">// Functions (shared between function declaration, function statement, function expression)</span>
     <span class="comment">// Note that the scope information is stored as part of `field_body`.</span>
@@ -1089,6 +1241,7 @@
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_id</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">identifier</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_params</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">pattern</span>).<span class="ident">array</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">block_statement</span>))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_binjs_scope</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
 
     <span class="comment">// Statements</span>
@@ -1100,8 +1253,9 @@
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">block_statement</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>).<span class="ident">array</span>())
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>)
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>);
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_binjs_scope</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_directives</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">directive</span>).<span class="ident">array</span>()) <span class="comment">// FIXME: This seems like a waste of space. Shouldn&#39;t we allow this only for functions?</span>
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression_statement</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_expression</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
@@ -1147,7 +1301,7 @@
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">switch_case</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_test</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_consequent</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>).<span class="ident">array</span>())
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>);
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">throw_statement</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_argument</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
@@ -1162,6 +1316,7 @@
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">catch_clause</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_param</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">pattern</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">block_statement</span>))
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_binjs_scope</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">while_statement</span>).<span class="ident">unwrap</span>()
@@ -1182,8 +1337,8 @@
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_test</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_update</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>))
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>)
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>);
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_binjs_scope</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">for_in_statement</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_left</span>, <span class="ident">Type</span>::<span class="ident">interfaces</span>(<span class="kw-2">&amp;</span>[
@@ -1192,8 +1347,8 @@
         ]))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_right</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_body</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>))
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>)
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>);
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_binjs_scope</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">binjs_scope</span>).<span class="ident">or_null</span>().<span class="ident">unwrap</span>())
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">statement</span>);
 
     <span class="comment">// Declarations</span>
     <span class="ident">syntax</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">declaration</span>).<span class="ident">unwrap</span>()
@@ -1241,7 +1396,7 @@
 
     <span class="ident">syntax</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">object_member</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_key</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
-        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_computed</span>, <span class="ident">Type</span>::<span class="ident">bool</span>()) <span class="comment">// FIXME: Do we need this?</span>
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_computed</span>, <span class="ident">Type</span>::<span class="ident">bool</span>()) <span class="comment">// FIXME: Do we need this? Definitely not for `object_method`, for instance.</span>
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">object_property</span>).<span class="ident">unwrap</span>()
@@ -1365,7 +1520,8 @@
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_object</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_property</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_computed</span>, <span class="ident">Type</span>::<span class="ident">bool</span>())
-        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>);
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>)
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">pattern</span>);
 
     <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">conditional_expression</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_test</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">expression</span>))
@@ -1390,6 +1546,9 @@
     <span class="ident">syntax</span>.<span class="ident">add_virtual_interface</span>(<span class="kw-2">&amp;</span><span class="ident">pattern</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
 
+    <span class="ident">syntax</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">directive</span>).<span class="ident">unwrap</span>()
+        .<span class="ident">with_field</span>(<span class="kw-2">&amp;</span><span class="ident">field_value</span>, <span class="ident">Type</span>::<span class="ident">interface</span>(<span class="kw-2">&amp;</span><span class="ident">directive_literal</span>))
+        .<span class="ident">with_parent</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>);
 
     <span class="kw">struct</span> <span class="ident">ES5Annotator</span> {
         <span class="ident">parent</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Annotator</span><span class="op">&gt;</span>,
@@ -1418,22 +1577,22 @@
                                 <span class="comment">// 2. If the declaration is in a function&#39;s toplevel block, this is a `var`.</span>
                                 <span class="comment">// 3. Otherwise, this is a `let`.</span>
                                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">grand</span>) <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">parent</span>() {
-                                    <span class="kw">let</span> <span class="ident">grand</span> <span class="op">=</span> <span class="ident">grand</span>.<span class="ident">borrow</span>();
+                                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">grand</span> <span class="op">=</span> <span class="ident">grand</span>.<span class="ident">borrow_mut</span>();
                                     <span class="kw">if</span> <span class="kw">let</span> <span class="string">&quot;BlockStatement&quot;</span> <span class="op">=</span> <span class="ident">grand</span>.<span class="ident">kind_str</span>() {
                                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">grandgrand</span>) <span class="op">=</span> <span class="ident">grand</span>.<span class="ident">parent</span>() {
                                             <span class="kw">let</span> <span class="ident">grandgrand</span> <span class="op">=</span> <span class="ident">grandgrand</span>.<span class="ident">borrow</span>();
                                             <span class="kw">match</span> <span class="ident">grandgrand</span>.<span class="ident">kind_str</span>() {
                                                 <span class="string">&quot;FunctionDeclaration&quot;</span> <span class="op">|</span> <span class="string">&quot;ObjectMethod&quot;</span> <span class="op">|</span> <span class="string">&quot;FunctionExpression&quot;</span> <span class="op">=&gt;</span> {
                                                     <span class="comment">// Case 2.</span>
-                                                    <span class="ident">ctx</span>.<span class="ident">add_var_name</span>(<span class="ident">name</span>)
+                                                    <span class="ident">grand</span>.<span class="ident">add_var_name</span>(<span class="ident">name</span>)
                                                 }
-                                                _ <span class="op">=&gt;</span> <span class="ident">ctx</span>.<span class="ident">add_lex_name</span>(<span class="ident">name</span>)
+                                                _ <span class="op">=&gt;</span> <span class="ident">grand</span>.<span class="ident">add_let_name</span>(<span class="ident">name</span>)
                                             }
                                         } <span class="kw">else</span> {
-                                            <span class="ident">ctx</span>.<span class="ident">add_lex_name</span>(<span class="ident">name</span>)
+                                            <span class="ident">grand</span>.<span class="ident">add_let_name</span>(<span class="ident">name</span>)
                                         }
                                     } <span class="kw">else</span> {
-                                        <span class="ident">ctx</span>.<span class="ident">add_var_name</span>(<span class="ident">name</span>)
+                                        <span class="ident">grand</span>.<span class="ident">add_var_name</span>(<span class="ident">name</span>)
                                     }
                                 } <span class="kw">else</span> {
                                     <span class="comment">// Case 1.</span>
@@ -1459,27 +1618,50 @@
                                 }
                             }
                         }
+                        <span class="string">&quot;CatchClause&quot;</span> <span class="op">=&gt;</span> {
+                            <span class="comment">// Handle `catch (e) { ...} ` where `e` is declared implicitly.</span>
+                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;param&quot;</span>) <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">field_str</span>() {
+                                <span class="kw">if</span> <span class="op">!</span><span class="ident">parent</span>.<span class="ident">is_lex_bound</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>) {
+                                    <span class="ident">parent</span>.<span class="ident">add_let_name</span>(<span class="ident">name</span>);
+                                }
+                            }
+                        }
                         <span class="string">&quot;VariableDeclarator&quot;</span> <span class="op">=&gt;</span> {
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;id&quot;</span>) <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">field_str</span>() {
                                 <span class="kw">match</span> <span class="ident">parent</span>.<span class="ident">scope_kind</span>() {
                                     <span class="ident">ScopeKind</span>::<span class="ident">VarDecl</span> <span class="op">=&gt;</span> <span class="ident">parent</span>.<span class="ident">add_var_name</span>(<span class="ident">name</span>),
-                                    <span class="ident">ScopeKind</span>::<span class="ident">LexDecl</span> <span class="op">=&gt;</span> <span class="ident">parent</span>.<span class="ident">add_lex_name</span>(<span class="ident">name</span>),
+                                    <span class="ident">ScopeKind</span>::<span class="ident">LetDecl</span> <span class="op">=&gt;</span> <span class="ident">parent</span>.<span class="ident">add_let_name</span>(<span class="ident">name</span>),
+                                    <span class="ident">ScopeKind</span>::<span class="ident">ConstDecl</span> <span class="op">=&gt;</span> <span class="ident">parent</span>.<span class="ident">add_const_name</span>(<span class="ident">name</span>),
                                     _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ASTError</span>::<span class="ident">InvalidScope</span>)
                                 }
                             }
                             <span class="comment">// Otherwise, skip. We cannot declare variables in `init`.</span>
                         }
                         _ <span class="op">=&gt;</span> {
-                            <span class="comment">// Ignore identifier.</span>
+                            <span class="comment">// We don&#39;t know what this identifier is yet. Could be declared</span>
+                            <span class="comment">// in some enclosing scope or never, in which case it is implicitly</span>
+                            <span class="comment">// a global variable.</span>
+                            <span class="ident">parent</span>.<span class="ident">add_unknown_name</span>(<span class="ident">name</span>)
                         }
                     }
+                }
+                <span class="string">&quot;CatchClause&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">ctx</span>.<span class="ident">set_scope_kind</span>(<span class="ident">ScopeKind</span>::<span class="ident">LetDecl</span>);
+                    <span class="self">self</span>.<span class="ident">parent</span>.<span class="ident">process_declarations</span>(<span class="ident">me</span>, <span class="ident">ctx</span>, <span class="ident">object</span>)<span class="question-mark">?</span>;
+
+                    <span class="comment">// Store available information.</span>
+                    <span class="ident">ctx</span>.<span class="ident">store</span>(<span class="ident">object</span>);
+
+                    <span class="comment">// Drop LexDecl, keep VarDecl</span>
+                    <span class="ident">ctx</span>.<span class="ident">clear_lex_names</span>();
                 }
                 <span class="string">&quot;VariableDeclaration&quot;</span> <span class="op">=&gt;</span> {
                     <span class="comment">// Configure the scope kind.</span>
                     <span class="kw">let</span> <span class="ident">scope_kind</span> <span class="op">=</span> {
                         <span class="kw">let</span> <span class="ident">variable_kind</span> <span class="op">=</span> <span class="ident">object</span>.<span class="ident">get_string</span>(<span class="string">&quot;kind&quot;</span>, <span class="string">&quot;Field `kind` of `VariableDeclaration`&quot;</span>)<span class="question-mark">?</span>;
                         <span class="kw">match</span> <span class="ident">variable_kind</span> {
-                            <span class="string">&quot;let&quot;</span> <span class="op">|</span> <span class="string">&quot;const&quot;</span> <span class="op">=&gt;</span> <span class="ident">ScopeKind</span>::<span class="ident">LexDecl</span>,
+                            <span class="string">&quot;let&quot;</span> <span class="op">=&gt;</span> <span class="ident">ScopeKind</span>::<span class="ident">LetDecl</span>,
+                            <span class="string">&quot;const&quot;</span> <span class="op">=&gt;</span> <span class="ident">ScopeKind</span>::<span class="ident">ConstDecl</span>,
                             <span class="string">&quot;var&quot;</span> <span class="op">=&gt;</span> <span class="ident">ScopeKind</span>::<span class="ident">VarDecl</span>,
                             _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ASTError</span>::<span class="ident">invalid_value</span>(
                                 <span class="ident">object</span>.<span class="ident">get</span>(<span class="string">&quot;kind&quot;</span>).<span class="ident">unwrap</span>(), <span class="comment">// Checked just above.</span>
@@ -1492,7 +1674,7 @@
                     <span class="comment">// Then proceed as usual.</span>
                     <span class="self">self</span>.<span class="ident">parent</span>.<span class="ident">process_declarations</span>(<span class="ident">me</span>, <span class="ident">ctx</span>, <span class="ident">object</span>)<span class="question-mark">?</span>;
                 }
-                <span class="string">&quot;BlockStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;ForStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;ForInStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;Program&quot;</span> <span class="op">=&gt;</span> {
+                <span class="string">&quot;BlockStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;ForStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;ForInStatement&quot;</span> <span class="op">=&gt;</span> {
                     <span class="comment">// Adopt usual behavior.</span>
                     <span class="self">self</span>.<span class="ident">parent</span>.<span class="ident">process_declarations</span>(<span class="ident">me</span>, <span class="ident">ctx</span>, <span class="ident">object</span>)<span class="question-mark">?</span>;
 
@@ -1502,9 +1684,48 @@
                     <span class="comment">// Drop LexDecl, keep VarDecl</span>
                     <span class="ident">ctx</span>.<span class="ident">clear_lex_names</span>();
                 }
-                <span class="string">&quot;FunctionDeclaration&quot;</span> <span class="op">|</span> <span class="string">&quot;ObjectMethod&quot;</span> <span class="op">|</span> <span class="string">&quot;FunctionExpression&quot;</span> <span class="op">=&gt;</span> {
+                <span class="string">&quot;Program&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="comment">// Check directives</span>
+                    <span class="kw">if</span> <span class="ident">uses_strict</span>(<span class="ident">object</span>) {
+                        <span class="ident">ctx</span>.<span class="ident">set_uses_strict</span>(<span class="bool-val">true</span>);
+                    }
+
                     <span class="comment">// Adopt usual behavior.</span>
                     <span class="self">self</span>.<span class="ident">parent</span>.<span class="ident">process_declarations</span>(<span class="ident">me</span>, <span class="ident">ctx</span>, <span class="ident">object</span>)<span class="question-mark">?</span>;
+
+                    <span class="comment">// Store available information.</span>
+                    <span class="ident">ctx</span>.<span class="ident">clear_special_unknown_names</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;eval&quot;</span>]);
+                    <span class="ident">ctx</span>.<span class="ident">promote_unknown_names_to_var</span>();
+                    <span class="ident">ctx</span>.<span class="ident">store</span>(<span class="ident">object</span>);
+                }
+                <span class="string">&quot;FunctionDeclaration&quot;</span> <span class="op">|</span> <span class="string">&quot;ObjectMethod&quot;</span> <span class="op">|</span> <span class="string">&quot;FunctionExpression&quot;</span>  <span class="op">=&gt;</span> {
+                    <span class="comment">// Check directives.</span>
+                    <span class="kw">let</span> <span class="ident">uses_strict</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">uses_strict</span>() <span class="op">||</span>
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">body</span>) <span class="op">=</span> <span class="ident">object</span>[<span class="string">&quot;body&quot;</span>].<span class="ident">as_object</span>() {
+                            <span class="ident">uses_strict</span>(<span class="ident">body</span>)
+                        } <span class="kw">else</span> {
+                            <span class="bool-val">false</span>
+                        };
+                    <span class="kw">if</span> <span class="ident">uses_strict</span> {
+                        <span class="ident">ctx</span>.<span class="ident">set_uses_strict</span>(<span class="bool-val">true</span>);
+                        <span class="comment">// Babel allows any string to be used as a directive.</span>
+                        <span class="comment">// This doesn&#39;t seem canonical.</span>
+                        <span class="ident">object</span>[<span class="string">&quot;body&quot;</span>].<span class="ident">as_object_mut</span>().<span class="ident">unwrap</span>().<span class="ident">insert</span>(<span class="string">&quot;directives&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">json</span><span class="macro">!</span>([{
+                            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;Directive&quot;</span>,
+                            <span class="string">&quot;value&quot;</span>: {
+                                <span class="string">&quot;type&quot;</span>: <span class="string">&quot;DirectiveLiteral&quot;</span>,
+                                <span class="string">&quot;value&quot;</span>: <span class="string">&quot;use strict&quot;</span>
+                            }
+                        }]));
+                    } <span class="kw">else</span> {
+                        <span class="ident">object</span>[<span class="string">&quot;body&quot;</span>].<span class="ident">as_object_mut</span>().<span class="ident">unwrap</span>().<span class="ident">insert</span>(<span class="string">&quot;directives&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">json</span><span class="macro">!</span>([]));
+                    }
+
+                    <span class="comment">// Adopt usual behavior.</span>
+                    <span class="self">self</span>.<span class="ident">parent</span>.<span class="ident">process_declarations</span>(<span class="ident">me</span>, <span class="ident">ctx</span>, <span class="ident">object</span>)<span class="question-mark">?</span>;
+
+                    <span class="comment">// Store available information.</span>
+                    <span class="ident">ctx</span>.<span class="ident">store</span>(<span class="ident">object</span>);
 
                     <span class="comment">// Drop LexDecl and VarDecl</span>
                     <span class="ident">ctx</span>.<span class="ident">clear_lex_names</span>();
@@ -1539,23 +1760,30 @@
                         <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()) <span class="comment">// If we are at toplevel, we don&#39;t really care about all this.</span>
                     };
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">parent</span> <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">borrow_mut</span>();
+
                     <span class="kw">match</span> <span class="ident">parent</span>.<span class="ident">kind_str</span>() {
                         <span class="string">&quot;FunctionDeclaration&quot;</span> <span class="op">|</span> <span class="string">&quot;ObjectMethod&quot;</span> <span class="op">|</span> <span class="string">&quot;FunctionExpression&quot;</span> <span class="op">=&gt;</span> {
                             <span class="kw">match</span> <span class="ident">parent</span>.<span class="ident">field_str</span>() {
-                                <span class="prelude-val">Some</span>(<span class="string">&quot;id&quot;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;params&quot;</span>) <span class="op">=&gt;</span> <span class="ident">parent</span>.<span class="ident">add_bound_name</span>(<span class="ident">name</span>),
+                                <span class="prelude-val">Some</span>(<span class="string">&quot;id&quot;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;params&quot;</span>) <span class="op">=&gt;</span> {
+                                    <span class="kw">let</span> <span class="ident">fun_scope</span> <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">fun_scope</span>()
+                                        .<span class="ident">expect</span>(<span class="string">&quot;Expected a fun scope&quot;</span>);
+                                    <span class="ident">fun_scope</span>.<span class="ident">borrow_mut</span>().<span class="ident">add_binding</span>(<span class="ident">name</span>);
+                                }
                                 _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ASTError</span>::<span class="ident">InvalidField</span>(<span class="string">&quot;&lt;FIXME: specify field&gt;&quot;</span>.<span class="ident">to_string</span>())),
                             }
                         }
                         <span class="string">&quot;CatchClause&quot;</span> <span class="op">=&gt;</span> {
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;param&quot;</span>) <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">field_str</span>() {
-                                <span class="ident">parent</span>.<span class="ident">add_bound_name</span>(<span class="ident">name</span>)
+                                <span class="ident">parent</span>.<span class="ident">add_binding</span>(<span class="ident">name</span>)
                             } <span class="kw">else</span> {
                                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ASTError</span>::<span class="ident">InvalidField</span>(<span class="string">&quot;&lt;FIXME: specify field&gt;&quot;</span>.<span class="ident">to_string</span>()))
                             }
                         }
                         <span class="string">&quot;CallExpression&quot;</span> <span class="kw">if</span> <span class="ident">name</span> <span class="op">==</span> <span class="string">&quot;eval&quot;</span> <span class="op">=&gt;</span> {
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;callee&quot;</span>) <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">field_str</span>() {
-                                <span class="ident">parent</span>.<span class="ident">add_direct_eval</span>()
+                                <span class="kw">if</span> <span class="op">!</span><span class="ident">parent</span>.<span class="ident">is_bound</span>(<span class="string">&quot;eval&quot;</span>) {
+                                    <span class="ident">parent</span>.<span class="ident">add_direct_eval</span>()
+                                }
                             } <span class="kw">else</span> {
                                 <span class="ident">parent</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>)
                             }
@@ -1566,9 +1794,9 @@
                         <span class="string">&quot;VariableDeclarator&quot;</span> <span class="op">=&gt;</span> {
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;id&quot;</span>) <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">field_str</span>() {
                                 <span class="comment">// Variable declaration, already handled.</span>
-                                <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parent</span>.<span class="ident">is_bound</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>), <span class="string">&quot;Variable {} is declared explicitly, should have been marked as bound in the previous pass. Bound variables: {:?}&quot;</span>, <span class="ident">name</span>, <span class="ident">parent</span>.<span class="ident">bound_names</span>());
+                                <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parent</span>.<span class="ident">is_bound</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>), <span class="string">&quot;Variable {} is declared explicitly, should have been marked as bound in the previous pass. Bound variables: {:?}&quot;</span>, <span class="ident">name</span>, <span class="ident">parent</span>.<span class="ident">bindings</span>());
                             } <span class="kw">else</span> {
-                                <span class="ident">parent</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>)
+                                <span class="ident">ctx</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>)
                             }
                         }
                         <span class="string">&quot;ForStatement&quot;</span> <span class="op">=&gt;</span> {
@@ -1576,39 +1804,57 @@
                                 <span class="comment">// Variable declaration, already handled.</span>
                                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parent</span>.<span class="ident">is_bound</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>), <span class="string">&quot;Variable {} is declared by `for(;;)`, should have been marked as bound in the previous pass&quot;</span>, <span class="ident">name</span>);
                             } <span class="kw">else</span> {
-                                <span class="ident">parent</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>)
+                                <span class="ident">ctx</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>)
                             }
                         }
                         <span class="string">&quot;ForInStatement&quot;</span> <span class="op">=&gt;</span> {
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;left&quot;</span>) <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">field_str</span>() {
                                 <span class="comment">// Variable declaration, already handled.</span>
-                                <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parent</span>.<span class="ident">is_bound</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>), <span class="string">&quot;Variable {} is declared by `for(in)`, should have been marked as bound in the previous pass&quot;</span>, <span class="ident">name</span>);
+                                <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parent</span>.<span class="ident">is_bound</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>), <span class="string">&quot;Variable {} is used by `for(in)`, should have been marked as bound in the previous pass&quot;</span>, <span class="ident">name</span>);
                             } <span class="kw">else</span> {
-                                <span class="ident">parent</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>)
+                                <span class="ident">ctx</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>)
                             }
                         }
                         <span class="string">&quot;ExpressionStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;WithStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;ReturnStatement&quot;</span>
                             <span class="op">|</span> <span class="string">&quot;IfStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;SwitchStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;SwitchCase&quot;</span>
                             <span class="op">|</span> <span class="string">&quot;ThrowStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;WhileStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;DoWhileStatement&quot;</span>
                             <span class="op">|</span> <span class="string">&quot;ArrayExpression&quot;</span>
-                            <span class="op">|</span> <span class="string">&quot;ObjectProperty&quot;</span> <span class="op">|</span> <span class="string">&quot;UnaryExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;UpdateExpression&quot;</span>
+                            <span class="op">|</span> <span class="string">&quot;ObjectProperty&quot;</span> <span class="op">|</span> <span class="string">&quot;ObjectExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;UnaryExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;UpdateExpression&quot;</span>
                             <span class="op">|</span> <span class="string">&quot;BinaryExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;AssignmentExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;LogicalExpression&quot;</span>
                             <span class="op">|</span> <span class="string">&quot;MemberExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;ConditionalExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;CallExpression&quot;</span>
                             <span class="op">|</span> <span class="string">&quot;NewExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;SequenceExpression&quot;</span> <span class="op">=&gt;</span> {
-                            <span class="ident">parent</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>);
+                            <span class="ident">ctx</span>.<span class="ident">add_free_name</span>(<span class="ident">name</span>);
                         }
                         _ <span class="op">=&gt;</span> {
-                            <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;I didn&#39;t expect to see a Identifier in {} {:?}&quot;</span>, <span class="ident">parent</span>.<span class="ident">kind_str</span>(), <span class="ident">parent</span>.<span class="ident">field_str</span>())
+                            <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;I didn&#39;t expect to see a Identifier (namely \&quot;{}\&quot;) in {} {:?}&quot;</span>, <span class="ident">name</span>, <span class="ident">parent</span>.<span class="ident">kind_str</span>(), <span class="ident">parent</span>.<span class="ident">field_str</span>())
                         }
                     };
                 }
-                <span class="string">&quot;ForStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;ForInStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;BlockStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;Program&quot;</span> <span class="op">=&gt;</span>
+                <span class="string">&quot;ForStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;ForInStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;BlockStatement&quot;</span> <span class="op">|</span> <span class="string">&quot;Program&quot;</span> <span class="op">|</span> <span class="string">&quot;CatchClause&quot;</span> <span class="op">=&gt;</span>
                 {
                     <span class="comment">// Simply load the stored bindings, then handle fields.</span>
                     <span class="ident">ctx</span>.<span class="ident">load</span>(<span class="ident">object</span>);
                     <span class="self">self</span>.<span class="ident">parent</span>.<span class="ident">process_references</span>(<span class="ident">me</span>, <span class="ident">ctx</span>, <span class="ident">object</span>)<span class="question-mark">?</span>;
                     <span class="ident">ctx</span>.<span class="ident">store</span>(<span class="ident">object</span>)
                 },
+                <span class="string">&quot;FunctionExpression&quot;</span> <span class="op">|</span> <span class="string">&quot;FunctionDeclaration&quot;</span> <span class="op">|</span> <span class="string">&quot;ObjectMethod&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">ctx</span>.<span class="ident">use_as_fun_scope</span>();
+
+                    <span class="comment">// Make sure that we handle the function id and the params before the body,</span>
+                    <span class="comment">// as they generally introduce bindings.</span>
+                    <span class="kw">for</span> <span class="ident">name</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;id&quot;</span>, <span class="string">&quot;params&quot;</span>, <span class="string">&quot;body&quot;</span>] {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">field</span>) <span class="op">=</span> <span class="ident">object</span>.<span class="ident">get_mut</span>(<span class="kw-2">*</span><span class="ident">name</span>) {
+                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="kw-2">mut</span> <span class="ident">ctx</span>) <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">enter_field</span>(<span class="ident">name</span>) {
+                                <span class="ident">me</span>.<span class="ident">process_references_aux</span>(<span class="ident">me</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>, <span class="ident">field</span>)<span class="question-mark">?</span>;
+                            }
+                        }
+                    }
+
+                    <span class="comment">// Store information on the function itself.</span>
+                    <span class="ident">ctx</span>.<span class="ident">store</span>(<span class="ident">object</span>);
+                    <span class="comment">// Dropping `ctx` will convert free variables into</span>
+                    <span class="comment">// free-in-nested-function variables.</span>
+                }
                 <span class="string">&quot;ObjectProperty&quot;</span> <span class="op">=&gt;</span> {
                     <span class="comment">// Simply ignore field `key`.</span>
                     <span class="comment">// It is specified as an `Expression`, which doesn&#39;t really make sense, as it</span>
@@ -1683,7 +1929,8 @@
     <span class="ident">syntax</span>(<span class="ident">Level</span>::<span class="ident">Minimal</span>);
     <span class="ident">syntax</span>(<span class="ident">Level</span>::<span class="ident">ES5</span>);
     <span class="ident">syntax</span>(<span class="ident">Level</span>::<span class="ident">Latest</span>);
-}</pre>
+}
+</pre>
 </section>
     <section id='search' class="content hidden"></section>
 

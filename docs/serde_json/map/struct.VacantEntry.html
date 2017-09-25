@@ -50,8 +50,12 @@
                    </a>
                </span><a class='srclink' href='../../src/serde_json/map.rs.html#392-394' title='goto source code'>[src]</a></span></h1>
 <pre class='rust struct'>pub struct VacantEntry&lt;'a&gt; { /* fields omitted */ }</pre><div class='docblock'><p>A vacant Entry. It is part of the <a href="enum.Entry.html"><code>Entry</code></a> enum.</p>
-</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../../serde_json/map/struct.VacantEntry.html" title="struct serde_json::map::VacantEntry">VacantEntry</a>&lt;'a&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/map.rs.html#480-529' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.key' class="method"><span id='key.v' class='invisible'><code>fn <a href='#method.key' class='fnname'>key</a>(&amp;self) -&gt; &amp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></code></span></h4>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../../serde_json/map/struct.VacantEntry.html" title="struct serde_json::map::VacantEntry">VacantEntry</a>&lt;'a&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/map.rs.html#480-529' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.key' class="method"><span id='key.v' class='invisible'><code>fn <a href='#method.key' class='fnname'>key</a>(&amp;self) -&gt; &amp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/map.rs.html#499-501' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Gets a reference to the key that would be used when inserting a value
 through the VacantEntry.</p>
 
@@ -67,7 +71,7 @@ through the VacantEntry.</p>
     }
     <span class="ident">Entry</span>::<span class="ident">Occupied</span>(_) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
 }</pre>
-</div><h4 id='method.insert' class="method"><span id='insert.v' class='invisible'><code>fn <a href='#method.insert' class='fnname'>insert</a>(self, value: <a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a>) -&gt; &amp;'a mut <a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a></code></span></h4>
+</div><h4 id='method.insert' class="method"><span id='insert.v' class='invisible'><code>fn <a href='#method.insert' class='fnname'>insert</a>(self, value: <a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a>) -&gt; &amp;'a mut <a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/map.rs.html#526-528' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Sets the value of the entry with the VacantEntry&#39;s key, and returns a
 mutable reference to it.</p>
 

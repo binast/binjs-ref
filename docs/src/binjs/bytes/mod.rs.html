@@ -43,21 +43,40 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><pre class="line-numbers"><span id="1">1</span>
-<span id="2">2</span>
-<span id="3">3</span>
-<span id="4">4</span>
-<span id="5">5</span>
-<span id="6">6</span>
-<span id="7">7</span>
+    <section id='main' class="content"><pre class="line-numbers"><span id="1"> 1</span>
+<span id="2"> 2</span>
+<span id="3"> 3</span>
+<span id="4"> 4</span>
+<span id="5"> 5</span>
+<span id="6"> 6</span>
+<span id="7"> 7</span>
+<span id="8"> 8</span>
+<span id="9"> 9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
 </pre><pre class="rust ">
-<span class="doccomment">//! Implementation of stream of bytes.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Specifications</span>
-<span class="doccomment">//! TODO</span>
+<span class="doccomment">//! Tools for manipulating byte-level data.</span>
 
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">atoms</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">varnum</span>;</pre>
+<span class="doccomment">/// Encoding/decoding booleans.</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bool</span>;
+
+<span class="doccomment">/// Compressing/decompressing from/to common formats.</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">compress</span>;
+
+<span class="doccomment">/// Encoding/decoding floating-point numbers.</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">float</span>;
+
+<span class="doccomment">/// Serializing/deserializing traits.</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">serialize</span>;
+
+<span class="doccomment">/// Encoding/decoding variable-length numbers.</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">varnum</span>;
+</pre>
 </section>
     <section id='search' class="content hidden"></section>
 

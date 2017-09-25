@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `HeapAlloc` struct in crate `brotli_decompressor`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, HeapAlloc">
+
+    <title>brotli_decompressor::reader::HeapAlloc - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Struct HeapAlloc</p><div class="block items"><ul><li><a href="#fields">Fields</a></li><li><a href="#methods">Methods</a></li><li><a href="#implementations">Trait Implementations</a></li></ul></div><p class='location'><a href='../index.html'>brotli_decompressor</a>::<wbr><a href='index.html'>reader</a></p><script>window.sidebarCurrent = {name: 'HeapAlloc', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>brotli_decompressor</a>::<wbr><a href='index.html'>reader</a>::<wbr><a class="struct" href=''>HeapAlloc</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#48-50' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct HeapAlloc&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span> {
+    pub default_value: T,
+}</pre><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.default_value" class="structfield small-section-header">
+                           <a href="#structfield.default_value" class="anchor field"></a>
+                           <span id="default_value.v" class='invisible'>
+                           <code>default_value: T</code>
+                           </span></span>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="struct" href="../../brotli_decompressor/writer/struct.HeapAlloc.html" title="struct brotli_decompressor::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#51-55' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>fn <a href='#method.new' class='fnname'>new</a>(data: T) -&gt; <a class="struct" href="../../brotli_decompressor/writer/struct.HeapAlloc.html" title="struct brotli_decompressor::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#52-54' title='goto source code'>[src]</a></span></h4>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Allocator&lt;T&gt;' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="trait" href="../../brotli_decompressor/writer/trait.Allocator.html" title="trait brotli_decompressor::writer::Allocator">Allocator</a>&lt;T&gt; for <a class="struct" href="../../brotli_decompressor/writer/struct.HeapAlloc.html" title="struct brotli_decompressor::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span></code><a href='#impl-Allocator&lt;T&gt;' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#57-68' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.AllocatedMemory' class="type"><span id='AllocatedMemory.t' class='invisible'><code>type <a href='../../brotli_decompressor/writer/trait.Allocator.html#associatedtype.AllocatedMemory' class="type">AllocatedMemory</a> = WrapBox&lt;T&gt;</code></span></h4>
+<h4 id='method.alloc_cell' class="method"><span id='alloc_cell.v' class='invisible'><code>fn <a href='../../brotli_decompressor/writer/trait.Allocator.html#tymethod.alloc_cell' class='fnname'>alloc_cell</a>(&amp;mut self, len: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; WrapBox&lt;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#59-64' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.free_cell' class="method"><span id='free_cell.v' class='invisible'><code>fn <a href='../../brotli_decompressor/writer/trait.Allocator.html#tymethod.free_cell' class='fnname'>free_cell</a>(&amp;mut self, _data: WrapBox&lt;T&gt;)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#65-67' title='goto source code'>[src]</a></span></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "brotli_decompressor";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

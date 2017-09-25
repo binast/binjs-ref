@@ -126,6 +126,10 @@ p {
 	margin: 0 0 .6em 0;
 }
 
+summary {
+	outline: none;
+}
+
 code, pre {
 	font-family: "Source Code Pro", Menlo, Monaco, Consolas, "DejaVu Sans Mono", Inconsolata, monospace;
 	white-space: pre-wrap;
@@ -274,12 +278,17 @@ nav.sub {
 	border-bottom: 1px solid;
 }
 
-.docblock h1 { font-size: 1.3em; }
-.docblock h2 { font-size: 1.15em; }
-.docblock h3, .docblock h4, .docblock h5 { font-size: 1em; }
+#main > .docblock h1 { font-size: 1.3em; }
+#main > .docblock h2 { font-size: 1.15em; }
+#main > .docblock h3, #main > .docblock h4, #main > .docblock h5 { font-size: 1em; }
+
+.docblock h1 { font-size: 1em; }
+.docblock h2 { font-size: 0.95em; }
+.docblock h3, .docblock h4, .docblock h5 { font-size: 0.9em; }
 
 .docblock {
 	margin-left: 24px;
+	position: relative;
 }
 
 .content .out-of-band {
@@ -295,6 +304,10 @@ nav.sub {
 
 h3.impl > .out-of-band {
 	font-size: 21px;
+}
+
+h4.method > .out-of-band {
+	font-size: 19px;
 }
 
 h4 > code, h3 > code, .invisible > code {
@@ -314,6 +327,10 @@ h4 > code, h3 > code, .invisible > code {
 .content .in-band {
 	margin: 0px;
 	padding: 0px;
+	display: inline-block;
+}
+
+.in-band > code {
 	display: inline-block;
 }
 
@@ -430,14 +447,30 @@ a {
 	background: transparent;
 }
 
+.small-section-header:hover > .anchor {
+	display: initial;
+}
+
+.in-band:hover > .anchor {
+	display: inline-block;
+	position: absolute;
+}
+.anchor {
+	display: none;
+	position: absolute;
+	left: -25px;
+}
+.anchor.field {
+	left: -20px;
+}
+.anchor:before {
+	content: '\2002\00a7\2002';
+}
+
 .docblock a:hover, .docblock-short a:hover, .stability a {
 	text-decoration: underline;
 }
 
-.content span.enum, .content a.enum, .block a.current.enum { color: #5e9766; }
-.content span.struct, .content a.struct, .block a.current.struct { color: #df3600; }
-.content span.type, .content a.type, .block a.current.type { color: #e57300; }
-.content span.macro, .content a.macro, .block a.current.macro { color: #068000; }
 .block a.current.crate { font-weight: 500; }
 
 .search-input {
@@ -585,7 +618,6 @@ pre.rust .question-mark {
 	font-weight: bold;
 }
 
-pre.rust { position: relative; }
 a.test-arrow {
 	display: inline-block;
 	position: absolute;
@@ -599,7 +631,9 @@ a.test-arrow:hover{
 	text-decoration: none;
 }
 
-.section-header:hover a:after {
+.section-header:hover a:before {
+	position: absolute;
+	left: -25px;
 	content: '\2002\00a7\2002';
 }
 
@@ -631,11 +665,13 @@ h3 > .collapse-toggle, h4 > .collapse-toggle {
 
 .toggle-wrapper {
 	position: relative;
+	margin-top: 5px;
 }
 
 .toggle-wrapper.collapsed {
-	height: 1em;
+	height: 25px;
 	transition: height .2s;
+	margin-bottom: .6em;
 }
 
 .collapse-toggle > .inner {
@@ -658,6 +694,11 @@ h3 > .collapse-toggle, h4 > .collapse-toggle {
 	padding-left: 10px;
 }
 
+.item-spacer {
+	width: 100%;
+	height: 12px;
+}
+
 span.since {
 	position: initial;
 	font-size: 20px;
@@ -668,12 +709,18 @@ span.since {
 	left: 0;
 }
 
-.variant + .toggle-wrapper > a {
+.variant + .toggle-wrapper + .docblock > p {
 	margin-top: 5px;
 }
 
 .sub-variant, .sub-variant > h3 {
 	margin-top: 0 !important;
+}
+
+.toggle-label {
+	display: inline-block;
+	margin-left: 4px;
+	margin-top: 3px;
 }
 
 .enum > .toggle-wrapper + .docblock, .struct > .toggle-wrapper + .docblock {
@@ -686,7 +733,7 @@ span.since {
 	margin-bottom: 25px;
 }
 
-.enum .variant, .struct .structfield {
+#main > .variant, #main > .structfield {
 	display: block;
 }
 
@@ -772,4 +819,50 @@ span.since {
 	nav.sub, .content .out-of-band, .collapse-toggle {
 		display: none;
 	}
+}
+
+.information {
+	position: absolute;
+	left: -1px;
+	margin-top: 7px;
+	z-index: 1;
+}
+
+.tooltip {
+	position: relative;
+	display: inline-block;
+	cursor: pointer;
+}
+
+.tooltip .tooltiptext {
+	width: 120px;
+	display: none;
+	background-color: black;
+	color: #fff;
+	text-align: center;
+	padding: 5px 3px;
+	border-radius: 6px;
+	margin-left: 5px;
+	top: -5px;
+	left: 105%;
+	z-index: 1;
+}
+
+.tooltip:hover .tooltiptext {
+	display: inline;
+}
+
+.tooltip .tooltiptext::after {
+	content: " ";
+	position: absolute;
+	top: 50%;
+	left: 11px;
+	margin-top: -5px;
+	border-width: 5px;
+	border-style: solid;
+	border-color: transparent black transparent transparent;
+}
+
+pre.rust {
+	position: relative;
 }

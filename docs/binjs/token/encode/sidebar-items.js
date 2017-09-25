@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["Error",""]],"struct":[["Encoder",""]]});
+initSidebarItems({"enum":[["Error",""]],"struct":[["Encoder",""]],"trait":[["Encode",""]]});
