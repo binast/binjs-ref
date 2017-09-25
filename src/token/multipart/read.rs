@@ -343,7 +343,7 @@ impl<'a> Guard for ListGuard<'a> {
             return Ok(())
         }
 
-        let found = owner.try(|owner| Ok(owner.position()))?;
+        let found = owner.try(|state| Ok(state.position()))?;
         if found != self.expected_end {
             owner.poison();
             return Err(TokenReaderError::EndOffsetError {
@@ -374,10 +374,10 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
     }
 
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
-        self.owner.borrow_mut().try(|owner| {
-            let index = owner.reader.read_varnum_2()
+        self.owner.borrow_mut().try(|state| {
+            let index = state.reader.read_varnum_2()
                 .map_err(TokenReaderError::ReadError)?;
-            match owner.strings_table.get(index) {
+            match state.strings_table.get(index) {
                 Some(result) => Ok(result.clone()),
                 None => Err(TokenReaderError::BadStringIndex(index))
             }
@@ -387,9 +387,9 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
 
     /// Read a single `f64`. Note that all numbers are `f64`.
     fn float(&mut self) -> Result<Option<f64>, Self::Error> {
-        self.owner.borrow_mut().try(|owner| {
+        self.owner.borrow_mut().try(|state| {
             let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
-            owner.reader.read(&mut buf)
+            state.reader.read(&mut buf)
                 .map_err(TokenReaderError::ReadError)?;
             Ok(bytes::float::float_of_bytes(&buf))
         })
@@ -397,9 +397,9 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
 
     /// Read a single `bool`.
     fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
-        self.owner.borrow_mut().try(|owner| {
+        self.owner.borrow_mut().try(|state| {
             let mut buf : [u8; 1] = unsafe { std::mem::uninitialized() };
-            owner.reader.read(&mut buf)
+            state.reader.read(&mut buf)
                 .map_err(TokenReaderError::ReadError)?;
             bytes::bool::bool_of_bytes(&buf)
                 .map_err(|_| TokenReaderError::InvalidValue)
@@ -413,11 +413,11 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
     /// either reach the end of the list or call `skip()`.
     fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error> {
         let clone = self.owner.clone();
-        self.owner.borrow_mut().try(move |owner| {
-            let byte_len = owner.reader.read_varnum_2()
+        self.owner.borrow_mut().try(move |state| {
+            let byte_len = state.reader.read_varnum_2()
                 .map_err(TokenReaderError::ReadError)?;
-            let guard = ListGuard::new(clone, owner.position(), byte_len as u64);
-            let list_len = owner.reader.read_varnum_2()
+            let guard = ListGuard::new(clone, state.position(), byte_len as u64);
+            let list_len = state.reader.read_varnum_2()
                 .map_err(TokenReaderError::ReadError)?;
             Ok((list_len, guard))
         })
@@ -432,10 +432,10 @@ impl<'a> TokenReader for TreeTokenReader<'a> {
     /// to that tuple. The sub-extractor MUST be consumed entirely.
     fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[Field]>>, Self::TaggedGuard), Self::Error> {
         let clone = self.owner.clone();
-        self.owner.borrow_mut().try(|owner| {
-            let index = owner.reader.read_varnum_2()
+        self.owner.borrow_mut().try(|state| {
+            let index = state.reader.read_varnum_2()
                 .map_err(TokenReaderError::ReadError)?;
-            let description = owner.grammar_table.get(index)
+            let description = state.grammar_table.get(index)
                 .ok_or(TokenReaderError::BadKindIndex(index))?;
 
             let tag = description.kind.name().to_string().clone();
