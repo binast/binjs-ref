@@ -35,6 +35,8 @@ pub fn strip(tree: &mut JSON) {
     }
 }
 
+/// Utility: return a string describing a JSON value
+/// (e.g. `"Object"`, `"Bool"`, ...)
 pub fn type_of(tree: &JSON) -> String {
     use serde_json::Value::*;
     match *tree {
@@ -315,8 +317,12 @@ pub trait Dispose {
 }
 
 
+/// An object (typically a reader) that knows its position and size.
 pub trait Pos {
+    /// The current position in the stream, in bytes.
     fn pos(&mut self) -> usize;
+
+    /// The total number of bytes available in the stream.
     fn size(&mut self) -> usize;
 }
 impl<T> Pos for T where T: Seek {
@@ -336,7 +342,10 @@ impl<T> Pos for T where T: Seek {
     }
 }
 
+/// An extension of `Read` that knows how to check that the following few bytes
+/// match some value.
 pub trait ReadConst {
+    /// Succeed if the next few bytes match `bytes`, otherwise fail.
     fn read_const(&mut self, bytes: &[u8]) -> Result<(), std::io::Error>;
 }
 impl<T> ReadConst for T where T: std::io::Read {
