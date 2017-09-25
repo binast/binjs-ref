@@ -54,4 +54,5 @@ pub enum TokenReaderError {
     BadStringIndex(u32),
     InvalidValue,
     BadKindIndex(u32),
+    Encoding(std::string::FromUtf8Error),
 }
