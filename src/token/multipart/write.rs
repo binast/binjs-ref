@@ -341,7 +341,7 @@ impl LabelledItem {
                         } = *items[0] {
                             let key = index.index.borrow()
                                 .expect("TableIndex hasn't been resolved");
-                            match stats.per_kind.entry(key as usize) {
+                            match stats.per_kind_index.entry(key as usize) {
                                 vec_map::Entry::Occupied(mut entry) => {
                                     let borrow = entry.get_mut();
                                     borrow.entries += 1;
@@ -466,6 +466,15 @@ impl<'a> TreeTokenWriter<'a> {
             self.statistics.tree.entries = 1;
             self.statistics.tree.uncompressed_bytes = compression.before;
             self.statistics.tree.compressed_bytes = compression.after;
+        }
+
+        // Compute more statistics on nodes.
+        for (key, value) in self.grammar_table.map {
+            let index = value.index.index.borrow()
+                .expect("Table index hasn't been resolved yet");
+            let stats = self.statistics.per_kind_index.get(index as usize)
+                .expect("Could not find entry per index");
+            self.statistics.per_kind_name.insert(key.clone(), stats.clone());
         }
 
         println!("Statistics (WIP): {:?}", self.statistics);
@@ -631,7 +640,7 @@ pub struct TreeTokenWriter<'a> {
 }
 
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ItemStatistics {
     entries: usize,
     uncompressed_bytes: usize,
@@ -643,7 +652,8 @@ pub struct Statistics {
     grammar_table: ItemStatistics,
     strings_table: ItemStatistics,
     tree: ItemStatistics,
-    per_kind: VecMap<ItemStatistics>, // FIXME: We need to add the kind names
+    per_kind_index: VecMap<ItemStatistics>, // FIXME: We need to add the kind names
+    per_kind_name: HashMap<NodeName, ItemStatistics>,
 
     bool: ItemStatistics,
     float: ItemStatistics,
