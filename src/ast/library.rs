@@ -407,7 +407,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     syntax.add_virtual_interface(&object_member).unwrap()
         .with_field(&field_key, Type::interface(&expression))
-        .with_field(&field_computed, Type::bool()) // FIXME: Do we need this?
+        .with_field(&field_computed, Type::bool()) // FIXME: Do we need this? Definitely not for `object_method`, for instance.
         .with_parent(&node);
 
     syntax.add_kinded_interface(&object_property).unwrap()
