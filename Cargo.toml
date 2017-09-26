@@ -12,7 +12,6 @@ esprima = []
 [dependencies]
 assert_matches = "*"
 brotli = "1.*"
-clap = "*" # Should be a dev-dependency, actually.
 env_logger = "*"
 flate2 = "0.2"
 log = "*"
@@ -23,6 +22,7 @@ serde_json = "*"
 vec_map = "*"
 
 [dev-dependencies]
+clap = "*"
 env_logger = "*"
 glob = "*"
 test-logger = "*"
