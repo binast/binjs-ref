@@ -710,43 +710,43 @@ impl Display for Statistics {
 
         write!(f, r##"
 Statistics
-    Sections:
-        Grammar:
-            Entries: {}
-            Uncompressed bytes: {}
-            Compressed bytes: {}
-        Strings:
-            Entries: {}
-            Uncompressed bytes: {}
-            Compressed bytes: {}
-        Tree:
-            Entries: {}
-            Uncompressed bytes: {}
-            Compressed bytes: {}
-        Nodes:
+\tSections:
+\t\tGrammar:
+\t\t\tEntries: {}
+\t\t\tUncompressed bytes: {}
+\t\t\tCompressed bytes: {}
+\t\tStrings:
+\t\t\tEntries: {}
+\t\t\tUncompressed bytes: {}
+\t\t\tCompressed bytes: {}
+\t\tTree:
+\t\t\tEntries: {}
+\t\t\tUncompressed bytes: {}
+\t\t\tCompressed bytes: {}
+\tNodes:
 {}
-    Kinds:
-        Bool:
-            Entries: {}
-            Bytes: {}
-        Float:
-            Entries: {}
-            Bytes: {}
-        String indices:
-            Entries: {}
-            Bytes: {}
-        List:
-            Entries: {}
-            Own bytes: {}
-            Total bytes: {}
-        Tagged tuples:
-            Entries: {}
-            Own bytes: {}
-            Total bytes: {}
-        Untagged tuples:
-            Entries: {}
-            Own bytes: {}
-            Total bytes: {}
+\tKinds:
+\t\tBool:
+\t\t\tEntries: {}
+\t\t\tBytes: {}
+\t\tFloat:
+\t\t\tEntries: {}
+\t\t\tBytes: {}
+\t\tString indices:
+\t\t\tEntries: {}
+\t\t\tBytes: {}
+\t\tList:
+\t\t\tEntries: {}
+\t\t\tOwn bytes: {}
+\t\t\tTotal bytes: {}
+\t\tTagged tuples:
+\t\t\tEntries: {}
+\t\t\tOwn bytes: {}
+\t\t\tTotal bytes: {}
+\t\tUntagged tuples:
+\t\t\tEntries: {}
+\t\t\tOwn bytes: {}
+\t\t\tTotal bytes: {}
 "##,
         self.grammar_table.entries,
         self.grammar_table.uncompressed_bytes,
