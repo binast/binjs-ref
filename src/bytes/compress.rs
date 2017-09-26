@@ -34,6 +34,20 @@ pub struct CompressionResult {
 }
 
 impl Compression {
+    pub fn parse(name: Option<&str>) -> Option<Compression> {
+        let result = match name {
+            None | Some("identity") => Compression::Identity,
+            Some("lzw") => Compression::Lzw,
+            Some("br") => Compression::Brotli,
+            Some("gzip") => Compression::Gzip,
+            Some("deflate") => Compression::Deflate,
+            Some(_) => {
+                return None;
+            }
+        };
+        Some(result)
+    }
+
     pub fn values() -> Box<[Self]> {
         use self::Compression::*;
         Box::new([Identity, Gzip, Deflate, Brotli, Lzw])

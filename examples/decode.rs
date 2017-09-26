@@ -1,7 +1,6 @@
 //! Decode a BinJS to a text source.
 
 extern crate binjs;
-#[macro_use]
 extern crate clap;
 extern crate env_logger;
 
@@ -10,15 +9,23 @@ use binjs::source::*;
 use std::fs::*;
 use std::io::*;
 
+use clap::*;
+
 fn main() {
     env_logger::init().unwrap();
 
-    let matches = clap_app!(myapp =>
-        (author: "David Teller <dteller@mozilla.com>")
-        (about: "Decode a JavaScript BinJS source to a JavaScript text source.")
-        (@arg INPUT: +required "Input file to use. Must be a BinJS source file.")
-        (@arg OUTPUT: +required "Output file to use. Will be overwritten.")
-    ).get_matches();
+    let matches = App::new("BinJS decoder")
+        .author("David Teller, <dteller@mozilla.com>")
+        .about("Decode a JavaScript BinJS source to a JavaScript text source.")
+        .args(&[
+            Arg::with_name("INPUT")
+                .required(true)
+                .help("Input file to use. Must be a BinJS source file."),
+            Arg::with_name("OUTPUT")
+                .required(true)
+                .help("Output file to use. Will be overwritten."),
+        ])
+    .get_matches();
 
     let source_path = matches.value_of("INPUT")
         .expect("Expected input file");
@@ -34,12 +41,23 @@ fn main() {
         .expect("Could not open source");
     let stream = BufReader::new(file);
 
-    println!("Decoding.");
-    let reader = binjs::token::simple::TreeTokenReader::new(stream, &grammar);
-    let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+    println!("Attempting to decode as multipart.");
+    let tree = if let Ok(reader) = binjs::token::multipart::TreeTokenReader::new(stream, &grammar) {
+        let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+        decoder.decode()
+            .expect("Could not decode")
+    } else {
+        println!("... falling back to simple format.");
 
-    let tree = decoder.decode()
-        .expect("Could not decode");
+        let file = File::open(source_path)
+            .expect("Could not open source");
+        let stream = BufReader::new(file);
+
+        let reader = binjs::token::simple::TreeTokenReader::new(stream, &grammar);
+        let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+        decoder.decode()
+            .expect("Could not decode")
+    };
 
     println!("Pretty-printing");
     let source = parser.to_source(&tree)

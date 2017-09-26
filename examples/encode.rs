@@ -13,16 +13,6 @@ use std::io::*;
 
 use clap::*;
 
-fn parse_compression(name: Option<&str>) -> Compression {
-    match name {
-        None | Some("identity") => Compression::Identity,
-        Some("lzw") => Compression::Lzw,
-        Some("br") => Compression::Brotli,
-        Some("gzip") => Compression::Gzip,
-        Some("deflate") => Compression::Deflate,
-        Some(x) => panic!("Unexpected compression name {}", x)
-    }
-}
 
 fn main() {
     env_logger::init().unwrap();
@@ -87,9 +77,12 @@ fn main() {
             is_compressed = true;
         }
         if is_compressed {
-            let strings = parse_compression(matches.value_of("strings"));
-            let grammar = parse_compression(matches.value_of("grammar"));
-            let tree = parse_compression(matches.value_of("tree"));
+            let strings = Compression::parse(matches.value_of("strings"))
+                .expect("Could not parse string compression format");
+            let grammar = Compression::parse(matches.value_of("grammar"))
+                .expect("Could not parse grammar compression format");
+            let tree = Compression::parse(matches.value_of("tree"))
+                .expect("Could not parse tree compression format");
             println!("Format: multipart\n\tstrings table: {:?}, grammar table: {:?}, tree: {:?}", strings, grammar, tree);
             Some(binjs::token::multipart::WriteOptions {
                 strings_table: strings,
