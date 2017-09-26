@@ -129,8 +129,18 @@ impl SourceParser for Babel {
         let script = format!(
             r##"
             var babylon = require('babylon');
+            var data = '{}';
 
-            var parsed  = babylon.parse("{}");
+            var parsed;
+            try {{
+                parsed = babylon.parse(data);
+            }} catch (ex) {{
+                if (ex instanceof SyntaxError) {{
+                    parsed = babylon.parseExpression(data);
+                }} else {{
+                    throw ex;
+                }}
+            }}
             return JSON.stringify(parsed.program);
             "##,
             data);
@@ -149,8 +159,26 @@ impl SourceParser for Babel {
             var fs      = require('fs');
 
             var source  = fs.readFileSync('{}', {{encoding: "utf-8"}});
-            var parsed  = babylon.parse(source);
-            return JSON.stringify(parsed.program);
+            try {{
+                return JSON.stringify(babylon.parse(source).program);
+            }} catch (ex) {{
+                if (ex instanceof SyntaxError) {{
+                    // Pass off a JSON as a program.
+                    var parsed = babylon.parseExpression(source);
+                    var wrapper = ({{
+                        type: "Program",
+                        body: [{{
+                            type: "ExpressionStatement",
+                            expression: parsed,
+                        }}],
+                        scope: null,
+                        directives: []
+                    }});
+                    return JSON.stringify(wrapper);
+                }} else {{
+                    throw ex;
+                }}
+            }}
             "##,
             path);
         self.parse_script_json_output(&script)
