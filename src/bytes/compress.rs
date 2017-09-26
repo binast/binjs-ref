@@ -9,6 +9,7 @@ use std::io::{ Cursor, Read, Write };
 const BROTLI_BUFFER_SIZE : usize = 4096;
 const BROTLI_QUALITY: u32 = 8;
 const BROTLI_LG_WINDOW_SIZE: u32 = 20;
+const LZW_MIN_CODE_SIZE: u8 = 8;
 
 /// The compression mechanisms supported by this encoder.
 /// They are designed to match HTTP's Accept-Encoding:
@@ -113,7 +114,7 @@ impl Compression {
                 let mut buffer = Vec::with_capacity(data.len());
                 {
                     let writer = lzw::LsbWriter::new(&mut buffer);
-                    let mut encoder = lzw::Encoder::new(writer, /*min_code_size ?*/8)?;
+                    let mut encoder = lzw::Encoder::new(writer, LZW_MIN_CODE_SIZE)?;
                     encoder.encode_bytes(data)?;
                 }
                 // Write
@@ -197,7 +198,7 @@ impl Compression {
             Compression::Lzw => {
                 use lzw;
                 let reader = lzw::LsbReader::new();
-                let mut decoder = lzw::Decoder::new(reader, 8);
+                let mut decoder = lzw::Decoder::new(reader, LZW_MIN_CODE_SIZE);
                 let (_, data) = decoder.decode_bytes(&compressed_bytes)?;
                 let mut buf = Vec::with_capacity(data.len());
                 buf.extend_from_slice(data);
