@@ -10,6 +10,7 @@ use token::GrammarError;
 use std;
 use std::collections::HashMap;
 use std::cell::RefCell;
+use std::fmt::{ Display, Formatter };
 use std::hash::Hash;
 use std::io::Write;
 use std::rc::Rc;
@@ -185,7 +186,7 @@ impl<Key, Value> Serializable for WriterTable<Key, Value> where Key: Eq + Hash +
 
         // Sort entries by number of uses.
         let mut contents : Vec<_> = self.map.values().collect();
-        contents.sort_unstable_by(|a, b| u32::cmp(&*a.instances.borrow(), &*b.instances.borrow()));
+        contents.sort_unstable_by(|a, b| u32::cmp(&*b.instances.borrow(), &*a.instances.borrow()));
 
         // Assign TableIndex
         for i in 0..contents.len() {
@@ -287,13 +288,15 @@ impl LabelledItem {
             Item::String(ref index) => {
                 let result = index.write(out)?;
                 stats.string.entries += 1;
-                stats.string.uncompressed_bytes += result;
+                stats.string.own_bytes += result;
+                stats.string.total_bytes += result;
                 Ok(result)
             }
             Item::NodeDescription(ref index) => {
                 let result = index.write(out)?;
                 stats.tagged_tuple.entries += 1;
-                stats.tagged_tuple.uncompressed_bytes += result;
+                stats.tagged_tuple.own_bytes += result;
+                stats.tagged_tuple.total_bytes += result;
                 Ok(result)
             },
             Item::Encoded(ref vec) => {
@@ -307,7 +310,8 @@ impl LabelledItem {
                 };
                 if let Some(stats) = stats {
                     stats.entries += 1;
-                    stats.uncompressed_bytes += result;
+                    stats.own_bytes += result;
+                    stats.total_bytes += result;
                 }
                 Ok(result)
             },
@@ -327,13 +331,16 @@ impl LabelledItem {
                         out.write_all(&buf)?;
                         total += buf.len();
                         // Do not increase  `entries`, lists are accounted for in ListHeader.
-                        stats.list.compressed_bytes += bytelen_len;
+                        stats.list.own_bytes += bytelen_len;
+                        stats.list.total_bytes += total;
                     }
                     Nature::TaggedTupleWhole => {
                         for item in items {
                             total += item.write(out, stats)?;
                         }
+                        stats.tagged_tuple.total_bytes += total;
 
+                        // Update statistics.
                         assert!(items.len() > 0);
                         if let LabelledItem {
                             nature: Nature::TaggedTupleHeader,
@@ -341,15 +348,23 @@ impl LabelledItem {
                         } = *items[0] {
                             let key = index.index.borrow()
                                 .expect("TableIndex hasn't been resolved");
+
+                            // Compute byte length of metadata. Yeah, that's redundant.
+                            let mut ignored = Vec::with_capacity(8);
+                            index.write(&mut ignored)
+                                .unwrap();
                             match stats.per_kind_index.entry(key as usize) {
                                 vec_map::Entry::Occupied(mut entry) => {
                                     let borrow = entry.get_mut();
                                     borrow.entries += 1;
+                                    borrow.total_bytes += total;
+                                    borrow.own_bytes += ignored.len();
                                 }
                                 vec_map::Entry::Vacant(entry) => {
-                                    entry.insert(ItemStatistics {
+                                    entry.insert(NodeStatistics {
                                         entries: 1,
-                                        ..ItemStatistics::default()
+                                        total_bytes: total,
+                                        own_bytes: ignored.len(),
                                     });
                                 }
                             }
@@ -477,7 +492,7 @@ impl<'a> TreeTokenWriter<'a> {
             self.statistics.per_kind_name.insert(key.clone(), stats.clone());
         }
 
-        println!("Statistics (WIP): {:?}", self.statistics);
+        println!("Statistics: {}", self.statistics);
         Ok(self.data.clone().into_boxed_slice())
     }
 }
@@ -641,24 +656,123 @@ pub struct TreeTokenWriter<'a> {
 
 
 #[derive(Clone, Debug, Default)]
-pub struct ItemStatistics {
+pub struct SectionStatistics {
     entries: usize,
     uncompressed_bytes: usize,
     compressed_bytes: usize,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct NodeStatistics {
+    entries: usize,
+    own_bytes: usize,
+    total_bytes: usize,
+}
+
 #[derive(Debug, Default)]
 pub struct Statistics {
-    grammar_table: ItemStatistics,
-    strings_table: ItemStatistics,
-    tree: ItemStatistics,
-    per_kind_index: VecMap<ItemStatistics>, // FIXME: We need to add the kind names
-    per_kind_name: HashMap<NodeName, ItemStatistics>,
+    grammar_table: SectionStatistics,
+    strings_table: SectionStatistics,
+    tree: SectionStatistics,
 
-    bool: ItemStatistics,
-    float: ItemStatistics,
-    string: ItemStatistics,
-    list: ItemStatistics,
-    tagged_tuple: ItemStatistics,
-    untagged_tuple: ItemStatistics,
+    per_kind_index: VecMap<NodeStatistics>,
+    per_kind_name: HashMap<NodeName, NodeStatistics>,
+
+    bool: NodeStatistics,
+    float: NodeStatistics,
+    string: NodeStatistics,
+    list: NodeStatistics,
+    tagged_tuple: NodeStatistics,
+    untagged_tuple: NodeStatistics,
+}
+
+struct NodeNameAndStatistics(Vec<(NodeName, NodeStatistics)>);
+
+impl Display for NodeNameAndStatistics {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        // FIXME: Ugly. Find a better way to handle indentation.
+        for &(ref name, ref stats) in &self.0 {
+            write!(f, "\t\t{}:\n", name.to_string())?;
+            write!(f, "\t\t\tEntries: {}\n", stats.entries)?;
+            write!(f, "\t\t\tOwn bytes: {}\n", stats.own_bytes)?;
+            write!(f, "\t\t\tTotal bytes: {}\n", stats.total_bytes)?;
+        }
+        Ok(())
+    }
+}
+impl Display for Statistics {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        // Sort entries by number of uses.
+        let mut per_kind : Vec<_> = self.per_kind_name.iter()
+            .map(|(a, b)| (a.clone(), b.clone()))
+            .collect();
+        per_kind.sort_unstable_by(|a, b| usize::cmp(&b.1.entries, &a.1.entries));
+
+        write!(f, r##"
+Statistics
+    Sections:
+        Grammar:
+            Entries: {}
+            Uncompressed bytes: {}
+            Compressed bytes: {}
+        Strings:
+            Entries: {}
+            Uncompressed bytes: {}
+            Compressed bytes: {}
+        Tree:
+            Entries: {}
+            Uncompressed bytes: {}
+            Compressed bytes: {}
+        Nodes:
+{}
+    Kinds:
+        Bool:
+            Entries: {}
+            Bytes: {}
+        Float:
+            Entries: {}
+            Bytes: {}
+        String indices:
+            Entries: {}
+            Bytes: {}
+        List:
+            Entries: {}
+            Own bytes: {}
+            Total bytes: {}
+        Tagged tuples:
+            Entries: {}
+            Own bytes: {}
+            Total bytes: {}
+        Untagged tuples:
+            Entries: {}
+            Own bytes: {}
+            Total bytes: {}
+"##,
+        self.grammar_table.entries,
+        self.grammar_table.uncompressed_bytes,
+        self.grammar_table.compressed_bytes,
+        self.strings_table.entries,
+        self.strings_table.uncompressed_bytes,
+        self.strings_table.compressed_bytes,
+        self.tree.entries,
+        self.tree.uncompressed_bytes,
+        self.tree.compressed_bytes,
+        NodeNameAndStatistics(per_kind),
+        self.bool.entries,
+        self.bool.own_bytes,
+        self.float.entries,
+        self.float.own_bytes,
+        self.string.entries,
+        self.string.own_bytes,
+        self.list.entries,
+        self.list.own_bytes,
+        self.list.total_bytes,
+        self.tagged_tuple.entries,
+        self.tagged_tuple.own_bytes,
+        self.tagged_tuple.total_bytes,
+        self.untagged_tuple.entries,
+        self.untagged_tuple.own_bytes,
+        self.untagged_tuple.total_bytes
+        )
+    }
 }
