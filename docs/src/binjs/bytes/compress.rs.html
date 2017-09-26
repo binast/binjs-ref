@@ -231,6 +231,32 @@
 <span id="186">186</span>
 <span id="187">187</span>
 <span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Compressing bytes from/to bytes.</span>
 
@@ -239,6 +265,11 @@
 
 <span class="kw">use</span> <span class="ident">std</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{ <span class="ident">Cursor</span>, <span class="ident">Read</span>, <span class="ident">Write</span> };
+
+<span class="kw">const</span> <span class="ident">BROTLI_BUFFER_SIZE</span> : <span class="ident">usize</span> <span class="op">=</span> <span class="number">4096</span>;
+<span class="kw">const</span> <span class="ident">BROTLI_QUALITY</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">8</span>;
+<span class="kw">const</span> <span class="ident">BROTLI_LG_WINDOW_SIZE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">20</span>;
+<span class="kw">const</span> <span class="ident">LZW_MIN_CODE_SIZE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">8</span>;
 
 <span class="doccomment">/// The compression mechanisms supported by this encoder.</span>
 <span class="doccomment">/// They are designed to match HTTP&#39;s Accept-Encoding:</span>
@@ -257,7 +288,27 @@
     <span class="ident">Lzw</span>,
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CompressionResult</span> {
+    <span class="kw">pub</span> <span class="ident">before</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">after</span>: <span class="ident">usize</span>,
+}
+
 <span class="kw">impl</span> <span class="ident">Compression</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">name</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Compression</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">name</span> {
+            <span class="prelude-val">None</span> <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;identity&quot;</span>) <span class="op">=&gt;</span> <span class="ident">Compression</span>::<span class="ident">Identity</span>,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;lzw&quot;</span>) <span class="op">=&gt;</span> <span class="ident">Compression</span>::<span class="ident">Lzw</span>,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;br&quot;</span>) <span class="op">=&gt;</span> <span class="ident">Compression</span>::<span class="ident">Brotli</span>,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;gzip&quot;</span>) <span class="op">=&gt;</span> <span class="ident">Compression</span>::<span class="ident">Gzip</span>,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;deflate&quot;</span>) <span class="op">=&gt;</span> <span class="ident">Compression</span>::<span class="ident">Deflate</span>,
+            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> {
+                <span class="kw">return</span> <span class="prelude-val">None</span>;
+            }
+        };
+        <span class="prelude-val">Some</span>(<span class="ident">result</span>)
+    }
+
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">values</span>() <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span>[<span class="self">Self</span>]<span class="op">&gt;</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">Compression</span>::<span class="kw-2">*</span>;
         <span class="ident">Box</span>::<span class="ident">new</span>([<span class="ident">Identity</span>, <span class="ident">Gzip</span>, <span class="ident">Deflate</span>, <span class="ident">Brotli</span>, <span class="ident">Lzw</span>])
@@ -267,9 +318,9 @@
     <span class="comment">// - compression type (string);</span>
     <span class="comment">// - compressed byte length (varnum);</span>
     <span class="comment">// - data.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compress</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">out</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Compressing {:?}, {} bytes&quot;</span>, <span class="self">self</span>, <span class="ident">data</span>.<span class="ident">len</span>());
-        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compress</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">out</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CompressionResult</span>, <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">before</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="ident">after</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Compression</span>::<span class="ident">Identity</span> <span class="op">=&gt;</span> {
                 <span class="ident">out</span>.<span class="ident">write_all</span>(<span class="string">b&quot;identity;&quot;</span>)<span class="question-mark">?</span>;
                 <span class="ident">out</span>.<span class="ident">write_varnum</span>(<span class="ident">data</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u32</span>)<span class="question-mark">?</span>;
@@ -308,8 +359,7 @@
                 <span class="comment">// Compress</span>
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">data</span>.<span class="ident">len</span>());
                 {
-                    <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">buffer</span>.<span class="ident">len</span>();
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">brotli</span>::<span class="ident">CompressorWriter</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>, <span class="ident">len</span>, <span class="comment">/* quality ? */</span> <span class="number">9</span>, <span class="comment">/*window_size ?*/</span> <span class="number">22</span>);
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">brotli</span>::<span class="ident">CompressorWriter</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>, <span class="ident">BROTLI_BUFFER_SIZE</span>, <span class="ident">BROTLI_QUALITY</span>, <span class="ident">BROTLI_LG_WINDOW_SIZE</span>);
                     <span class="ident">encoder</span>.<span class="ident">write</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
                 }
                 <span class="comment">// Write</span>
@@ -324,7 +374,7 @@
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">data</span>.<span class="ident">len</span>());
                 {
                     <span class="kw">let</span> <span class="ident">writer</span> <span class="op">=</span> <span class="ident">lzw</span>::<span class="ident">LsbWriter</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>);
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">lzw</span>::<span class="ident">Encoder</span>::<span class="ident">new</span>(<span class="ident">writer</span>, <span class="comment">/*min_code_size ?*/</span><span class="number">8</span>)<span class="question-mark">?</span>;
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">lzw</span>::<span class="ident">Encoder</span>::<span class="ident">new</span>(<span class="ident">writer</span>, <span class="ident">LZW_MIN_CODE_SIZE</span>)<span class="question-mark">?</span>;
                     <span class="ident">encoder</span>.<span class="ident">encode_bytes</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
                 }
                 <span class="comment">// Write</span>
@@ -333,8 +383,10 @@
                 <span class="ident">buffer</span>.<span class="ident">len</span>()
             }
         };
-        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;=&gt; {}&quot;</span>, <span class="ident">bytes</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">CompressionResult</span> {
+            <span class="ident">before</span>,
+            <span class="ident">after</span>
+        })
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">decompress</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Read</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">inp</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>, <span class="ident">deserializer</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">Target</span>, <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Deserializer</span> {
@@ -398,7 +450,7 @@
             }
             <span class="ident">Compression</span>::<span class="ident">Brotli</span> <span class="op">=&gt;</span> {
                 <span class="kw">use</span> <span class="ident">brotli</span>;
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">brotli</span>::<span class="ident">Decompressor</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compressed_bytes</span>), <span class="number">4096</span> <span class="comment">/* buffer size */</span>);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">brotli</span>::<span class="ident">Decompressor</span>::<span class="ident">new</span>(<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compressed_bytes</span>), <span class="ident">BROTLI_BUFFER_SIZE</span>);
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">1024</span>);
                 <span class="ident">decoder</span>.<span class="ident">read_to_end</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
                 <span class="ident">buf</span>
@@ -406,7 +458,7 @@
             <span class="ident">Compression</span>::<span class="ident">Lzw</span> <span class="op">=&gt;</span> {
                 <span class="kw">use</span> <span class="ident">lzw</span>;
                 <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">lzw</span>::<span class="ident">LsbReader</span>::<span class="ident">new</span>();
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">lzw</span>::<span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="number">8</span>);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">lzw</span>::<span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="ident">LZW_MIN_CODE_SIZE</span>);
                 <span class="kw">let</span> (_, <span class="ident">data</span>) <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">decode_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">compressed_bytes</span>)<span class="question-mark">?</span>;
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">data</span>.<span class="ident">len</span>());
                 <span class="ident">buf</span>.<span class="ident">extend_from_slice</span>(<span class="ident">data</span>);

@@ -247,6 +247,34 @@
 <span id="202">202</span>
 <span id="203">203</span>
 <span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">serde</span>;
 <span class="kw">use</span> <span class="ident">serde_json</span>;
@@ -379,8 +407,18 @@
         <span class="kw">let</span> <span class="ident">script</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(
             <span class="string">r##&quot;
             var babylon = require(&#39;babylon&#39;);
+            var data = &quot;{}&quot;;
 
-            var parsed  = babylon.parse(&quot;{}&quot;);
+            var parsed;
+            try {{
+                parsed = babylon.parse(data);
+            }} catch (ex) {{
+                if (ex instanceof SyntaxError) {{
+                    parsed = babylon.parseExpression(data);
+                }} else {{
+                    throw ex;
+                }}
+            }}
             return JSON.stringify(parsed.program);
             &quot;##</span>,
             <span class="ident">data</span>);
@@ -399,8 +437,26 @@
             var fs      = require(&#39;fs&#39;);
 
             var source  = fs.readFileSync(&#39;{}&#39;, {{encoding: &quot;utf-8&quot;}});
-            var parsed  = babylon.parse(source);
-            return JSON.stringify(parsed.program);
+            try {{
+                return JSON.stringify(babylon.parse(source).program);
+            }} catch (ex) {{
+                if (ex instanceof SyntaxError) {{
+                    // Pass off a JSON as a program.
+                    var parsed = babylon.parseExpression(source);
+                    var wrapper = ({{
+                        type: &quot;Program&quot;,
+                        body: [{{
+                            type: &quot;ExpressionStatement&quot;,
+                            expression: parsed,
+                        }}],
+                        scope: null,
+                        directives: []
+                    }});
+                    return JSON.stringify(wrapper);
+                }} else {{
+                    throw ex;
+                }}
+            }}
             &quot;##</span>,
             <span class="ident">path</span>);
         <span class="self">self</span>.<span class="ident">parse_script_json_output</span>(<span class="kw-2">&amp;</span><span class="ident">script</span>)

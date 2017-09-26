@@ -56,6 +56,7 @@
 //! ### Tree token
 //!
 //!  A tree token is defined as one of
+//!
 //!   - a null float, represented as a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),
 //!   - a non-null float, represented as a low-endian IEEE764 64-bit floating point value non-signalling NaN (8 bytes),
 //!   - a null boolean, represented as a single byte with value 2 (one byte);

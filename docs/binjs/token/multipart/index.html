@@ -48,7 +48,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/binjs/token/multipart/mod.rs.html#1-421' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../../src/binjs/token/multipart/mod.rs.html#1-422' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>An implementation of TokenReader/TokenWriter that splits grammar, strings
 and the tree itself into separate &quot;parts&quot;, each of which may be individually
 compressed.
@@ -127,24 +127,45 @@ to determine the nature of next token. Rather, this must be led by the grammar.<
 </ul>
 
 <h3 id='tree-token' class='section-header'><a href='#tree-token'>Tree token</a></h3>
-<p>A tree token is defined as one of
-  - a null float, represented as a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),
-  - a non-null float, represented as a low-endian IEEE764 64-bit floating point value non-signalling NaN (8 bytes),
-  - a null boolean, represented as a single byte with value 2 (one byte);
-  - a non-null boolean, represented as a single byte with value 0 (false) or 1 (true) (one byte);
-  - a string, representing an entry in the table of strings (varnum);
-  - a list, represented as
-    - byte length (varnum);
-    - number of items (varnum);
-    - for each item
-       - the token;
-  - a untagged tuple, represented as
-    - for each item
-      - the token;
-  - a tagged tuple, represented as
-    - an entry in the grammar table (varnum);
-    - for each field
-      - the token</p>
+<p>A tree token is defined as one of</p>
+
+<ul>
+<li>a null float, represented as a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),</li>
+<li>a non-null float, represented as a low-endian IEEE764 64-bit floating point value non-signalling NaN (8 bytes),</li>
+<li>a null boolean, represented as a single byte with value 2 (one byte);</li>
+<li>a non-null boolean, represented as a single byte with value 0 (false) or 1 (true) (one byte);</li>
+<li>a string, representing an entry in the table of strings (varnum);</li>
+<li>a list, represented as
+
+<ul>
+<li>byte length (varnum);</li>
+<li>number of items (varnum);</li>
+<li>for each item
+
+<ul>
+<li>the token;</li>
+</ul></li>
+</ul></li>
+<li>a untagged tuple, represented as
+
+<ul>
+<li>for each item
+
+<ul>
+<li>the token;</li>
+</ul></li>
+</ul></li>
+<li>a tagged tuple, represented as
+
+<ul>
+<li>an entry in the grammar table (varnum);</li>
+<li>for each field
+
+<ul>
+<li>the token</li>
+</ul></li>
+</ul></li>
+</ul>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>
