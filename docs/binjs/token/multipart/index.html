@@ -48,7 +48,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/binjs/token/multipart/mod.rs.html#1-422' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../../src/binjs/token/multipart/mod.rs.html#1-429' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>An implementation of TokenReader/TokenWriter that splits grammar, strings
 and the tree itself into separate &quot;parts&quot;, each of which may be individually
 compressed.
@@ -59,7 +59,7 @@ A multipart format, in which each part can be compressed independently.</p>
 
 <ul>
 <li>the characters <code>&quot;BINJS&quot;</code>;</li>
-<li>a container version number (varnum, currently 0);</li>
+<li>a container version number (<code>varnum</code>, currently <code>0</code>);</li>
 <li>the compressed grammar table (see below);</li>
 <li>the compressed strings table (see below);</li>
 <li>the compressed tree (see below).</li>
@@ -71,23 +71,23 @@ A multipart format, in which each part can be compressed independently.</p>
 <ul>
 <li>the characters <code>&quot;[GRAMMAR]&quot;</code>;</li>
 <li>a <code>prefix</code> identifying the compression format used for the grammar (one of &quot;identity;&quot;, &quot;br;&quot;, &quot;gzip;&quot;, &quot;compress;&quot;, &quot;deflate;&quot;).</li>
-<li>the number of compressed bytes (varnum);</li>
-<li>compressed in the format identified by <code>prefix</code>;
+<li>the number of compressed bytes (<code>varnum</code>);</li>
+<li>compressed in the format identified by <code>prefix</code>:
 
 <ul>
-<li>the number of entries (varnum);</li>
+<li>the number of entries (<code>varnum</code>);</li>
 <li>for each entry,
 
 <ul>
-<li>byte length of entry (varnum);</li>
+<li>byte length of entry (<code>varnum</code>);</li>
 </ul></li>
 <li>for each entry,
 
 <ul>
-<li>byte length of node name (varnum);</li>
-<li>number of fields (varnum);</li>
+<li>byte length of node name (<code>varnum</code>);</li>
+<li>number of fields (<code>varnum</code>);</li>
 <li>for each field</li>
-<li>byte length of field name (varnum);</li>
+<li>byte length of field name (<code>varnum</code>);</li>
 <li>field name (utf-8 encoded string).</li>
 </ul></li>
 </ul></li>
@@ -99,18 +99,18 @@ A multipart format, in which each part can be compressed independently.</p>
 <ul>
 <li>the characters <code>&quot;[STRINGS]&quot;</code>;</li>
 <li>a <code>prefix</code> identifying the compression format used for the grammar (one of &quot;identity;&quot;, &quot;br;&quot;, &quot;gzip;&quot;, &quot;compress;&quot;, &quot;deflate;&quot;).</li>
-<li>the number of compressed bytes (varnum);</li>
+<li>the number of compressed bytes (<code>varnum</code>);</li>
 <li>compressed in the format identified by <code>prefix</code>;
 
 <ul>
-<li>the number of entries (varnum);</li>
+<li>the number of entries (<code>varnum</code>);</li>
 <li>for each entry,
 
 <ul>
-<li>byte length of string (varnum);</li>
+<li>byte length of string (<code>varnum</code>);</li>
 <li>one of</li>
 <li>the invalid strings <a href="representing%20the%20null%20string,%20only%20valid%20if%20byte%20length%20is%202">255, 0</a>;</li>
-<li>a utf-8 encoded string of byte length bytes (utf-8 encoded).</li>
+<li>a utf-8 encoded string (utf-8 encoded, <code>bytelen</code> bytes, no terminator).</li>
 </ul></li>
 </ul></li>
 </ul>
@@ -122,28 +122,56 @@ to determine the nature of next token. Rather, this must be led by the grammar.<
 <ul>
 <li>the characters <code>&quot;[TREE]&quot;</code>;</li>
 <li>a <code>prefix</code> identifying the compression format used for the grammar (one of &quot;identity;&quot;, &quot;br;&quot;, &quot;gzip;&quot;, &quot;compress;&quot;, &quot;deflate;&quot;).</li>
-<li>the number of compressed bytes (varnum);</li>
+<li>the number of compressed bytes (<code>varnum</code>);</li>
+<li>compressed in the format identified by <code>prefix</code>:
+
+<ul>
 <li>one tree token.</li>
+</ul></li>
 </ul>
 
 <h3 id='tree-token' class='section-header'><a href='#tree-token'>Tree token</a></h3>
 <p>A tree token is defined as one of</p>
 
 <ul>
-<li>a null float, represented as a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),</li>
-<li>a non-null float, represented as a low-endian IEEE764 64-bit floating point value non-signalling NaN (8 bytes),</li>
-<li>a null boolean, represented as a single byte with value 2 (one byte);</li>
-<li>a non-null boolean, represented as a single byte with value 0 (false) or 1 (true) (one byte);</li>
-<li>a string, representing an entry in the table of strings (varnum);</li>
+<li>a null float, represented as:
+
+<ul>
+<li>a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),</li>
+</ul></li>
+<li>a non-null float, represented as:
+
+<ul>
+<li>a low-endian IEEE764 64-bit floating point value non-signalling NaN (8 bytes),</li>
+</ul></li>
+<li>a null boolean, represented as:
+
+<ul>
+<li> a single byte with value <code>2</code> (one byte);</li>
+</ul></li>
+<li>a non-null boolean, represented as:
+
+<ul>
+<li> a single byte with value <code>0</code> (false) or <code>1</code> (true) (one byte);</li>
+</ul></li>
+<li>a string, representing as
+
+<ul>
+<li>an entry in the table of strings (<code>varnum</code>);</li>
+</ul></li>
 <li>a list, represented as
 
 <ul>
-<li>byte length (varnum);</li>
-<li>number of items (varnum);</li>
+<li>byte length (<code>varnum</code>);</li>
+<li><code>bytelen</code> bytes representing:
+
+<ul>
+<li>number of items (<code>varnum</code>);</li>
 <li>for each item
 
 <ul>
 <li>the token;</li>
+</ul></li>
 </ul></li>
 </ul></li>
 <li>a untagged tuple, represented as
@@ -158,7 +186,7 @@ to determine the nature of next token. Rather, this must be led by the grammar.<
 <li>a tagged tuple, represented as
 
 <ul>
-<li>an entry in the grammar table (varnum);</li>
+<li>an entry in the grammar table (<code>varnum</code>);</li>
 <li>for each field
 
 <ul>

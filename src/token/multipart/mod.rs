@@ -5,7 +5,7 @@
 //! The entire file is formatted as:
 //!
 //! - the characters `"BINJS"`;
-//! - a container version number (varnum, currently 0);
+//! - a container version number (`varnum`, currently `0`);
 //! - the compressed grammar table (see below);
 //! - the compressed strings table (see below);
 //! - the compressed tree (see below).
@@ -16,16 +16,16 @@
 //!
 //! - the characters `"[GRAMMAR]"`;
 //! - a `prefix` identifying the compression format used for the grammar (one of "identity;", "br;", "gzip;", "compress;", "deflate;").
-//! - the number of compressed bytes (varnum);
-//! - compressed in the format identified by `prefix`;
-//!    - the number of entries (varnum);
+//! - the number of compressed bytes (`varnum`);
+//! - compressed in the format identified by `prefix`:
+//!    - the number of entries (`varnum`);
 //!    - for each entry,
-//!      - byte length of entry (varnum);
+//!      - byte length of entry (`varnum`);
 //!    - for each entry,
-//!      - byte length of node name (varnum);
-//!      - number of fields (varnum);
+//!      - byte length of node name (`varnum`);
+//!      - number of fields (`varnum`);
 //!      - for each field
-//!        - byte length of field name (varnum);
+//!        - byte length of field name (`varnum`);
 //!        - field name (utf-8 encoded string).
 //!
 //! ## Strings table
@@ -34,14 +34,14 @@
 //!
 //! - the characters `"[STRINGS]"`;
 //! - a `prefix` identifying the compression format used for the grammar (one of "identity;", "br;", "gzip;", "compress;", "deflate;").
-//! - the number of compressed bytes (varnum);
+//! - the number of compressed bytes (`varnum`);
 //! - compressed in the format identified by `prefix`;
-//!    - the number of entries (varnum);
+//!    - the number of entries (`varnum`);
 //!    - for each entry,
-//!      - byte length of string (varnum);
+//!      - byte length of string (`varnum`);
 //!      - one of
 //!        - the invalid strings [255, 0] (representing the null string, only valid if byte length is 2);
-//!        - a utf-8 encoded string of byte length bytes (utf-8 encoded).
+//!        - a utf-8 encoded string (utf-8 encoded, `bytelen` bytes, no terminator).
 //!
 //! ## The tree
 //!
@@ -50,28 +50,35 @@
 //!
 //! - the characters `"[TREE]"`;
 //! - a `prefix` identifying the compression format used for the grammar (one of "identity;", "br;", "gzip;", "compress;", "deflate;").
-//! - the number of compressed bytes (varnum);
-//! - one tree token.
+//! - the number of compressed bytes (`varnum`);
+//! - compressed in the format identified by `prefix`:
+//!   - one tree token.
 //!
 //! ### Tree token
 //!
 //!  A tree token is defined as one of
 //!
-//!   - a null float, represented as a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),
-//!   - a non-null float, represented as a low-endian IEEE764 64-bit floating point value non-signalling NaN (8 bytes),
-//!   - a null boolean, represented as a single byte with value 2 (one byte);
-//!   - a non-null boolean, represented as a single byte with value 0 (false) or 1 (true) (one byte);
-//!   - a string, representing an entry in the table of strings (varnum);
+//!   - a null float, represented as:
+//!     - a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),
+//!   - a non-null float, represented as:
+//!     - a low-endian IEEE764 64-bit floating point value non-signalling NaN (8 bytes),
+//!   - a null boolean, represented as:
+//!     -  a single byte with value `2` (one byte);
+//!   - a non-null boolean, represented as:
+//!     -  a single byte with value `0` (false) or `1` (true) (one byte);
+//!   - a string, representing as
+//!     - an entry in the table of strings (`varnum`);
 //!   - a list, represented as
-//!     - byte length (varnum);
-//!     - number of items (varnum);
-//!     - for each item
-//!        - the token;
+//!     - byte length (`varnum`);
+//!     - `bytelen` bytes representing:
+//!       - number of items (`varnum`);
+//!       - for each item
+//!          - the token;
 //!   - a untagged tuple, represented as
 //!     - for each item
 //!       - the token;
 //!   - a tagged tuple, represented as
-//!     - an entry in the grammar table (varnum);
+//!     - an entry in the grammar table (`varnum`);
 //!     - for each field
 //!       - the token
 
