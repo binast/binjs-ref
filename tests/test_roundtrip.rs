@@ -23,7 +23,7 @@ fn test_roundtrip() {
     let all_options = {
         use self::Compression::*;
         let mut vec = vec![];
-        let compressions = [Identity, Gzip, Deflate, /*Lzw, Brotli don't work yet*/];
+        let compressions = [Identity, Gzip, Deflate, Brotli, /*Lzw doesn't work yet*/];
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {

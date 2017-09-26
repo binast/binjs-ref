@@ -6,6 +6,10 @@ use bytes::varnum::*;
 use std;
 use std::io::{ Cursor, Read, Write };
 
+const BROTLI_BUFFER_SIZE : usize = 4096;
+const BROTLI_QUALITY: u32 = 8;
+const BROTLI_LG_WINDOW_SIZE: u32 = 20;
+
 /// The compression mechanisms supported by this encoder.
 /// They are designed to match HTTP's Accept-Encoding:
 /// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
@@ -80,8 +84,7 @@ impl Compression {
                 // Compress
                 let mut buffer = Vec::with_capacity(data.len());
                 {
-                    let len = buffer.len();
-                    let mut encoder = brotli::CompressorWriter::new(&mut buffer, len, /* quality ? */ 9, /*window_size ?*/ 22);
+                    let mut encoder = brotli::CompressorWriter::new(&mut buffer, BROTLI_BUFFER_SIZE, BROTLI_QUALITY, BROTLI_LG_WINDOW_SIZE);
                     encoder.write(data)?;
                 }
                 // Write
@@ -172,7 +175,7 @@ impl Compression {
             }
             Compression::Brotli => {
                 use brotli;
-                let mut decoder = brotli::Decompressor::new(Cursor::new(&compressed_bytes), 4096 /* buffer size */);
+                let mut decoder = brotli::Decompressor::new(Cursor::new(&compressed_bytes), BROTLI_BUFFER_SIZE);
                 let mut buf = Vec::with_capacity(1024);
                 decoder.read_to_end(&mut buf)?;
                 buf
