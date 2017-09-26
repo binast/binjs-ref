@@ -129,7 +129,7 @@ impl SourceParser for Babel {
         let script = format!(
             r##"
             var babylon = require('babylon');
-            var data = '{}';
+            var data = "{}";
 
             var parsed;
             try {{
