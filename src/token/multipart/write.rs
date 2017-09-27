@@ -349,6 +349,16 @@ impl LabelledItem {
                         stats.list_header.own_bytes += bytelen_len;
                         stats.list_header.total_bytes += bytelen_len;
                         stats.list_header.shallow_bytes += bytelen_len;
+
+                        match stats.list_lengths.entry(items.len()) {
+                            vec_map::Entry::Occupied(mut entry) => {
+                                let borrow = entry.get_mut();
+                                *borrow += 1;
+                            }
+                            vec_map::Entry::Vacant(entry) => {
+                                entry.insert(1);
+                            }
+                        }
                     }
                     Nature::TaggedTupleWhole => {
                         assert!(items.len() > 0);
@@ -721,6 +731,7 @@ pub struct Statistics {
 
     per_kind_index: VecMap<NodeStatistics>,
     per_kind_name: HashMap<NodeName, NodeStatistics>,
+    list_lengths: VecMap<usize>,
 
     bool: NodeStatistics,
     float: NodeStatistics,
@@ -732,6 +743,8 @@ pub struct Statistics {
 }
 
 struct NodeNameAndStatistics(Vec<(NodeName, NodeStatistics)>);
+
+struct ListLengthsAndNumber(Vec<(usize, usize)>);
 
 impl Display for NodeNameAndStatistics {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
@@ -746,6 +759,17 @@ impl Display for NodeNameAndStatistics {
         Ok(())
     }
 }
+
+impl Display for ListLengthsAndNumber {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        // FIXME: Ugly. Find a better way to handle indentation.
+        for &(ref length, ref number) in &self.0 {
+            write!(f, "\t\tlength {} x {}\n", length, number)?;
+        }
+        Ok(())
+    }
+}
+
 impl Display for Statistics {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         // Sort entries by number of uses.
@@ -753,6 +777,11 @@ impl Display for Statistics {
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect();
         per_kind.sort_unstable_by(|a, b| usize::cmp(&b.1.entries, &a.1.entries));
+
+        let mut per_size : Vec<_> = self.list_lengths.iter()
+            .map(|(a, b)| (a.clone(), b.clone()))
+            .collect();
+        per_size.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
 
         write!(f, "
 Statistics
@@ -793,6 +822,8 @@ Statistics
 \t\t\tHeader bytes: {}
 \t\t\tShallow bytes: {}
 \t\t\tTotal bytes: {}
+\tList sizes
+{}
 ",
         self.grammar_table.entries,
         self.grammar_table.uncompressed_bytes,
@@ -820,6 +851,7 @@ Statistics
         self.tagged_header.own_bytes,
         self.tagged_tuple.shallow_bytes,
         self.tagged_tuple.total_bytes,
+        ListLengthsAndNumber(per_size)
         )
     }
 }
