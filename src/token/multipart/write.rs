@@ -294,9 +294,11 @@ impl LabelledItem {
             }
             Item::NodeDescription(ref index) => {
                 let result = index.write(out)?;
-                stats.tagged_tuple.entries += 1;
-                stats.tagged_tuple.own_bytes += result;
-                stats.tagged_tuple.total_bytes += result;
+                for stat in &mut [&mut stats.tagged_tuple, &mut stats.tagged_header] {
+                    stat.entries += 1;
+                    stat.own_bytes += result;
+                    stat.total_bytes += result;
+                }
                 Ok(result)
             },
             Item::Encoded(ref vec) => {
@@ -305,43 +307,72 @@ impl LabelledItem {
                 let stats = match self.nature {
                     Nature::Bool => Some(&mut stats.bool),
                     Nature::Float => Some(&mut stats.float),
-                    Nature::ListHeader => Some(&mut stats.list),
+                    Nature::ListHeader => Some(&mut stats.list_header),
                     _ => None
                 };
                 if let Some(stats) = stats {
                     stats.entries += 1;
                     stats.own_bytes += result;
                     stats.total_bytes += result;
+                    stats.shallow_bytes += result;
                 }
                 Ok(result)
             },
             Item::List(ref items) => {
-                let mut total = 0;
+                let mut shallow_bytes = 0;
+                let mut total_bytes = 0;
                 match self.nature {
                     Nature::ListWhole => {
                         // Compute byte length
                         let mut buf = Vec::with_capacity(1024);
                         for item in items {
-                            item.write(&mut buf, stats)?;
+                            let len = item.write(&mut buf, stats)?;
+                            if let Item::List(_) = item.item {
+                                // These bytes are not part of the shallow count.
+                            } else {
+                                shallow_bytes += len;
+                            }
                         }
                         // Write byte length
                         let bytelen_len = out.write_varnum(buf.len() as u32)?;
-                        total += bytelen_len;
+                        total_bytes += bytelen_len;
                         // Write data
                         out.write_all(&buf)?;
-                        total += buf.len();
-                        // Do not increase  `entries`, lists are accounted for in ListHeader.
+                        total_bytes += buf.len();
+
+                        // Update statistics
+                        stats.list.entries += 1;
                         stats.list.own_bytes += bytelen_len;
-                        stats.list.total_bytes += total;
+                        stats.list.total_bytes += total_bytes;
+                        stats.list.shallow_bytes += shallow_bytes;
+
+                        stats.list_header.own_bytes += bytelen_len;
+                        stats.list_header.total_bytes += bytelen_len;
+                        stats.list_header.shallow_bytes += bytelen_len;
                     }
                     Nature::TaggedTupleWhole => {
+                        assert!(items.len() > 0);
+
+                        // Size of the first element. Useful for statistics.
+                        let mut first_size = None;
                         for item in items {
-                            total += item.write(out, stats)?;
+                            let len = item.write(out, stats)?;
+                            if first_size.is_none() {
+                                first_size = Some(len);
+                            }
+                            total_bytes += len;
+                            if let Item::List(_) = item.item {
+                                // These bytes are not part of the shallow count.
+                            } else {
+                                shallow_bytes += len;
+                            }
                         }
-                        stats.tagged_tuple.total_bytes += total;
+                        let first_size = first_size.unwrap(); // We checked above that `items.len() > 0`.
+                        stats.tagged_tuple.entries += 1;
+                        stats.tagged_tuple.total_bytes += total_bytes;
+                        stats.tagged_tuple.shallow_bytes += shallow_bytes;
 
                         // Update statistics.
-                        assert!(items.len() > 0);
                         if let LabelledItem {
                             nature: Nature::TaggedTupleHeader,
                             item: Item::NodeDescription(ref index)
@@ -349,22 +380,20 @@ impl LabelledItem {
                             let key = index.index.borrow()
                                 .expect("TableIndex hasn't been resolved");
 
-                            // Compute byte length of metadata. Yeah, that's redundant.
-                            let mut ignored = Vec::with_capacity(8);
-                            index.write(&mut ignored)
-                                .unwrap();
                             match stats.per_kind_index.entry(key as usize) {
                                 vec_map::Entry::Occupied(mut entry) => {
                                     let borrow = entry.get_mut();
                                     borrow.entries += 1;
-                                    borrow.total_bytes += total;
-                                    borrow.own_bytes += ignored.len();
+                                    borrow.total_bytes += total_bytes;
+                                    borrow.own_bytes += first_size;
+                                    borrow.shallow_bytes += shallow_bytes;
                                 }
                                 vec_map::Entry::Vacant(entry) => {
                                     entry.insert(NodeStatistics {
                                         entries: 1,
-                                        total_bytes: total,
-                                        own_bytes: ignored.len(),
+                                        shallow_bytes,
+                                        total_bytes,
+                                        own_bytes: first_size,
                                     });
                                 }
                             }
@@ -374,11 +403,11 @@ impl LabelledItem {
                     }
                     _ => {
                         for item in items {
-                            total += item.write(out, stats)?;
+                            total_bytes += item.write(out, stats)?;
                         }
                     }
                 }
-                Ok(total)
+                Ok(total_bytes)
             }
         }
     }
@@ -657,15 +686,30 @@ pub struct TreeTokenWriter<'a> {
 
 #[derive(Clone, Debug, Default)]
 pub struct SectionStatistics {
+    /// Number of entries in this table.
     entries: usize,
+
+    /// Number of bytes prior to compression.
     uncompressed_bytes: usize,
+
+    /// Number of bytes after compression.
     compressed_bytes: usize,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct NodeStatistics {
+    /// Total number of entries of this node.
     entries: usize,
+
+    /// Number of bytes used to represent the node, minus subnodes
+    /// (e.g. the length of the entry in the grammar table).
     own_bytes: usize,
+
+    /// Number of bytes used to represent the node, including primitive
+    /// subnodes (e.g. anything but lists) but not compound subnodes.
+    shallow_bytes: usize,
+
+    /// Number of bytes used to represent the node, including all subnodes.
     total_bytes: usize,
 }
 
@@ -682,8 +726,9 @@ pub struct Statistics {
     float: NodeStatistics,
     string: NodeStatistics,
     list: NodeStatistics,
+    list_header: NodeStatistics,
+    tagged_header: NodeStatistics,
     tagged_tuple: NodeStatistics,
-    untagged_tuple: NodeStatistics,
 }
 
 struct NodeNameAndStatistics(Vec<(NodeName, NodeStatistics)>);
@@ -695,6 +740,7 @@ impl Display for NodeNameAndStatistics {
             write!(f, "\t\t{}:\n", name.to_string())?;
             write!(f, "\t\t\tEntries: {}\n", stats.entries)?;
             write!(f, "\t\t\tOwn bytes: {}\n", stats.own_bytes)?;
+            write!(f, "\t\t\tShallow bytes: {}\n", stats.shallow_bytes)?;
             write!(f, "\t\t\tTotal bytes: {}\n", stats.total_bytes)?;
         }
         Ok(())
@@ -708,7 +754,7 @@ impl Display for Statistics {
             .collect();
         per_kind.sort_unstable_by(|a, b| usize::cmp(&b.1.entries, &a.1.entries));
 
-        write!(f, r##"
+        write!(f, "
 Statistics
 \tSections:
 \t\tGrammar:
@@ -738,16 +784,16 @@ Statistics
 \t\tList:
 \t\t\tEntries: {}
 \t\t\tOwn bytes: {}
+\t\t\tHeader bytes: {}
+\t\t\tShallow bytes: {}
 \t\t\tTotal bytes: {}
 \t\tTagged tuples:
 \t\t\tEntries: {}
 \t\t\tOwn bytes: {}
+\t\t\tHeader bytes: {}
+\t\t\tShallow bytes: {}
 \t\t\tTotal bytes: {}
-\t\tUntagged tuples:
-\t\t\tEntries: {}
-\t\t\tOwn bytes: {}
-\t\t\tTotal bytes: {}
-"##,
+",
         self.grammar_table.entries,
         self.grammar_table.uncompressed_bytes,
         self.grammar_table.compressed_bytes,
@@ -766,13 +812,14 @@ Statistics
         self.string.own_bytes,
         self.list.entries,
         self.list.own_bytes,
+        self.list_header.own_bytes,
+        self.list.shallow_bytes,
         self.list.total_bytes,
         self.tagged_tuple.entries,
         self.tagged_tuple.own_bytes,
+        self.tagged_header.own_bytes,
+        self.tagged_tuple.shallow_bytes,
         self.tagged_tuple.total_bytes,
-        self.untagged_tuple.entries,
-        self.untagged_tuple.own_bytes,
-        self.untagged_tuple.total_bytes
         )
     }
 }
