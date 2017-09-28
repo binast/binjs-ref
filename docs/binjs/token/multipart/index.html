@@ -48,11 +48,46 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/binjs/token/multipart/mod.rs.html#1-429' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../../src/binjs/token/multipart/mod.rs.html#1-463' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>An implementation of TokenReader/TokenWriter that splits grammar, strings
 and the tree itself into separate &quot;parts&quot;, each of which may be individually
 compressed.
 A multipart format, in which each part can be compressed independently.</p>
+
+<h1 id='overview' class='section-header'><a href='#overview'>Overview</a></h1>
+<p>The file is divided in sections. Each section is prefixed by its bytelength, so as to permit
+skipping a section and/or reading sections concurrently. Each section may be compressed
+independently, possibly with different compression formats, with the expectation that this
+will let compressors take best advantage of the distinct structures of each section.</p>
+
+<p>(future versions may allow file-wide compression, too)</p>
+
+<p>The sections are:</p>
+
+<ol>
+<li>the grammar table;</li>
+<li>the strings table (which contains both strings and identifiers);</li>
+<li>the representation of the tree.</li>
+</ol>
+
+<p>The grammar table lists the AST nodes used in the file. Its primary role is to serve as a lightweight
+versioning mechanism - for instance, older versions of JS may define a node <code>Function</code> with three fields
+(<code>body</code>, <code>arguments</code> and optional <code>name</code>), while more recent versions of JS may define the same node
+with <em>five</em> fields (<code>body</code>, <code>arguments</code>, <code>async</code>, <code>generator</code> and optional <code>name</code>). A BinAST file
+may contain <em>either</em> variants of <code>Function</code>, depending on when it was created. The grammar table lets recent
+parsers determine that some fields are omitted and should be replaced by their default value. In fact, a
+BinAST file could even contain <em>both</em> variants of <code>Function</code>, for compression purposes. Also, when a
+parser encounters a grammar table with nodes that either have an unknown name or contain unknown
+fields, it may decide to reject the file immediately.</p>
+
+<p>The strings table lists all strings (including identifiers) in the file. Its primary role is to speed
+up parsing by making sure that each string only needs to be parsed/checked/atomized once during parsing.
+Its secondary role is compression.</p>
+
+<p>In the current version, the tree is a sequence of tokens. All these tokens are ambiguous and a stream may
+only be tokenized by a client that knows both the grammar and the grammar table. Specific tokens (lists)
+contain their byte length, so as to allow skipping them for purposes of lazy parsing and/or concurrent
+parsing.</p>
 
 <h1 id='format' class='section-header'><a href='#format'>Format</a></h1>
 <p>The entire file is formatted as:</p>

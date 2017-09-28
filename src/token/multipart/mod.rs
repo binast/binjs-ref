@@ -1,5 +1,39 @@
 //! A multipart format, in which each part can be compressed independently.
 //!
+//! # Overview
+//!
+//! The file is divided in sections. Each section is prefixed by its bytelength, so as to permit
+//! skipping a section and/or reading sections concurrently. Each section may be compressed
+//! independently, possibly with different compression formats, with the expectation that this
+//! will let compressors take best advantage of the distinct structures of each section.
+//!
+//! (future versions may allow file-wide compression, too)
+//!
+//! The sections are:
+//!
+//! 1. the grammar table;
+//! 2. the strings table (which contains both strings and identifiers);
+//! 3. the representation of the tree.
+//!
+//! The grammar table lists the AST nodes used in the file. Its primary role is to serve as a lightweight
+//! versioning mechanism - for instance, older versions of JS may define a node `Function` with three fields
+//! (`body`, `arguments` and optional `name`), while more recent versions of JS may define the same node
+//! with *five* fields (`body`, `arguments`, `async`, `generator` and optional `name`). A BinAST file
+//! may contain *either* variants of `Function`, depending on when it was created. The grammar table lets recent
+//! parsers determine that some fields are omitted and should be replaced by their default value. In fact, a
+//! BinAST file could even contain *both* variants of `Function`, for compression purposes. Also, when a
+//! parser encounters a grammar table with nodes that either have an unknown name or contain unknown
+//! fields, it may decide to reject the file immediately.
+//!
+//! The strings table lists all strings (including identifiers) in the file. Its primary role is to speed
+//! up parsing by making sure that each string only needs to be parsed/checked/atomized once during parsing.
+//! Its secondary role is compression.
+//!
+//! In the current version, the tree is a sequence of tokens. All these tokens are ambiguous and a stream may
+//! only be tokenized by a client that knows both the grammar and the grammar table. Specific tokens (lists)
+//! contain their byte length, so as to allow skipping them for purposes of lazy parsing and/or concurrent
+//! parsing.
+//!
 //! # Format
 //!
 //! The entire file is formatted as:
