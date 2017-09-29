@@ -219,7 +219,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&pattern);
 
     // Literals
-    syntax.add_kinded_interface(&literal).unwrap()
+    syntax.add_virtual_interface(&literal).unwrap()
         .with_parent(&expression);
     syntax.add_kinded_interface(&string_literal).unwrap()
         .with_field(&field_value, Type::string())
