@@ -23,7 +23,7 @@
 //! parsers determine that some fields are omitted and should be replaced by their default value. In fact, a
 //! BinAST file could even contain *both* variants of `Function`, for compression purposes. Also, when a
 //! parser encounters a grammar table with nodes that either have an unknown name or contain unknown
-//! fields, it may decide to reject the file immediately.
+//! fields, it may decide to reject the file immediately (it doesn't have to, mind you).
 //!
 //! The strings table lists all strings (including identifiers) in the file. Its primary role is to speed
 //! up parsing by making sure that each string only needs to be parsed/checked/atomized once during parsing.
