@@ -239,6 +239,7 @@
 use ast;
 use util::f64_of;
 
+use rand;
 use serde_json;
 use serde_json::Value as JSON;
 
@@ -392,6 +393,79 @@ impl Type {
             _ => None
         }
     }
+    pub fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
+        println!("Generating instance of type {:?} with depth {}", self, depth_limit);
+        const MAX_ARRAY_LEN: usize = 16;
+        match *self {
+            Type::Array(ref type_) => {
+                if depth_limit <= 0 {
+                    return JSON::Array(vec![])
+                }
+                let len = rng.gen_range(0, MAX_ARRAY_LEN);
+                let mut buf = Vec::with_capacity(len);
+                for _ in 0..len {
+                    buf.push(type_.random(syntax, rng, depth_limit - 1));
+                }
+                JSON::Array(buf)
+            }
+            Type::Enum(ref name) => {
+                let enum_ = syntax.get_enum_by_name(name)
+                    .expect("Could not find enum");
+                let choice = rng.choose(&enum_.strings)
+                    .expect("Empty enum");
+                JSON::String(choice.clone())
+            }
+            Type::Interfaces {
+                ref names,
+                ref or_null
+            } => {
+                if depth_limit <= 0 && *or_null {
+                    return JSON::Null
+                }
+                // Pick one of the interfaces or null if applicable.
+                let max = if *or_null {
+                    names.len() + 1
+                } else {
+                    names.len()
+                };
+                let pick = rng.gen_range(0, max);
+                if pick == names.len() {
+                    return JSON::Null
+                }
+                let interface = syntax.get_interface_by_name(&names[pick])
+                    .expect("Interface doesn't exist");
+                interface.random(syntax, rng, depth_limit - 1)
+            }
+            Type::Boolean { ref or_null } => {
+                let max = if *or_null {
+                    3
+                } else {
+                    2
+                };
+                match rng.gen_range(0, max) {
+                    0 => JSON::Bool(false),
+                    1 => JSON::Bool(true),
+                    _ => JSON::Null
+                }
+            }
+            Type::String { ref or_null } => {
+                if *or_null && rng.gen() {
+                    return JSON::Null
+                }
+                let string = rng.gen_ascii_chars().take(10).collect();
+                JSON::String(string)
+            }
+            Type::Number { ref or_null } => {
+                if *or_null && rng.gen() {
+                    return JSON::Null
+                }
+                let number = rng.next_f64();
+                let as_json = serde_json::Number::from_f64(number)
+                    .expect("Invalid number");
+                JSON::Number(as_json)
+            }
+        }
+    }
 }
 
 /// Representation of an object, i.e. a set of fields.
@@ -509,6 +583,10 @@ pub struct InterfaceDeclaration {
     /// The parents of this interface.
     parent_interfaces: Vec<NodeName>,
 
+    /// The descendants of this interface.
+    sub_interfaces: Vec<NodeName>,
+    ancestor_interfaces: Vec<NodeName>,
+
     /// The contents of this interface, excluding the contents of parent interfaces.
     own_contents: Obj,
 }
@@ -613,6 +691,8 @@ impl SyntaxBuilder {
             kind: None,
             own_contents: Obj::new(),
             parent_interfaces: Vec::new(),
+            sub_interfaces: Vec::new(),
+            ancestor_interfaces: Vec::new(),
         };
         self.interfaces.insert(name.clone(), RefCell::new(interface));
         self.interfaces.get(name).map(RefCell::borrow_mut)
@@ -639,6 +719,38 @@ impl SyntaxBuilder {
         assert!(self.interfaces.get(options.root).is_some(),
             "Cannot find root interface {:?}", options.root);
 
+        // First walk: generate lists of ancestors/descendants.
+        for (name, interface) in &self.interfaces {
+            let mut ancestors_met = HashSet::new();
+
+            // To do so, walk the ancestors of `interface`. Algorithmically,
+            // this could explode, but in practice, I haven't seen a depth higher than 4.
+            let mut ancestors = vec![name.clone()];
+
+            while let Some(ancestor) = ancestors.pop() {
+                if ancestors_met.contains(&ancestor) {
+                    // With multiple inheritance, let's not copy stuff more than
+                    // once. Should also prevent (but not detect) infinite loops.
+                    continue;
+                }
+                ancestors_met.insert(ancestor.clone());
+
+                // Handle node.
+                let node = self.interfaces.get(&ancestor).unwrap();
+                debug_assert_eq!(node.borrow().name, ancestor);
+                for parent_names in &node.borrow().parent_interfaces {
+                    ancestors.push(parent_names.clone());
+                }
+
+                if name != &ancestor {
+                    debug!("Adding descendant {:?} to ancestor {:?}", name, ancestor);
+                    node.borrow_mut().sub_interfaces.push(name.clone());
+                    interface.borrow_mut().ancestor_interfaces.push(ancestor.clone());
+                }
+            }
+        }
+
+        // Second walk: generate `Interface`.
         for (name, interface) in &self.interfaces {
             debug!("Registering name and interface.");
             {
@@ -670,30 +782,17 @@ impl SyntaxBuilder {
             }
 
 
-            // Compute the fields and ancestors of `interface`.
-            let mut ancestors_met = HashSet::new();
+            // Compute the fields of `interface`.
             let mut my_fields = HashMap::new();
+            let borrow = interface.borrow();
+            for ancestor_name in borrow.ancestor_interfaces.iter().chain(&[name.clone()]) {
+                debug!("Visiting ancestor {:?} of {:?}", ancestor_name, name);
 
-            // To do so, walk the ancestors of `interface`. Algorithmically,
-            // this could explode, but in practice, I haven't seen a depth higher than 4.
-            let mut roots = vec![name.clone()];
-            let mut all_my_ancestors = HashSet::new();
-            while let Some(root) = roots.pop() {
-                if ancestors_met.contains(&root) {
-                    // With mutual inheritance, let's not copy stuff more than
-                    // once. Should also prevent (but not detect) infinite loops.
-                    continue;
-                }
+                let ancestor = self.interfaces.get(ancestor_name)
+                    .expect("Could not find ancestor");
 
-                all_my_ancestors.insert(root.clone());
-                ancestors_met.insert(root.clone());
-                let node = self.interfaces.get(&root).unwrap();
-                debug_assert_eq!(node.borrow().name, root);
-
-                for parent_names in &node.borrow().parent_interfaces {
-                    roots.push(parent_names.clone());
-                }
-                for field in &node.borrow().own_contents.fields {
+                // Copy fields.
+                for field in &ancestor.borrow().own_contents.fields {
                     let name = field_names.entry(field.name.to_string().clone())
                         .or_insert_with(|| field.name().clone())
                         .clone();
@@ -702,7 +801,7 @@ impl SyntaxBuilder {
                             warn!("Conflict: attempting to insert {:?}", name);
                             warn!("Previous: {:?}", prev);
                             warn!("Overwrite: {:?}", field.type_());
-                            warn!("While treating {:?}", root);
+                            warn!("While treating {:?}", name);
                         }
                         debug!("Skipping");
                         // FIXME: We should make more efforts to ensure that
@@ -721,9 +820,8 @@ impl SyntaxBuilder {
             let fields = my_fields.drain()
                 .map(|(name, type_)| Field { name, type_ })
                 .collect();
-            let declaration = interface.borrow().clone();
+            let declaration = borrow.clone();
             let node = Rc::new(Interface {
-                ancestors: all_my_ancestors.drain().collect(),
                 declaration,
                 full_contents: Obj { fields }
             });
@@ -765,9 +863,6 @@ impl SyntaxBuilder {
 pub struct Interface {
     declaration: InterfaceDeclaration,
 
-    /// All the ancestors of this interface.
-    ancestors: Vec<NodeName>,
-
     /// The full contents of this interface, including parents interfaces.
     full_contents: Obj,
 }
@@ -805,6 +900,52 @@ impl Interface {
         }
         None
     }
+
+    fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
+        println!("Generating instance of interface {} with depth {}", self.name().to_str(), depth_limit);
+
+        // Pick one of the descendants of `start`. Exclude `start` if it is virtual
+        let max = if self.declaration.kind.is_some() {
+            self.declaration.sub_interfaces.len() + 1
+        } else {
+            self.declaration.sub_interfaces.len()
+        };
+        println!("Sub-interfaces: {:?}", self.declaration.sub_interfaces);
+        assert!(max > 0, "This interface is purely virtual but doesn't have any concrete descendent {:?}", self.name());
+
+        let index = rng.gen_range(0, max);
+        let start =
+            if index < self.declaration.sub_interfaces.len() {
+                syntax.interfaces_by_name.get(&self.declaration.sub_interfaces[index])
+                    .expect("Interface doesn't exist")
+            } else {
+                self
+            };
+
+        if start.declaration.kind.is_none() {
+            // Ah, we picked a virtual node. Let's do it again.
+            return start.random(syntax, rng, depth_limit - 1)
+        }
+
+        // At this stage, we know that `start` is a non-virtual interface.
+        // Let's build the contents.
+        let mut result = serde_json::map::Map::with_capacity(start.full_contents.fields().len() + 1);
+
+        let kind = start.declaration.kind
+            .as_ref()
+            .unwrap()
+            .to_string()
+            .clone();
+        println!("Picked kind {}", kind);
+
+
+        result.insert("type".to_string(), JSON::String(kind));
+        for field in start.full_contents.fields() {
+            result.insert(field.name.to_string().clone(), field.type_().random(syntax, rng, depth_limit - 1));
+        }
+
+        JSON::Object(result)
+    }
 }
 
 /// Immutable representation of the syntax.
@@ -822,10 +963,10 @@ pub struct Syntax {
 
 impl Syntax {
     /// Return all the ancestors of an interface, including itself.
-    pub fn get_ancestors_by_name_including_self(&self, name: &NodeName) -> Option<&[NodeName]> {
+    pub fn get_ancestors_by_name(&self, name: &NodeName) -> Option<&[NodeName]> {
         self.interfaces_by_name
             .get(name)
-            .map(|node| node.ancestors.as_slice())
+            .map(|node| node.declaration.ancestor_interfaces.as_slice())
     }
     pub fn get_interface_by_kind(&self, kind: &Kind) -> Option<&Interface> {
         self.interfaces_by_kind
@@ -1055,7 +1196,12 @@ impl Syntax {
     }
 
     pub fn has_ancestor_in(&self, interface: &Interface, one_of: &[NodeName]) -> bool {
-        self.get_ancestors_by_name_including_self(interface.name())
+        for name in one_of {
+            if interface.name() == name {
+                return true;
+            }
+        }
+        self.get_ancestors_by_name(interface.name())
             .unwrap()
             .iter()
             .find(|ancestor|
@@ -1066,6 +1212,15 @@ impl Syntax {
                     })
                     .is_some()
             ).is_some()
+    }
+
+    /// Generate a random AST matching the grammar.
+    ///
+    /// `depth_limit` is used as *hint* to control the depth of the tree
+    pub fn random<T: rand::Rng>(&self, rng: &mut T, depth_limit: isize) -> JSON {
+        let root = self.interfaces_by_name.get(&self.root)
+            .expect("Root interface doesn't exist");
+        root.random(self, rng, depth_limit)
     }
 }
 
