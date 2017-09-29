@@ -3,6 +3,8 @@
 use bytes::serialize::*;
 use bytes::varnum::*;
 
+use rand::{ Rand, Rng };
+
 use std;
 use std::io::{ Cursor, Read, Write };
 
@@ -28,6 +30,16 @@ pub enum Compression {
     Lzw,
 }
 
+impl Rand for Compression {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        use self::Compression::*;
+        rng.choose(&[Identity, Gzip, Deflate, Brotli /*, Lzw doesn't work */])
+            .unwrap() // The array is not empty.
+            .clone()
+    }
+}
+
+
 #[derive(Debug)]
 pub struct CompressionResult {
     pub before: usize,
@@ -51,7 +63,7 @@ impl Compression {
 
     pub fn values() -> Box<[Self]> {
         use self::Compression::*;
-        Box::new([Identity, Gzip, Deflate, Brotli, Lzw])
+        Box::new([Identity, Gzip, Deflate, Brotli /*, Lzw doesn't work yet*/])
     }
 
     // Format:

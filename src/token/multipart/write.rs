@@ -15,6 +15,8 @@ use std::hash::Hash;
 use std::io::Write;
 use std::rc::Rc;
 
+use rand::{ Rand, Rng };
+
 use vec_map;
 use vec_map::*;
 
@@ -25,6 +27,15 @@ pub struct WriteOptions {
     pub tree: Compression,
 }
 
+impl Rand for WriteOptions {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        WriteOptions {
+            grammar_table: Compression::rand(rng),
+            strings_table: Compression::rand(rng),
+            tree: Compression::rand(rng),
+        }
+    }
+}
 
 
 /// A value that may be serialized to bytes, optionally compressed.
@@ -531,7 +542,7 @@ impl<'a> TreeTokenWriter<'a> {
             self.statistics.per_kind_name.insert(key.clone(), stats.clone());
         }
 
-        println!("Statistics: {}", self.statistics);
+        info!("Statistics: {}", self.statistics);
         Ok(self.data.clone().into_boxed_slice())
     }
 }

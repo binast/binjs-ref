@@ -56,3 +56,5 @@ pub enum TokenReaderError {
     BadKindIndex(u32),
     Encoding(std::string::FromUtf8Error),
 }
+
+pub use self::multipart::WriteOptions;
