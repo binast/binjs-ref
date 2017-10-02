@@ -219,7 +219,7 @@ fn test_multipart_io() {
             writer.string(Some("simple string"))
                 .expect("Writing simple string");
 
-            let data = writer.done()
+            let (data, _) = writer.done()
                 .expect("Extracting data");
 
             File::create(format!("/tmp/test-simple-string-{}.binjs", suffix)).unwrap()
@@ -239,7 +239,7 @@ fn test_multipart_io() {
             writer.string(Some(string))
                 .expect("Writing string with escapes");
 
-            let data = writer.done()
+            let (data, _) = writer.done()
                 .expect("Extracting data");
 
             File::create(format!("/tmp/test-string-with-escapes-{}.binjs", suffix)).unwrap()
@@ -260,7 +260,7 @@ fn test_multipart_io() {
             writer.untagged_tuple(&[])
                 .expect("Writing empty untagged tuple");
 
-            let data = writer.done()
+            let (data, _) = writer.done()
                 .expect("Extracting data");
 
             File::create(format!("/tmp/test-empty-untagged-tuple-{}.binjs", suffix)).unwrap()
@@ -283,7 +283,7 @@ fn test_multipart_io() {
             writer.untagged_tuple(&[item_0, item_1])
                 .expect("Writing trivial untagged tuple");
 
-            let data = writer.done()
+            let (data, _) = writer.done()
                 .expect("Extracting data");
 
             File::create(format!("/tmp/test-trivial-untagged-tuple-{}.binjs", suffix)).unwrap()
@@ -315,7 +315,7 @@ fn test_multipart_io() {
             writer.tagged_tuple(kinded.to_str(), &[(&field_string, item_0), (&field_number, item_1)])
                 .expect("Writing trivial tagged tuple");
 
-            let data = writer.done()
+            let (data, _) = writer.done()
                 .expect("Extracting data");
 
             File::create(format!("/tmp/test-simple-tagged-tuple-{}.binjs", suffix)).unwrap()
@@ -367,7 +367,7 @@ fn test_multipart_io() {
             writer.list(vec![])
                 .expect("Writing empty list");
 
-            let data = writer.done()
+            let (data, _) = writer.done()
                 .expect("Extracting data");
 
             File::create(format!("/tmp/test-empty-list-{}.binjs", suffix)).unwrap()
@@ -390,7 +390,7 @@ fn test_multipart_io() {
             writer.list(vec![item_0, item_1])
                 .expect("Writing trivial list");
 
-            let data = writer.done()
+            let (data, _) = writer.done()
                 .expect("Extracting data");
 
             File::create(format!("/tmp/test-trivial-list-{}.binjs", suffix)).unwrap()
@@ -424,7 +424,7 @@ fn test_multipart_io() {
             writer.list(vec![list])
                 .expect("Writing outer list");
 
-            let data = writer.done()
+            let (data, _) = writer.done()
                 .expect("Extracting data");
 
             File::create(format!("/tmp/test-nested-lists-{}.binjs", suffix)).unwrap()

@@ -127,7 +127,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
                         .encode(&ast)
                         .expect("Could not encode AST");
                     encoder.done()
-                        .map(|data| Box::new(data) as Box<AsRef<[u8]>>)
+                        .map(|(data, _)| Box::new(data) as Box<AsRef<[u8]>>)
                 } else {
                     let writer = binjs::token::simple::TreeTokenWriter::new();
                     let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
@@ -135,7 +135,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
                         .encode(&ast)
                         .expect("Could not encode AST");
                     encoder.done()
-                        .map(|data| Box::new(data) as Box<AsRef<[u8]>>)
+                        .map(|(data, _)| Box::new(data) as Box<AsRef<[u8]>>)
                 };
 
             let encoded = encoded

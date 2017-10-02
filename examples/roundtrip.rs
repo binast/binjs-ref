@@ -54,6 +54,9 @@ fn main() {
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for the tree. Defaults to identity."),
+            Arg::with_name("statistics")
+                .long("stat")
+                .help("Show statistics."),
         ])
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
@@ -99,6 +102,8 @@ fn main() {
         }
     };
 
+    let show_stats = matches.is_present("statistics");
+
     println!("Applying roundtrip to {}", source_path);
 
     let parser = Babel::new();
@@ -120,7 +125,7 @@ fn main() {
 
             encoder.encode(&ast)
                 .expect("Could not encode AST");
-            let data = encoder.done()
+            let (data, _) = encoder.done()
                 .expect("Could not finalize AST encoding");
 
             println!("Decoding.");
@@ -138,8 +143,12 @@ fn main() {
 
             encoder.encode(&ast)
                 .expect("Could not encode AST");
-            let data = encoder.done()
+            let (data, stats) = encoder.done()
                 .expect("Could not finalize AST encoding");
+
+            if show_stats {
+                println!("Statistics: {}", stats);
+            }
 
             println!("Decoding.");
             let source = Cursor::new(data.as_ref().clone());

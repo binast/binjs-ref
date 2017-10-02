@@ -8,6 +8,7 @@ use binjs::bytes::compress::*;
 use binjs::token::encode::*;
 use binjs::source::*;
 
+use std::fmt::Display;
 use std::fs::*;
 use std::io::*;
 
@@ -25,7 +26,6 @@ fn main() {
                 .required(true)
                 .help("Input file to use. Must be a JS source file."),
             Arg::with_name("OUTPUT")
-                .required(true)
                 .help("Output file to use. Will be overwritten."),
             Arg::with_name("format")
                 .long("format")
@@ -47,6 +47,9 @@ fn main() {
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for the tree. Defaults to identity."),
+            Arg::with_name("statistics")
+                .long("stat")
+                .help("Show statistics.")
         ])
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
@@ -56,8 +59,7 @@ fn main() {
 
     let source_path = matches.value_of("INPUT")
         .expect("Expected input file");
-    let dest_path = matches.value_of("OUTPUT")
-        .expect("Expected output file");
+    let dest_path = matches.value_of("OUTPUT");
     let compression = {
         let mut is_compressed = false;
         if matches.value_of("strings").is_some()
@@ -94,6 +96,7 @@ fn main() {
             None
         }
     };
+    let show_stats = matches.is_present("statistics");
 
     // Setup.
     let parser = Babel::new();
@@ -121,7 +124,7 @@ fn main() {
                     .encode(&ast)
                     .expect("Could not encode AST");
                 encoder.done()
-                    .map(|data| Box::new(data) as Box<AsRef<[u8]>>)
+                    .map(|(data, stats)| (Box::new(data) as Box<AsRef<[u8]>>, Box::new(stats) as Box<Display>))
             }
             Some(options) => {
                 let writer = binjs::token::multipart::TreeTokenWriter::new(options, &grammar);
@@ -130,21 +133,29 @@ fn main() {
                     .encode(&ast)
                     .expect("Could not encode AST");
                 encoder.done()
-                    .map(|data| Box::new(data) as Box<AsRef<[u8]>>)
+                    .map(|(data, stats)| (Box::new(data) as Box<AsRef<[u8]>>, Box::new(stats) as Box<Display>))
             }
         }
     };
 
-    let data = result
+    let (data, stats) = result
         .expect("Could not finalize AST encoding");
 
     let dest_len = data.as_ref().as_ref().len();
 
-    println!("Writing.");
-    let mut dest = File::create(dest_path)
-        .expect("Could not create destination file");
-    dest.write((*data).as_ref())
-        .expect("Could not write destination file");
+    if let Some(ref dest_path) = dest_path {
+        println!("Writing.");
+        let mut dest = File::create(dest_path)
+            .expect("Could not create destination file");
+        dest.write((*data).as_ref())
+            .expect("Could not write destination file");
+    } else {
+        println!("Skipping write.");
+    }
 
     println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
+
+    if show_stats {
+        println!("Statistics: {}", stats);
+    }
 }

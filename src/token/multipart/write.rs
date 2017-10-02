@@ -478,7 +478,7 @@ impl<'a> TreeTokenWriter<'a> {
         Tree(result)
     }
 
-    pub fn done(mut self) -> Result<Box<[u8]>, TokenWriterError> {
+    pub fn done(mut self) -> Result<(Box<[u8]>, Statistics), TokenWriterError> {
         // Write header to byte stream
         self.data.write_all(b"BINJS")
             .map_err(TokenWriterError::WriteError)?;
@@ -537,8 +537,7 @@ impl<'a> TreeTokenWriter<'a> {
             self.statistics.per_description.insert(key, stats.clone());
         }
 
-        info!("Statistics: {}", self.statistics);
-        Ok(self.data.clone().into_boxed_slice())
+        Ok((self.data.clone().into_boxed_slice(), self.statistics))
     }
 }
 
@@ -546,8 +545,9 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     type Tree = Tree;
     type Error = TokenWriterError;
     type Data = Box<[u8]>;
+    type Statistics = Statistics;
 
-    fn done(self) -> Result<Self::Data, Self::Error> {
+    fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
         (self as TreeTokenWriter<'a>).done()
     }
 
@@ -778,7 +778,7 @@ impl Display for NodeDescriptionAndStatistics {
                 start = false;
                 write!(f, "{}", field.to_string())?;
             }
-            write!(f, "]")?;
+            write!(f, "]\n")?;
             write!(f, "\t\t\tEntries: {}\n", stats.entries)?;
             write!(f, "\t\t\tOwn bytes: {}\n", stats.own_bytes)?;
             write!(f, "\t\t\tShallow bytes: {}\n", stats.shallow_bytes)?;

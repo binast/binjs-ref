@@ -380,13 +380,22 @@ impl AsRef<[u8]> for Data {
     }
 }
 
+/// This encoder doesn't produce useful statistics.
+pub struct Statistics;
+impl std::fmt::Display for Statistics {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "No statistics available for this encoder")
+    }
+}
+
 impl TokenWriter for TreeTokenWriter {
     type Tree = Rc<Vec<u8>>;
     type Error = TokenWriterError;
     type Data = Data;
+    type Statistics = Statistics;
 
-    fn done(self) -> Result<Self::Data, Self::Error> {
-        Ok(Data(self.root))
+    fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
+        Ok((Data(self.root), Statistics))
     }
 
     fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {

@@ -67,7 +67,7 @@ fn test_roundtrip() {
 
             encoder.encode(&ast)
                 .expect("Could not encode AST");
-            let data = encoder.done()
+            let (data, _) = encoder.done()
                 .expect("Could not finalize AST encoding");
 
             println!("Decoding.");
@@ -96,7 +96,7 @@ fn test_roundtrip() {
 
             encoder.encode(&ast)
                 .expect("Could not encode AST");
-            let data = encoder.done()
+            let (data, _) = encoder.done()
                 .expect("Could not finalize AST encoding");
 
             println!("Decoding.");

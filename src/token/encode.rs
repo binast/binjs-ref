@@ -36,8 +36,9 @@ impl<E> Error<E> {
 
 pub trait Encode {
     type Data;
+    type Statistics;
     fn encode(&self, value: &Value) -> Result<(), std::io::Error>;
-    fn done(self) -> Result<Self::Data, std::io::Error>;
+    fn done(self) -> Result<(Self::Data, Self::Statistics), std::io::Error>;
 }
 
 pub struct Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
@@ -197,6 +198,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
 
 impl<'a, B, Tree, E> Encode for Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
     type Data = B::Data;
+    type Statistics = B::Statistics;
     fn encode(&self, value: &Value) -> Result<(), std::io::Error> {
         (self as &Encoder<'a, B, Tree, E>).encode(value)
             .map(|_| ())
@@ -204,7 +206,7 @@ impl<'a, B, Tree, E> Encode for Encoder<'a, B, Tree, E> where B: TokenWriter<Tre
                 std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", err))
             })
     }
-    fn done(self) -> Result<Self::Data, std::io::Error> {
+    fn done(self) -> Result<(Self::Data, Self::Statistics), std::io::Error> {
         self.builder.into_inner().done()
             .map_err(|err| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", err))
