@@ -103,7 +103,8 @@ fn main() {
 
     let show_stats = matches.is_present("statistics");
 
-    let mut multipart_stats = binjs::token::multipart::Statistics::default();
+    let mut multipart_stats = binjs::token::multipart::Statistics::default()
+        .with_source_bytes(0);
     let mut simple_stats = binjs::token::simple::Statistics::default();
 
     let parser = Babel::new();
@@ -111,6 +112,10 @@ fn main() {
 
     for source_path in matches.value_of("INPUT") {
         println!("Parsing {}.", source_path);
+        let bytes = std::fs::metadata(source_path)
+            .expect("Could not find source path")
+            .len() as usize;
+
         let mut ast    = parser.parse_file(source_path)
             .expect("Could not parse source");
 
@@ -148,7 +153,8 @@ fn main() {
                     .expect("Could not encode AST");
                 let (data, stats) = encoder.done()
                     .expect("Could not finalize AST encoding");
-                multipart_stats = multipart_stats + stats;
+
+                multipart_stats = multipart_stats + stats.with_source_bytes(bytes);
 
                 println!("Decoding.");
                 let source = Cursor::new(data.as_ref().clone());

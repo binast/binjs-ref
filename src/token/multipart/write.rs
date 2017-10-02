@@ -537,7 +537,8 @@ impl<'a> TreeTokenWriter<'a> {
             }
             self.statistics.per_description.insert(key, stats.clone());
         }
-
+        self.statistics.number_of_files = 1;
+        self.statistics.compressed_bytes = self.data.len();
         Ok((self.data.clone().into_boxed_slice(), self.statistics))
     }
 }
@@ -760,6 +761,10 @@ pub struct Statistics {
     list_header: NodeStatistics,
     tagged_header: NodeStatistics,
     tagged_tuple: NodeStatistics,
+
+    number_of_files: usize,
+    compressed_bytes: usize,
+    source_bytes: Option<usize>,
 }
 
 impl Add for Statistics {
@@ -822,6 +827,20 @@ impl Add for Statistics {
         self.tagged_header += rhs.tagged_header;
         self.tagged_tuple += rhs.tagged_tuple;
 
+        self.number_of_files += rhs.number_of_files;
+        self.compressed_bytes += rhs.compressed_bytes;
+        self.source_bytes = match (self.source_bytes, rhs.source_bytes) {
+            (Some(x), Some(y)) => Some(x + y),
+            _ => None
+        };
+
+        self
+    }
+}
+
+impl Statistics {
+    pub fn with_source_bytes(mut self, source_bytes: usize) -> Self {
+        self.source_bytes = Some(source_bytes);
         self
     }
 }
@@ -901,6 +920,11 @@ impl Display for Statistics {
 
         write!(f, "
 Statistics
+\tFiles:
+\t\tNumber: {}
+\t\tTotal uncompressed bytes: {}
+\t\tTotal compressed bytes: {}
+\t\tRatio: {}
 \tSections:
 \t\tGrammar:
 \t\t\tEntries: {}
@@ -943,6 +967,16 @@ Statistics
 \tList sizes
 {}
 ",
+        self.number_of_files,
+        match self.source_bytes {
+            None => "<not available>".to_string(),
+            Some(ref bytes) => format!("{}", bytes)
+        },
+        self.compressed_bytes,
+        match self.source_bytes {
+            None => "<not available>".to_string(),
+            Some(ref bytes) => format!("{:.2}", (self.compressed_bytes as f64) / (*bytes as f64))
+        },
         self.grammar_table.entries,
         self.grammar_table.uncompressed_bytes,
         self.grammar_table.compressed_bytes,
