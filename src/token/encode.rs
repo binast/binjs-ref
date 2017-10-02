@@ -56,13 +56,13 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
     /// This step doesn't perform any interesting check on the JSON.
     pub fn encode(&self, value: &Value) -> Result<Tree, Error<E>> {
         let start = self.grammar.get_root();
-        let kind = Type::interfaces(&[start.name()]);
+        let kind = Type::interfaces(&[start.name()]).close();
         self.encode_from_type(value, &kind, start.name())
     }
     pub fn encode_from_type(&self, value: &Value, kind: &Type, node: &NodeName) -> Result<Tree, Error<E>> {
         debug!("encode: value {:?} with kind {:?}", value, kind);
-        use ast::grammar::Type::*;
-        match *kind {
+        use ast::grammar::TypeSpec::*;
+        match *kind.spec() {
             Array(ref kind) => {
                 let list = value.as_array()
                     .ok_or_else(|| Error::Mismatch {
@@ -97,21 +97,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                     strings: enum_.strings().iter().cloned().collect(),
                 })
            }
-           // Special-case: hardcoded `"Null"`.
-           Interfaces {
-               or_null: true,
-               ..
-           } if value.is_null() => {
-               let null_name = self.grammar.get_null();
-               self.builder
-                   .borrow_mut()
-                   .tagged_tuple(null_name.to_str(), &[])
-                   .map_err(Error::TokenWriterError)
-           }
-           Interfaces {
-               names: ref interfaces,
-               ..
-           } => {
+           Interfaces(ref interfaces) => {
                let object = value.as_object()
                    .ok_or_else(|| Error::Mismatch {
                        expected: format!("Object (implementing {:?}) while treating {:?}", interfaces, node),
@@ -130,7 +116,6 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
 
                // We have a kind, so we know how to encode the data. We just need
                // to make sure that we expected this interface here.
-               // FIXME: Is this really necessary?
                if let Some(interface) = self.grammar.get_interface_by_kind(&kind) {
                    if !self.grammar.has_ancestor_in(interface, interfaces) {
                        return Err(Error::NoSuchRefinement {
@@ -149,47 +134,38 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                }
                return Err(Error::NoSuchKind(kind.to_string().clone()));
            }
-           Boolean { or_null } => {
+           Boolean => {
                match *value {
-                   Value::Null if or_null =>
-                       self.builder.borrow_mut().bool(None)
-                           .map_err(Error::TokenWriterError),
                    Value::Bool(b) =>
                        self.builder.borrow_mut().bool(Some(b))
                            .map_err(Error::TokenWriterError),
                    _ =>
                        Err(Error::Mismatch {
-                           expected: format!("bool {}", if or_null {"| null"} else {" (not null)"}),
+                           expected: "bool".to_string(),
                            got: type_of(&value)
                        })
                }
            }
-           String { or_null } => {
+           String => {
                match *value {
-                   Value::Null if or_null =>
-                       self.builder.borrow_mut().string(None)
-                           .map_err(Error::TokenWriterError),
                    Value::String(ref s) =>
                        self.builder.borrow_mut().string(Some(s))
                            .map_err(Error::TokenWriterError),
                    _ =>
                        Err(Error::Mismatch {
-                           expected: format!("string {}", if or_null {"| null"} else {" (not null)"}),
+                           expected: "string".to_string(),
                            got: type_of(&value)
                        })
                }
            }
-           Number { or_null } => {
+           Number => {
                match *value {
-                   Value::Null if or_null =>
-                       self.builder.borrow_mut().float(None)
-                           .map_err(Error::TokenWriterError),
                    Value::Number(ref x) =>
                        self.builder.borrow_mut().float(Some(f64_of(x)))
                            .map_err(Error::TokenWriterError),
                    _ =>
                        Err(Error::Mismatch {
-                           expected: format!("number {}", if or_null {"| null"} else {" (not null)"}),
+                           expected: format!("number"),
                            got: type_of(&value)
                        })
                }
@@ -199,8 +175,14 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
 
     fn encode_structure<'b>(&self, object: &'b Object, fields: &'b [Field], node: &NodeName) -> Result<Vec<(&'b Field, B::Tree)>, Error<E>> {
         let mut result = Vec::with_capacity(fields.len());
-        for field in fields {
+        'fields: for field in fields {
             if let Some(source) = object.get(field.name().to_string()) {
+                if let Some(default) = field.type_().default() {
+                    if default == source {
+                        // Nothing to do, this is the default value.
+                        continue 'fields;
+                    }
+                }
                 let encoded = self.encode_from_type(source, field.type_(), node)?;
                 result.push((field, encoded))
             } else {

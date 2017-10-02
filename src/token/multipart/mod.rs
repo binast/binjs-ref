@@ -182,13 +182,9 @@ fn test_multipart_io() {
 
     debug!("Setting up syntax");
     let mut builder = SyntaxBuilder::new();
-    let null = builder.node_name("Null");
-    let null_kind = builder.kind_name("Null");
-    builder.add_kinded_interface(&null).unwrap();
-
     let kinded = builder.node_name("Pattern");
-    let field_string = Field::new(builder.field_name("id"), Type::string());
-    let field_number = Field::new(builder.field_name("value"), Type::number());
+    let field_string = Field::new(builder.field_name("id"), Type::string().close());
+    let field_number = Field::new(builder.field_name("value"), Type::number().close());
 
     builder.add_kinded_interface(&kinded).unwrap()
         .with_own_field(field_string.clone())
@@ -209,7 +205,6 @@ fn test_multipart_io() {
 
     let syntax = builder.into_syntax(SyntaxOptions {
         root: &kinded,
-        null: &null_kind,
         annotator: Box::new(FakeAnnotator)
     });
 
@@ -335,9 +330,9 @@ fn test_multipart_io() {
             // Order of fields is not deterministic
             if fields[0].name().to_string() == &"id".to_string() {
                 assert_eq!(fields[0].name().to_string(), &"id".to_string());
-                assert_eq!(*fields[0].type_(), Type::string());
+                assert_eq!(*fields[0].type_(), Type::string().close());
                 assert_eq!(fields[1].name().to_string(), &"value".to_string());
-                assert_eq!(*fields[1].type_(), Type::number());
+                assert_eq!(*fields[1].type_(), Type::number().close());
                 let simple_string = reader.string()
                     .expect("Reading trivial tagged tuple[0]")
                     .expect("Reading a non-null string");
@@ -348,9 +343,9 @@ fn test_multipart_io() {
                 assert_eq!(simple_float, 3.1415);
             } else {
                 assert_eq!(fields[1].name().to_string(), &"id".to_string());
-                assert_eq!(*fields[1].type_(), Type::string());
+                assert_eq!(*fields[1].type_(), Type::string().close());
                 assert_eq!(fields[0].name().to_string(), &"value".to_string());
-                assert_eq!(*fields[0].type_(), Type::number());
+                assert_eq!(*fields[0].type_(), Type::number().close());
                 let simple_float = reader.float()
                     .expect("Reading trivial tagged tuple[1]")
                     .expect("Reading a non-null float");

@@ -7,6 +7,7 @@ use token::io::*;
 use serde_json;
 use serde_json::Value;
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 type Object = serde_json::Map<String, Value>;
@@ -21,6 +22,10 @@ pub enum Error<E> where E: Debug {
     NoSuchField(String),
     NoSuchEnum(String),
     InvalidValue(String),
+    MissingField {
+        name: String,
+        kind: String
+    },
 }
 
 pub struct Decoder<'a, E> where E: TokenReader {
@@ -50,13 +55,13 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
 
     pub fn decode(&mut self) -> Result<Value, Error<E::Error>> {
         let start = self.grammar.get_root();
-        let kind = Type::interfaces(&[start.name()]);
+        let kind = Type::interfaces(&[start.name()]).close();
         self.decode_from_type(&kind)
     }
     pub fn decode_from_type(&mut self, kind: &Type) -> Result<Value, Error<E::Error>> {
-        use ast::grammar::Type::*;
+        use ast::grammar::TypeSpec::*;
         debug!("decode: {:?}", kind);
-        match *kind {
+        match *kind.spec() {
             Array(ref kind) => {
                 let (len, guard) = self.extractor.list()
                     .map_err(Error::TokenReaderError)?;
@@ -82,21 +87,10 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 }
                 Err(Error::UnexpectedValue(string))
             }
-            Interfaces {
-                names: ref interfaces,
-                or_null
-            } => {
+            Interfaces(ref names) => {
                 let (kind_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
                     .map_err(Error::TokenReaderError)?;
                 debug!("decoder: found kind {:?}", kind_name);
-
-                // Special case: `null`.
-                if or_null && &kind_name == self.grammar.get_null().to_str() {
-                    assert_eq!(mapped_field_names.len(), 0);
-                    guard.done()
-                        .map_err(Error::TokenReaderError)?;
-                    return Ok(self.register(Value::Null));
-                }
 
                 // We have a kind, so we know how to parse the data. We just need
                 // to make sure that we expected this interface here.
@@ -107,57 +101,79 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     })?;
 
                 if let Some(interface) = self.grammar.get_interface_by_kind(&kind) {
-                    if !self.grammar.has_ancestor_in(interface, interfaces) {
+                    if !self.grammar.has_ancestor_in(interface, names) {
                         self.extractor.poison();
                         return Err(Error::NoSuchRefinement(kind.to_string().clone()))
                     }
+
+                    // Determine all the fields that we were expecting.
+                    let mut expected: HashMap<_,_> = interface.contents()
+                        .fields()
+                        .iter()
+                        .map(|field| {
+                            (field.name().clone(), field.type_())
+                        })
+                        .collect();
 
                     // Read the fields **in the order** in which they appear in the stream.
                     let mut object = Object::new();
                     for field in mapped_field_names.as_ref().iter() {
                         let item = self.decode_from_type(field.type_())?;
-                        object.insert(field.name().to_string().clone(), item);
+                        let name = field.name().to_string().clone();
+                        if expected.remove(field.name()).is_none() {
+                            return Err(Error::NoSuchField(name))
+                        }
+                        object.insert(name, item);
+                    }
+
+                    // Any field missing? Find out if there is a default value.
+                    for (name, type_) in expected.drain() {
+                        let name = name.to_string().clone();
+                        match type_.default() {
+                            None => return Err(Error::MissingField {
+                                name,
+                                kind: kind.to_string().clone()
+                            }),
+                            Some(default) => {
+                                object.insert(name, default.clone());
+                            }
+                        }
                     }
 
                     // Don't forget `"type"`.
                     object.insert("type".to_owned(), Value::String(kind.to_string().clone()));
                     guard.done()
                         .map_err(Error::TokenReaderError)?;
+
                     Ok(self.register(Value::Object(object)))
                 } else {
                     Err(Error::NoSuchKind(kind.to_string().clone()))
                 }
             }
-            String { or_null } => {
+            String => {
                 let extracted = self.extractor.string()
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
-                    None if or_null =>
-                        Ok(self.register(Value::Null)),
                     None =>
                         Err(Error::UnexpectedValue("null string".to_owned())),
                     Some(string) =>
                         Ok(self.register(Value::String(string)))
                 }
             }
-            Boolean { or_null } => {
+            Boolean => {
                 let extracted = self.extractor.bool()
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
-                    None if or_null =>
-                        Ok(self.register(Value::Null)),
                     None =>
                         Err(Error::UnexpectedValue("null bool".to_owned())),
                     Some(b) =>
                         Ok(self.register(Value::Bool(b)))
                 }
             }
-            Number { or_null } => {
+            Number  => {
                 let extracted = self.extractor.float()
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
-                    None if or_null =>
-                        Ok(self.register(Value::Null)),
                     None =>
                         Err(Error::UnexpectedValue("null float".to_owned())),
                     Some(f) =>

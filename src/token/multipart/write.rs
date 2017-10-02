@@ -51,34 +51,11 @@ trait Serializable {
     }
 }
 
-/*
-trait SerializableWithStatistics: Serializable {
-    /// Write the data, without compression.
-    fn write<W: Write>(&self, out: &mut W, stats: &mut ItemStatistics) -> Result<usize, std::io::Error> {
-        let result = Serializable::write(self, out)?;
-        stats.entries += 1;
-        stats.uncompressed_bytes += result;
-        Ok((result))
-    }
-
-    /// Write the data, with compression.
-    fn write_with_compression<W: Write>(&self, out: &mut W, compression: &Compression, stats: Option<&mut ItemStatistics>) -> Result<CompressionResult, std::io::Error> {
-        let result = Serializable::write_with_compression(self, out, compression)?;
-        if let Some(stats) = stats {
-            stats.entries += 1;
-            stats.uncompressed_bytes += result.before;
-            stats.compressed_bytes += result.after;
-        }
-        Ok(result)
-    }
-}
-*/
-
 impl Serializable for Vec<u8> {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         out.write_all(&self)?;
         Ok(self.len())
-    }    
+    }
 }
 
 /// A `String` is serialized as:
@@ -145,11 +122,11 @@ impl<T> TableEntry<T> where T: Clone {
 }
 
 /// A table, used to define a varnum-indexed header
-struct WriterTable<Key, Value> where Key: Eq + Hash + Clone, Value: Clone + Serializable + FormatInTable {
-    map: HashMap<Key, TableEntry<Value>>
+struct WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable {
+    map: HashMap<Entry, TableEntry<Entry>>
 }
 
-impl<Key, Value> WriterTable<Key, Value> where Key: Eq + Hash + Clone, Value: Clone + Serializable + FormatInTable {
+impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable {
     pub fn new() -> Self {
         WriterTable {
             map: HashMap::new()
@@ -158,11 +135,11 @@ impl<Key, Value> WriterTable<Key, Value> where Key: Eq + Hash + Clone, Value: Cl
 }
 
 
-impl<Key, Value> WriterTable<Key, Value> where Key: Eq + Hash + Clone, Value: Clone + Serializable + FormatInTable {
+impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable {
     /// Get an entry from the header.
     ///
     /// The number of entries is incremented by 1.
-    fn get(&self, kind: &Key) -> Option<&TableEntry<Value>> {
+    fn get(&self, kind: &Entry) -> Option<&TableEntry<Entry>> {
         self.map.get(kind)
             .map(|entry| {
                 // Increment by 1
@@ -172,14 +149,23 @@ impl<Key, Value> WriterTable<Key, Value> where Key: Eq + Hash + Clone, Value: Cl
             })
     }
 
-    /// Insert a new entry, with a number of instances of 1.
-    fn insert(&mut self, key: Key, value: Value) -> TableIndex<Value> {
-        let entry = TableEntry::new(value);
-        let index = entry.index.clone();
-        if let Some(_) = self.map.insert(key, entry) {
-            panic!("The table already contains an entry for this key");
+    /// Insert an entry.
+    ///
+    /// If the entry is already present, increment its number instances of 1.
+    fn insert(&mut self, entry: Entry) -> TableIndex<Entry> {
+        use std::collections::hash_map::Entry::*;
+        match self.map.entry(entry) {
+            Occupied(slot) => {
+                *slot.get().instances.borrow_mut() += 1;
+                slot.get().index.clone()
+            }
+            Vacant(slot) => {
+                let entry = TableEntry::new(slot.key().clone());
+                let index = entry.index.clone();
+                slot.insert(entry);
+                index
+            }
         }
-        index
     }
 }
 
@@ -191,7 +177,7 @@ impl<Key, Value> WriterTable<Key, Value> where Key: Eq + Hash + Clone, Value: Cl
 ///       -   byte length of entry (varnum);
 /// - for each entry,
 /// -   serialization of entry.
-impl<Key, Value> Serializable for WriterTable<Key, Value> where Key: Eq + Hash + Clone, Value: Clone + FormatInTable + Serializable {
+impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
@@ -216,7 +202,7 @@ impl<Key, Value> Serializable for WriterTable<Key, Value> where Key: Eq + Hash +
         // Write number of entries
         total += out.write_varnum(serialized.len() as u32)?;
 
-        if Value::HAS_LENGTH_INDEX {
+        if Entry::HAS_LENGTH_INDEX {
             // Write length of each entry
             for entry in &serialized {
                 total += out.write_varnum(entry.len() as u32)?;
@@ -239,7 +225,7 @@ impl<Key, Value> Serializable for WriterTable<Key, Value> where Key: Eq + Hash +
 }
 
 
-#[derive(PartialEq, Eq, Clone)] // FIXME: Clone shouldn't be necessary. Sigh.
+#[derive(PartialEq, Eq, Clone, Hash, Debug)] // FIXME: Clone shouldn't be necessary. Sigh.
 pub struct NodeDescription {
     kind: NodeName,
     fields: Vec<FieldName>,
@@ -539,7 +525,16 @@ impl<'a> TreeTokenWriter<'a> {
                 .expect("Table index hasn't been resolved yet");
             let stats = self.statistics.per_kind_index.get(index as usize)
                 .expect("Could not find entry per index");
-            self.statistics.per_kind_name.insert(key.clone(), stats.clone());
+            match self.statistics.per_kind_name.entry(key.kind.clone()) {
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    let borrow = entry.get_mut();
+                    borrow.add(stats);
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(stats.clone());
+                }
+            }
+            self.statistics.per_description.insert(key, stats.clone());
         }
 
         info!("Statistics: {}", self.statistics);
@@ -583,8 +578,7 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
                 nature: Nature::String
             }));
         }
-        let value = key.clone(); // FIXME: That's pretty wasteful.
-        let index = self.strings_table.insert(key, value);
+        let index = self.strings_table.insert(key);
         Ok(self.register(LabelledItem {
             item: Item::String(index),
             nature: Nature::String
@@ -631,34 +625,22 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     fn tagged_tuple(&mut self, tag: &str, children: &[(&Field, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
         let mut data : Vec<Rc<LabelledItem>> = vec![];
         {
-            let tag = match self.syntax.get_node_name(tag) {
+            let kind = match self.syntax.get_node_name(tag) {
                 None => return Err(TokenWriterError::GrammarError(GrammarError::NoSuchKind(tag.to_string()))),
-                Some(node) => node
+                Some(node) => node.clone()
             };
 
             // Establish the order in which children need to be written.
-            let mut order = vec![];
-            let index = if let Some(entry) = self.grammar_table.get(tag) {
-                for name in &entry.data.fields {
-                    order.push(name.clone())
-                }
-                Some(entry.index.clone())
-            } else {
-                for child in children {
-                    order.push(child.0.name().clone())
-                }
-                None
+            // For the moment, this order is arbitrary, just guaranteed to work until the end of the encoding.
+            let mut order : Vec<_> = children.iter()
+                .map(|child| child.0.name().clone())
+                .collect();
+            order.sort_unstable();
+            let description = NodeDescription {
+                kind,
+                fields: order.clone()
             };
-            let index = match index {
-                None => {
-                    let description = NodeDescription {
-                        kind: tag.clone(),
-                        fields: order.clone()
-                    };
-                    self.grammar_table.insert(tag.clone(), description)
-                }
-                Some(index) => index
-            };
+            let index = self.grammar_table.insert(description);
 
             // Now write data.
             data.push(Rc::new(LabelledItem {
@@ -688,10 +670,10 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
 pub struct TreeTokenWriter<'a> {
     /// The table defining the accepted TaggedTuple
     /// and how they are laid out in the binary.
-    grammar_table: WriterTable<NodeName, NodeDescription>,
+    grammar_table: WriterTable<NodeDescription>,
 
     /// The strings used in the binary.
-    strings_table: WriterTable<Option<String>, Option<String>>,
+    strings_table: WriterTable<Option<String>>,
 
     root: Option<Tree>,
 
@@ -733,6 +715,15 @@ pub struct NodeStatistics {
     /// Number of bytes used to represent the node, including all subnodes.
     total_bytes: usize,
 }
+impl NodeStatistics {
+    fn add(&mut self, value: &Self) {
+        self.entries += value.entries;
+        self.own_bytes += value.own_bytes;
+        self.shallow_bytes += value.shallow_bytes;
+        self.total_bytes += value.total_bytes;
+    }
+}
+
 
 #[derive(Debug, Default)]
 pub struct Statistics {
@@ -742,6 +733,7 @@ pub struct Statistics {
 
     per_kind_index: VecMap<NodeStatistics>,
     per_kind_name: HashMap<NodeName, NodeStatistics>,
+    per_description: HashMap<NodeDescription, NodeStatistics>,
     list_lengths: VecMap<usize>,
 
     bool: NodeStatistics,
@@ -753,8 +745,10 @@ pub struct Statistics {
     tagged_tuple: NodeStatistics,
 }
 
-struct NodeNameAndStatistics(Vec<(NodeName, NodeStatistics)>);
+// Shortcuts to display statistics
 
+struct NodeNameAndStatistics(Vec<(NodeName, NodeStatistics)>);
+struct NodeDescriptionAndStatistics(Vec<(NodeDescription, NodeStatistics)>);
 struct ListLengthsAndNumber(Vec<(usize, usize)>);
 
 impl Display for NodeNameAndStatistics {
@@ -770,6 +764,30 @@ impl Display for NodeNameAndStatistics {
         Ok(())
     }
 }
+
+impl Display for NodeDescriptionAndStatistics {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        // FIXME: Ugly. Find a better way to handle indentation.
+        for &(ref description, ref stats) in &self.0 {
+            write!(f, "\t\t{} [", description.kind.to_string())?;
+            let mut start = true;
+            for field in &description.fields {
+                if !start {
+                    write!(f, ", ")?;
+                }
+                start = false;
+                write!(f, "{}", field.to_string())?;
+            }
+            write!(f, "]")?;
+            write!(f, "\t\t\tEntries: {}\n", stats.entries)?;
+            write!(f, "\t\t\tOwn bytes: {}\n", stats.own_bytes)?;
+            write!(f, "\t\t\tShallow bytes: {}\n", stats.shallow_bytes)?;
+            write!(f, "\t\t\tTotal bytes: {}\n", stats.total_bytes)?;
+        }
+        Ok(())
+    }
+}
+
 
 impl Display for ListLengthsAndNumber {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
@@ -788,6 +806,12 @@ impl Display for Statistics {
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect();
         per_kind.sort_unstable_by(|a, b| usize::cmp(&b.1.entries, &a.1.entries));
+
+        // Per kind expanded.
+        let mut per_description : Vec<_> = self.per_description.iter()
+            .map(|(a, b)| (a.clone(), b.clone()))
+            .collect();
+        per_description.sort_unstable_by(|a, b| usize::cmp(&b.1.entries, &a.1.entries));
 
         let mut per_size : Vec<_> = self.list_lengths.iter()
             .map(|(a, b)| (a.clone(), b.clone()))
@@ -809,7 +833,9 @@ Statistics
 \t\t\tEntries: {}
 \t\t\tUncompressed bytes: {}
 \t\t\tCompressed bytes: {}
-\tNodes:
+\tNodes (grammar entries collapsed):
+{}
+\tNodes (grammar entries expanded):
 {}
 \tKinds:
 \t\tBool:
@@ -846,6 +872,7 @@ Statistics
         self.tree.uncompressed_bytes,
         self.tree.compressed_bytes,
         NodeNameAndStatistics(per_kind),
+        NodeDescriptionAndStatistics(per_description),
         self.bool.entries,
         self.bool.own_bytes,
         self.float.entries,

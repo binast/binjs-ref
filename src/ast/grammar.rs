@@ -283,7 +283,7 @@ impl Kind {
 }
 
 /// The name of a field.
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub struct FieldName(Rc<String>);
 impl FieldName {
     pub fn to_str(&self) -> &str {
@@ -321,8 +321,8 @@ impl Field {
 }
 
 /// A type, typically that of a field.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Type {
+#[derive(Clone, Debug, PartialEq)]
+pub enum TypeSpec {
     /// An array of values of the same type.
     Array(Box<Type>),
 
@@ -330,73 +330,101 @@ pub enum Type {
     Enum(NodeName),
 
     /// A value that may belong to one or more interfaces.
-    Interfaces {
-        /// The names of interfaces. Never empty.
-        names: Vec<NodeName>,
-
-        /// If `true`, `null` is an acceptable value.
-        or_null: bool
-    },
+    Interfaces(Vec<NodeName>),
 
     /// A boolean.
-    Boolean { or_null: bool },
+    Boolean,
 
     /// A string.
-    String { or_null: bool },
+    String,
 
     /// A number.
-    Number { or_null: bool },
+    Number,
 }
 
-impl Type {
-    /// Shorthand constructor.
-    pub fn interface(name: &NodeName) -> Self {
-        Type::Interfaces {
-            names: vec![name.clone()],
-            or_null: false
+impl TypeSpec {
+    pub fn array(self) -> Type {
+        TypeSpec::Array(Box::new(Type {
+            spec: self,
+            defaults_to: None
+        })).close()
+    }
+    pub fn defaults_to(self, value: JSON) -> Type {
+        Type {
+            spec: self,
+            defaults_to: Some(value)
         }
     }
-    pub fn enumeration(name: &NodeName) -> Self {
-        Type::Enum(name.clone())
-    }
-    pub fn interfaces(names: &[&NodeName]) -> Self {
-        Type::Interfaces {
-            names: names.iter().cloned().cloned().collect(),
-            or_null: false
-        }
-    }
-    pub fn string() -> Self {
-        Type::String { or_null: false }
-    }
-    pub fn number() -> Self {
-        Type::Number { or_null: false }
-    }
-    pub fn bool() -> Self {
-        Type::Boolean { or_null: false }
-    }
-    pub fn array(self) -> Self {
-        Type::Array(Box::new(self))
-    }
-    pub fn or_null(self) -> Option<Self> {
+    pub fn close(self) -> Type {
         match self {
-            Type::Interfaces { names, .. } =>
-                Some(Type::Interfaces {
-                    names,
-                    or_null: true
-                }),
-            Type::String { .. } =>
-                Some(Type::String { or_null: true }),
-            Type::Boolean { .. } =>
-                Some(Type::Boolean { or_null: true }),
-            Type::Number { .. } =>
-                Some(Type::Number { or_null: true }),
-            _ => None
+            TypeSpec::Array(_) => Type {
+                spec: self,
+                defaults_to: Some(JSON::Array(vec![]))
+            },
+            TypeSpec::Boolean => Type {
+                spec: self,
+                defaults_to: Some(JSON::Bool(true))
+            },
+            TypeSpec::Number => Type {
+                spec: self,
+                defaults_to: Some(JSON::Number(serde_json::Number::from_f64(0.).unwrap()))
+            },
+            _ => Type {
+                spec: self,
+                defaults_to: None,
+            },
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Type {
+    spec: TypeSpec,
+
+    /// If the value is not specified, it defaults to...
+    /// (`None` if the value MUST be specified)
+    defaults_to: Option<JSON>,
+}
+impl Eq for Type {}
+
+impl Type {
+    pub fn spec(&self) -> &TypeSpec {
+        &self.spec
+    }
+    pub fn default(&self) -> Option<&JSON> {
+        self.defaults_to.as_ref()
+    }
+
+    /// Shorthand constructor.
+    pub fn interface(name: &NodeName) -> TypeSpec {
+        TypeSpec::Interfaces(vec![name.clone()])
+    }
+    pub fn enumeration(name: &NodeName) -> TypeSpec {
+        TypeSpec::Enum(name.clone())
+    }
+    pub fn interfaces(names: &[&NodeName]) -> TypeSpec {
+        TypeSpec::Interfaces(names.iter().cloned().cloned().collect())
+    }
+    pub fn string() -> TypeSpec {
+        TypeSpec::String
+    }
+    pub fn number() -> TypeSpec {
+        TypeSpec::Number
+    }
+    pub fn bool() -> TypeSpec {
+        TypeSpec::Boolean
+    }
+
     pub fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
+        if let Some(ref value) = self.defaults_to {
+            // 50% chance of returning the default value
+            if depth_limit <= 0 || rng.gen() {
+                return value.clone()
+            }
+        }
         const MAX_ARRAY_LEN: usize = 16;
-        match *self {
-            Type::Array(ref type_) => {
+        match self.spec {
+            TypeSpec::Array(ref type_) => {
                 if depth_limit <= 0 {
                     return JSON::Array(vec![])
                 }
@@ -407,26 +435,16 @@ impl Type {
                 }
                 JSON::Array(buf)
             }
-            Type::Enum(ref name) => {
+            TypeSpec::Enum(ref name) => {
                 let enum_ = syntax.get_enum_by_name(name)
                     .expect("Could not find enum");
                 let choice = rng.choose(&enum_.strings)
                     .expect("Empty enum");
                 JSON::String(choice.clone())
             }
-            Type::Interfaces {
-                ref names,
-                ref or_null
-            } => {
-                if depth_limit <= 0 && *or_null {
-                    return JSON::Null
-                }
-                // Pick one of the interfaces or null if applicable.
-                let max = if *or_null {
-                    names.len() + 1
-                } else {
-                    names.len()
-                };
+            TypeSpec::Interfaces(ref names) => {
+                // Pick one of the interfaces.
+                let max = names.len();
                 let pick = rng.gen_range(0, max);
                 if pick == names.len() {
                     return JSON::Null
@@ -435,29 +453,16 @@ impl Type {
                     .expect("Interface doesn't exist");
                 interface.random(syntax, rng, depth_limit - 1)
             }
-            Type::Boolean { ref or_null } => {
-                let max = if *or_null {
-                    3
-                } else {
-                    2
-                };
-                match rng.gen_range(0, max) {
-                    0 => JSON::Bool(false),
-                    1 => JSON::Bool(true),
-                    _ => JSON::Null
-                }
+            TypeSpec::Boolean => {
+                JSON::Bool(rng.gen())
             }
-            Type::String { ref or_null } => {
-                if *or_null && rng.gen() {
-                    return JSON::Null
-                }
-                let string = rng.gen_ascii_chars().take(10).collect();
+            TypeSpec::String => {
+                const MAX_STRING_LEN : usize = 10;
+                let len = rng.gen_range(0, MAX_STRING_LEN);
+                let string = rng.gen_ascii_chars().take(len).collect();
                 JSON::String(string)
             }
-            Type::Number { ref or_null } => {
-                if *or_null && rng.gen() {
-                    return JSON::Null
-                }
+            TypeSpec::Number => {
                 let number = rng.next_f64();
                 let as_json = serde_json::Number::from_f64(number)
                     .expect("Invalid number");
@@ -764,12 +769,12 @@ impl SyntaxBuilder {
             debug!("Checking that all enums/interfaces are defined.");
             {
                 for field in interface.borrow().own_contents.fields() {
-                    match *field.type_() {
-                        Type::Enum(ref field_name) =>
+                    match field.type_().spec {
+                        TypeSpec::Enum(ref field_name) =>
                             assert!(self.enums.get(field_name).is_some(),
                                 "While compiling {:?}, could not find an enum named {:?}",
                                 name, field_name),
-                        Type::Interfaces { ref names, .. } =>
+                        TypeSpec::Interfaces(ref names) =>
                             for interface_name in names {
                                 assert!(self.interfaces.get(interface_name).is_some(),
                                     "While compiling {:?}, could not find an interface named {:?}",
@@ -840,9 +845,6 @@ impl SyntaxBuilder {
         }
         let enums_by_name = self.enums;
 
-        assert!(interfaces_by_kind.get(options.null).is_some(),
-            "Cannot find null interface {:?}", options.null);
-
         Syntax {
             interfaces_by_name,
             interfaces_by_kind,
@@ -851,7 +853,6 @@ impl SyntaxBuilder {
             kinds,
             fields: field_names,
             root: options.root.clone(),
-            null: options.null.clone(),
             annotator: options.annotator
         }
     }
@@ -887,8 +888,13 @@ impl Interface {
         }
     }
 
+    pub fn spec(&self) -> TypeSpec {
+        Type::interfaces(&[self.name()])
+    }
+
     pub fn type_(&self) -> Type {
         Type::interfaces(&[self.name()])
+            .close()
     }
 
     pub fn get_field_by_name(&self, name: &FieldName) -> Option<&Field> {
@@ -951,7 +957,6 @@ pub struct Syntax {
     kinds: HashMap<String, Kind>,
     fields: HashMap<String, FieldName>,
     root: NodeName,
-    null: Kind,
     annotator: Box<ast::annotation::Annotator>,
 }
 
@@ -996,10 +1001,6 @@ impl Syntax {
             .unwrap()
     }
 
-    pub fn get_null(&self) -> &Kind {
-        &self.null
-    }
-
     /// Ensure that a value is an inhabitant of the grammar.
     pub fn validate(&self, a: &JSON) -> Result<(), ASTError> {
         self.validate_from(a, &self.get_root().type_())
@@ -1008,20 +1009,22 @@ impl Syntax {
     /// Ensure that a value is an inhabitant of the grammar.
     pub fn validate_from(&self, a: &JSON, type_: &Type) -> Result<(), ASTError> {
         use serde_json::Value::*;
-        match (type_, a) {
-            (&Type::Boolean {..}, &Bool(_)) => Ok(()),
-            (&Type::Boolean {or_null: true}, &Null) => Ok(()),
-            (&Type::String {..},  &String(_)) => Ok(()),
-            (&Type::String {or_null: true}, &Null) => Ok(()),
-            (&Type::Number {..},  &Number(_)) => Ok(()),
-            (&Type::Number {or_null: true}, &Null) => Ok(()),
-            (&Type::Array(ref type_), &Array(ref values)) => {
+        if let Some(ref default) = type_.defaults_to {
+            if a == default {
+                return Ok(())
+            }
+        }
+        match (type_.spec(), a) {
+            (&TypeSpec::Boolean, &Bool(_)) => Ok(()),
+            (&TypeSpec::String,  &String(_)) => Ok(()),
+            (&TypeSpec::Number,  &Number(_)) => Ok(()),
+            (&TypeSpec::Array(ref type_), &Array(ref values)) => {
                 for value in values {
                     self.validate_from(value, type_)?;
                 }
                 Ok(())
             }
-            (&Type::Enum(ref name), &String(ref a)) => {
+            (&TypeSpec::Enum(ref name), &String(ref a)) => {
                 let enum_ = self.get_enum_by_name(name)
                     .expect("Could not find enum in grammar"); // At this stage, this shouldn't be possible.
                 enum_.strings.iter().find(|x| *x == a).
@@ -1031,8 +1034,7 @@ impl Syntax {
                     })?;
                 Ok(())
             }
-            (&Type::Interfaces { or_null: true, .. }, &Null) => Ok(()),
-            (&Type::Interfaces { ref names, .. }, &Object(ref a))
+            (&TypeSpec::Interfaces(ref names), &Object(ref a))
                 if a.get("type").is_some() =>
             {
                 let check_valid = |obj: &serde_json::Map<_, _>| {
@@ -1089,24 +1091,18 @@ impl Syntax {
 
     /// Compare two ASTs, restricting comparison to the
     /// items that appear in the grammar.
-    pub fn compare_from(&self, a: &JSON, b: &JSON, type_: &Type) -> Result<bool, ASTError> {
+    pub fn compare_from(&self, left: &JSON, right: &JSON, inhabit: &Type) -> Result<bool, ASTError> {
         use serde_json::Value::*;
-        match (type_, a, b) {
-            (&Type::Boolean { .. }, &Bool(ref a), &Bool(ref b)) =>
-                Ok(a == b),
-            (&Type::Boolean { or_null: true }, &Null, &Null) =>
+        match (&inhabit.spec, &inhabit.defaults_to, left, right) {
+            (_, &Some(Null), &Null, &Null) => // This is the only case in which we accept `null` as a value.
                 Ok(true),
-            (&Type::String { .. }, &String(ref a), &String(ref b)) =>
+            (&TypeSpec::Boolean, _, &Bool(ref a), &Bool(ref b)) =>
                 Ok(a == b),
-            (&Type::String { or_null: true }, &Null, &Null) =>
-                Ok(true),
-            (&Type::Number { .. }, &Number(ref a), &Number(ref b)) => {
-                Ok(f64_of(a) == f64_of(b))
-            }
-            (&Type::Number { or_null: true }, &Null, &Null) => {
-                Ok(true)
-            }
-            (&Type::Array(ref type_), &Array(ref vec_a), &Array(ref vec_b)) => {
+            (&TypeSpec::String, _, &String(ref a), &String(ref b)) =>
+                Ok(a == b),
+            (&TypeSpec::Number, _, &Number(ref a), &Number(ref b)) =>
+                Ok(f64_of(a) == f64_of(b)),
+            (&TypeSpec::Array(ref type_), _, &Array(ref vec_a), &Array(ref vec_b)) => {
                 if vec_a.len() != vec_b.len() {
                     Ok(false)
                 } else {
@@ -1118,7 +1114,7 @@ impl Syntax {
                     Ok(true)
                 }
             }
-            (&Type::Enum(ref name), &String(ref a), &String(ref b)) => {
+            (&TypeSpec::Enum(ref name), _, &String(ref a), &String(ref b)) => {
                 let enum_ = self.get_enum_by_name(name)
                     .expect("Could not find enum in grammar"); // At this stage, this shouldn't be possible.
                 if enum_.strings.iter().find(|x| *x == a).is_some() {
@@ -1137,8 +1133,7 @@ impl Syntax {
                     })
                 }
             }
-            (&Type::Interfaces { or_null: true, .. }, &Null, &Null) => Ok(true),
-            (&Type::Interfaces { ref names, .. }, &Object(ref a), &Object(ref b))
+            (&TypeSpec::Interfaces(ref names), _, &Object(ref a), &Object(ref b))
                 if a.get("type").is_some() && b.get("type").is_some() =>
             {
                 let check_valid = |obj: &serde_json::Map<_, _>| {
@@ -1176,16 +1171,18 @@ impl Syntax {
                         .ok_or_else(|| ASTError::MissingField(field.name().to_string().clone()))?;
                     let b = b.get(field.name().to_str())
                         .ok_or_else(|| ASTError::MissingField(field.name().to_string().clone()))?;
-                    if !self.compare_from(a, b, field.type_())? {
+                    if !self.compare_from(a, b, field.type_()) ? {
                         return Ok(false)
                     }
                 }
                 Ok(true)
             },
-            _ => Err(ASTError::InvalidValue {
-                expected: format!("{:?}", type_),
-                got: format!("{:?}", (a, b))
-            })
+            _ => {
+                Err(ASTError::InvalidValue {
+                    expected: format!("{:?}", inhabit),
+                    got: format!("{:?} =?= {:?}", left, right)
+                })
+            }
         }
     }
 
@@ -1256,9 +1253,6 @@ impl ASTError {
 
 /// Informations passed during the creation of a `Syntax` object.
 pub struct SyntaxOptions<'a> {
-    /// The kind of the special node used to encode null AST nodes (NOT null literals).
-    pub null: &'a Kind,
-
     /// The name of the node used to start encoding.
     pub root: &'a NodeName,
 

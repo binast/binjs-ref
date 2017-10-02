@@ -99,12 +99,88 @@ impl Babel {
             .map_err(Error::JsonError)
     }
 
+    /// Since the Babylon grammar and our grammar have a few differences, we need
+    /// to apply fixes when parsing an AST.
+    fn convert_from_babylon(&self, value: &mut JSON) {
+        use serde_json::Value::*;
+        match *value {
+            Array(ref mut array) => {
+                for value in array {
+                    self.convert_from_babylon(value);
+                }
+            }
+            Object(ref mut object) => {
+                for (_, value) in object.iter_mut() {
+                    self.convert_from_babylon(value);
+                }
+                // In Babylon, `ArrayExpression::elements` has type `[Expression | null]`.
+                // In BinJS, it has type `[Expression | Elision]`.
+                {
+                    if let Some(&JSON::String(ref t)) = object.get("type") {
+                        if t != "ArrayExpression" {
+                            return;
+                        }
+                    }
+                }
+                if let Some(&mut JSON::Array(ref mut elements)) = object.get_mut("elements") {
+                    for item in elements.iter_mut() {
+                        if item.is_null() {
+                            *item = json!({
+                                "type": "Elision"
+                            })
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Since the Babylon grammar and our grammar have a few differences, we need
+    /// to apply fixes when parsing an AST.
+    fn convert_to_babylon(&self, value: &mut JSON) {
+        use serde_json::Value::*;
+        match *value {
+            Array(ref mut array) => {
+                for value in array {
+                    self.convert_from_babylon(value);
+                }
+            }
+            Object(ref mut object) => {
+                for (_, value) in object.iter_mut() {
+                    self.convert_from_babylon(value);
+                }
+                // In Babylon, `ArrayExpression::elements` has type `[Expression | null]`.
+                // In BinJS, it has type `[Expression | Elision]`.
+                if let Some(&JSON::String(ref t)) = object.get("type") {
+                    if t != "ArrayExpression" {
+                        return;
+                    }
+                }
+                if let Some(&mut JSON::Array(ref mut elements)) = object.get_mut("elements") {
+                    for item in elements.iter_mut() {
+                        if let Some(&JSON::String(ref t)) = item.get("type") {
+                            if t != "Elision" {
+                                continue;
+                            }
+                        }
+                        *item = JSON::Null
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub fn to_source(&self, ast: &JSON) -> Result<String, Error> {
         // Escape `"`.
         let data = serde_json::to_string(ast)
             .map_err(Error::JsonError)?
             .replace("\\", "\\\\")
             .replace("\"", "\\\"");
+
+        let mut ast = ast.clone();
+        self.convert_to_babylon(&mut ast);
 
         // A script to parse a string, write it to stdout as JSON.
         let script = format!(
@@ -144,7 +220,10 @@ impl SourceParser for Babel {
             return JSON.stringify(parsed.program);
             "##,
             data);
-        self.parse_script_json_output(&script)
+
+        let mut ast = self.parse_script_json_output(&script)?;
+        self.convert_from_babylon(&mut ast);
+        Ok(ast)
     }
 
     /// Parse a text source file, using Babel.
@@ -181,7 +260,9 @@ impl SourceParser for Babel {
             }}
             "##,
             path);
-        self.parse_script_json_output(&script)
+        let mut ast = self.parse_script_json_output(&script)?;
+        self.convert_from_babylon(&mut ast);
+        Ok(ast)
     }
 }
 

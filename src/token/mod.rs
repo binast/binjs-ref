@@ -28,7 +28,11 @@ pub enum GrammarError {
     NoSuchField {
         kind: NodeName,
         field: String
-    }
+    },
+    MissingField {
+        kind: NodeName,
+        field: String
+    },
 }
 
 #[derive(Debug)]

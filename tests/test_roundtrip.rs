@@ -3,6 +3,7 @@
 extern crate binjs;
 extern crate glob;
 extern crate env_logger;
+extern crate serde_json;
 
 use binjs::bytes::compress::*;
 use binjs::source::*;
