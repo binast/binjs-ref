@@ -50,7 +50,10 @@ Note that this tool does not attempt to make sure that the files are entirely co
             Arg::with_name("size")
                 .long("size")
                 .takes_value(true)
-                .help("Expected file size (in AST depth). Default: 5.")
+                .help("Expected file size (in AST depth). Default: 5."),
+            Arg::with_name("random-ast-metadata")
+                .long("random-metadata")
+                .help("If specified, generate random ast metadata (declared variables, etc.).")
         ])
         .get_matches();
     let is_multipart =
@@ -79,6 +82,8 @@ Note that this tool does not attempt to make sure that the files are entirely co
         _ => panic!("Invalid level")
     };
 
+    let random_metadata = matches.is_present("random-metadata");
+
     let mut rng = rand::thread_rng();
     let parser = Babel::new();
 
@@ -87,8 +92,17 @@ Note that this tool does not attempt to make sure that the files are entirely co
         if i >= number {
             break;
         }
-        println!("Generating file {}...", i);
-        let ast = grammar.random(&mut rng, size);
+        println!("Generating ast {}...", i);
+
+        let mut ast = grammar.random(&mut rng, size);
+
+        println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+
+        if !random_metadata {
+            // Reannotate.
+            grammar.annotate(&mut ast)
+                .expect("Could not infer annotations");
+        }
 
         println!("{}", serde_json::to_string_pretty(&ast).unwrap());
 
