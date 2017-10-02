@@ -394,7 +394,6 @@ impl Type {
         }
     }
     pub fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
-        println!("Generating instance of type {:?} with depth {}", self, depth_limit);
         const MAX_ARRAY_LEN: usize = 16;
         match *self {
             Type::Array(ref type_) => {
@@ -902,15 +901,12 @@ impl Interface {
     }
 
     fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
-        println!("Generating instance of interface {} with depth {}", self.name().to_str(), depth_limit);
-
         // Pick one of the descendants of `start`. Exclude `start` if it is virtual
         let max = if self.declaration.kind.is_some() {
             self.declaration.sub_interfaces.len() + 1
         } else {
             self.declaration.sub_interfaces.len()
         };
-        println!("Sub-interfaces: {:?}", self.declaration.sub_interfaces);
         assert!(max > 0, "This interface is purely virtual but doesn't have any concrete descendent {:?}", self.name());
 
         let index = rng.gen_range(0, max);
@@ -936,8 +932,6 @@ impl Interface {
             .unwrap()
             .to_string()
             .clone();
-        println!("Picked kind {}", kind);
-
 
         result.insert("type".to_string(), JSON::String(kind));
         for field in start.full_contents.fields() {

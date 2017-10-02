@@ -204,6 +204,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                 let encoded = self.encode_from_type(source, field.type_(), node)?;
                 result.push((field, encoded))
             } else {
+                debug!("Error in {:?}", object);
                 return Err(Error::missing_field(field.name().to_string(), node));
             }
         }

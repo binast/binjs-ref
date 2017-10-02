@@ -351,21 +351,14 @@ impl<'a> Context<'a, RefContents> {
             }
         }
 
-        assert!(!object.contains_key(BINJS_CAPTURED_NAME));
-        assert!(!object.contains_key(BINJS_DIRECT_EVAL));
-
         let mut captured_names = self.captured_names();
         captured_names.sort();
         let borrow = self.contents.borrow();
-        assert!(object
-            .insert(BINJS_CAPTURED_NAME.to_string(), json!(captured_names))
-            .is_none(),
-            "This node already has a field {}", BINJS_CAPTURED_NAME);
+        object
+            .insert(BINJS_CAPTURED_NAME.to_string(), json!(captured_names));
 
-        assert!(object
-            .insert(BINJS_DIRECT_EVAL.to_string(), json!(borrow.data.has_direct_eval))
-            .is_none(),
-            "This node already has a field {}", BINJS_DIRECT_EVAL);
+        object
+            .insert(BINJS_DIRECT_EVAL.to_string(), json!(borrow.data.has_direct_eval));
     }
     pub fn load(&mut self, parent: &Object) {
         let object = parent.get_object(SCOPE_NAME, "Scope field")
@@ -568,7 +561,6 @@ impl<'a> Context<'a, DeclContents> {
     }
     /// Store scope information in a field "BINJS:Scope" of the node.
     pub fn store(&self, parent: &mut Object) {
-        assert!(!parent.contains_key(SCOPE_NAME));
         let borrow = self.contents.borrow();
 
         let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
@@ -580,11 +572,14 @@ impl<'a> Context<'a, DeclContents> {
         let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
         const_decl_names.sort();
 
+        // We may overwrite an existing "BINJS:Scope" object in case we're fuzzing.
         parent.insert(SCOPE_NAME.to_string(), json!({
             "type": SCOPE_NAME,
             BINJS_VAR_NAME: var_decl_names,
             BINJS_LET_NAME: let_decl_names,
             BINJS_CONST_NAME: const_decl_names,
+            BINJS_CAPTURED_NAME: [],
+            BINJS_DIRECT_EVAL: false,
         }));
     }
 }

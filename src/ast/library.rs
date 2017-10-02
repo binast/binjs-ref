@@ -880,6 +880,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         me.process_references_field(me, ctx, object, "property")?;
                     } else {
                         // Normally, `property` is an identifier, skip it.
+/* FIXME: Find a way to restore this sanity check when we're not fuzzing.
                         // Sanity check.
                         let property = object.get_object_mut("property", "Field `property` of `MemberExpression`")?;
                         let kind = property.get_string("type", "Field `type` of `MemberExpression[\"property\"]`")?;
@@ -889,6 +890,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 expected: "Identifier".to_string()
                             });
                         }
+*/
                     }
                 }
                 _ => {
