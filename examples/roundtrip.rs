@@ -32,7 +32,8 @@ fn main() {
         .author("David Teller, <dteller@mozilla.com>")
         .about("Check that encoding + decoding a file yields the same AST.")
         .args(&[
-            Arg::with_name("INPUT")
+            Arg::with_name("in")
+                .long("in")
                 .multiple(true)
                 .takes_value(true)
                 .help("Input files to use. Must be JS source file."),
@@ -101,6 +102,11 @@ fn main() {
         }
     };
 
+    let files : Vec<_> = matches.values_of("in")
+        .unwrap()
+        .collect();
+    println!("List of files: {:?}", files);
+
     let show_stats = matches.is_present("statistics");
 
     let mut multipart_stats = binjs::token::multipart::Statistics::default()
@@ -110,7 +116,7 @@ fn main() {
     let parser = Babel::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
-    for source_path in matches.value_of("INPUT") {
+    for source_path in files {
         println!("Parsing {}.", source_path);
         let bytes = std::fs::metadata(source_path)
             .expect("Could not find source path")
@@ -172,14 +178,14 @@ fn main() {
             .expect("Could not compare ASTs");
         assert!(equal);
 
-        if show_stats {
-            if compression.is_none() {
-                println!("Statistics: {}", simple_stats);
-            } else {
-                println!("Statistics: {}", multipart_stats);
-            }
-        }
-
         println!("Roundtrip success!");
+    }
+
+    if show_stats {
+        if compression.is_none() {
+            println!("Statistics: {}", simple_stats);
+        } else {
+            println!("Statistics: {}", multipart_stats);
+        }
     }
 }

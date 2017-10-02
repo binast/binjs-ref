@@ -225,16 +225,12 @@ pub struct TreeTokenReader<'a> {
 impl<'a> TreeTokenReader<'a> {
     pub fn new<R: Read + Seek>(mut reader: R, syntax: &'a Syntax) -> Result<Self, TokenReaderError> {
         // Check magic headers.
-        println!("TreeTokenReader::new()");
-
         const MAGIC_HEADER: &'static [u8; 5] = b"BINJS";
         const FORMAT_VERSION: u32 = 0;
 
-        println!("TreeTokenReader::new() checking magic header");
         reader.read_const(MAGIC_HEADER)
             .map_err(TokenReaderError::ReadError)?;
 
-        println!("TreeTokenReader::new() checking version");
         let mut version = 0;
         reader.read_varnum(&mut version)
             .map_err(TokenReaderError::ReadError)?;
@@ -244,8 +240,6 @@ impl<'a> TreeTokenReader<'a> {
         }
 
         // At this stage, we could start parallelizing reads between grammar table and strings table, possibly even the tree.
-
-        println!("TreeTokenReader::new() reading grammar table");
         reader.read_const(HEADER_GRAMMAR_TABLE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
 
@@ -257,22 +251,17 @@ impl<'a> TreeTokenReader<'a> {
         };
         let grammar_table = Compression::decompress(&mut reader, &grammar_deserializer)
             .map_err(TokenReaderError::BadCompression)?;
-        println!("TreeTokenReader::new() grammar table has {} entries", grammar_table.map.len());
-
 
         // Read strings table
         reader.read_const(HEADER_STRINGS_TABLE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
-        println!("TreeTokenReader::new() reading strings table");
         let strings_deserializer = TableDeserializer {
             deserializer: None /* Option<String> */
         };
         let strings_table = Compression::decompress(&mut reader, &strings_deserializer)
             .map_err(TokenReaderError::BadCompression)?;
-        println!("TreeTokenReader::new() strings table has {} entries", strings_table.map.len());
 
         // Decompress tree section to memory (we could as well stream it)
-        println!("TreeTokenReader::new() decompressing tree to memory");
         reader.read_const(HEADER_TREE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
         let decompressed_tree = Compression::decompress(&mut reader, &BufDeserializer)

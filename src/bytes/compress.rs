@@ -218,8 +218,6 @@ impl Compression {
             }
         };
 
-        println!("Compression detected: {:?}, {} bytes => {}", compression, byte_len, decompressed_bytes.len());
-
         let value = deserializer.read(&mut Cursor::new(decompressed_bytes))?;
         Ok(value)
     }
