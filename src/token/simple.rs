@@ -380,11 +380,19 @@ impl AsRef<[u8]> for Data {
     }
 }
 
+#[derive(Default)]
 /// This encoder doesn't produce useful statistics.
 pub struct Statistics;
 impl std::fmt::Display for Statistics {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "No statistics available for this encoder")
+    }
+}
+
+impl std::ops::Add for Statistics {
+    type Output = Self;
+    fn add(self, _: Self) -> Self::Output {
+        Statistics
     }
 }
 

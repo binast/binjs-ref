@@ -13,6 +13,7 @@ use std::cell::RefCell;
 use std::fmt::{ Display, Formatter };
 use std::hash::Hash;
 use std::io::Write;
+use std::ops::{ Add, AddAssign };
 use std::rc::Rc;
 
 use rand::{ Rand, Rng };
@@ -699,6 +700,14 @@ pub struct SectionStatistics {
     compressed_bytes: usize,
 }
 
+impl AddAssign for SectionStatistics {
+    fn add_assign(&mut self, rhs: Self) {
+        self.entries += rhs.entries;
+        self.uncompressed_bytes += rhs.uncompressed_bytes;
+        self.compressed_bytes += rhs.compressed_bytes;
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct NodeStatistics {
     /// Total number of entries of this node.
@@ -724,6 +733,14 @@ impl NodeStatistics {
     }
 }
 
+impl AddAssign for NodeStatistics {
+    fn add_assign(&mut self, rhs: Self) {
+        self.entries += rhs.entries;
+        self.own_bytes += rhs.own_bytes;
+        self.shallow_bytes += rhs.shallow_bytes;
+        self.total_bytes += rhs.total_bytes;
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct Statistics {
@@ -743,6 +760,70 @@ pub struct Statistics {
     list_header: NodeStatistics,
     tagged_header: NodeStatistics,
     tagged_tuple: NodeStatistics,
+}
+
+impl Add for Statistics {
+    type Output = Self;
+    fn add(mut self, mut rhs: Self) -> Self {
+        self.grammar_table += rhs.grammar_table;
+        self.strings_table += rhs.strings_table;
+        self.tree += rhs.tree;
+
+        for (key, value) in rhs.per_kind_index.drain() {
+            use vec_map::Entry::*;
+            match self.per_kind_index.entry(key) {
+                Occupied(mut entry) => {
+                    *entry.get_mut() += value;
+                }
+                Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+        for (key, value) in rhs.per_description.drain() {
+            use std::collections::hash_map::Entry::*;
+            match self.per_description.entry(key) {
+                Occupied(mut entry) => {
+                    *entry.get_mut() += value;
+                }
+                Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+        for (key, value) in rhs.per_kind_name.drain() {
+            use std::collections::hash_map::Entry::*;
+            match self.per_kind_name.entry(key) {
+                Occupied(mut entry) => {
+                    *entry.get_mut() += value;
+                }
+                Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+        for (key, value) in rhs.list_lengths.drain() {
+            use vec_map::Entry::*;
+            match self.list_lengths.entry(key) {
+                Occupied(mut entry) => {
+                    *entry.get_mut() += value;
+                }
+                Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+
+        self.bool += rhs.bool;
+        self.float += rhs.float;
+        self.string += rhs.string;
+        self.list += rhs.list;
+        self.list_header += rhs.list_header;
+        self.tagged_header += rhs.tagged_header;
+        self.tagged_tuple += rhs.tagged_tuple;
+
+        self
+    }
 }
 
 // Shortcuts to display statistics

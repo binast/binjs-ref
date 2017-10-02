@@ -10,6 +10,7 @@ use binjs::bytes::compress::*;
 use binjs::source::*;
 use binjs::token::encode::*;
 
+use std::default::Default;
 use std::io::*;
 
 
@@ -32,8 +33,9 @@ fn main() {
         .about("Check that encoding + decoding a file yields the same AST.")
         .args(&[
             Arg::with_name("INPUT")
-                .required(true)
-                .help("Input file to use. Must be a JS source file."),
+                .multiple(true)
+                .takes_value(true)
+                .help("Input files to use. Must be JS source file."),
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
@@ -63,9 +65,6 @@ fn main() {
             .multiple(true)
         )
         .get_matches();
-
-    let source_path = matches.value_of("INPUT")
-        .expect("Expected input file");
 
     let compression = {
         let mut is_compressed = false;
@@ -104,67 +103,77 @@ fn main() {
 
     let show_stats = matches.is_present("statistics");
 
-    println!("Applying roundtrip to {}", source_path);
+    let mut multipart_stats = binjs::token::multipart::Statistics::default();
+    let mut simple_stats = binjs::token::simple::Statistics::default();
 
     let parser = Babel::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
-    println!("Parsing.");
-    let mut ast    = parser.parse_file(source_path)
-        .expect("Could not parse source");
+    for source_path in matches.value_of("INPUT") {
+        println!("Parsing {}.", source_path);
+        let mut ast    = parser.parse_file(source_path)
+            .expect("Could not parse source");
 
-    println!("Annotating.");
-    grammar.annotate(&mut ast)
-        .expect("Could not infer annotations");
+        println!("Annotating.");
+        grammar.annotate(&mut ast)
+            .expect("Could not infer annotations");
 
-    let decoded = match compression {
-        None => {
-            println!("Encoding.");
-            let writer  = binjs::token::simple::TreeTokenWriter::new();
-            let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+        let decoded = match compression {
+            None => {
+                println!("Encoding.");
+                let writer  = binjs::token::simple::TreeTokenWriter::new();
+                let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
 
-            encoder.encode(&ast)
-                .expect("Could not encode AST");
-            let (data, _) = encoder.done()
-                .expect("Could not finalize AST encoding");
+                encoder.encode(&ast)
+                    .expect("Could not encode AST");
+                let (data, stats) = encoder.done()
+                    .expect("Could not finalize AST encoding");
 
-            println!("Decoding.");
-            let source = Cursor::new(data.as_ref().clone());
-            let reader = binjs::token::simple::TreeTokenReader::new(source, &grammar);
-            let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+                simple_stats = simple_stats + stats;
 
-            decoder.decode()
-                .expect("Could not decode")
-        }
-        Some(options) => {
-            println!("Encoding.");
-            let writer  = binjs::token::multipart::TreeTokenWriter::new(options, &grammar);
-            let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+                println!("Decoding.");
+                let source = Cursor::new(data.as_ref().clone());
+                let reader = binjs::token::simple::TreeTokenReader::new(source, &grammar);
+                let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
 
-            encoder.encode(&ast)
-                .expect("Could not encode AST");
-            let (data, stats) = encoder.done()
-                .expect("Could not finalize AST encoding");
-
-            if show_stats {
-                println!("Statistics: {}", stats);
+                decoder.decode()
+                    .expect("Could not decode")
             }
+            Some(ref options) => {
+                println!("Encoding.");
+                let writer  = binjs::token::multipart::TreeTokenWriter::new(options.clone(), &grammar);
+                let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
 
-            println!("Decoding.");
-            let source = Cursor::new(data.as_ref().clone());
-            let reader = binjs::token::multipart::TreeTokenReader::new(source, &grammar)
-                .expect("Could not decode AST container");
-            let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+                encoder.encode(&ast)
+                    .expect("Could not encode AST");
+                let (data, stats) = encoder.done()
+                    .expect("Could not finalize AST encoding");
+                multipart_stats = multipart_stats + stats;
 
-            decoder.decode()
-                .expect("Could not decode")
+                println!("Decoding.");
+                let source = Cursor::new(data.as_ref().clone());
+                let reader = binjs::token::multipart::TreeTokenReader::new(source, &grammar)
+                    .expect("Could not decode AST container");
+                let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+
+                decoder.decode()
+                    .expect("Could not decode")
+            }
+        };
+
+        println!("Checking.");
+        let equal = grammar.compare(&ast, &decoded)
+            .expect("Could not compare ASTs");
+        assert!(equal);
+
+        if show_stats {
+            if compression.is_none() {
+                println!("Statistics: {}", simple_stats);
+            } else {
+                println!("Statistics: {}", multipart_stats);
+            }
         }
-    };
 
-    println!("Checking.");
-    let equal = grammar.compare(&ast, &decoded)
-        .expect("Could not compare ASTs");
-    assert!(equal);
-
-    println!("Roundtrip success!");
+        println!("Roundtrip success!");
+    }
 }

@@ -11,6 +11,7 @@ use ast::grammar::*;
 
 use std::fmt::{ Debug, Display };
 use std::marker::PhantomData;
+use std::ops::Add;
 use std::rc::Rc;
 
 /// An API for reading tokens.
@@ -97,7 +98,7 @@ pub trait TokenReader where Self::Error: Debug,
 ///
 /// Implementations may for instance introduce atoms,
 /// maximal sharing, etc.
-pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Sized {
+pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Sized + Add + Default {
     /// The type of trees manipulated by this writer.
     type Tree;
 
