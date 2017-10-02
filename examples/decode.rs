@@ -3,6 +3,7 @@
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
+extern crate serde_json;
 
 use binjs::source::*;
 
@@ -24,6 +25,10 @@ fn main() {
             Arg::with_name("OUTPUT")
                 .required(true)
                 .help("Output file to use. Will be overwritten."),
+            Arg::with_name("print-json")
+                .long("print-json")
+                .takes_value(false)
+                .help("If specified, print JSON version of the AST.")
         ])
     .get_matches();
 
@@ -58,6 +63,13 @@ fn main() {
         decoder.decode()
             .expect("Could not decode")
     };
+
+    if matches.is_present("print-json") {
+        println!("Printing to screen...");
+        let pretty = serde_json::to_string_pretty(&tree)
+            .expect("Could not pretty print");
+        println!("{}", pretty);
+    }
 
     println!("Pretty-printing");
     let source = parser.to_source(&tree)
