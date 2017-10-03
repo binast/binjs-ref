@@ -6,6 +6,7 @@ use bytes::varnum::*;
 use rand::{ Rand, Rng };
 
 use std;
+use std::collections::HashSet;
 use std::io::{ Cursor, Read, Write };
 
 const BROTLI_BUFFER_SIZE : usize = 4096;
@@ -16,7 +17,7 @@ const LZW_MIN_CODE_SIZE: u8 = 8;
 /// The compression mechanisms supported by this encoder.
 /// They are designed to match HTTP's Accept-Encoding:
 /// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Compression {
     /// no compression (`identity;`)
     Identity,
@@ -40,13 +41,24 @@ impl Rand for Compression {
 }
 
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CompressionResult {
-    pub before: usize,
-    pub after: usize,
+    pub before_bytes: usize,
+    pub after_bytes: usize,
+    pub algorithms: HashSet<Compression>,
 }
 
 impl Compression {
+    pub fn name(&self) -> &str {
+        use self::Compression::*;
+        match *self {
+            Identity => "Identity",
+            Gzip => "Gzip",
+            Deflate => "Deflate",
+            Brotli => "Brotli",
+            Lzw => "Lzw",
+        }
+    }
     pub fn parse(name: Option<&str>) -> Option<Compression> {
         let result = match name {
             None | Some("identity") => Compression::Identity,
@@ -71,8 +83,8 @@ impl Compression {
     // - compressed byte length (varnum);
     // - data.
     pub fn compress<W: Write>(&self, data: &[u8], out: &mut W) -> Result<CompressionResult, std::io::Error> {
-        let before = data.len();
-        let after = match *self {
+        let before_bytes = data.len();
+        let after_bytes = match *self {
             Compression::Identity => {
                 out.write_all(b"identity;")?;
                 out.write_varnum(data.len() as u32)?;
@@ -136,8 +148,9 @@ impl Compression {
             }
         };
         Ok(CompressionResult {
-            before,
-            after
+            before_bytes,
+            after_bytes,
+            algorithms: [self.clone()].iter().cloned().collect()
         })
     }
 

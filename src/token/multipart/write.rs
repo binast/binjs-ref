@@ -8,7 +8,7 @@ use token::multipart::*;
 use token::GrammarError;
 
 use std;
-use std::collections::HashMap;
+use std::collections::{ HashMap, HashSet };
 use std::cell::RefCell;
 use std::fmt::{ Display, Formatter };
 use std::hash::Hash;
@@ -480,22 +480,25 @@ impl<'a> TreeTokenWriter<'a> {
     }
 
     pub fn done(mut self) -> Result<(Box<[u8]>, Statistics), TokenWriterError> {
+        const MAGIC_HEADER: &[u8; 5] = b"BINJS";
         // Write header to byte stream
-        self.data.write_all(b"BINJS")
+        self.data.write_all(MAGIC_HEADER)
             .map_err(TokenWriterError::WriteError)?;
+        self.statistics.uncompressed_bytes += MAGIC_HEADER.len();
 
         const FORMAT_VERSION : u32 = 0;
         self.data.write_varnum(FORMAT_VERSION)
             .map_err(TokenWriterError::WriteError)?;
+        self.statistics.uncompressed_bytes += std::mem::size_of_val(&FORMAT_VERSION);
 
         // Write grammar table to byte stream.
         self.data.write_all(HEADER_GRAMMAR_TABLE.as_bytes())
             .map_err(TokenWriterError::WriteError)?;
+        self.statistics.uncompressed_bytes += HEADER_GRAMMAR_TABLE.len();
         let compression = self.grammar_table.write_with_compression(&mut self.data, &self.options.grammar_table)
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.grammar_table.entries = self.grammar_table.map.len();
-        self.statistics.grammar_table.uncompressed_bytes = compression.before;
-        self.statistics.grammar_table.compressed_bytes = compression.after;
+        self.statistics.grammar_table.compression = compression;
 
         // Write strings table to byte stream.
         self.data.write_all(HEADER_STRINGS_TABLE.as_bytes())
@@ -503,8 +506,7 @@ impl<'a> TreeTokenWriter<'a> {
         let compression = self.strings_table.write_with_compression(&mut self.data, &self.options.strings_table)
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.strings_table.entries = self.strings_table.map.len();
-        self.statistics.strings_table.uncompressed_bytes = compression.before;
-        self.statistics.strings_table.compressed_bytes = compression.after;
+        self.statistics.strings_table.compression = compression;
 
         // Write tree itself to byte stream.
         self.data.write_all(HEADER_TREE.as_bytes())
@@ -516,8 +518,7 @@ impl<'a> TreeTokenWriter<'a> {
             let compression = buf.write_with_compression(&mut self.data, &self.options.tree)
                 .map_err(TokenWriterError::WriteError)?;
             self.statistics.tree.entries = 1;
-            self.statistics.tree.uncompressed_bytes = compression.before;
-            self.statistics.tree.compressed_bytes = compression.after;
+            self.statistics.tree.compression = compression;
         }
 
         // Compute more statistics on nodes.
@@ -539,6 +540,9 @@ impl<'a> TreeTokenWriter<'a> {
         }
         self.statistics.number_of_files = 1;
         self.statistics.compressed_bytes = self.data.len();
+        self.statistics.uncompressed_bytes += self.statistics.grammar_table.compression.before_bytes
+            + self.statistics.strings_table.compression.before_bytes
+            + self.statistics.tree.compression.before_bytes;
         Ok((self.data.clone().into_boxed_slice(), self.statistics))
     }
 }
@@ -689,23 +693,39 @@ pub struct TreeTokenWriter<'a> {
 }
 
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct SectionStatistics {
     /// Number of entries in this table.
     entries: usize,
 
-    /// Number of bytes prior to compression.
-    uncompressed_bytes: usize,
+    compression: CompressionResult,
+}
 
-    /// Number of bytes after compression.
-    compressed_bytes: usize,
+impl Default for SectionStatistics {
+    fn default() -> Self {
+        SectionStatistics {
+            entries: 0,
+            compression: CompressionResult {
+                before_bytes: 0,
+                after_bytes: 0,
+                algorithms: HashSet::new(),
+            }
+        }
+    }
+}
+
+impl AddAssign for CompressionResult {
+    fn add_assign(&mut self, mut rhs: Self) {
+        self.before_bytes += rhs.before_bytes;
+        self.after_bytes += rhs.after_bytes;
+        self.algorithms.extend(rhs.algorithms.drain());
+    }
 }
 
 impl AddAssign for SectionStatistics {
     fn add_assign(&mut self, rhs: Self) {
         self.entries += rhs.entries;
-        self.uncompressed_bytes += rhs.uncompressed_bytes;
-        self.compressed_bytes += rhs.compressed_bytes;
+        self.compression += rhs.compression;
     }
 }
 
@@ -763,6 +783,7 @@ pub struct Statistics {
     tagged_tuple: NodeStatistics,
 
     number_of_files: usize,
+    uncompressed_bytes: usize,
     compressed_bytes: usize,
     source_bytes: Option<usize>,
 }
@@ -829,6 +850,7 @@ impl Add for Statistics {
 
         self.number_of_files += rhs.number_of_files;
         self.compressed_bytes += rhs.compressed_bytes;
+        self.uncompressed_bytes += rhs.uncompressed_bytes;
         self.source_bytes = match (self.source_bytes, rhs.source_bytes) {
             (Some(x), Some(y)) => Some(x + y),
             _ => None
@@ -847,28 +869,94 @@ impl Statistics {
 
 // Shortcuts to display statistics
 
-struct NodeNameAndStatistics(Vec<(NodeName, NodeStatistics)>);
-struct NodeDescriptionAndStatistics(Vec<(NodeDescription, NodeStatistics)>);
-struct ListLengthsAndNumber(Vec<(usize, usize)>);
-
-impl Display for NodeNameAndStatistics {
+struct SectionAndStatistics<'a> {
+    total_compressed_bytes: usize,
+    total_uncompressed_bytes: usize,
+    section: &'a SectionStatistics,
+}
+impl<'a> Display for SectionAndStatistics<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        // FIXME: Ugly. Find a better way to handle indentation.
-        for &(ref name, ref stats) in &self.0 {
-            write!(f, "\t\t{}:\n", name.to_string())?;
-            write!(f, "\t\t\tEntries: {}\n", stats.entries)?;
-            write!(f, "\t\t\tOwn bytes: {}\n", stats.own_bytes)?;
-            write!(f, "\t\t\tShallow bytes: {}\n", stats.shallow_bytes)?;
-            write!(f, "\t\t\tTotal bytes: {}\n", stats.total_bytes)?;
+        write!(f, "\t\t\tEntries: {}\n", self.section.entries)?;
+        write!(f, "\t\t\tCompression: [")?;
+        let mut first = true;
+        for item in &self.section.compression.algorithms {
+            if !first {
+                write!(f, ", ")?;
+            }
+            first = false;
+            write!(f, "{}", item.name())?;
+        }
+        write!(f, "]\n")?;
+        write!(f, "\t\t\tUncompressed bytes: {} ({:.2}%)\n", self.section.compression.before_bytes, 100. * (self.section.compression.before_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+        write!(f, "\t\t\tCompressed bytes: {} ({:.2}%)\n", self.section.compression.after_bytes, 100. * (self.section.compression.after_bytes as f64) / (self.total_compressed_bytes as f64))?;
+        Ok(())
+    }
+}
+
+struct NodeAndStatistics<'a> {
+    name: &'a str,
+    stats: &'a NodeStatistics,
+    header_bytes: usize,
+    total_uncompressed_bytes: usize,
+    total_number_of_entries: usize,
+}
+impl<'a> Display for NodeAndStatistics<'a> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "\t\t{}:\n", self.name)?;
+        write!(f, "\t\t\tEntries: {} ({:.2}%)\n", self.stats.entries, 100. * (self.stats.entries as f64) / (self.total_number_of_entries as f64))?;
+        write!(f, "\t\t\tOwn bytes: {} ({:.2}%)\n", self.stats.own_bytes, 100. * (self.stats.own_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+        if self.header_bytes != 0 {
+            write!(f, "\t\t\tHeader bytes: {} ({:.2}%)\n", self.header_bytes, 100. * (self.header_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+        }
+        if self.stats.shallow_bytes != self.stats.own_bytes && self.stats.shallow_bytes != 0 {
+            write!(f, "\t\t\tShallow bytes: {} ({:.2}%)\n", self.stats.shallow_bytes, 100. * (self.stats.shallow_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+        }
+        if self.stats.total_bytes != self.stats.own_bytes {
+            write!(f, "\t\t\tTotal bytes: {} ({:.2}%)\n", self.stats.total_bytes, 100. * (self.stats.total_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
         }
         Ok(())
     }
 }
 
+struct NodeNameAndStatistics {
+    total_uncompressed_bytes: usize,
+    nodes: Vec<(NodeName, NodeStatistics)>
+}
+
+impl Display for NodeNameAndStatistics {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        let total_number_of_entries : usize = self.nodes
+            .iter()
+            .map(|node| node.1.entries)
+            .sum();
+        // FIXME: Ugly. Find a better way to handle indentation.
+        for &(ref name, ref stats) in &self.nodes {
+            let for_display = NodeAndStatistics {
+                header_bytes: 0,
+                total_uncompressed_bytes: self.total_uncompressed_bytes,
+                total_number_of_entries,
+                name: name.to_str(),
+                stats
+            };
+            write!(f, "{}", for_display)?;
+        }
+        Ok(())
+    }
+}
+
+struct NodeDescriptionAndStatistics {
+    total_uncompressed_bytes: usize,
+    nodes: Vec<(NodeDescription, NodeStatistics)>
+}
+
 impl Display for NodeDescriptionAndStatistics {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        let total_number_of_entries : usize = self.nodes
+            .iter()
+            .map(|node| node.1.entries)
+            .sum();
         // FIXME: Ugly. Find a better way to handle indentation.
-        for &(ref description, ref stats) in &self.0 {
+        for &(ref description, ref stats) in &self.nodes {
             write!(f, "\t\t{} [", description.kind.to_string())?;
             let mut start = true;
             for field in &description.fields {
@@ -879,21 +967,26 @@ impl Display for NodeDescriptionAndStatistics {
                 write!(f, "{}", field.to_string())?;
             }
             write!(f, "]\n")?;
-            write!(f, "\t\t\tEntries: {}\n", stats.entries)?;
-            write!(f, "\t\t\tOwn bytes: {}\n", stats.own_bytes)?;
-            write!(f, "\t\t\tShallow bytes: {}\n", stats.shallow_bytes)?;
-            write!(f, "\t\t\tTotal bytes: {}\n", stats.total_bytes)?;
+            write!(f, "\t\t\tEntries: {} ({:.2}%)\n", stats.entries, 100. * (stats.entries as f64) / (total_number_of_entries as f64))?;
+            write!(f, "\t\t\tOwn bytes: {} ({:.2}%)\n", stats.own_bytes, 100. * (stats.own_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+            write!(f, "\t\t\tShallow bytes: {} ({:.2}%)\n", stats.shallow_bytes, 100. * (stats.shallow_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+            write!(f, "\t\t\tTotal bytes: {} ({:.2}%)\n", stats.total_bytes, 100. * (stats.total_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
         }
         Ok(())
     }
 }
 
+struct ListLengthsAndNumber(Vec<(usize, usize)>);
 
 impl Display for ListLengthsAndNumber {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         // FIXME: Ugly. Find a better way to handle indentation.
+        let total_number_of_entries : usize = self.0
+            .iter()
+            .map(|&(_, number)| number)
+            .sum();
         for &(ref length, ref number) in &self.0 {
-            write!(f, "\t\tlength {} x {}\n", length, number)?;
+            write!(f, "\t\tlength {} x {} ({:.2}%)\n", length, number, 100. * (*number as f64) / (total_number_of_entries as f64))?;
         }
         Ok(())
     }
@@ -918,93 +1011,108 @@ impl Display for Statistics {
             .collect();
         per_size.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
 
+        let total_number_of_tokens = self.bool.entries
+            + self.float.entries
+            + self.string.entries
+            + self.list.entries
+            + self.tagged_tuple.entries;
         write!(f, "
 Statistics
 \tFiles:
-\t\tNumber: {}
-\t\tTotal uncompressed bytes: {}
-\t\tTotal compressed bytes: {}
-\t\tRatio: {}
+\t\tNumber: {number_of_files}
+\t\tTotal source bytes: {total_source_bytes}
+\t\tTotal uncompressed bytes: {total_uncompressed_bytes}
+\t\tTotal compressed bytes: {total_compressed_bytes}
+\t\tRatio: {compression_ratio}
 \tSections:
 \t\tGrammar:
-\t\t\tEntries: {}
-\t\t\tUncompressed bytes: {}
-\t\t\tCompressed bytes: {}
+{section_grammar}
 \t\tStrings:
-\t\t\tEntries: {}
-\t\t\tUncompressed bytes: {}
-\t\t\tCompressed bytes: {}
+{section_strings}
 \t\tTree:
-\t\t\tEntries: {}
-\t\t\tUncompressed bytes: {}
-\t\t\tCompressed bytes: {}
+{section_tree}
 \tNodes (grammar entries collapsed):
-{}
+{collapsed_nodes}
 \tNodes (grammar entries expanded):
-{}
-\tKinds:
-\t\tBool:
-\t\t\tEntries: {}
-\t\t\tBytes: {}
-\t\tFloat:
-\t\t\tEntries: {}
-\t\t\tBytes: {}
-\t\tString indices:
-\t\t\tEntries: {}
-\t\t\tBytes: {}
-\t\tList:
-\t\t\tEntries: {}
-\t\t\tOwn bytes: {}
-\t\t\tHeader bytes: {}
-\t\t\tShallow bytes: {}
-\t\t\tTotal bytes: {}
-\t\tTagged tuples:
-\t\t\tEntries: {}
-\t\t\tOwn bytes: {}
-\t\t\tHeader bytes: {}
-\t\t\tShallow bytes: {}
-\t\t\tTotal bytes: {}
-\tList sizes
-{}
+{expanded_nodes}
+\tTokens:
+{token_bool}
+{token_float}
+{token_string}
+{token_list}
+{token_tagged_tuple}
+{lists_per_size}
 ",
-        self.number_of_files,
-        match self.source_bytes {
+        number_of_files = self.number_of_files,
+        total_source_bytes = match self.source_bytes {
             None => "<not available>".to_string(),
             Some(ref bytes) => format!("{}", bytes)
         },
-        self.compressed_bytes,
-        match self.source_bytes {
+        total_uncompressed_bytes = self.uncompressed_bytes,
+        total_compressed_bytes = self.compressed_bytes,
+        compression_ratio = match self.source_bytes {
             None => "<not available>".to_string(),
             Some(ref bytes) => format!("{:.2}", (self.compressed_bytes as f64) / (*bytes as f64))
         },
-        self.grammar_table.entries,
-        self.grammar_table.uncompressed_bytes,
-        self.grammar_table.compressed_bytes,
-        self.strings_table.entries,
-        self.strings_table.uncompressed_bytes,
-        self.strings_table.compressed_bytes,
-        self.tree.entries,
-        self.tree.uncompressed_bytes,
-        self.tree.compressed_bytes,
-        NodeNameAndStatistics(per_kind),
-        NodeDescriptionAndStatistics(per_description),
-        self.bool.entries,
-        self.bool.own_bytes,
-        self.float.entries,
-        self.float.own_bytes,
-        self.string.entries,
-        self.string.own_bytes,
-        self.list.entries,
-        self.list.own_bytes,
-        self.list_header.own_bytes,
-        self.list.shallow_bytes,
-        self.list.total_bytes,
-        self.tagged_tuple.entries,
-        self.tagged_tuple.own_bytes,
-        self.tagged_header.own_bytes,
-        self.tagged_tuple.shallow_bytes,
-        self.tagged_tuple.total_bytes,
-        ListLengthsAndNumber(per_size)
+        lists_per_size = ListLengthsAndNumber(per_size),
+        section_grammar = SectionAndStatistics {
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            total_compressed_bytes: self.compressed_bytes,
+            section: &self.grammar_table,
+        },
+        section_strings = SectionAndStatistics {
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            total_compressed_bytes: self.compressed_bytes,
+            section: &self.strings_table,
+        },
+        section_tree = SectionAndStatistics {
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            total_compressed_bytes: self.compressed_bytes,
+            section: &self.tree,
+        },
+        collapsed_nodes = NodeNameAndStatistics {
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            nodes: per_kind
+        },
+        expanded_nodes = NodeDescriptionAndStatistics {
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            nodes: per_description
+        },
+        token_bool = NodeAndStatistics {
+            name: "Bool",
+            stats: &self.bool,
+            total_number_of_entries: total_number_of_tokens,
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            header_bytes: 0,
+        },
+        token_float = NodeAndStatistics {
+            name: "Float",
+            stats: &self.float,
+            total_number_of_entries: total_number_of_tokens,
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            header_bytes: 0,
+        },
+        token_string = NodeAndStatistics {
+            name: "String indices",
+            stats: &self.string,
+            total_number_of_entries: total_number_of_tokens,
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            header_bytes: 0,
+        },
+        token_list = NodeAndStatistics {
+            name: "List",
+            stats: &self.list,
+            total_number_of_entries: total_number_of_tokens,
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            header_bytes: self.list_header.own_bytes,
+        },
+        token_tagged_tuple = NodeAndStatistics {
+            name: "Tagged Tuple",
+            stats: &self.tagged_tuple,
+            total_number_of_entries: total_number_of_tokens,
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            header_bytes: self.tagged_header.own_bytes,
+        },
         )
     }
 }
