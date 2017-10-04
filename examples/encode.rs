@@ -165,13 +165,19 @@ fn main() {
                     let mut path = PathBuf::new();
                     path.push(d);
                     path.push(file_name);
-                    path.set_extension(".binjs");
+                    path.set_extension("binjs");
                     Some(path.to_str()
                         .expect("Could not convert path to string")
                         .to_string())
                 }
             }
         };
+
+        if let Some(ref dest) = dest_path {
+            println!("Output: {}", dest);
+        } else {
+            println!("Compressing to memory");
+        }
 
         let source_len = std::fs::metadata(source_path)
             .expect("Could not open source")
@@ -209,7 +215,7 @@ fn main() {
                     let (data, stats) = encoder.done()
                         .expect("Could not finalize AST encoding");
 
-                    multipart_stats = multipart_stats + stats;
+                    multipart_stats = multipart_stats + stats.with_source_bytes(source_len as usize);
                     Box::new(data)
                 }
             }
