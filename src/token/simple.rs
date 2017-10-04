@@ -551,12 +551,9 @@ fn test_simple_io() {
 
     use std::fs::*;
 
-    use serde_json;
-    use serde_json::Value as JSON;
+    use json::object::Object;
 
     use std::io::{ Cursor, Write };
-
-    type Object = serde_json::Map<String, JSON>;
 
     debug!("Setting up syntax");
     let mut builder = SyntaxBuilder::new();

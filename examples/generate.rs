@@ -6,9 +6,8 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 extern crate rand;
-extern crate serde_json;
 
-const DEFAULT_SIZE: isize = 5;
+const DEFAULT_TREE_SIZE: isize = 5;
 
 use clap::*;
 use rand::Rand;
@@ -72,7 +71,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
         .expect("Invalid number");
 
     let size : isize = match matches.value_of("size") {
-        None => DEFAULT_SIZE,
+        None => DEFAULT_TREE_SIZE,
         Some(size) => size.parse()
             .expect("Invalid size")
     };
@@ -96,7 +95,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
 
         let mut ast = grammar.random(&mut rng, size);
 
-        println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+        println!("{}", ast.pretty(2));
 
         if !random_metadata {
             // Reannotate.
@@ -104,7 +103,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .expect("Could not infer annotations");
         }
 
-        println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+        println!("{}", ast.pretty(2));
 
         if let Ok(source) = parser.to_source(&ast) {
             i += 1;

@@ -2,17 +2,16 @@
 
 use ast::grammar::{ ASTError, FieldName, Kind, Syntax };
 use ast::library::{ BINJS_CONST_NAME, BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME, SCOPE_NAME };
-use util::{ Dispose, JSONGetter };
+use util::{ Dispose, Dump, JSONGetter };
 
-use serde_json;
-use serde_json::Value as JSON;
+use json;
+use json::JsonValue as JSON;
+use json::object::Object as Object;
 
 use std;
 use std::cell::{ RefCell, Ref };
 use std::collections::HashSet;
 use std::rc::{ Rc, Weak };
-
-type Object = serde_json::Map<String, JSON>;
 
 /// The position currently being examined.
 #[derive(Clone)]
@@ -345,20 +344,23 @@ impl<'a> Context<'a, RefContents> {
         let object = parent.get_object_mut(SCOPE_NAME, "Scope field")
             .expect("Could not store captured names, etc.");
         for name in &[BINJS_VAR_NAME, BINJS_LET_NAME, BINJS_CONST_NAME] {
-            let name = name.to_string();
-            if !object.contains_key(&name) {
-                object.insert(name, json!([]));
+            if object[*name].is_null() {
+                object.insert(name, JSON::new_array());
             }
         }
 
         let mut captured_names = self.captured_names();
         captured_names.sort();
+        let captured_names : Vec<_> = captured_names.drain(..)
+            .map(|name| json::from(&name as &str))
+            .collect();
+
         let borrow = self.contents.borrow();
         object
-            .insert(BINJS_CAPTURED_NAME.to_string(), json!(captured_names));
+            .insert(BINJS_CAPTURED_NAME, json::from(captured_names));
 
         object
-            .insert(BINJS_DIRECT_EVAL.to_string(), json!(borrow.data.has_direct_eval));
+            .insert(BINJS_DIRECT_EVAL, json::from(borrow.data.has_direct_eval));
     }
     pub fn load(&mut self, parent: &Object) {
         let object = parent.get_object(SCOPE_NAME, "Scope field")
@@ -565,22 +567,27 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
         var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
+        let var_decl_names: Vec<_> = var_decl_names.drain(..).map(|name| json::from(name as &str)).collect();
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
         let_decl_names.sort(); // To simplify testing (and hopefully improve compression)
+        let let_decl_names: Vec<_> = let_decl_names.drain(..).map(|name| json::from(name as &str)).collect();
 
         let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
         const_decl_names.sort();
+        let const_decl_names: Vec<_> = const_decl_names.drain(..).map(|name| json::from(name as &str)).collect();
 
-        // We may overwrite an existing "BINJS:Scope" object in case we're fuzzing.
-        parent.insert(SCOPE_NAME.to_string(), json!({
-            "type": SCOPE_NAME,
-            BINJS_VAR_NAME: var_decl_names,
-            BINJS_LET_NAME: let_decl_names,
-            BINJS_CONST_NAME: const_decl_names,
-            BINJS_CAPTURED_NAME: [],
-            BINJS_DIRECT_EVAL: false,
-        }));
+        // Ignore overwrites: we may be overwriting an existing "BINJS:Scope" object,
+        // in case we are used to re-annotate an existing tree.
+        let object : JSON = object!{
+            "type" => SCOPE_NAME,
+            BINJS_VAR_NAME => json::from(var_decl_names),
+            BINJS_LET_NAME => json::from(let_decl_names),
+            BINJS_CONST_NAME => json::from(const_decl_names),
+            BINJS_CAPTURED_NAME => JSON::new_array(),
+            BINJS_DIRECT_EVAL => json::from(false)
+        };
+        parent.insert(SCOPE_NAME, object);
     }
 }
 
@@ -622,7 +629,7 @@ pub trait Annotator {
             return me.process_declarations_aux(me, ctx, json)
         }
         Err(ASTError::InvalidValue {
-            got: serde_json::to_string(object).unwrap(),
+            got: object.dump(),
             expected: format!("Field `{}`", key)
         })
     }
@@ -667,7 +674,7 @@ pub trait Annotator {
             return me.process_references_aux(me, ctx, json)
         }
         Err(ASTError::InvalidValue {
-            got: serde_json::to_string(object).unwrap(),
+            got: object.dump(),
             expected: format!("Field `{}`", key)
         })
     }

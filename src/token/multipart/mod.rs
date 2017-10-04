@@ -154,12 +154,9 @@ fn test_multipart_io() {
 
     use std::fs::*;
 
-    use serde_json;
-    use serde_json::Value as JSON;
+    use json::object::Object;
 
     use std::io::{ Cursor, Write };
-
-    type Object = serde_json::Map<String, JSON>;
 
     // All combinations of options for compression.
     let all_options = {

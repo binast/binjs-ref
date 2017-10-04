@@ -3,7 +3,6 @@
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
-extern crate serde_json;
 
 use binjs::source::*;
 
@@ -66,8 +65,7 @@ fn main() {
 
     if matches.is_present("print-json") {
         println!("Printing to screen...");
-        let pretty = serde_json::to_string_pretty(&tree)
-            .expect("Could not pretty print");
+        let pretty = tree.pretty(2);
         println!("{}", pretty);
     }
 

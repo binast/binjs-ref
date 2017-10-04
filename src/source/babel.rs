@@ -1,9 +1,8 @@
-use serde;
-use serde_json;
-use serde_json::Value as JSON;
+use json;
+use json::JsonValue as JSON;
 
 use std;
-use std::io::{ Cursor, Read, Write };
+use std::io::{ Read, Write };
 use std::path::*;
 use std::process::*;
 
@@ -17,7 +16,7 @@ pub enum Error {
     ExecutionError(std::io::Error),
     CouldNotCreateFile(std::io::Error),
     ReturnedError(ExitStatus),
-    JsonError(serde_json::Error),
+    JsonError(json::JsonError),
     InvalidPath(PathBuf),
     InvalidUTF8(std::string::FromUtf8Error),
     InvalidAST,
@@ -93,16 +92,14 @@ impl Babel {
         let stdout = self.parse_script_output(script)?;
 
         // Now attempt to parse JSON
-        let data = Cursor::new(stdout);
-        let mut deserializer = serde_json::de::Deserializer::from_reader(data);
-        serde::de::Deserialize::deserialize(&mut deserializer)
+        json::parse(&stdout)
             .map_err(Error::JsonError)
     }
 
     /// Since the Babylon grammar and our grammar have a few differences, we need
     /// to apply fixes when parsing an AST.
     fn convert_from_babylon(&self, value: &mut JSON) {
-        use serde_json::Value::*;
+        use json::JsonValue::*;
         match *value {
             Array(ref mut array) => {
                 for value in array {
@@ -116,18 +113,18 @@ impl Babel {
                 // In Babylon, `ArrayExpression::elements` has type `[Expression | null]`.
                 // In BinJS, it has type `[Expression | Elision]`.
                 {
-                    if let Some(&JSON::String(ref t)) = object.get("type") {
-                        if t != "ArrayExpression" {
-                            return;
-                        }
+                    if let Some("ArrayExpression") = object["type"].as_str() {
+                        //
+                    } else {
+                        return;
                     }
                 }
-                if let Some(&mut JSON::Array(ref mut elements)) = object.get_mut("elements") {
+                if let JSON::Array(ref mut elements) = object["elements"] {
                     for item in elements.iter_mut() {
                         if item.is_null() {
-                            *item = json!({
-                                "type": "Elision"
-                            })
+                            *item = object!{
+                                "type" => "Elision"
+                            }
                         }
                     }
                 }
@@ -139,7 +136,7 @@ impl Babel {
     /// Since the Babylon grammar and our grammar have a few differences, we need
     /// to apply fixes when parsing an AST.
     fn convert_to_babylon(&self, value: &mut JSON) {
-        use serde_json::Value::*;
+        use json::JsonValue::*;
         match *value {
             Array(ref mut array) => {
                 for value in array {
@@ -152,19 +149,16 @@ impl Babel {
                 }
                 // In Babylon, `ArrayExpression::elements` has type `[Expression | null]`.
                 // In BinJS, it has type `[Expression | Elision]`.
-                if let Some(&JSON::String(ref t)) = object.get("type") {
-                    if t != "ArrayExpression" {
-                        return;
-                    }
+                if let Some("ArrayExpression") = object["type"].as_str() {
+                    // Proceed
+                } else {
+                    return;
                 }
-                if let Some(&mut JSON::Array(ref mut elements)) = object.get_mut("elements") {
+                if let JSON::Array(ref mut elements) = object["elements"] {
                     for item in elements.iter_mut() {
-                        if let Some(&JSON::String(ref t)) = item.get("type") {
-                            if t != "Elision" {
-                                continue;
-                            }
+                        if let Some("Elision") = item["type"].as_str() {
+                            *item = JSON::Null
                         }
-                        *item = JSON::Null
                     }
                 }
             }
@@ -174,8 +168,7 @@ impl Babel {
 
     pub fn to_source(&self, ast: &JSON) -> Result<String, Error> {
         // Escape `"`.
-        let data = serde_json::to_string(ast)
-            .map_err(Error::JsonError)?
+        let data = ast.dump()
             .replace("\\", "\\\\")
             .replace("\"", "\\\"");
 
@@ -273,40 +266,39 @@ fn test_babel_basic() {
     env_logger::init().unwrap();
 
     use util::strip;
-    use serde_json;
 
-
+    use json::JsonValue as JSON;
 
     let babel = Babel::new();
     let mut parsed = babel.parse_str("function foo() {}")
         .unwrap();
-    let expected = json!({
-        "body": [{
-            "type":"FunctionDeclaration",
-            "body": {
-                "type":"BlockStatement",
-                "directives": [],
-                "body":[],
+    let expected = object!{
+        "body" => array![object!{
+            "type" => "FunctionDeclaration",
+            "body" => object!{
+                "type" => "BlockStatement",
+                "directives" => JSON::new_array(),
+                "body" => JSON::new_array()
             },
-            "async":      false,
-            "expression": false,
-            "generator":  false,
-            "id":{
-                "type":"Identifier",
-                "name":"foo",
+            "async" =>      false,
+            "expression" => false,
+            "generator" =>  false,
+            "id" => object!{
+                "type" => "Identifier",
+                "name" => "foo"
             },
-            "params":[],
+            "params" => JSON::new_array()
         }],
-        "directives": [],
-        "sourceType": "script",
-        "type":       "Program"
-    });
+        "directives" => JSON::new_array(),
+        "sourceType" => "script",
+        "type" =>       "Program"
+    };
 
 
     strip(&mut parsed);
     println!("Comparing\n{}\n{}",
-        serde_json::to_string_pretty(&parsed).unwrap(),
-        serde_json::to_string_pretty(&expected).unwrap(),
+        parsed.pretty(2),
+        expected.pretty(2)
     );
 
     assert_eq!(parsed, expected);

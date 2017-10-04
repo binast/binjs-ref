@@ -34,14 +34,12 @@ extern crate brotli;
 #[cfg(test)]
 extern crate env_logger;
 extern crate flate2;
-
+#[macro_use]
+extern crate json;
 #[macro_use]
 extern crate log;
 extern crate lzw;
 extern crate rand;
-extern crate serde;
-#[macro_use]
-extern crate serde_json;
 extern crate vec_map;
 
 

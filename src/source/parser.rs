@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::path::Path;
 
-use serde_json::Value as JSON;
+use json::JsonValue as JSON;
 
 /// A source that can parse files to JSON ASTs.
 pub trait SourceParser {

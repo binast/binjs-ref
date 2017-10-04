@@ -14,11 +14,10 @@ assert_matches = "*"
 brotli = "1.*"
 env_logger = "*"
 flate2 = "0.2"
+json = "*"
 log = "*"
 lzw = "*"
 rand = "*"
-serde = "*"
-serde_json = { git = "https://github.com/Yoric/json" } # We need a larger recursion limit.
 vec_map = "*"
 
 [dev-dependencies]

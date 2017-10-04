@@ -1,21 +1,19 @@
 use ast::grammar::ASTError;
 
 use rand;
-use serde_json;
-use serde_json::{ Value as JSON, Number };
+use json;
+use json::JsonValue as JSON;
+use json::object::Object as Object;
 
 use std;
 use std::fs::File;
 use std::io::Seek;
 use std::path::*;
 
-type Object = serde_json::Map<String, JSON>;
-
-
 /// Strip a tree from meaningless information (location information, comments, ...)
 #[allow(unused)]
 pub fn strip(tree: &mut JSON) {
-    use serde_json::Value::*;
+    use json::JsonValue::*;
     match *tree {
         Object(ref mut map) => {
             map.remove("loc");
@@ -38,25 +36,15 @@ pub fn strip(tree: &mut JSON) {
 /// Utility: return a string describing a JSON value
 /// (e.g. `"Object"`, `"Bool"`, ...)
 pub fn type_of(tree: &JSON) -> String {
-    use serde_json::Value::*;
+    use json::JsonValue::*;
     match *tree {
         Object(_) => "Object",
-        String(_) => "String",
+        String(_) | Short(_) => "String",
         Number(_) => "Number",
         Null      => "Null",
-        Bool(_)   => "Bool",
+        Boolean(_) => "Bool",
         Array(_)  => "Array"
     }.to_owned()
-}
-
-pub fn f64_of(number: &Number) -> f64 {
-    if number.is_i64() {
-        number.as_i64().unwrap() as f64
-    } else if number.is_u64() {
-        number.as_u64().unwrap() as f64
-    } else {
-        number.as_f64().unwrap()
-    }
 }
 
 pub fn get_temporary_file(extension: &str) -> std::result::Result<(PathBuf, File), std::io::Error> {
@@ -86,12 +74,61 @@ pub fn get_temporary_file(extension: &str) -> std::result::Result<(PathBuf, File
     Err(error.unwrap())
 }
 
+pub trait JSONAs {
+    fn as_array(&self, description: &str) -> Result<&Vec<JSON>, ASTError>;
+    fn as_array_mut(&mut self, description: &str) -> Result<&mut Vec<JSON>, ASTError>;
+    fn as_object(&self, description: &str) -> Result<&Object, ASTError>;
+    fn as_object_mut(&mut self, description: &str) -> Result<&mut Object, ASTError>;
+}
+
+impl JSONAs for JSON {
+    fn as_array(&self, description: &str) -> Result<&Vec<JSON>, ASTError> {
+        if let JSON::Array(ref array) = *self {
+            Ok(array)
+        } else {
+            Err(ASTError::InvalidValue {
+                got: self.dump(),
+                expected: description.to_owned()
+            })
+        }
+    }
+    fn as_array_mut(&mut self, description: &str) -> Result<&mut Vec<JSON>, ASTError> {
+        if let JSON::Array(ref mut array) = *self {
+            Ok(array)
+        } else {
+            Err(ASTError::InvalidValue {
+                got: self.dump(),
+                expected: description.to_owned()
+            })
+        }
+    }
+    fn as_object(&self, description: &str) -> Result<&Object, ASTError> {
+        if let JSON::Object(ref object) = *self {
+            Ok(object)
+        } else {
+            Err(ASTError::InvalidValue {
+                got: self.dump(),
+                expected: description.to_owned()
+            })
+        }
+    }
+    fn as_object_mut(&mut self, description: &str) -> Result<&mut Object, ASTError> {
+        if let JSON::Object(ref mut object) = *self {
+            Ok(object)
+        } else {
+            Err(ASTError::InvalidValue {
+                got: self.dump(),
+                expected: description.to_owned()
+            })
+        }
+    }
+}
+
 /// Utilities to simplify dealing with JSON.
 ///
 /// Most of these tools are useful largely because lifetime management in a mutable JSON AST is
 /// complicated.
 pub trait JSONGetter {
-    fn contains(&self, name: &str) -> bool;
     fn get_bool(&self, name: &str, description: &str) -> Result<bool, ASTError>;
     fn get_string(&self, name: &str, description: &str) -> Result<&str, ASTError>;
     fn get_array(&self, name: &str, description: &str) -> Result<&Vec<JSON>, ASTError>;
@@ -100,27 +137,16 @@ pub trait JSONGetter {
     fn get_object_mut(&mut self, name: &str, description: &str) -> Result<&mut Object, ASTError>;
 }
 
-impl JSONGetter for serde_json::Map<String, JSON> {
-    fn contains(&self, name: &str) -> bool {
-        self.contains_key(name)
-    }
+impl JSONGetter for Object {
     fn get_bool(&self, name: &str, description: &str) -> Result<bool, ASTError> {
-        let found;
-        if let Some(field) = self.get(name) {
-            found = field.as_bool().is_some()
-        } else {
-            found = false;
-        }
-        if found { // Workaround for borrow checks
-            Ok(self.get(name)
-                .unwrap() // Checked above.
-                .as_bool()
-                .unwrap()) // Checked above
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
+        match self[name].as_bool() {
+            Some(b) => Ok(b),
+            None => {
+                Err(ASTError::InvalidValue {
+                    got: self.dump(),
+                    expected: description.to_owned()
+                })
+            }
         }
     }
     fn get_string(&self, name: &str, description: &str) -> Result<&str, ASTError> {
@@ -137,178 +163,69 @@ impl JSONGetter for serde_json::Map<String, JSON> {
                 .unwrap()) // Checked above
         } else {
             Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
+                got: self.dump(),
                 expected: description.to_owned()
             })
         }
     }
     fn get_array(&self, name: &str, description: &str) -> Result<&Vec<JSON>, ASTError> {
-        let found;
-        if let Some(field) = self.get(name) {
-            found = field.as_array().is_some()
-        } else {
-            found = false;
-        }
-
-        if found { // Workaround for borrow checks
-            Ok(self.get(name)
-                .unwrap() // Checked above.
-                .as_array()
-                .unwrap()) // Checked above
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        self[name].as_array(description)
     }
     fn get_array_mut(&mut self, name: &str, description: &str) -> Result<&mut Vec<JSON>, ASTError> {
-        let found;
-        if let Some(field) = self.get_mut(name) {
-            found = field.as_array_mut().is_some()
-        } else {
-            found = false;
-        }
-
-        if found { // Workaround for borrow checks
-            Ok(self.get_mut(name)
-                .unwrap() // Checked above.
-                .as_array_mut()
-                .unwrap()) // Checked above
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        self[name].as_array_mut(description)
     }
     fn get_object(&self, name: &str, description: &str) -> Result<&Object, ASTError> {
-        let found;
-        if let Some(field) = self.get(name) {
-            found = field.as_object().is_some()
-        } else {
-            found = false;
-        }
-
-        if found { // Workaround for borrow checks
-            Ok(self.get(name)
-                .unwrap() // Checked above.
-                .as_object()
-                .unwrap()) // Checked above
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        self[name].as_object(description)
     }
     fn get_object_mut(&mut self, name: &str, description: &str) -> Result<&mut Object, ASTError> {
-        let found;
-        if let Some(field) = self.get_mut(name) {
-            found = field.as_object_mut().is_some()
-        } else {
-            found = false;
-        }
-
-        if found { // Workaround for borrow checks
-            Ok(self.get_mut(name)
-                .unwrap() // Checked above.
-                .as_object_mut()
-                .unwrap()) // Checked above
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        self[name].as_object_mut(description)
     }
 }
 
 impl JSONGetter for JSON {
-    fn contains(&self, name: &str) -> bool {
-        if let JSON::Object(ref obj) = *self {
-            obj.contains_key(name)
-        } else {
-            false
-        }
-    }
     fn get_bool(&self, name: &str, description: &str) -> Result<bool, ASTError> {
-        if self.is_object() {
-            // Avoid borrowing `self`.
-            self.as_object()
-                .unwrap() // Checked just above.
-                .get_bool(name, description)
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        match self[name] {
+            JSON::Boolean(b) => return Ok(b),
+            _ => {}
+        };
+        Err(ASTError::InvalidValue {
+            got: self.dump(),
+            expected: description.to_owned()
+        })
     }
     fn get_string(&self, name: &str, description: &str) -> Result<&str, ASTError> {
-        if self.is_object() {
-            // Avoid borrowing `self`.
-            self.as_object()
-                .unwrap() // Checked just above.
-                .get_string(name, description)
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
+        if let Some(str) = self[name].as_str() {
+            return Ok(str);
         }
+        Err(ASTError::InvalidValue {
+            got: self.dump(),
+            expected: description.to_owned()
+        })
     }
     fn get_array(&self, name: &str, description: &str) -> Result<&Vec<JSON>, ASTError> {
-        if self.is_object() {
-            // Avoid borrowing `self`.
-            self.as_object()
-                .unwrap() // Checked just above.
-                .get_array(name, description)
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        if let JSON::Array(ref array) = self[name] {
+            return Ok(array)
+        };
+        Err(ASTError::InvalidValue {
+            got: self.dump(),
+            expected: description.to_owned()
+        })
     }
     fn get_array_mut(&mut self, name: &str, description: &str) -> Result<&mut Vec<JSON>, ASTError> {
-        if self.is_object() {
-            // Avoid borrowing `self`.
-            self.as_object_mut()
-                .unwrap() // Checked just above.
-                .get_array_mut(name, description)
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        self[name].as_array_mut(description)
     }
     fn get_object(&self, name: &str, description: &str) -> Result<&Object, ASTError> {
-        if self.is_object() {
-            // Avoid borrowing `self`.
-            self.as_object()
-                .unwrap() // Checked just above.
-                .get_object(name, description)
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        match self[name] {
+            JSON::Object(ref obj) => return Ok(obj),
+            _ => {}
+        };
+        Err(ASTError::InvalidValue {
+            got: self.dump(),
+            expected: description.to_owned()
+        })
     }
     fn get_object_mut(&mut self, name: &str, description: &str) -> Result<&mut Object, ASTError> {
-        if self.is_object() {
-            // Avoid borrowing `self`.
-            self.as_object_mut()
-                .unwrap() // Checked just above.
-                .get_object_mut(name, description)
-        } else {
-            Err(ASTError::InvalidValue {
-                got: serde_json::to_string(self).unwrap(),
-                expected: description.to_owned()
-            })
-        }
+        self[name].as_object_mut(description)
     }
 }
 
@@ -399,5 +316,29 @@ impl<S> PoisonLock<S> {
 
     pub fn is_poisoned(&self) -> bool {
         self.poisoned
+    }
+}
+
+pub trait Dump {
+    fn dump(&self) -> String;
+}
+
+impl Dump for json::object::Object {
+    fn dump(&self) -> String {
+        let mut first = true;
+        let mut buf = "{ ".to_string();
+        for (key, value) in self.iter() {
+            if !first {
+                buf.push_str(", ");
+            } else {
+                first = false;
+            }
+            buf.push_str(key);
+            buf.push_str(": ");
+            let string = value.dump();
+            buf.push_str(&string);
+        }
+        buf.push_str(" }");
+        buf
     }
 }

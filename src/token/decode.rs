@@ -4,13 +4,12 @@
 use ast::grammar::*;
 use token::io::*;
 
-use serde_json;
-use serde_json::Value;
+use json;
+use json::JsonValue as JSON;
+use json::object::Object as Object;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-
-type Object = serde_json::Map<String, Value>;
 
 #[derive(Debug)]
 pub enum Error<E> where E: Debug {
@@ -33,7 +32,7 @@ pub struct Decoder<'a, E> where E: TokenReader {
     grammar: &'a Syntax,
 
     /// Latest value decoded. Used for debugging/troubleshooting.
-    latest: Value,
+    latest: JSON,
 }
 
 impl<'a, E> Decoder<'a, E> where E: TokenReader {
@@ -41,24 +40,24 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
         Decoder {
             extractor,
             grammar,
-            latest: Value::Null
+            latest: JSON::Null
         }
     }
-    fn register(&mut self, value: Value) -> Value {
+    fn register(&mut self, value: JSON) -> JSON {
         self.latest = value.clone();
         value
     }
 
-    pub fn latest(&self) -> &Value {
+    pub fn latest(&self) -> &JSON {
         &self.latest
     }
 
-    pub fn decode(&mut self) -> Result<Value, Error<E::Error>> {
+    pub fn decode(&mut self) -> Result<JSON, Error<E::Error>> {
         let start = self.grammar.get_root();
         let kind = Type::interfaces(&[start.name()]).close();
         self.decode_from_type(&kind)
     }
-    pub fn decode_from_type(&mut self, kind: &Type) -> Result<Value, Error<E::Error>> {
+    pub fn decode_from_type(&mut self, kind: &Type) -> Result<JSON, Error<E::Error>> {
         use ast::grammar::TypeSpec::*;
         debug!("decode: {:?}", kind);
         match *kind.spec() {
@@ -71,7 +70,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 }
                 guard.done()
                     .map_err(Error::TokenReaderError)?;
-                Ok(self.register(Value::Array(values)))
+                Ok(self.register(JSON::Array(values)))
             }
             Enum(ref name) => {
                 // FIXME: Do we really need to check this here?
@@ -82,7 +81,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     .ok_or_else(|| Error::UnexpectedValue("null string".to_owned()))?;
                 for candidate in enum_.strings() {
                     if candidate == &string {
-                        return Ok(self.register(Value::String(string)))
+                        return Ok(self.register(json::from(string)))
                     }
                 }
                 Err(Error::UnexpectedValue(string))
@@ -119,19 +118,19 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     let mut object = Object::new();
                     for field in mapped_field_names.as_ref().iter() {
                         let item = self.decode_from_type(field.type_())?;
-                        let name = field.name().to_string().clone();
+                        let name = field.name().to_str();
                         if expected.remove(field.name()).is_none() {
-                            return Err(Error::NoSuchField(name))
+                            return Err(Error::NoSuchField(name.to_string()))
                         }
                         object.insert(name, item);
                     }
 
                     // Any field missing? Find out if there is a default value.
                     for (name, type_) in expected.drain() {
-                        let name = name.to_string().clone();
+                        let name = name.to_str();
                         match type_.default() {
                             None => return Err(Error::MissingField {
-                                name,
+                                name: name.to_string(),
                                 kind: kind.to_string().clone()
                             }),
                             Some(default) => {
@@ -141,11 +140,11 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     }
 
                     // Don't forget `"type"`.
-                    object.insert("type".to_owned(), Value::String(kind.to_string().clone()));
+                    object.insert("type", json::from(kind.to_str()));
                     guard.done()
                         .map_err(Error::TokenReaderError)?;
 
-                    Ok(self.register(Value::Object(object)))
+                    Ok(self.register(JSON::Object(object)))
                 } else {
                     Err(Error::NoSuchKind(kind.to_string().clone()))
                 }
@@ -157,7 +156,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     None =>
                         Err(Error::UnexpectedValue("null string".to_owned())),
                     Some(string) =>
-                        Ok(self.register(Value::String(string)))
+                        Ok(self.register(json::from(string)))
                 }
             }
             Boolean => {
@@ -167,7 +166,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     None =>
                         Err(Error::UnexpectedValue("null bool".to_owned())),
                     Some(b) =>
-                        Ok(self.register(Value::Bool(b)))
+                        Ok(self.register(json::from(b)))
                 }
             }
             Number  => {
@@ -177,7 +176,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     None =>
                         Err(Error::UnexpectedValue("null float".to_owned())),
                     Some(f) =>
-                        Ok(self.register(Value::from(f)))
+                        Ok(self.register(json::from(f)))
                 }
             }
         }

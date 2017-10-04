@@ -1,14 +1,13 @@
 use ast::grammar::*;
 use token::io::*;
-use util::{ f64_of, type_of };
+use util::type_of;
 
 use std;
 use std::cell::*;
 use std::fmt::Debug;
 
-use serde_json;
-use serde_json::Value;
-type Object = serde_json::Map<String, Value>;
+use json::JsonValue as JSON;
+use json::object::Object as Object;
 
 #[derive(Debug)]
 pub enum Error<E> {
@@ -37,7 +36,7 @@ impl<E> Error<E> {
 pub trait Encode {
     type Data;
     type Statistics;
-    fn encode(&self, value: &Value) -> Result<(), std::io::Error>;
+    fn encode(&self, value: &JSON) -> Result<(), std::io::Error>;
     fn done(self) -> Result<(Self::Data, Self::Statistics), std::io::Error>;
 }
 
@@ -55,23 +54,18 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
 
     /// Encode a JSON into a SerializeTree based on a grammar.
     /// This step doesn't perform any interesting check on the JSON.
-    pub fn encode(&self, value: &Value) -> Result<Tree, Error<E>> {
+    pub fn encode(&self, value: &JSON) -> Result<Tree, Error<E>> {
         let start = self.grammar.get_root();
         let kind = Type::interfaces(&[start.name()]).close();
         self.encode_from_type(value, &kind, start.name())
     }
-    pub fn encode_from_type(&self, value: &Value, kind: &Type, node: &NodeName) -> Result<Tree, Error<E>> {
+    pub fn encode_from_type(&self, value: &JSON, kind: &Type, node: &NodeName) -> Result<Tree, Error<E>> {
         debug!("encode: value {:?} with kind {:?}", value, kind);
         use ast::grammar::TypeSpec::*;
-        match *kind.spec() {
-            Array(ref kind) => {
-                let list = value.as_array()
-                    .ok_or_else(|| Error::Mismatch {
-                        expected: "Array".to_string(),
-                        got: type_of(&value)
-                    })?;
-                let mut encoded = Vec::with_capacity(list.len());
-                for item in list {
+        match (kind.spec(), value) {
+            (&Array(ref kind), &JSON::Array(ref array)) => {
+                let mut encoded = Vec::new();
+                for item in array {
                     let item = self.encode_from_type(item, kind, node)?;
                     encoded.push(item);
                 }
@@ -79,7 +73,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                     .map_err(Error::TokenWriterError)?;
                 Ok(result)
             }
-            Enum(ref name) => {
+            (&Enum(ref name), _) => {
                 let enum_ = self.grammar.get_enum_by_name(&name)
                     .ok_or_else(|| Error::NoSuchEnum(name.to_string().clone()))?;
                 let string = value.as_str()
@@ -98,12 +92,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                     strings: enum_.strings().iter().cloned().collect(),
                 })
            }
-           Interfaces(ref interfaces) => {
-               let object = value.as_object()
-                   .ok_or_else(|| Error::Mismatch {
-                       expected: format!("Object (implementing {:?}) while treating {:?}", interfaces, node),
-                       got: type_of(&value)
-                   })?;
+           (&Interfaces(ref interfaces), &JSON::Object(ref object)) => {
                let type_field = object.get("type")
                    .ok_or_else(|| Error::missing_field("type", node))?;
                let kind_name = type_field
@@ -135,42 +124,28 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                }
                return Err(Error::NoSuchKind(kind.to_string().clone()));
            }
-           Boolean => {
-               match *value {
-                   Value::Bool(b) =>
-                       self.builder.borrow_mut().bool(Some(b))
-                           .map_err(Error::TokenWriterError),
-                   _ =>
-                       Err(Error::Mismatch {
-                           expected: "bool".to_string(),
-                           got: type_of(&value)
-                       })
-               }
+           (&Boolean, &JSON::Boolean(b)) => {
+                self.builder.borrow_mut().bool(Some(b))
+                    .map_err(Error::TokenWriterError)
            }
-           String => {
-               match *value {
-                   Value::String(ref s) =>
-                       self.builder.borrow_mut().string(Some(s))
-                           .map_err(Error::TokenWriterError),
-                   _ =>
+           (&String, _) => {
+               match value.as_str() {
+                   Some(s) =>self.builder.borrow_mut().string(Some(s))
+                        .map_err(Error::TokenWriterError),
+                   None =>
                        Err(Error::Mismatch {
                            expected: "string".to_string(),
                            got: type_of(&value)
                        })
                }
            }
-           Number => {
-               match *value {
-                   Value::Number(ref x) =>
-                       self.builder.borrow_mut().float(Some(f64_of(x)))
-                           .map_err(Error::TokenWriterError),
-                   _ =>
-                       Err(Error::Mismatch {
-                           expected: format!("number"),
-                           got: type_of(&value)
-                       })
-               }
-           }
+           (&Number, &JSON::Number(x)) =>
+                self.builder.borrow_mut().float(Some(x.into()))
+                    .map_err(Error::TokenWriterError),
+            _ => Err(Error::Mismatch {
+                expected: format!("{:?}", kind.spec()),
+                got: type_of(&value)
+            })
         }
     }
 
@@ -199,7 +174,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
 impl<'a, B, Tree, E> Encode for Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
     type Data = B::Data;
     type Statistics = B::Statistics;
-    fn encode(&self, value: &Value) -> Result<(), std::io::Error> {
+    fn encode(&self, value: &JSON) -> Result<(), std::io::Error> {
         (self as &Encoder<'a, B, Tree, E>).encode(value)
             .map(|_| ())
             .map_err(|err| {

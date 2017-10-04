@@ -4,10 +4,8 @@ use ast::grammar::*;
 use ast::annotation::*;
 use util::JSONGetter;
 
-use serde_json::Value as JSON;
-use serde_json;
-
-type Object = serde_json::Map<String, JSON>;
+use json::JsonValue as JSON;
+use json::object::Object as Object;
 
 pub static SCOPE_NAME: &'static str = "BINJS:Scope";
 pub static BINJS_VAR_NAME: &'static str = "BINJS:VarDeclaredNames";
@@ -29,21 +27,15 @@ pub enum Level {
 }
 
 fn uses_strict(object: &Object) -> bool {
-    if let Some(directives) = object["directives"].as_array() {
-        if directives
-            .iter()
-            .find(|v| {
-                if let Some("use strict") = v["value"]["value"].as_str() {
-                    true
-                } else {
-                    false
-                }
-            }
-            ).is_some()
-        {
+    println!("uses_strict on {:?} with directives {}", object, object["directives"].pretty(2));
+    for member in object["directives"].members() {
+        println!("Looking at directive {}", member.pretty(2));
+        if let Some("use strict") = member["value"]["value"].as_str() {
+            println!(" => true");
             return true;
         }
     }
+    println!(" => false");
     false
 }
 
@@ -708,7 +700,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                 "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression"  => {
                     // Check directives.
                     let uses_strict = ctx.uses_strict() ||
-                        if let Some(body) = object["body"].as_object() {
+                        if let JSON::Object(ref body) = object["body"] {
                             uses_strict(body)
                         } else {
                             false
@@ -717,15 +709,20 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         ctx.set_uses_strict(true);
                         // Babel allows any string to be used as a directive.
                         // This doesn't seem canonical.
-                        object["body"].as_object_mut().unwrap().insert("directives".to_string(), json!([{
-                            "type": "Directive",
-                            "value": {
-                                "type": "DirectiveLiteral",
-                                "value": "use strict"
-                            }
-                        }]));
+                        // FIXME: Move this to babel.rs
+                        if let JSON::Object(ref mut body) = object["body"] {
+                            body.insert("directives", array![object!{
+                                "type" => "Directive",
+                                "value" => object!{
+                                    "type" => "DirectiveLiteral",
+                                    "value" => "use strict"
+                                }
+                            }]);
+                        }
                     } else {
-                        object["body"].as_object_mut().unwrap().insert("directives".to_string(), json!([]));
+                        if let JSON::Object(ref mut body) = object["body"] {
+                            body.insert("directives", array![]);
+                        }
                     }
 
                     // Adopt usual behavior.

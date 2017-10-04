@@ -177,7 +177,7 @@
 //! Grammar.prototype.inhabitsType = function(ast, type) {
 //!   if (type.isString()) {
 //!     return typeof ast == "string" || (type.canBeNull() && ast == null);
-//!   } else if (type.isBool()) {
+//!   } else if (type.isBoolean()) {
 //!     return typeof ast == "boolean" || (type.canBeNull() && ast == null);
 //!   } else if (type.isNumber()) {
 //!     return typeof ast == "number" || (type.canBeNull() && ast == null);
@@ -237,11 +237,10 @@
 //! ```
 //!
 use ast;
-use util::f64_of;
 
+use json;
+use json::JsonValue as JSON;
 use rand;
-use serde_json;
-use serde_json::Value as JSON;
 
 use std;
 use std::cell::*;
@@ -363,11 +362,11 @@ impl TypeSpec {
             },
             TypeSpec::Boolean => Type {
                 spec: self,
-                defaults_to: Some(JSON::Bool(true))
+                defaults_to: Some(JSON::Boolean(true))
             },
             TypeSpec::Number => Type {
                 spec: self,
-                defaults_to: Some(JSON::Number(serde_json::Number::from_f64(0.).unwrap()))
+                defaults_to: Some(JSON::from(0))
             },
             _ => Type {
                 spec: self,
@@ -440,7 +439,7 @@ impl Type {
                     .expect("Could not find enum");
                 let choice = rng.choose(&enum_.strings)
                     .expect("Empty enum");
-                JSON::String(choice.clone())
+                json::from(choice as &str)
             }
             TypeSpec::Interfaces(ref names) => {
                 // Pick one of the interfaces.
@@ -454,19 +453,16 @@ impl Type {
                 interface.random(syntax, rng, depth_limit - 1)
             }
             TypeSpec::Boolean => {
-                JSON::Bool(rng.gen())
+                JSON::Boolean(rng.gen())
             }
             TypeSpec::String => {
                 const MAX_STRING_LEN : usize = 10;
                 let len = rng.gen_range(0, MAX_STRING_LEN);
-                let string = rng.gen_ascii_chars().take(len).collect();
-                JSON::String(string)
+                let string : String = rng.gen_ascii_chars().take(len).collect();
+                json::from(string)
             }
             TypeSpec::Number => {
-                let number = rng.next_f64();
-                let as_json = serde_json::Number::from_f64(number)
-                    .expect("Invalid number");
-                JSON::Number(as_json)
+                json::from(rng.next_f64())
             }
         }
     }
@@ -931,7 +927,7 @@ impl Interface {
 
         // At this stage, we know that `start` is a non-virtual interface.
         // Let's build the contents.
-        let mut result = serde_json::map::Map::with_capacity(start.full_contents.fields().len() + 1);
+        let mut result = json::object::Object::with_capacity(start.full_contents.fields().len() + 1);
 
         let kind = start.declaration.kind
             .as_ref()
@@ -939,9 +935,9 @@ impl Interface {
             .to_string()
             .clone();
 
-        result.insert("type".to_string(), JSON::String(kind));
+        result.insert("type", json::from(kind));
         for field in start.full_contents.fields() {
-            result.insert(field.name.to_string().clone(), field.type_().random(syntax, rng, depth_limit - 1));
+            result.insert(field.name.to_str(), field.type_().random(syntax, rng, depth_limit - 1));
         }
 
         JSON::Object(result)
@@ -1008,15 +1004,16 @@ impl Syntax {
 
     /// Ensure that a value is an inhabitant of the grammar.
     pub fn validate_from(&self, a: &JSON, type_: &Type) -> Result<(), ASTError> {
-        use serde_json::Value::*;
+        use json::JsonValue::*;
         if let Some(ref default) = type_.defaults_to {
             if a == default {
                 return Ok(())
             }
         }
         match (type_.spec(), a) {
-            (&TypeSpec::Boolean, &Bool(_)) => Ok(()),
+            (&TypeSpec::Boolean, &Boolean(_)) => Ok(()),
             (&TypeSpec::String,  &String(_)) => Ok(()),
+            (&TypeSpec::String,  &Short(_))  => Ok(()),
             (&TypeSpec::Number,  &Number(_)) => Ok(()),
             (&TypeSpec::Array(ref type_), &Array(ref values)) => {
                 for value in values {
@@ -1037,12 +1034,12 @@ impl Syntax {
             (&TypeSpec::Interfaces(ref names), &Object(ref a))
                 if a.get("type").is_some() =>
             {
-                let check_valid = |obj: &serde_json::Map<_, _>| {
+                let check_valid = |obj: &json::object::Object| {
                     let type_ = obj.get("type").unwrap(); // Just checked above.
                     let name = type_.as_str()
                         .ok_or_else(|| ASTError::InvalidValue {
                             expected: "String".to_string(),
-                            got: serde_json::to_string(type_).unwrap(),
+                            got: type_.dump(),
                         })?;
                     let kind = self.get_kind(&name)
                         .ok_or_else(|| ASTError::InvalidType(name.to_string()))?;
@@ -1092,16 +1089,16 @@ impl Syntax {
     /// Compare two ASTs, restricting comparison to the
     /// items that appear in the grammar.
     pub fn compare_from(&self, left: &JSON, right: &JSON, inhabit: &Type) -> Result<bool, ASTError> {
-        use serde_json::Value::*;
+        use json::JsonValue::*;
         match (&inhabit.spec, &inhabit.defaults_to, left, right) {
             (_, &Some(Null), &Null, &Null) => // This is the only case in which we accept `null` as a value.
                 Ok(true),
-            (&TypeSpec::Boolean, _, &Bool(ref a), &Bool(ref b)) =>
+            (&TypeSpec::Boolean, _, &Boolean(ref a), &Boolean(ref b)) =>
                 Ok(a == b),
-            (&TypeSpec::String, _, &String(ref a), &String(ref b)) =>
-                Ok(a == b),
+            (&TypeSpec::String, _, _, _) if left.as_str().is_some() && right.as_str().is_some() => // Strings are complicated as they have two different representations in JSON.
+                Ok(left.as_str() == right.as_str()),
             (&TypeSpec::Number, _, &Number(ref a), &Number(ref b)) =>
-                Ok(f64_of(a) == f64_of(b)),
+                Ok(a == b),
             (&TypeSpec::Array(ref type_), _, &Array(ref vec_a), &Array(ref vec_b)) => {
                 if vec_a.len() != vec_b.len() {
                     Ok(false)
@@ -1114,7 +1111,9 @@ impl Syntax {
                     Ok(true)
                 }
             }
-            (&TypeSpec::Enum(ref name), _, &String(ref a), &String(ref b)) => {
+            (&TypeSpec::Enum(ref name), _, _, _) if left.as_str().is_some() && right.as_str().is_some() => { // Strings are complicated as they have two different representations in JSON.
+                let a = left.as_str().unwrap();  // Checked above.
+                let b = right.as_str().unwrap(); // Checked above.
                 let enum_ = self.get_enum_by_name(name)
                     .expect("Could not find enum in grammar"); // At this stage, this shouldn't be possible.
                 if enum_.strings.iter().find(|x| *x == a).is_some() {
@@ -1122,13 +1121,13 @@ impl Syntax {
                         Ok(a == b)
                     } else {
                         Err(ASTError::InvalidValue {
-                            got: b.clone(),
+                            got: b.to_string(),
                             expected: format!("{:?}", enum_.strings)
                         })
                     }
                 } else {
                     Err(ASTError::InvalidValue {
-                        got: a.clone(),
+                        got: a.to_string(),
                         expected: format!("{:?}", enum_.strings)
                     })
                 }
@@ -1136,12 +1135,12 @@ impl Syntax {
             (&TypeSpec::Interfaces(ref names), _, &Object(ref a), &Object(ref b))
                 if a.get("type").is_some() && b.get("type").is_some() =>
             {
-                let check_valid = |obj: &serde_json::Map<_, _>| {
+                let check_valid = |obj: &json::object::Object| {
                     let type_ = obj.get("type").unwrap(); // Just checked above.
                     let name = type_.as_str()
                         .ok_or_else(|| ASTError::InvalidValue {
                             expected: "String".to_string(),
-                            got: serde_json::to_string(type_).unwrap(),
+                            got: type_.dump(),
                         })?;
                     let kind = self.get_kind(&name)
                         .ok_or_else(|| ASTError::InvalidType(name.to_string()))?;
@@ -1242,7 +1241,7 @@ impl ASTError {
     }
     pub fn invalid_value(value: &JSON, expected: &str) -> Self {
         ASTError::InvalidValue {
-            got: serde_json::to_string(value).expect("Could not serialize value"),
+            got: value.dump(),
             expected: expected.to_string()
         }
     }
