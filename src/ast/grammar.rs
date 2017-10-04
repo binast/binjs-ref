@@ -362,7 +362,7 @@ impl TypeSpec {
             },
             TypeSpec::Boolean => Type {
                 spec: self,
-                defaults_to: Some(JSON::Boolean(true))
+                defaults_to: Some(JSON::Boolean(false))
             },
             TypeSpec::Number => Type {
                 spec: self,
