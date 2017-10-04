@@ -27,15 +27,11 @@ pub enum Level {
 }
 
 fn uses_strict(object: &Object) -> bool {
-    println!("uses_strict on {:?} with directives {}", object, object["directives"].pretty(2));
     for member in object["directives"].members() {
-        println!("Looking at directive {}", member.pretty(2));
         if let Some("use strict") = member["value"]["value"].as_str() {
-            println!(" => true");
             return true;
         }
     }
-    println!(" => false");
     false
 }
 
