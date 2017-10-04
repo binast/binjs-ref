@@ -1,5 +1,6 @@
 use json;
 use json::JsonValue as JSON;
+use json::object::Object as Object;
 
 use std;
 use std::io::{ Read, Write };
@@ -96,76 +97,6 @@ impl Babel {
             .map_err(Error::JsonError)
     }
 
-    /// Since the Babylon grammar and our grammar have a few differences, we need
-    /// to apply fixes when parsing an AST.
-    fn convert_from_babylon(&self, value: &mut JSON) {
-        use json::JsonValue::*;
-        match *value {
-            Array(ref mut array) => {
-                for value in array {
-                    self.convert_from_babylon(value);
-                }
-            }
-            Object(ref mut object) => {
-                for (_, value) in object.iter_mut() {
-                    self.convert_from_babylon(value);
-                }
-                // In Babylon, `ArrayExpression::elements` has type `[Expression | null]`.
-                // In BinJS, it has type `[Expression | Elision]`.
-                {
-                    if let Some("ArrayExpression") = object["type"].as_str() {
-                        //
-                    } else {
-                        return;
-                    }
-                }
-                if let JSON::Array(ref mut elements) = object["elements"] {
-                    for item in elements.iter_mut() {
-                        if item.is_null() {
-                            *item = object!{
-                                "type" => "Elision"
-                            }
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// Since the Babylon grammar and our grammar have a few differences, we need
-    /// to apply fixes when parsing an AST.
-    fn convert_to_babylon(&self, value: &mut JSON) {
-        use json::JsonValue::*;
-        match *value {
-            Array(ref mut array) => {
-                for value in array {
-                    self.convert_from_babylon(value);
-                }
-            }
-            Object(ref mut object) => {
-                for (_, value) in object.iter_mut() {
-                    self.convert_from_babylon(value);
-                }
-                // In Babylon, `ArrayExpression::elements` has type `[Expression | null]`.
-                // In BinJS, it has type `[Expression | Elision]`.
-                if let Some("ArrayExpression") = object["type"].as_str() {
-                    // Proceed
-                } else {
-                    return;
-                }
-                if let JSON::Array(ref mut elements) = object["elements"] {
-                    for item in elements.iter_mut() {
-                        if let Some("Elision") = item["type"].as_str() {
-                            *item = JSON::Null
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
     pub fn to_source(&self, ast: &JSON) -> Result<String, Error> {
         // Escape `"`.
         let data = ast.dump()
@@ -173,7 +104,7 @@ impl Babel {
             .replace("\"", "\\\"");
 
         let mut ast = ast.clone();
-        self.convert_to_babylon(&mut ast);
+        ToBabel.convert(&mut ast);
 
         // A script to parse a string, write it to stdout as JSON.
         let script = format!(
@@ -215,7 +146,7 @@ impl SourceParser for Babel {
             data);
 
         let mut ast = self.parse_script_json_output(&script)?;
-        self.convert_from_babylon(&mut ast);
+        FromBabel.convert(&mut ast);
         Ok(ast)
     }
 
@@ -254,8 +185,89 @@ impl SourceParser for Babel {
             "##,
             path);
         let mut ast = self.parse_script_json_output(&script)?;
-        self.convert_from_babylon(&mut ast);
+        FromBabel.convert(&mut ast);
         Ok(ast)
+    }
+}
+
+/// A data structure designed to convert from Babel AST to BinJS AST.
+struct FromBabel;
+impl FromBabel {
+    /// Since the Babylon grammar and our grammar have a few differences, we need
+    /// to apply fixes when parsing an AST.
+    fn convert(&self, value: &mut JSON) {
+        use json::JsonValue::*;
+        match *value {
+            Array(ref mut array) => {
+                for value in array {
+                    self.convert(value);
+                }
+            }
+            Object(ref mut object) => {
+                for (_, value) in object.iter_mut() {
+                    self.convert(value);
+                }
+                if let Some("ArrayExpression") = object["type"].as_str() {
+                    self.convert_array_expression(object);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn convert_array_expression(&self, object: &mut Object) {
+        // In Babylon, `ArrayExpression::elements` has type `[Expression | null]`.
+        // In BinJS, it has type `[Expression | Elision]`.
+        if let JSON::Array(ref mut elements) = object["elements"] {
+            for item in elements.iter_mut() {
+                if item.is_null() {
+                    *item = object!{
+                        "type" => "Elision"
+                    }
+                }
+            }
+        }
+    }
+}
+/// A data structure designed to convert from BinJS AST to Babel AST.
+struct ToBabel;
+impl ToBabel {
+    /// Since the Babylon grammar and our grammar have a few differences, we need
+    /// to apply fixes when parsing an AST.
+    fn convert(&self, value: &mut JSON) {
+        use json::JsonValue::*;
+        match *value {
+            Array(ref mut array) => {
+                // Propagate to children.
+                for value in array {
+                    self.convert(value);
+                }
+            }
+            Object(ref mut object) => {
+                // Propagate to children.
+                for (_, value) in object.iter_mut() {
+                    self.convert(value);
+                }
+                if let Some("ArrayExpression") = object["type"].as_str() {
+                    self.convert_array_expression(object);
+                }
+            }
+            _ => {
+                // Nothing to do.
+            }
+        }
+    }
+
+    // In Babylon, `ArrayExpression::elements` has type `[Expression | null]`.
+    // In BinJS, it has type `[Expression | Elision]`.
+    fn convert_array_expression(&self, object: &mut Object) {
+        if let JSON::Array(ref mut elements) = object["elements"] {
+            for item in elements.iter_mut() {
+                if let Some("Elision") = item["type"].as_str() {
+                    *item = JSON::Null
+                }
+            }
+        }
     }
 }
 
