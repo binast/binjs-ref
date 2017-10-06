@@ -221,7 +221,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_flags, Type::string().close())
         .with_parent(&literal);
     syntax.add_kinded_interface(&directive_literal).unwrap()
-        .with_parent(&string_literal);
+        .with_field(&field_value, Type::string().close());
 
     // Programs
     syntax.add_kinded_interface(&program).unwrap()
