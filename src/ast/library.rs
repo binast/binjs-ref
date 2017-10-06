@@ -125,12 +125,13 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let null_literal = syntax.node_name("NullLiteral");
     let numeric_literal = syntax.node_name("NumericLiteral");
     let object_expression = syntax.node_name("ObjectExpression");
+    let object_getter = syntax.node_name("ObjectGetter");
     let object_member = syntax.node_name("ObjectMember");
     let object_method = syntax.node_name("ObjectMethod");
     let object_property = syntax.node_name("ObjectProperty");
+    let object_setter = syntax.node_name("ObjectSetter");
     let pattern = syntax.node_name("Pattern");
     let program = syntax.node_name("Program");
-    let property_kind = syntax.node_name("PropertyKind");
     let regexp_literal = syntax.node_name("RegExpLiteral");
     let return_statement = syntax.node_name("ReturnStatement");
     let sequence_expression = syntax.node_name("SequenceExpression");
@@ -401,16 +402,16 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&object_member);
 
     syntax.add_kinded_interface(&object_method).unwrap()
-        .with_field(&field_kind, Type::enumeration(&property_kind).close())
         .with_parent(&object_member)
         .with_parent(&function);
 
-    syntax.add_enum(&property_kind).unwrap()
-        .with_strings(&[
-            "get",
-            "set",
-            "method"
-        ]);
+    syntax.add_kinded_interface(&object_getter).unwrap()
+        .with_parent(&object_member)
+        .with_parent(&function);
+
+    syntax.add_kinded_interface(&object_setter).unwrap()
+        .with_parent(&object_member)
+        .with_parent(&function);
 
     syntax.add_kinded_interface(&function_expression).unwrap()
         .with_parent(&expression)

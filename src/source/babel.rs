@@ -207,11 +207,23 @@ impl FromBabel {
                 for (_, value) in object.iter_mut() {
                     self.convert(value);
                 }
-                if let Some("ArrayExpression") = object["type"].as_str() {
-                    self.convert_array_expression(object);
+                match object["type"].as_str() {
+                    Some("ArrayExpression") => self.convert_array_expression(object),
+                    Some("ObjectMethod") => self.convert_object_method(object),
+                    _ => { /* No change */ }
                 }
             }
             _ => {}
+        }
+    }
+
+    fn convert_object_method(&self, object: &mut Object) {
+        // In Babylon, `ObjectMethod::kind` is `"get" | "set" | "init"`.
+        // In BinJS, there are three interfaces `ObjectMethod`, `ObjectGetter`, `ObjectSetter`.
+        match object["kind"].as_str() {
+            Some("get") => { object["type"] = json::from("ObjectGetter"); }
+            Some("set") => { object["type"] = json::from("ObjectSetter"); }
+            _ => { /* No change */ }
         }
     }
 
@@ -248,13 +260,34 @@ impl ToBabel {
                 for (_, value) in object.iter_mut() {
                     self.convert(value);
                 }
-                if let Some("ArrayExpression") = object["type"].as_str() {
-                    self.convert_array_expression(object);
+                match object["type"].as_str() {
+                    Some("ArrayExpression") => self.convert_array_expression(object),
+                    Some("ObjectMethod")
+                    | Some("ObjectGetter")
+                    | Some("ObjectSetter") => self.convert_object_method(object),
+                    _ => {}
                 }
             }
             _ => {
                 // Nothing to do.
             }
+        }
+    }
+
+    fn convert_object_method(&self, object: &mut Object) {
+        // In Babylon, `ObjectMethod::kind` is `"get" | "set" | "init"`.
+        // In BinJS, there are three interfaces `ObjectMethod`, `ObjectGetter`, `ObjectSetter`.
+        match object["type"].as_str() {
+            Some("ObjectMethod") => { object["kind"] = json::from("ObjectGetter"); }
+            Some("ObjectGetter") => {
+                object["type"] = json::from("ObjectMethod");
+                object["kind"] = json::from("get");
+            }
+            Some("ObjectSetter") => {
+                object["type"] = json::from("ObjectMethod");
+                object["kind"] = json::from("set");
+            }
+            _ => { /* No change */ }
         }
     }
 
