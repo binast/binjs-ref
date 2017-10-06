@@ -91,11 +91,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
         if i >= number {
             break;
         }
-        println!("Generating ast {}...", i);
-
         let mut ast = grammar.random(&mut rng, size);
-
-        println!("{}", ast.pretty(2));
 
         if !random_metadata {
             // Reannotate.
@@ -103,12 +99,10 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .expect("Could not infer annotations");
         }
 
-        println!("{}", ast.pretty(2));
-
         if let Ok(source) = parser.to_source(&ast) {
             i += 1;
 
-            println!("{}", source);
+            println!("Generated sample {}/{}", i, number);
             {
                 let mut source_file = std::fs::File::create(format!("{}-{}.js", prefix, i))
                     .expect("Could not create js file");
