@@ -734,7 +734,9 @@ impl AddAssign for CompressionResult {
 impl AddAssign for SectionStatistics {
     fn add_assign(&mut self, rhs: Self) {
         self.entries += rhs.entries;
-        self.max_entries = usize::max(self.max_entries, rhs.max_entries);
+        if rhs.max_entries > self.max_entries {
+            self.max_entries = rhs.max_entries;
+        }
         self.compression += rhs.compression;
     }
 }
@@ -763,7 +765,9 @@ pub struct NodeStatistics {
 impl AddAssign for NodeStatistics {
     fn add_assign(&mut self, rhs: Self) {
         self.entries += rhs.entries;
-        self.max_entries = usize::max(self.max_entries, rhs.max_entries);
+        if rhs.max_entries > self.max_entries {
+            self.max_entries = rhs.max_entries;
+        }
         self.own_bytes += rhs.own_bytes;
         self.shallow_bytes += rhs.shallow_bytes;
         self.total_bytes += rhs.total_bytes;
