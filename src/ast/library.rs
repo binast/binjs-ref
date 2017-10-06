@@ -382,6 +382,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_elements, Type::interfaces(&[&expression, &elision]).array())
         .with_parent(&expression);
 
+    syntax.add_kinded_interface(&elision).unwrap();
+
     syntax.add_kinded_interface(&object_expression).unwrap()
         .with_field(&field_properties, Type::interfaces(&[
             &object_property,

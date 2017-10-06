@@ -449,7 +449,7 @@ impl Type {
                     return JSON::Null
                 }
                 let interface = syntax.get_interface_by_name(&names[pick])
-                    .expect("Interface doesn't exist");
+                    .unwrap_or_else(|| panic!("Interface doesn't exist {:?}", names[pick]));
                 interface.random(syntax, rng, depth_limit - 1)
             }
             TypeSpec::Boolean => {
@@ -915,7 +915,7 @@ impl Interface {
         let start =
             if index < self.declaration.sub_interfaces.len() {
                 syntax.interfaces_by_name.get(&self.declaration.sub_interfaces[index])
-                    .expect("Interface doesn't exist")
+                    .unwrap_or_else(|| panic!("Interface doesn't exist {:?}", self.declaration.sub_interfaces[index]))
             } else {
                 self
             };
