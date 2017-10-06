@@ -796,18 +796,6 @@ impl SyntaxBuilder {
                     let name = field_names.entry(field.name.to_string().clone())
                         .or_insert_with(|| field.name().clone())
                         .clone();
-                    if let Some(prev) = my_fields.get(&name) {
-                        if prev != field.type_() {
-                            warn!("Conflict: attempting to insert {:?}", name);
-                            warn!("Previous: {:?}", prev);
-                            warn!("Overwrite: {:?}", field.type_());
-                            warn!("While treating {:?}", name);
-                        }
-                        debug!("Skipping");
-                        // FIXME: We should make more efforts to ensure that
-                        // we always end up with the bottom-most version
-                        continue;
-                    }
                     my_fields.insert(name, field.type_.clone());
                     // FIXME: We should handle the case in which a field is updated,
                     // e.g. `VariableDeclaration.kind` is extended from `"var"` to
