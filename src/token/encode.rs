@@ -63,7 +63,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
         debug!("encode: value {:?} with kind {:?}", value, kind);
         use ast::grammar::TypeSpec::*;
         match (kind.spec(), value) {
-            (&Array(ref kind), &JSON::Array(ref array)) => {
+            (&Array { contents: ref kind, .. }, &JSON::Array(ref array)) => {
                 let mut encoded = Vec::new();
                 for item in array {
                     let item = self.encode_from_type(item, kind, node)?;

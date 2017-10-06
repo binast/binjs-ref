@@ -61,9 +61,12 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
         use ast::grammar::TypeSpec::*;
         debug!("decode: {:?}", kind);
         match *kind.spec() {
-            Array(ref kind) => {
+            Array { contents: ref kind, supports_empty } => {
                 let (len, guard) = self.extractor.list()
                     .map_err(Error::TokenReaderError)?;
+                if len == 0 && !supports_empty {
+                    return Err(Error::InvalidValue("Empty list".to_string()));
+                }
                 let mut values = Vec::with_capacity(len as usize);
                 for _ in 0..len {
                     values.push(self.decode_from_type(kind)?);

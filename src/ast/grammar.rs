@@ -323,7 +323,10 @@ impl Field {
 #[derive(Clone, Debug, PartialEq)]
 pub enum TypeSpec {
     /// An array of values of the same type.
-    Array(Box<Type>),
+    Array {
+        contents: Box<Type>,
+        supports_empty: bool,
+    },
 
     /// A choice between several literals, e.g. `"get" | "set"`.
     Enum(NodeName),
@@ -343,11 +346,25 @@ pub enum TypeSpec {
 
 impl TypeSpec {
     pub fn array(self) -> Type {
-        TypeSpec::Array(Box::new(Type {
-            spec: self,
-            defaults_to: None
-        })).close()
+        TypeSpec::Array {
+            contents: Box::new(Type {
+                spec: self,
+                defaults_to: None
+            }),
+            supports_empty: true,
+        }.close()
     }
+
+    pub fn non_empty_array(self) -> Type {
+        TypeSpec::Array {
+            contents: Box::new(Type {
+                spec: self,
+                defaults_to: None
+            }),
+            supports_empty: false,
+        }.close()
+    }
+
     pub fn defaults_to(self, value: JSON) -> Type {
         Type {
             spec: self,
@@ -356,9 +373,13 @@ impl TypeSpec {
     }
     pub fn close(self) -> Type {
         match self {
-            TypeSpec::Array(_) => Type {
+            TypeSpec::Array { supports_empty: true, .. } => Type {
                 spec: self,
                 defaults_to: Some(JSON::Array(vec![]))
+            },
+            TypeSpec::Array { supports_empty: false, .. } => Type {
+                spec: self,
+                defaults_to: None,
             },
             TypeSpec::Boolean => Type {
                 spec: self,
@@ -423,11 +444,12 @@ impl Type {
         }
         const MAX_ARRAY_LEN: usize = 16;
         match self.spec {
-            TypeSpec::Array(ref type_) => {
-                if depth_limit <= 0 {
+            TypeSpec::Array { supports_empty, contents: ref type_ } => {
+                if supports_empty && depth_limit <= 0 {
                     return JSON::Array(vec![])
                 }
-                let len = rng.gen_range(0, MAX_ARRAY_LEN);
+                let min = if supports_empty { 0 } else { 1 };
+                let len = rng.gen_range(min, MAX_ARRAY_LEN);
                 let mut buf = Vec::with_capacity(len);
                 for _ in 0..len {
                     buf.push(type_.random(syntax, rng, depth_limit - 1));
@@ -1003,7 +1025,13 @@ impl Syntax {
             (&TypeSpec::String,  &String(_)) => Ok(()),
             (&TypeSpec::String,  &Short(_))  => Ok(()),
             (&TypeSpec::Number,  &Number(_)) => Ok(()),
-            (&TypeSpec::Array(ref type_), &Array(ref values)) => {
+            (&TypeSpec::Array { supports_empty, contents: ref type_ }, &Array(ref values)) => {
+                if !supports_empty && values.len() == 0 {
+                    return Err(ASTError::InvalidValue {
+                        got: a.dump(),
+                        expected: format!("{:?}", type_.spec())
+                    });
+                }
                 for value in values {
                     self.validate_from(value, type_)?;
                 }
@@ -1087,7 +1115,7 @@ impl Syntax {
                 Ok(left.as_str() == right.as_str()),
             (&TypeSpec::Number, _, &Number(ref a), &Number(ref b)) =>
                 Ok(a == b),
-            (&TypeSpec::Array(ref type_), _, &Array(ref vec_a), &Array(ref vec_b)) => {
+            (&TypeSpec::Array { contents: ref type_, .. }, _, &Array(ref vec_a), &Array(ref vec_b)) => {
                 if vec_a.len() != vec_b.len() {
                     Ok(false)
                 } else {

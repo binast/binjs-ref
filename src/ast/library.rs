@@ -355,7 +355,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&declaration);
 
     syntax.add_kinded_interface(&variable_declaration).unwrap()
-        .with_field(&field_declarations, Type::interface(&variable_declarator).array())
+        .with_field(&field_declarations, Type::interface(&variable_declarator).non_empty_array())
         .with_field(&field_kind, Type::enumeration(&variable_kind).close())
         .with_parent(&declaration);
 
