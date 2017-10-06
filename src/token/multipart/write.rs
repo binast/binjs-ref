@@ -399,6 +399,7 @@ impl LabelledItem {
                                 vec_map::Entry::Vacant(entry) => {
                                     entry.insert(NodeStatistics {
                                         entries: 1,
+                                        max_entries: 1,
                                         shallow_bytes,
                                         total_bytes,
                                         own_bytes: first_size,
@@ -498,6 +499,7 @@ impl<'a> TreeTokenWriter<'a> {
         let compression = self.grammar_table.write_with_compression(&mut self.data, &self.options.grammar_table)
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.grammar_table.entries = self.grammar_table.map.len();
+        self.statistics.grammar_table.max_entries = self.grammar_table.map.len();
         self.statistics.grammar_table.compression = compression;
 
         // Write strings table to byte stream.
@@ -506,6 +508,7 @@ impl<'a> TreeTokenWriter<'a> {
         let compression = self.strings_table.write_with_compression(&mut self.data, &self.options.strings_table)
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.strings_table.entries = self.strings_table.map.len();
+        self.statistics.strings_table.max_entries = self.strings_table.map.len();
         self.statistics.strings_table.compression = compression;
 
         // Write tree itself to byte stream.
@@ -518,6 +521,7 @@ impl<'a> TreeTokenWriter<'a> {
             let compression = buf.write_with_compression(&mut self.data, &self.options.tree)
                 .map_err(TokenWriterError::WriteError)?;
             self.statistics.tree.entries = 1;
+            self.statistics.tree.max_entries = 1;
             self.statistics.tree.compression = compression;
         }
 
@@ -530,7 +534,7 @@ impl<'a> TreeTokenWriter<'a> {
             match self.statistics.per_kind_name.entry(key.kind.clone()) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
                     let borrow = entry.get_mut();
-                    borrow.add(stats);
+                    *borrow += stats.clone();
                 }
                 std::collections::hash_map::Entry::Vacant(entry) => {
                     entry.insert(stats.clone());
@@ -698,6 +702,10 @@ pub struct SectionStatistics {
     /// Number of entries in this table.
     entries: usize,
 
+    /// Used when collating results across several files:
+    /// max number of entries in a single file.
+    max_entries: usize,
+
     compression: CompressionResult,
 }
 
@@ -705,6 +713,7 @@ impl Default for SectionStatistics {
     fn default() -> Self {
         SectionStatistics {
             entries: 0,
+            max_entries: 0,
             compression: CompressionResult {
                 before_bytes: 0,
                 after_bytes: 0,
@@ -725,6 +734,7 @@ impl AddAssign for CompressionResult {
 impl AddAssign for SectionStatistics {
     fn add_assign(&mut self, rhs: Self) {
         self.entries += rhs.entries;
+        self.max_entries = usize::max(self.max_entries, rhs.max_entries);
         self.compression += rhs.compression;
     }
 }
@@ -733,6 +743,10 @@ impl AddAssign for SectionStatistics {
 pub struct NodeStatistics {
     /// Total number of entries of this node.
     entries: usize,
+
+    /// Used when collating results across several files:
+    /// max number of entries in a single file.
+    max_entries: usize,
 
     /// Number of bytes used to represent the node, minus subnodes
     /// (e.g. the length of the entry in the grammar table).
@@ -745,18 +759,11 @@ pub struct NodeStatistics {
     /// Number of bytes used to represent the node, including all subnodes.
     total_bytes: usize,
 }
-impl NodeStatistics {
-    fn add(&mut self, value: &Self) {
-        self.entries += value.entries;
-        self.own_bytes += value.own_bytes;
-        self.shallow_bytes += value.shallow_bytes;
-        self.total_bytes += value.total_bytes;
-    }
-}
 
 impl AddAssign for NodeStatistics {
     fn add_assign(&mut self, rhs: Self) {
         self.entries += rhs.entries;
+        self.max_entries = usize::max(self.max_entries, rhs.max_entries);
         self.own_bytes += rhs.own_bytes;
         self.shallow_bytes += rhs.shallow_bytes;
         self.total_bytes += rhs.total_bytes;
@@ -877,6 +884,9 @@ struct SectionAndStatistics<'a> {
 impl<'a> Display for SectionAndStatistics<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "\t\t\tEntries: {}\n", self.section.entries)?;
+        if self.section.max_entries != self.section.entries {
+            write!(f, "\t\t\tMax entries per file: {}\n", self.section.max_entries)?;
+        }
         write!(f, "\t\t\tCompression: [")?;
         let mut first = true;
         for item in &self.section.compression.algorithms {
@@ -904,6 +914,9 @@ impl<'a> Display for NodeAndStatistics<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "\t\t{}:\n", self.name)?;
         write!(f, "\t\t\tEntries: {} ({:.2}%)\n", self.stats.entries, 100. * (self.stats.entries as f64) / (self.total_number_of_entries as f64))?;
+        if self.stats.max_entries != self.stats.entries {
+            write!(f, "\t\t\tMax entries per file: {}\n", self.stats.max_entries)?;
+        }
         write!(f, "\t\t\tOwn bytes: {} ({:.2}%)\n", self.stats.own_bytes, 100. * (self.stats.own_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
         if self.header_bytes != 0 {
             write!(f, "\t\t\tHeader bytes: {} ({:.2}%)\n", self.header_bytes, 100. * (self.header_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
