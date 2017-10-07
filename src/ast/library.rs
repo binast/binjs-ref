@@ -94,6 +94,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let binjs_scope = syntax.node_name(SCOPE_NAME);
     let block_statement = syntax.node_name("BlockStatement");
     let boolean_literal = syntax.node_name("BooleanLiteral");
+    let bracket_expression = syntax.node_name("BracketExpression");
     let break_statement = syntax.node_name("BreakStatement");
     let call_expression = syntax.node_name("CallExpression");
     let catch_clause = syntax.node_name("CatchClause");
@@ -103,6 +104,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let declaration = syntax.node_name("Declaration");
     let directive = syntax.node_name("Directive");
     let directive_literal = syntax.node_name("DirectiveLiteral");
+    let dot_expression = syntax.node_name("DotExpression");
     let do_while_statement = syntax.node_name("DoWhileStatement");
     let elision = syntax.node_name("ElisionExpression");
     let empty_statement = syntax.node_name("EmptyStatement");
@@ -119,7 +121,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let literal = syntax.node_name("Literal");
     let logical_expression = syntax.node_name("LogicalExpression");
     let logical_operator = syntax.node_name("LogicalOperator");
-    let member_expression = syntax.node_name("MemberExpression");
     let node = syntax.node_name("Node");
     let new_expression = syntax.node_name("NewExpression");
     let null_literal = syntax.node_name("NullLiteral");
@@ -226,7 +227,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     // Programs
     syntax.add_kinded_interface(&program).unwrap()
-        .with_field(&field_body, Type::interface(&statement).array())
+        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_field(&field_directives, Type::interface(&directive).array())
         .with_parent(&node);
@@ -248,7 +249,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&block_statement).unwrap()
-        .with_field(&field_body, Type::interface(&statement).array())
+        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_field(&field_directives, Type::interface(&directive).array()) // FIXME: This seems like a waste of space. Shouldn't we allow this only for functions?
         .with_parent(&statement);
@@ -296,7 +297,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     syntax.add_kinded_interface(&switch_case).unwrap()
         .with_field(&field_test, Type::interface(&expression).defaults_to(JSON::Null))
-        .with_field(&field_consequent, Type::interface(&statement).array())
+        .with_field(&field_consequent, Type::interfaces(&[&statement, &function_declaration]).array())
         .with_parent(&node);
 
     syntax.add_kinded_interface(&throw_statement).unwrap()
@@ -352,8 +353,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     syntax.add_kinded_interface(&function_declaration).unwrap()
         .with_field(&field_id, Type::interface(&identifier).close())
-        .with_parent(&function)
-        .with_parent(&declaration);
+        .with_parent(&function);
 
     syntax.add_kinded_interface(&variable_declaration).unwrap()
         .with_field(&field_declarations, Type::interface(&variable_declarator).non_empty_array())
@@ -514,10 +514,15 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
             "&&"
         ]);
 
-    syntax.add_kinded_interface(&member_expression).unwrap()
+    syntax.add_kinded_interface(&dot_expression).unwrap()
         .with_field(&field_object, Type::interface(&expression).close())
-        .with_field(&field_property, Type::interface(&expression).close())
-        .with_field(&field_computed, Type::bool().close())
+        .with_field(&field_property, Type::interface(&identifier).close()) // FIXME: Should this be a string?
+        .with_parent(&expression)
+        .with_parent(&pattern);
+
+    syntax.add_kinded_interface(&bracket_expression).unwrap()
+        .with_field(&field_object, Type::interface(&expression).close())
+        .with_field(&field_property, Type::interface(&expression).close()) // FIXME: Should this be a string?
         .with_parent(&expression)
         .with_parent(&pattern);
 
@@ -824,7 +829,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             | "ArrayExpression"
                             | "ObjectProperty" | "ObjectExpression" | "UnaryExpression" | "UpdateExpression"
                             | "BinaryExpression" | "AssignmentExpression" | "LogicalExpression"
-                            | "MemberExpression" | "ConditionalExpression" | "CallExpression"
+                            | "BracketExpression" | "DotExpression"
+                            | "ConditionalExpression" | "CallExpression"
                             | "NewExpression" | "SequenceExpression" => {
                             ctx.add_free_name(name);
                         }
@@ -864,26 +870,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // must be either a literal or an identifier that is not a variable.
                     me.process_references_field(me, ctx, object, "value")?
                 }
-                "MemberExpression" => {
+                "DotExpression" => {
                     me.process_references_field(me, ctx, object, "object")?;
-                    let computed = object.get_bool("computed", "Field `computed` of `MemberExpression`")?;
-                    if computed {
-                        // Just an expression, which could .
-                        me.process_references_field(me, ctx, object, "property")?;
-                    } else {
-                        // Normally, `property` is an identifier, skip it.
-/* FIXME: Find a way to restore this sanity check when we're not fuzzing.
-                        // Sanity check.
-                        let property = object.get_object_mut("property", "Field `property` of `MemberExpression`")?;
-                        let kind = property.get_string("type", "Field `type` of `MemberExpression[\"property\"]`")?;
-                        if kind != "Identifier" {
-                            return Err(ASTError::InvalidValue {
-                                got: kind.to_owned(),
-                                expected: "Identifier".to_string()
-                            });
-                        }
-*/
-                    }
+                    // Field `property` contains an identifier, skip it.
                 }
                 _ => {
                     // Default to parent implementation.

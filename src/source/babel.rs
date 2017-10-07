@@ -98,13 +98,14 @@ impl Babel {
     }
 
     pub fn to_source(&self, ast: &JSON) -> Result<String, Error> {
+        let mut ast = ast.clone();
+        ToBabel.convert(&mut ast);
+
         // Escape `"`.
         let data = ast.dump()
             .replace("\\", "\\\\")
             .replace("\"", "\\\"");
 
-        let mut ast = ast.clone();
-        ToBabel.convert(&mut ast);
 
         // A script to parse a string, write it to stdout as JSON.
         let script = format!(
@@ -210,10 +211,19 @@ impl FromBabel {
                 match object["type"].as_str() {
                     Some("ArrayExpression") => self.convert_array_expression(object),
                     Some("ObjectMethod") => self.convert_object_method(object),
+                    Some("MemberExpression") => self.convert_member_expression(object),
                     _ => { /* No change */ }
                 }
             }
             _ => {}
+        }
+    }
+
+    fn convert_member_expression(&self, object: &mut Object) {
+        match object["computed"] {
+            JSON::Boolean(true) => { object["type"] = json::from("BracketExpression"); }
+            JSON::Boolean(false) => { object["type"] = json::from("DotExpression"); }
+            _ => { /* No change */ }
         }
     }
 
@@ -265,7 +275,9 @@ impl ToBabel {
                     Some("ObjectMethod")
                     | Some("ObjectGetter")
                     | Some("ObjectSetter") => self.convert_object_method(object),
-                    _ => {}
+                    Some("DotExpression")
+                    | Some("BracketExpression") => self.convert_member_expression(object),
+                    _ => { /* No change */ }
                 }
             }
             _ => {
@@ -274,11 +286,27 @@ impl ToBabel {
         }
     }
 
+    fn convert_member_expression(&self, object: &mut Object) {
+        match object["type"].as_str() {
+            Some("BracketExpression") => {
+                object["type"] = json::from("MemberExpression");
+                object["computed"] = JSON::Boolean(true);
+            }
+            Some("DotExpression") => {
+                object["type"] = json::from("MemberExpression");
+                object["computed"] = JSON::Boolean(false);
+            }
+            _ => { panic!("Invalid member expression kind"); }
+        }
+    }
+
     fn convert_object_method(&self, object: &mut Object) {
         // In Babylon, `ObjectMethod::kind` is `"get" | "set" | "init"`.
         // In BinJS, there are three interfaces `ObjectMethod`, `ObjectGetter`, `ObjectSetter`.
         match object["type"].as_str() {
-            Some("ObjectMethod") => { object["kind"] = json::from("ObjectGetter"); }
+            Some("ObjectMethod") => {
+                object["kind"] = json::from("init");
+            }
             Some("ObjectGetter") => {
                 object["type"] = json::from("ObjectMethod");
                 object["kind"] = json::from("get");
@@ -287,7 +315,7 @@ impl ToBabel {
                 object["type"] = json::from("ObjectMethod");
                 object["kind"] = json::from("set");
             }
-            _ => { /* No change */ }
+            _ => { panic!("Invalid member expression kind"); }
         }
     }
 
