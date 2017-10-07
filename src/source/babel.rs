@@ -8,7 +8,7 @@ use std::path::*;
 use std::process::*;
 
 use source::parser::SourceParser;
-use util::get_temporary_file;
+use util::{ Dump, get_temporary_file };
 
 #[derive(Debug)]
 pub enum Error {
@@ -223,17 +223,25 @@ impl FromBabel {
         match object["computed"] {
             JSON::Boolean(true) => { object["type"] = json::from("BracketExpression"); }
             JSON::Boolean(false) => { object["type"] = json::from("DotExpression"); }
-            _ => { /* No change */ }
+            _ => {
+                panic!("Unexpected `MemberExpression` {:?}", object.dump())
+            }
         }
     }
 
     fn convert_object_method(&self, object: &mut Object) {
         // In Babylon, `ObjectMethod::kind` is `"get" | "set" | "init"`.
         // In BinJS, there are three interfaces `ObjectMethod`, `ObjectGetter`, `ObjectSetter`.
-        match object["kind"].as_str() {
-            Some("get") => { object["type"] = json::from("ObjectGetter"); }
-            Some("set") => { object["type"] = json::from("ObjectSetter"); }
-            _ => { /* No change */ }
+        match (&object["computed"], object["kind"].as_str()) {
+            (&JSON::Boolean(true), Some("get")) => { object["type"] = json::from("BracketObjectGetter"); }
+            (&JSON::Boolean(false), Some("get")) => { object["type"] = json::from("ObjectGetter"); }
+            (&JSON::Boolean(true), Some("set")) => { object["type"] = json::from("BracketObjectSetter"); }
+            (&JSON::Boolean(false), Some("set")) => { object["type"] = json::from("ObjectSetter"); }
+            (&JSON::Boolean(true), Some("init")) => { object["type"] = json::from("BracketObjectMethod"); }
+            (&JSON::Boolean(false), Some("init")) => { object["type"] = json::from("ObjectMethod"); }
+            _ => {
+                panic!("Unexpected `ObjectMethod` {:?}", object.dump())
+            }
         }
     }
 
@@ -274,7 +282,10 @@ impl ToBabel {
                     Some("ArrayExpression") => self.convert_array_expression(object),
                     Some("ObjectMethod")
                     | Some("ObjectGetter")
-                    | Some("ObjectSetter") => self.convert_object_method(object),
+                    | Some("ObjectSetter")
+                    | Some("BracketObjectGetter")
+                    | Some("BracketObjectSetter")
+                    | Some("BracketObjectMethod") => self.convert_object_method(object),
                     Some("DotExpression")
                     | Some("BracketExpression") => self.convert_member_expression(object),
                     _ => { /* No change */ }
@@ -306,14 +317,31 @@ impl ToBabel {
         match object["type"].as_str() {
             Some("ObjectMethod") => {
                 object["kind"] = json::from("init");
+                object["computed"] = json::from(false);
+            }
+            Some("BracketObjectMethod") => {
+                object["kind"] = json::from("init");
+                object["computed"] = json::from(true);
             }
             Some("ObjectGetter") => {
                 object["type"] = json::from("ObjectMethod");
                 object["kind"] = json::from("get");
+                object["computed"] = json::from(false);
+            }
+            Some("BracketObjectGetter") => {
+                object["type"] = json::from("ObjectMethod");
+                object["kind"] = json::from("get");
+                object["computed"] = json::from(true);
             }
             Some("ObjectSetter") => {
                 object["type"] = json::from("ObjectMethod");
                 object["kind"] = json::from("set");
+                object["computed"] = json::from(false);
+            }
+            Some("BracketObjectSetter") => {
+                object["type"] = json::from("ObjectMethod");
+                object["kind"] = json::from("set");
+                object["computed"] = json::from(true);
             }
             _ => { panic!("Invalid member expression kind"); }
         }
