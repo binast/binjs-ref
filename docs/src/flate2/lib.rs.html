@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/flate2-0.2.19/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/flate2-0.2.20/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -285,6 +285,72 @@
 <span id="240">240</span>
 <span id="241">241</span>
 <span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A DEFLATE-based stream compression/decompression library</span>
 <span class="doccomment">//!</span>
@@ -292,38 +358,91 @@
 <span class="doccomment">//! libflate library by providing a streaming encoder/decoder rather than purely</span>
 <span class="doccomment">//! an in-memory encoder/decoder.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! Like with libflate, flate2 is based on [`miniz.c`][1]</span>
+<span class="doccomment">//! Like with [`libflate`], flate2 is based on [`miniz.c`][1]</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! [1]: https://code.google.com/p/miniz/</span>
+<span class="doccomment">//! [`libflate`]: https://docs.rs/crate/libflate/</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Organization</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! This crate consists mainly of two modules, `read` and `write`. Each</span>
+<span class="doccomment">//! This crate consists mainly of two modules, [`read`] and [`write`]. Each</span>
 <span class="doccomment">//! module contains a number of types used to encode and decode various streams</span>
-<span class="doccomment">//! of data. All types in the `write` module work on instances of `Write`,</span>
-<span class="doccomment">//! whereas all types in the `read` module work on instances of `Read`.</span>
+<span class="doccomment">//! of data. All types in the [`write`] module work on instances of [`Write`],</span>
+<span class="doccomment">//! whereas all types in the [`read`] module work on instances of [`Read`].</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//! use flate2::write::GzEncoder;</span>
+<span class="doccomment">//! use flate2::Compression;</span>
+<span class="doccomment">//! use std::io;</span>
+<span class="doccomment">//! use std::io::prelude::*;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # fn main() { let _ = run(); }</span>
+<span class="doccomment">//! # fn run() -&gt; io::Result&lt;()&gt; {</span>
+<span class="doccomment">//! let mut encoder = GzEncoder::new(Vec::new(), Compression::Default);</span>
+<span class="doccomment">//! encoder.write(b&quot;Example&quot;)?;</span>
+<span class="doccomment">//! # Ok(())</span>
+<span class="doccomment">//! # }</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Other various types are provided at the top-level of the crate for</span>
 <span class="doccomment">//! management and dealing with encoders/decoders.</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//! [`read`]: read/index.html</span>
+<span class="doccomment">//! [`write`]: write/index.html</span>
+<span class="doccomment">//! [`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html</span>
+<span class="doccomment">//! [`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! # Helper traits</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! There are two helper traits provided: `FlateReader` and `FlateWriter`.</span>
+<span class="doccomment">//! There are two helper traits provided: [`FlateReadExt`] and [`FlateWriteExt`].</span>
 <span class="doccomment">//! These provide convenience methods for creating a decoder/encoder out of an</span>
 <span class="doccomment">//! already existing stream to chain construction.</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//! [`FlateReadExt`]: trait.FlateReadExt.html</span>
+<span class="doccomment">//! [`FlateWriteExt`]: trait.FlateWriteExt.html</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//! use flate2::{FlateReadExt, Compression};</span>
+<span class="doccomment">//! use std::io::prelude::*;</span>
+<span class="doccomment">//! use std::io;</span>
+<span class="doccomment">//! use std::fs::File;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # fn main() {</span>
+<span class="doccomment">//! #    println!(&quot;{}&quot;, run().unwrap());</span>
+<span class="doccomment">//! # }</span>
+<span class="doccomment">//! #</span>
+<span class="doccomment">//! // Read contents of file with a compression stream, then decompress with GZ</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # fn run() -&gt; io::Result&lt;String&gt; {</span>
+<span class="doccomment">//! let f = File::open(&quot;examples/hello_world.txt&quot;)?;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! //gz_encode method comes from FlateReadExt and applies to a std::fs::File</span>
+<span class="doccomment">//! let data = f.gz_encode(Compression::Default);</span>
+<span class="doccomment">//! let mut buffer = String::new();</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! //gz_decode method comes from FlateReadExt and applies to a &amp;[u8]</span>
+<span class="doccomment">//! &amp;data.gz_decode()?.read_to_string(&amp;mut buffer)?;</span>
+<span class="doccomment">//! # Ok(buffer)</span>
+<span class="doccomment">//! # }</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! # Async I/O</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! This crate optionally can support async I/O streams with the Tokio stack via</span>
+<span class="doccomment">//! This crate optionally can support async I/O streams with the [Tokio stack] via</span>
 <span class="doccomment">//! the `tokio` feature of this crate:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! [Tokio stack]: https://tokio.rs/</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```toml</span>
 <span class="doccomment">//! flate2 = { version = &quot;0.2&quot;, features = [&quot;tokio&quot;] }</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! All methods are internally capable of working with streams that may return</span>
-<span class="doccomment">//! `ErrorKind::WouldBlock` when they&#39;re not ready to perform the particular</span>
+<span class="doccomment">//! [`ErrorKind::WouldBlock`] when they&#39;re not ready to perform the particular</span>
 <span class="doccomment">//! operation.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! [`ErrorKind::WouldBlock`]: https://doc.rust-lang.org/std/io/enum.ErrorKind.html</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Note that care needs to be taken when using these objects, however. The</span>
 <span class="doccomment">//! Tokio runtime, in particular, requires that data is fully flushed before</span>
@@ -331,29 +450,29 @@
 <span class="doccomment">//! flushed/written when they are dropped, and this is not always a suitable</span>
 <span class="doccomment">//! time to perform I/O. If I/O streams are flushed before drop, however, then</span>
 <span class="doccomment">//! these operations will be a noop.</span>
-
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/flate2/0.2&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
+<span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_debug_implementations</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">trivial_numeric_casts</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">deny</span>(<span class="ident">warnings</span>))]</span>
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tokio&quot;</span>)]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">futures</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">libc</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">quickcheck</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tokio&quot;</span>)]</span>
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">tokio_io</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tokio&quot;</span>)]</span>
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">futures</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">Builder</span> <span class="kw">as</span> <span class="ident">GzBuilder</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">Header</span> <span class="kw">as</span> <span class="ident">GzHeader</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">mem</span>::{<span class="ident">Compress</span>, <span class="ident">Decompress</span>, <span class="ident">DataError</span>, <span class="ident">Status</span>, <span class="ident">Flush</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">mem</span>::{<span class="ident">Compress</span>, <span class="ident">DataError</span>, <span class="ident">Decompress</span>, <span class="ident">Flush</span>, <span class="ident">Status</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">crc</span>::{<span class="ident">Crc</span>, <span class="ident">CrcReader</span>};
 
 <span class="kw">mod</span> <span class="ident">bufreader</span>;
@@ -365,38 +484,44 @@
 <span class="kw">mod</span> <span class="ident">mem</span>;
 <span class="kw">mod</span> <span class="ident">zlib</span>;
 
-<span class="doccomment">/// Types which operate over `Read` streams, both encoders and decoders for</span>
+<span class="doccomment">/// Types which operate over [`Read`] streams, both encoders and decoders for</span>
 <span class="doccomment">/// various formats.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">read</span> {
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">EncoderReader</span> <span class="kw">as</span> <span class="ident">DeflateEncoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">DecoderReader</span> <span class="kw">as</span> <span class="ident">DeflateDecoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">EncoderReader</span> <span class="kw">as</span> <span class="ident">ZlibEncoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">DecoderReader</span> <span class="kw">as</span> <span class="ident">ZlibDecoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">EncoderReader</span> <span class="kw">as</span> <span class="ident">GzEncoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">DecoderReader</span> <span class="kw">as</span> <span class="ident">GzDecoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">MultiDecoderReader</span> <span class="kw">as</span> <span class="ident">MultiGzDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">read</span>::<span class="ident">DeflateEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">read</span>::<span class="ident">DeflateDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">read</span>::<span class="ident">ZlibEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">read</span>::<span class="ident">ZlibDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">read</span>::<span class="ident">GzEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">read</span>::<span class="ident">GzDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">read</span>::<span class="ident">MultiGzDecoder</span>;
 }
 
-<span class="doccomment">/// Types which operate over `Write` streams, both encoders and decoders for</span>
+<span class="doccomment">/// Types which operate over [`Write`] streams, both encoders and decoders for</span>
 <span class="doccomment">/// various formats.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">write</span> {
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">EncoderWriter</span> <span class="kw">as</span> <span class="ident">DeflateEncoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">DecoderWriter</span> <span class="kw">as</span> <span class="ident">DeflateDecoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">EncoderWriter</span> <span class="kw">as</span> <span class="ident">ZlibEncoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">DecoderWriter</span> <span class="kw">as</span> <span class="ident">ZlibDecoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">EncoderWriter</span> <span class="kw">as</span> <span class="ident">GzEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">write</span>::<span class="ident">DeflateEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">write</span>::<span class="ident">DeflateDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">write</span>::<span class="ident">ZlibEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">write</span>::<span class="ident">ZlibDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">write</span>::<span class="ident">GzEncoder</span>;
 }
 
-<span class="doccomment">/// Types which operate over `BufRead` streams, both encoders and decoders for</span>
+<span class="doccomment">/// Types which operate over [`BufRead`] streams, both encoders and decoders for</span>
 <span class="doccomment">/// various formats.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`BufRead`]: https://doc.rust-lang.org/std/io/trait.BufRead.html</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bufread</span> {
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">EncoderReaderBuf</span> <span class="kw">as</span> <span class="ident">DeflateEncoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">DecoderReaderBuf</span> <span class="kw">as</span> <span class="ident">DeflateDecoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">EncoderReaderBuf</span> <span class="kw">as</span> <span class="ident">ZlibEncoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">DecoderReaderBuf</span> <span class="kw">as</span> <span class="ident">ZlibDecoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">EncoderReaderBuf</span> <span class="kw">as</span> <span class="ident">GzEncoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">DecoderReaderBuf</span> <span class="kw">as</span> <span class="ident">GzDecoder</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">MultiDecoderReaderBuf</span> <span class="kw">as</span> <span class="ident">MultiGzDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">bufread</span>::<span class="ident">DeflateEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">deflate</span>::<span class="ident">bufread</span>::<span class="ident">DeflateDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">bufread</span>::<span class="ident">ZlibEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">zlib</span>::<span class="ident">bufread</span>::<span class="ident">ZlibDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">bufread</span>::<span class="ident">GzEncoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">bufread</span>::<span class="ident">GzDecoder</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gz</span>::<span class="ident">bufread</span>::<span class="ident">MultiGzDecoder</span>;
 }
 
 <span class="kw">fn</span> <span class="ident">_assert_send_sync</span>() {
@@ -418,7 +543,7 @@
 
 <span class="doccomment">/// When compressing data, the compression level can be specified by a value in</span>
 <span class="doccomment">/// this enum.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Compression</span> {
     <span class="doccomment">/// No compression is to be performed, this may actually inflate data</span>
     <span class="doccomment">/// slightly when encoding.</span>
@@ -429,6 +554,13 @@
     <span class="ident">Best</span> <span class="op">=</span> <span class="number">9</span>,
     <span class="doccomment">/// Choose the default compression, a balance between speed and size.</span>
     <span class="ident">Default</span> <span class="op">=</span> <span class="number">6</span>,
+}
+
+<span class="doccomment">/// Default to Compression::Default.</span>
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Compression</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">Compression</span> {
+        <span class="ident">Compression</span>::<span class="ident">Default</span>
+    }
 }
 
 <span class="doccomment">/// A helper trait to create encoder/decoders with method syntax.</span>
@@ -510,21 +642,21 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> {<span class="ident">FlateReadExt</span>, <span class="ident">Compression</span>};
+    <span class="kw">use</span> {<span class="ident">Compression</span>, <span class="ident">FlateReadExt</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">crazy</span>() {
         <span class="kw">let</span> <span class="ident">rdr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="string">b&quot;foobar&quot;</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="ident">rdr</span>.<span class="ident">gz_encode</span>(<span class="ident">Compression</span>::<span class="ident">Default</span>)
-           .<span class="ident">deflate_encode</span>(<span class="ident">Compression</span>::<span class="ident">Default</span>)
-           .<span class="ident">zlib_encode</span>(<span class="ident">Compression</span>::<span class="ident">Default</span>)
-           .<span class="ident">zlib_decode</span>()
-           .<span class="ident">deflate_decode</span>()
-           .<span class="ident">gz_decode</span>()
-           .<span class="ident">unwrap</span>()
-           .<span class="ident">read_to_end</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">res</span>)
-           .<span class="ident">unwrap</span>();
+            .<span class="ident">deflate_encode</span>(<span class="ident">Compression</span>::<span class="ident">Default</span>)
+            .<span class="ident">zlib_encode</span>(<span class="ident">Compression</span>::<span class="ident">Default</span>)
+            .<span class="ident">zlib_decode</span>()
+            .<span class="ident">deflate_decode</span>()
+            .<span class="ident">gz_decode</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">read_to_end</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">res</span>)
+            .<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">res</span>, <span class="string">b&quot;foobar&quot;</span>);
     }
 }

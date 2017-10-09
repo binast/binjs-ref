@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["write",""]],"trait":[["Integer",""]]});

@@ -722,6 +722,8 @@
 <span id="677">677</span>
 <span id="678">678</span>
 <span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
 </pre><pre class="rust ">
 <span class="comment">// FIXME: Too much copy&amp;paste in this file.</span>
 
@@ -729,15 +731,14 @@
 <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">library</span>::{ <span class="ident">BINJS_CONST_NAME</span>, <span class="ident">BINJS_LET_NAME</span>, <span class="ident">BINJS_VAR_NAME</span>, <span class="ident">BINJS_DIRECT_EVAL</span>, <span class="ident">BINJS_CAPTURED_NAME</span>, <span class="ident">SCOPE_NAME</span> };
 <span class="kw">use</span> <span class="ident">util</span>::{ <span class="ident">Dispose</span>, <span class="ident">JSONGetter</span> };
 
-<span class="kw">use</span> <span class="ident">serde_json</span>;
-<span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="kw">as</span> <span class="ident">JSON</span>;
+<span class="kw">use</span> <span class="ident">json</span>;
+<span class="kw">use</span> <span class="ident">json</span>::<span class="ident">JsonValue</span> <span class="kw">as</span> <span class="ident">JSON</span>;
+<span class="kw">use</span> <span class="ident">json</span>::<span class="ident">object</span>::<span class="ident">Object</span> <span class="kw">as</span> <span class="ident">Object</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::{ <span class="ident">RefCell</span>, <span class="ident">Ref</span> };
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::{ <span class="ident">Rc</span>, <span class="ident">Weak</span> };
-
-<span class="kw">type</span> <span class="ident">Object</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">JSON</span><span class="op">&gt;</span>;
 
 <span class="doccomment">/// The position currently being examined.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
@@ -1070,27 +1071,23 @@
         <span class="kw">let</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">get_object_mut</span>(<span class="ident">SCOPE_NAME</span>, <span class="string">&quot;Scope field&quot;</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Could not store captured names, etc.&quot;</span>);
         <span class="kw">for</span> <span class="ident">name</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="ident">BINJS_VAR_NAME</span>, <span class="ident">BINJS_LET_NAME</span>, <span class="ident">BINJS_CONST_NAME</span>] {
-            <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">to_string</span>();
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">object</span>.<span class="ident">contains_key</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>) {
-                <span class="ident">object</span>.<span class="ident">insert</span>(<span class="ident">name</span>, <span class="macro">json</span><span class="macro">!</span>([]));
+            <span class="kw">if</span> <span class="ident">object</span>[<span class="kw-2">*</span><span class="ident">name</span>].<span class="ident">is_null</span>() {
+                <span class="ident">object</span>.<span class="ident">insert</span>(<span class="ident">name</span>, <span class="macro">array</span><span class="macro">!</span>[]);
             }
         }
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">object</span>.<span class="ident">contains_key</span>(<span class="ident">BINJS_CAPTURED_NAME</span>));
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">object</span>.<span class="ident">contains_key</span>(<span class="ident">BINJS_DIRECT_EVAL</span>));
-
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">captured_names</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">captured_names</span>();
         <span class="ident">captured_names</span>.<span class="ident">sort</span>();
-        <span class="kw">let</span> <span class="ident">borrow</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">contents</span>.<span class="ident">borrow</span>();
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">object</span>
-            .<span class="ident">insert</span>(<span class="ident">BINJS_CAPTURED_NAME</span>.<span class="ident">to_string</span>(), <span class="macro">json</span><span class="macro">!</span>(<span class="ident">captured_names</span>))
-            .<span class="ident">is_none</span>(),
-            <span class="string">&quot;This node already has a field {}&quot;</span>, <span class="ident">BINJS_CAPTURED_NAME</span>);
+        <span class="kw">let</span> <span class="ident">captured_names</span> : <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">captured_names</span>.<span class="ident">drain</span>(..)
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">name</span><span class="op">|</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="kw-2">&amp;</span><span class="ident">name</span> <span class="kw">as</span> <span class="kw-2">&amp;</span><span class="ident">str</span>))
+            .<span class="ident">collect</span>();
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">object</span>
-            .<span class="ident">insert</span>(<span class="ident">BINJS_DIRECT_EVAL</span>.<span class="ident">to_string</span>(), <span class="macro">json</span><span class="macro">!</span>(<span class="ident">borrow</span>.<span class="ident">data</span>.<span class="ident">has_direct_eval</span>))
-            .<span class="ident">is_none</span>(),
-            <span class="string">&quot;This node already has a field {}&quot;</span>, <span class="ident">BINJS_DIRECT_EVAL</span>);
+        <span class="kw">let</span> <span class="ident">borrow</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">contents</span>.<span class="ident">borrow</span>();
+        <span class="ident">object</span>
+            .<span class="ident">insert</span>(<span class="ident">BINJS_CAPTURED_NAME</span>, <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">captured_names</span>));
+
+        <span class="ident">object</span>
+            .<span class="ident">insert</span>(<span class="ident">BINJS_DIRECT_EVAL</span>, <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">borrow</span>.<span class="ident">data</span>.<span class="ident">has_direct_eval</span>));
     }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">load</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">parent</span>: <span class="kw-2">&amp;</span><span class="ident">Object</span>) {
         <span class="kw">let</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">get_object</span>(<span class="ident">SCOPE_NAME</span>, <span class="string">&quot;Scope field&quot;</span>)
@@ -1293,24 +1290,31 @@
     }
     <span class="doccomment">/// Store scope information in a field &quot;BINJS:Scope&quot; of the node.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">store</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">parent</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">parent</span>.<span class="ident">contains_key</span>(<span class="ident">SCOPE_NAME</span>));
         <span class="kw">let</span> <span class="ident">borrow</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">contents</span>.<span class="ident">borrow</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">var_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">borrow</span>.<span class="ident">data</span>.<span class="ident">var_names</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
         <span class="ident">var_decl_names</span>.<span class="ident">sort</span>(); <span class="comment">// To simplify testing (and hopefully improve compression).</span>
+        <span class="kw">let</span> <span class="ident">var_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">var_decl_names</span>.<span class="ident">drain</span>(..).<span class="ident">map</span>(<span class="op">|</span><span class="ident">name</span><span class="op">|</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">name</span> <span class="kw">as</span> <span class="kw-2">&amp;</span><span class="ident">str</span>)).<span class="ident">collect</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">let_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">borrow</span>.<span class="ident">data</span>.<span class="ident">let_names</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
         <span class="ident">let_decl_names</span>.<span class="ident">sort</span>(); <span class="comment">// To simplify testing (and hopefully improve compression)</span>
+        <span class="kw">let</span> <span class="ident">let_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">let_decl_names</span>.<span class="ident">drain</span>(..).<span class="ident">map</span>(<span class="op">|</span><span class="ident">name</span><span class="op">|</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">name</span> <span class="kw">as</span> <span class="kw-2">&amp;</span><span class="ident">str</span>)).<span class="ident">collect</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">const_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">borrow</span>.<span class="ident">data</span>.<span class="ident">const_names</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
         <span class="ident">const_decl_names</span>.<span class="ident">sort</span>();
+        <span class="kw">let</span> <span class="ident">const_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">const_decl_names</span>.<span class="ident">drain</span>(..).<span class="ident">map</span>(<span class="op">|</span><span class="ident">name</span><span class="op">|</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">name</span> <span class="kw">as</span> <span class="kw-2">&amp;</span><span class="ident">str</span>)).<span class="ident">collect</span>();
 
-        <span class="ident">parent</span>.<span class="ident">insert</span>(<span class="ident">SCOPE_NAME</span>.<span class="ident">to_string</span>(), <span class="macro">json</span><span class="macro">!</span>({
-            <span class="string">&quot;type&quot;</span>: <span class="ident">SCOPE_NAME</span>,
-            <span class="ident">BINJS_VAR_NAME</span>: <span class="ident">var_decl_names</span>,
-            <span class="ident">BINJS_LET_NAME</span>: <span class="ident">let_decl_names</span>,
-            <span class="ident">BINJS_CONST_NAME</span>: <span class="ident">const_decl_names</span>,
-        }));
+        <span class="comment">// Ignore overwrites: we may be overwriting an existing &quot;BINJS:Scope&quot; object,</span>
+        <span class="comment">// in case we are used to re-annotate an existing tree.</span>
+        <span class="kw">let</span> <span class="ident">object</span> : <span class="ident">JSON</span> <span class="op">=</span> <span class="macro">object</span><span class="macro">!</span>{
+            <span class="string">&quot;type&quot;</span> <span class="op">=&gt;</span> <span class="ident">SCOPE_NAME</span>,
+            <span class="ident">BINJS_VAR_NAME</span> <span class="op">=&gt;</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">var_decl_names</span>),
+            <span class="ident">BINJS_LET_NAME</span> <span class="op">=&gt;</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">let_decl_names</span>),
+            <span class="ident">BINJS_CONST_NAME</span> <span class="op">=&gt;</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">const_decl_names</span>),
+            <span class="ident">BINJS_CAPTURED_NAME</span> <span class="op">=&gt;</span> <span class="macro">array</span><span class="macro">!</span>[],
+            <span class="ident">BINJS_DIRECT_EVAL</span> <span class="op">=&gt;</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="bool-val">false</span>)
+        };
+        <span class="ident">parent</span>.<span class="ident">insert</span>(<span class="ident">SCOPE_NAME</span>, <span class="ident">object</span>);
     }
 }
 
@@ -1352,7 +1356,7 @@
             <span class="kw">return</span> <span class="ident">me</span>.<span class="ident">process_declarations_aux</span>(<span class="ident">me</span>, <span class="ident">ctx</span>, <span class="ident">json</span>)
         }
         <span class="prelude-val">Err</span>(<span class="ident">ASTError</span>::<span class="ident">InvalidValue</span> {
-            <span class="ident">got</span>: <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="ident">object</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">got</span>: <span class="ident">object</span>.<span class="ident">dump</span>(),
             <span class="ident">expected</span>: <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Field `{}`&quot;</span>, <span class="ident">key</span>)
         })
     }
@@ -1397,7 +1401,7 @@
             <span class="kw">return</span> <span class="ident">me</span>.<span class="ident">process_references_aux</span>(<span class="ident">me</span>, <span class="ident">ctx</span>, <span class="ident">json</span>)
         }
         <span class="prelude-val">Err</span>(<span class="ident">ASTError</span>::<span class="ident">InvalidValue</span> {
-            <span class="ident">got</span>: <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="ident">object</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">got</span>: <span class="ident">object</span>.<span class="ident">dump</span>(),
             <span class="ident">expected</span>: <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Field `{}`&quot;</span>, <span class="ident">key</span>)
         })
     }

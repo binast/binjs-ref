@@ -257,13 +257,39 @@
 <span id="212">212</span>
 <span id="213">213</span>
 <span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Compressing bytes from/to bytes.</span>
 
 <span class="kw">use</span> <span class="ident">bytes</span>::<span class="ident">serialize</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">bytes</span>::<span class="ident">varnum</span>::<span class="kw-2">*</span>;
 
+<span class="kw">use</span> <span class="ident">rand</span>::{ <span class="ident">Rand</span>, <span class="ident">Rng</span> };
+
 <span class="kw">use</span> <span class="ident">std</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{ <span class="ident">Cursor</span>, <span class="ident">Read</span>, <span class="ident">Write</span> };
 
 <span class="kw">const</span> <span class="ident">BROTLI_BUFFER_SIZE</span> : <span class="ident">usize</span> <span class="op">=</span> <span class="number">4096</span>;
@@ -274,7 +300,7 @@
 <span class="doccomment">/// The compression mechanisms supported by this encoder.</span>
 <span class="doccomment">/// They are designed to match HTTP&#39;s Accept-Encoding:</span>
 <span class="doccomment">/// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Compression</span> {
     <span class="doccomment">/// no compression (`identity;`)</span>
     <span class="ident">Identity</span>,
@@ -288,13 +314,34 @@
     <span class="ident">Lzw</span>,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">impl</span> <span class="ident">Rand</span> <span class="kw">for</span> <span class="ident">Compression</span> {
+    <span class="kw">fn</span> <span class="ident">rand</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">use</span> <span class="self">self</span>::<span class="ident">Compression</span>::<span class="kw-2">*</span>;
+        <span class="ident">rng</span>.<span class="ident">choose</span>(<span class="kw-2">&amp;</span>[<span class="ident">Identity</span>, <span class="ident">Gzip</span>, <span class="ident">Deflate</span>, <span class="ident">Brotli</span> <span class="comment">/*, Lzw doesn&#39;t work */</span>])
+            .<span class="ident">unwrap</span>() <span class="comment">// The array is not empty.</span>
+            .<span class="ident">clone</span>()
+    }
+}
+
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CompressionResult</span> {
-    <span class="kw">pub</span> <span class="ident">before</span>: <span class="ident">usize</span>,
-    <span class="kw">pub</span> <span class="ident">after</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">before_bytes</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">after_bytes</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">algorithms</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Compression</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Compression</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+        <span class="kw">use</span> <span class="self">self</span>::<span class="ident">Compression</span>::<span class="kw-2">*</span>;
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">Identity</span> <span class="op">=&gt;</span> <span class="string">&quot;Identity&quot;</span>,
+            <span class="ident">Gzip</span> <span class="op">=&gt;</span> <span class="string">&quot;Gzip&quot;</span>,
+            <span class="ident">Deflate</span> <span class="op">=&gt;</span> <span class="string">&quot;Deflate&quot;</span>,
+            <span class="ident">Brotli</span> <span class="op">=&gt;</span> <span class="string">&quot;Brotli&quot;</span>,
+            <span class="ident">Lzw</span> <span class="op">=&gt;</span> <span class="string">&quot;Lzw&quot;</span>,
+        }
+    }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">name</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Compression</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">name</span> {
             <span class="prelude-val">None</span> <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;identity&quot;</span>) <span class="op">=&gt;</span> <span class="ident">Compression</span>::<span class="ident">Identity</span>,
@@ -311,7 +358,7 @@
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">values</span>() <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span>[<span class="self">Self</span>]<span class="op">&gt;</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">Compression</span>::<span class="kw-2">*</span>;
-        <span class="ident">Box</span>::<span class="ident">new</span>([<span class="ident">Identity</span>, <span class="ident">Gzip</span>, <span class="ident">Deflate</span>, <span class="ident">Brotli</span>, <span class="ident">Lzw</span>])
+        <span class="ident">Box</span>::<span class="ident">new</span>([<span class="ident">Identity</span>, <span class="ident">Gzip</span>, <span class="ident">Deflate</span>, <span class="ident">Brotli</span> <span class="comment">/*, Lzw doesn&#39;t work yet*/</span>])
     }
 
     <span class="comment">// Format:</span>
@@ -319,8 +366,8 @@
     <span class="comment">// - compressed byte length (varnum);</span>
     <span class="comment">// - data.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compress</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">out</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CompressionResult</span>, <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">before</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">len</span>();
-        <span class="kw">let</span> <span class="ident">after</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+        <span class="kw">let</span> <span class="ident">before_bytes</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="ident">after_bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Compression</span>::<span class="ident">Identity</span> <span class="op">=&gt;</span> {
                 <span class="ident">out</span>.<span class="ident">write_all</span>(<span class="string">b&quot;identity;&quot;</span>)<span class="question-mark">?</span>;
                 <span class="ident">out</span>.<span class="ident">write_varnum</span>(<span class="ident">data</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u32</span>)<span class="question-mark">?</span>;
@@ -384,8 +431,9 @@
             }
         };
         <span class="prelude-val">Ok</span>(<span class="ident">CompressionResult</span> {
-            <span class="ident">before</span>,
-            <span class="ident">after</span>
+            <span class="ident">before_bytes</span>,
+            <span class="ident">after_bytes</span>,
+            <span class="ident">algorithms</span>: [<span class="self">self</span>.<span class="ident">clone</span>()].<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>()
         })
     }
 
@@ -465,8 +513,6 @@
                 <span class="ident">buf</span>
             }
         };
-
-        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Compression detected: {:?}, {} bytes =&gt; {}&quot;</span>, <span class="ident">compression</span>, <span class="ident">byte_len</span>, <span class="ident">decompressed_bytes</span>.<span class="ident">len</span>());
 
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">deserializer</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">decompressed_bytes</span>))<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">value</span>)

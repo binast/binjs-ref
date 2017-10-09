@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/flate2-0.2.19/src/ffi.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/flate2-0.2.20/src/ffi.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>ffi.rs.html -- source</title>
@@ -266,6 +266,18 @@
 <span id="221">221</span>
 <span id="222">222</span>
 <span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
 </pre><pre class="rust ">
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">imp</span>::<span class="kw-2">*</span>;
 
@@ -338,6 +350,12 @@
         <span class="ident">inner</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">mz_stream</span><span class="op">&gt;</span>,
     }
 
+    <span class="kw">impl</span> ::<span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">StreamWrapper</span>{
+        <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ::<span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Error</span><span class="op">&gt;</span>{
+            <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;StreamWrapper&quot;</span>)
+        }
+    }
+
     <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">StreamWrapper</span> {
         <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">StreamWrapper</span> {
             <span class="ident">StreamWrapper</span> {
@@ -372,6 +390,12 @@
 
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StreamWrapper</span> {
         <span class="ident">inner</span>: <span class="ident">mz_stream</span>,
+    }
+
+    <span class="kw">impl</span> ::<span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">StreamWrapper</span>{
+        <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ::<span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Error</span><span class="op">&gt;</span>{
+            <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;StreamWrapper&quot;</span>)
+        }
     }
 
     <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">StreamWrapper</span> {

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/flate2-0.2.19/src/mem.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/flate2-0.2.20/src/mem.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mem.rs.html -- source</title>
@@ -534,6 +534,31 @@
 <span id="489">489</span>
 <span id="490">490</span>
 <span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
@@ -549,12 +574,16 @@
 <span class="doccomment">/// Raw in-memory compression stream for blocks of data.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This type is the building block for the I/O streams in the rest of this</span>
-<span class="doccomment">/// crate. It requires more management than the `Read`/`Write` API but is</span>
+<span class="doccomment">/// crate. It requires more management than the [`Read`]/[`Write`] API but is</span>
 <span class="doccomment">/// maximally flexible in terms of accepting input from any source and being</span>
 <span class="doccomment">/// able to produce output to any memory location.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// It is recommended to use the I/O stream adaptors over this type as they&#39;re</span>
 <span class="doccomment">/// easier to use.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html</span>
+<span class="doccomment">/// [`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Compress</span> {
     <span class="ident">inner</span>: <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">DirCompress</span><span class="op">&gt;</span>,
 }
@@ -562,16 +591,21 @@
 <span class="doccomment">/// Raw in-memory decompression stream for blocks of data.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This type is the building block for the I/O streams in the rest of this</span>
-<span class="doccomment">/// crate. It requires more management than the `Read`/`Write` API but is</span>
+<span class="doccomment">/// crate. It requires more management than the [`Read`]/[`Write`] API but is</span>
 <span class="doccomment">/// maximally flexible in terms of accepting input from any source and being</span>
 <span class="doccomment">/// able to produce output to any memory location.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// It is recommended to use the I/O stream adaptors over this type as they&#39;re</span>
 <span class="doccomment">/// easier to use.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html</span>
+<span class="doccomment">/// [`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Decompress</span> {
     <span class="ident">inner</span>: <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">DirDecompress</span><span class="op">&gt;</span>,
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">struct</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">Direction</span><span class="op">&gt;</span> {
     <span class="ident">stream_wrapper</span>: <span class="ident">ffi</span>::<span class="ident">StreamWrapper</span>,
     <span class="ident">total_in</span>: <span class="ident">u64</span>,
@@ -586,11 +620,14 @@
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">destroy</span>(<span class="ident">stream</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">mz_stream</span>) <span class="op">-&gt;</span> <span class="ident">c_int</span>;
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">enum</span> <span class="ident">DirCompress</span> {}
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">enum</span> <span class="ident">DirDecompress</span> {}
 
 <span class="doccomment">/// Values which indicate the form of flushing to be used when compressing or</span>
 <span class="doccomment">/// decompressing in-memory data.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Flush</span> {
     <span class="doccomment">/// A typical parameter for passing to compression/decompression functions,</span>
     <span class="doccomment">/// this indicates that the underlying stream to decide how much data to</span>
@@ -649,6 +686,7 @@
 
 <span class="doccomment">/// Possible status results of compressing some data or successfully</span>
 <span class="doccomment">/// decompressing a block of data.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Status</span> {
     <span class="doccomment">/// Indicates success.</span>
     <span class="doccomment">///</span>
@@ -845,6 +883,12 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// To learn how much data was consumed or how much output was produced, use</span>
     <span class="doccomment">/// the `total_in` and `total_out` functions before/after this is called.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Errors</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the input data to this instance of `Decompress` is not a valid</span>
+    <span class="doccomment">/// zlib/deflate stream then this function may return an instance of</span>
+    <span class="doccomment">/// `DataError` to indicate that the stream of input bytes is corrupted.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">decompress</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
                       <span class="ident">input</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
                       <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>],
@@ -883,6 +927,12 @@
     <span class="doccomment">/// the vector provided or attempt to grow it, so space for the output must</span>
     <span class="doccomment">/// be reserved in the output vector by the caller before calling this</span>
     <span class="doccomment">/// function.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Errors</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the input data to this instance of `Decompress` is not a valid</span>
+    <span class="doccomment">/// zlib/deflate stream then this function may return an instance of</span>
+    <span class="doccomment">/// `DataError` to indicate that the stream of input bytes is corrupted.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">decompress_vec</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
                           <span class="ident">input</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
                           <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,

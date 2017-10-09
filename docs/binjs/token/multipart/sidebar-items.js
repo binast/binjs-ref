@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TreeTokenReader",""],["TreeTokenWriter",""],["WriteOptions",""]]});
+initSidebarItems({"struct":[["Statistics",""],["TreeTokenReader",""],["TreeTokenWriter",""],["WriteOptions",""]]});

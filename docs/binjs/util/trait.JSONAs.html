@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `JSONAs` trait in crate `binjs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, JSONAs">
+
+    <title>binjs::util::JSONAs - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Trait JSONAs</p><div class="block items"><ul><li><a href="#required-methods">Required Methods</a></li><li><a href="#foreign-impls">Implementations on Foreign Types</a></li><li><a href="#implementors">Implementors</a></li></ul></div><p class='location'><a href='../index.html'>binjs</a>::<wbr><a href='index.html'>util</a></p><script>window.sidebarCurrent = {name: 'JSONAs', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>binjs</a>::<wbr><a href='index.html'>util</a>::<wbr><a class="trait" href=''>JSONAs</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/binjs/util/mod.rs.html#76-81' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait JSONAs {
+    fn <a href='#tymethod.as_array' class='fnname'>as_array</a>(&amp;self, description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a>&gt;, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;;
+<div class='item-spacer'></div>    fn <a href='#tymethod.as_array_mut' class='fnname'>as_array_mut</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a>&gt;, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;;
+<div class='item-spacer'></div>    fn <a href='#tymethod.as_object' class='fnname'>as_object</a>(&amp;self, description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;<a class="struct" href="../../json/object/struct.Object.html" title="struct json::object::Object">Object</a>, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;;
+<div class='item-spacer'></div>    fn <a href='#tymethod.as_object_mut' class='fnname'>as_object_mut</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;mut <a class="struct" href="../../json/object/struct.Object.html" title="struct json::object::Object">Object</a>, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;;
+}</pre>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.as_array' class='method'><span id='as_array.v' class='invisible'><code>fn <a href='#tymethod.as_array' class='fnname'>as_array</a>(&amp;self, description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a>&gt;, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;</code></span></h3><h3 id='tymethod.as_array_mut' class='method'><span id='as_array_mut.v' class='invisible'><code>fn <a href='#tymethod.as_array_mut' class='fnname'>as_array_mut</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a>&gt;, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;</code></span></h3><h3 id='tymethod.as_object' class='method'><span id='as_object.v' class='invisible'><code>fn <a href='#tymethod.as_object' class='fnname'>as_object</a>(&amp;self, description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;<a class="struct" href="../../json/object/struct.Object.html" title="struct json::object::Object">Object</a>, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;</code></span></h3><h3 id='tymethod.as_object_mut' class='method'><span id='as_object_mut.v' class='invisible'><code>fn <a href='#tymethod.as_object_mut' class='fnname'>as_object_mut</a>(&amp;mut self, description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;mut <a class="struct" href="../../json/object/struct.Object.html" title="struct json::object::Object">Object</a>, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;</code></span></h3></div>
+                <h2 id='foreign-impls' class='section-header'>
+                  Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
+                </h2>
+            <h3 id='impl-JSONAs' class='impl'><span class='in-band'><code>impl <a class="trait" href="../../binjs/util/trait.JSONAs.html" title="trait binjs::util::JSONAs">JSONAs</a> for <a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a></code><a href='#impl-JSONAs' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/binjs/util/mod.rs.html#83-124' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.as_array' class="method"><span id='as_array.v-1' class='invisible'><code>fn <a href='#method.as_array' class='fnname'>as_array</a>(&amp;self, description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a>&gt;, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/binjs/util/mod.rs.html#84-93' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.as_array_mut' class="method"><span id='as_array_mut.v-1' class='invisible'><code>fn <a href='#method.as_array_mut' class='fnname'>as_array_mut</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a>&gt;, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/binjs/util/mod.rs.html#94-103' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.as_object' class="method"><span id='as_object.v-1' class='invisible'><code>fn <a href='#method.as_object' class='fnname'>as_object</a>(&amp;self, description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;<a class="struct" href="../../json/object/struct.Object.html" title="struct json::object::Object">Object</a>, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/binjs/util/mod.rs.html#104-113' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.as_object_mut' class="method"><span id='as_object_mut.v-1' class='invisible'><code>fn <a href='#method.as_object_mut' class='fnname'>as_object_mut</a>(&amp;mut self, description: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;mut <a class="struct" href="../../json/object/struct.Object.html" title="struct json::object::Object">Object</a>, <a class="enum" href="../../binjs/ast/grammar/enum.ASTError.html" title="enum binjs::ast::grammar::ASTError">ASTError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/binjs/util/mod.rs.html#114-123' title='goto source code'>[src]</a></span></h4>
+</div></span>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    </ul><script type="text/javascript" async
+                         src="../../implementors/binjs/util/trait.JSONAs.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "binjs";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

@@ -833,6 +833,16 @@
 <span id="788">788</span>
 <span id="789">789</span>
 <span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Minimal implementation of encoding/decoding to binary.</span>
 <span class="doccomment">//! Used for testing purposes. Not included in release builds.</span>
@@ -1216,13 +1226,30 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
+<span class="doccomment">/// This encoder doesn&#39;t produce useful statistics.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Statistics</span>;
+<span class="kw">impl</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Statistics</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;No statistics available for this encoder&quot;</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Add</span> <span class="kw">for</span> <span class="ident">Statistics</span> {
+    <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="self">Self</span>;
+    <span class="kw">fn</span> <span class="ident">add</span>(<span class="self">self</span>, _: <span class="self">Self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">Output</span> {
+        <span class="ident">Statistics</span>
+    }
+}
+
 <span class="kw">impl</span> <span class="ident">TokenWriter</span> <span class="kw">for</span> <span class="ident">TreeTokenWriter</span> {
     <span class="kw">type</span> <span class="ident">Tree</span> <span class="op">=</span> <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span>;
     <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">TokenWriterError</span>;
     <span class="kw">type</span> <span class="ident">Data</span> <span class="op">=</span> <span class="ident">Data</span>;
+    <span class="kw">type</span> <span class="ident">Statistics</span> <span class="op">=</span> <span class="ident">Statistics</span>;
 
-    <span class="kw">fn</span> <span class="ident">done</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Data</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">Data</span>(<span class="self">self</span>.<span class="ident">root</span>))
+    <span class="kw">fn</span> <span class="ident">done</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="self">Self</span>::<span class="ident">Data</span>, <span class="self">Self</span>::<span class="ident">Statistics</span>), <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>((<span class="ident">Data</span>(<span class="self">self</span>.<span class="ident">root</span>), <span class="ident">Statistics</span>))
     }
 
     <span class="kw">fn</span> <span class="ident">float</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">data</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Tree</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
@@ -1310,7 +1337,7 @@
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">register</span>(<span class="ident">result</span>))
     }
 
-    <span class="doccomment">/// For this example, use a very, very, very suboptimal encoding.</span>
+    <span class="doccomment">/// For this example, we use a very, very, very suboptimal encoding.</span>
     <span class="doccomment">/// - (if specified)</span>
     <span class="doccomment">///   - kind (string, \0 terminated)</span>
     <span class="doccomment">///   - field names (string, \0 terminated)</span>
@@ -1370,22 +1397,16 @@
 
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">use</span> <span class="ident">serde_json</span>;
-    <span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="kw">as</span> <span class="ident">JSON</span>;
+    <span class="kw">use</span> <span class="ident">json</span>::<span class="ident">object</span>::<span class="ident">Object</span>;
 
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{ <span class="ident">Cursor</span>, <span class="ident">Write</span> };
 
-    <span class="kw">type</span> <span class="ident">Object</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">JSON</span><span class="op">&gt;</span>;
-
     <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Setting up syntax&quot;</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">SyntaxBuilder</span>::<span class="ident">new</span>();
-    <span class="kw">let</span> <span class="ident">null</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">node_name</span>(<span class="string">&quot;Null&quot;</span>);
-    <span class="kw">let</span> <span class="ident">null_kind</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">kind_name</span>(<span class="string">&quot;Null&quot;</span>);
-    <span class="ident">builder</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">null</span>).<span class="ident">unwrap</span>();
 
     <span class="kw">let</span> <span class="ident">kinded</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">node_name</span>(<span class="string">&quot;Pattern&quot;</span>);
-    <span class="kw">let</span> <span class="ident">field_string</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">new</span>(<span class="ident">builder</span>.<span class="ident">field_name</span>(<span class="string">&quot;id&quot;</span>), <span class="ident">Type</span>::<span class="ident">string</span>());
-    <span class="kw">let</span> <span class="ident">field_number</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">new</span>(<span class="ident">builder</span>.<span class="ident">field_name</span>(<span class="string">&quot;value&quot;</span>), <span class="ident">Type</span>::<span class="ident">number</span>());
+    <span class="kw">let</span> <span class="ident">field_string</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">new</span>(<span class="ident">builder</span>.<span class="ident">field_name</span>(<span class="string">&quot;id&quot;</span>), <span class="ident">Type</span>::<span class="ident">string</span>().<span class="ident">close</span>());
+    <span class="kw">let</span> <span class="ident">field_number</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">new</span>(<span class="ident">builder</span>.<span class="ident">field_name</span>(<span class="string">&quot;value&quot;</span>), <span class="ident">Type</span>::<span class="ident">number</span>().<span class="ident">close</span>());
 
     <span class="ident">builder</span>.<span class="ident">add_kinded_interface</span>(<span class="kw-2">&amp;</span><span class="ident">kinded</span>).<span class="ident">unwrap</span>()
         .<span class="ident">with_own_field</span>(<span class="ident">field_string</span>.<span class="ident">clone</span>())
@@ -1406,7 +1427,6 @@
 
     <span class="kw">let</span> <span class="ident">syntax</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">into_syntax</span>(<span class="ident">SyntaxOptions</span> {
         <span class="ident">root</span>: <span class="kw-2">&amp;</span><span class="ident">kinded</span>,
-        <span class="ident">null</span>: <span class="kw-2">&amp;</span><span class="ident">null_kind</span>,
         <span class="ident">annotator</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">FakeAnnotator</span>)
     });
 
@@ -1509,9 +1529,9 @@
         <span class="comment">// Order of fields is not deterministic</span>
         <span class="kw">if</span> <span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>() {
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>());
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">string</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">string</span>().<span class="ident">close</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>());
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">number</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">number</span>().<span class="ident">close</span>());
             <span class="kw">let</span> <span class="ident">simple_string</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">string</span>()
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tagged tuple[0]&quot;</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading a non-null string&quot;</span>);
@@ -1522,9 +1542,9 @@
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">simple_float</span>, <span class="number">3.1415</span>);
         } <span class="kw">else</span> {
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>());
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">string</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">1</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">string</span>().<span class="ident">close</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">name</span>().<span class="ident">to_string</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>());
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">number</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">fields</span>[<span class="number">0</span>].<span class="ident">type_</span>(), <span class="ident">Type</span>::<span class="ident">number</span>().<span class="ident">close</span>());
             <span class="kw">let</span> <span class="ident">simple_float</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">float</span>()
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading trivial tagged tuple[1]&quot;</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;Reading a non-null float&quot;</span>);

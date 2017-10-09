@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/flate2-0.2.19/src/zio.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/flate2-0.2.20/src/zio.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>zio.rs.html -- source</title>
@@ -240,6 +240,10 @@
 <span id="195">195</span>
 <span id="196">196</span>
 <span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
@@ -247,6 +251,7 @@
 
 <span class="kw">use</span> {<span class="ident">Decompress</span>, <span class="ident">Compress</span>, <span class="ident">Status</span>, <span class="ident">Flush</span>, <span class="ident">DataError</span>};
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Writer</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span>, <span class="ident">D</span>: <span class="ident">Ops</span><span class="op">&gt;</span> {
     <span class="ident">obj</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">data</span>: <span class="ident">D</span>,
@@ -375,6 +380,9 @@
         <span class="comment">// a deque-like strategy.</span>
         <span class="kw">while</span> <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">0</span> {
             <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">obj</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>().<span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">buf</span>));
+            <span class="kw">if</span> <span class="ident">n</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">WriteZero</span>.<span class="ident">into</span>())
+            }
             <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">drain</span>(..<span class="ident">n</span>);
         }
         <span class="prelude-val">Ok</span>(())

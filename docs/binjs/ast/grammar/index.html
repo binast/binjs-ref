@@ -48,7 +48,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/binjs/ast/grammar.rs.html#1-1117' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../../src/binjs/ast/grammar.rs.html#1-1414' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Definition of a grammar, tools for describing the grammar.
 Grammars for specifying an AST that this tool can manipulate.</p>
 
@@ -68,6 +68,9 @@ and <em>amended</em>.</p>
 
 <h2 id='declarations' class='section-header'><a href='#declarations'>Declarations</a></h2>
 <h3 id='interface-declaration' class='section-header'><a href='#interface-declaration'>Interface Declaration</a></h3>
+<p>FIXME: Order of fields inside a declaration is specified.
+FIXME: Order of inherited fields is unspecified.</p>
+
 <p>Interfaces represent nodes in the AST. Interfaces are related to each other through
 inheritance (e.g. an <code>Identifier</code> is also a <code>Pattern</code>, so <code>Identifier</code> inherits from
 <code>Pattern</code>) or properties (e.g. a <code>BinaryExpression</code> has several properties, including <code>left</code>
@@ -222,7 +225,7 @@ Grammar.prototype.inhabits = function(ast) {
 Grammar.prototype.inhabitsType = function(ast, type) {
   if (type.isString()) {
     return typeof ast == &quot;string&quot; || (type.canBeNull() &amp;&amp; ast == null);
-  } else if (type.isBool()) {
+  } else if (type.isBoolean()) {
     return typeof ast == &quot;boolean&quot; || (type.canBeNull() &amp;&amp; ast == null);
   } else if (type.isNumber()) {
     return typeof ast == &quot;number&quot; || (type.canBeNull() &amp;&amp; ast == null);
@@ -360,6 +363,13 @@ it inhabits (aka &quot;dynamic type&quot;).</p>
                            <td class='docblock-short'>
                                 <p>Informations passed during the creation of a <code>Syntax</code> object.</p>
                            </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Type.html"
+                                  title='struct binjs::ast::grammar::Type'>Type</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
                        </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
                        <tr class=' module-item'>
@@ -370,8 +380,8 @@ it inhabits (aka &quot;dynamic type&quot;).</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="enum" href="enum.Type.html"
-                                  title='enum binjs::ast::grammar::Type'>Type</a></td>
+                           <td><a class="enum" href="enum.TypeSpec.html"
+                                  title='enum binjs::ast::grammar::TypeSpec'>TypeSpec</a></td>
                            <td class='docblock-short'>
                                 <p>A type, typically that of a field.</p>
                            </td>

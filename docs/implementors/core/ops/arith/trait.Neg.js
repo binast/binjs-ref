@@ -1,8 +1,5 @@
 (function() {var implementors = {};
-implementors["libc"] = [];
-implementors["regex_syntax"] = [];
-implementors["serde"] = [];
-implementors["void"] = [];
+implementors["json"] = ["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/arith/trait.Neg.html\" title=\"trait core::ops::arith::Neg\">Neg</a> for <a class=\"struct\" href=\"json/number/struct.Number.html\" title=\"struct json::number::Number\">Number</a>",];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

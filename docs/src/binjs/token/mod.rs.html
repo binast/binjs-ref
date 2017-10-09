@@ -101,6 +101,12 @@
 <span id="56">56</span>
 <span id="57">57</span>
 <span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Transformations between an AST (as defined in `ast::*`) and stream of tokens</span>
 <span class="doccomment">//! (as defined in `io::*`).</span>
@@ -132,7 +138,11 @@
     <span class="ident">NoSuchField</span> {
         <span class="ident">kind</span>: <span class="ident">NodeName</span>,
         <span class="ident">field</span>: <span class="ident">String</span>
-    }
+    },
+    <span class="ident">MissingField</span> {
+        <span class="ident">kind</span>: <span class="ident">NodeName</span>,
+        <span class="ident">field</span>: <span class="ident">String</span>
+    },
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
@@ -159,7 +169,9 @@
     <span class="ident">InvalidValue</span>,
     <span class="ident">BadKindIndex</span>(<span class="ident">u32</span>),
     <span class="ident">Encoding</span>(<span class="ident">std</span>::<span class="ident">string</span>::<span class="ident">FromUtf8Error</span>),
-}</pre>
+}
+
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">multipart</span>::<span class="ident">WriteOptions</span>;</pre>
 </section>
     <section id='search' class="content hidden"></section>
 
