@@ -506,15 +506,9 @@ test!(test_directives_2, {
     assert_eq!(foo["body"]["directives"].as_array("").unwrap().len(), 0);
 
     let ref bar = foo["body"]["body"][0];
-    let array = bar["body"]["directives"].as_array("").unwrap();
+    let array = bar["directives"].as_array("").unwrap();
     assert_eq!(array.len(), 1);
-    assert_eq!(array[0], object!{
-        "type" => "Directive",
-        "value" => object!{
-            "type" => "DirectiveLiteral",
-            "value" => "use strict"
-        }
-    });
+    assert_eq!(array[0].as_str().unwrap(), "use strict");
 });
 
 
@@ -536,16 +530,12 @@ test!(test_directives_3, {
     assert_eq!(ast["directives"].as_array("").unwrap().len(), 0);
 
     let ref foo = ast["body"][0];
-    let array = foo["body"]["directives"].as_array("").unwrap();
+    let array = foo["directives"].as_array("").unwrap();
     assert_eq!(array.len(), 1);
-    assert_eq!(array[0]["type"].as_str(), Some("Directive"));
-    assert_eq!(array[0]["value"]["type"].as_str(), Some("DirectiveLiteral"));
-    assert_eq!(array[0]["value"]["value"].as_str(), Some("use strict"));
+    assert_eq!(array[0].as_str(), Some("use strict"));
 
     let ref bar = foo["body"]["body"][0];
-    let array = bar["body"]["directives"].as_array("").unwrap();
+    let array = bar["directives"].as_array("").unwrap();
     assert_eq!(array.len(), 1);
-    assert_eq!(array[0]["type"].as_str(), Some("Directive"));
-    assert_eq!(array[0]["value"]["type"].as_str(), Some("DirectiveLiteral"));
-    assert_eq!(array[0]["value"]["value"].as_str(), Some("use strict"));
+    assert_eq!(array[0].as_str(), Some("something different"));
 });

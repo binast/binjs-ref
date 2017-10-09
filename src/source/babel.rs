@@ -215,7 +215,6 @@ impl FromBabel {
                         self.convert_function(object)
                     },
                     Some("MemberExpression") => self.convert_member_expression(object),
-                    Some("Directive") => self.convert_directive(object),
                     Some("FunctionDeclaration")
                     | Some("FunctionExpression") => self.convert_function(object),
                     _ => { /* No change */ }
@@ -227,21 +226,18 @@ impl FromBabel {
 
     fn convert_function(&self, object: &mut Object) {
         let directives = object["body"].remove("directives");
-        if let JSON::Null = directives {
-            object["directives"] = array![]
-        } else {
-            object["directives"] = directives;
+        let mut result = array![];
+        for directive in directives.members() {
+            if let Some("Directive") = directive["type"].as_str() {
+                if let Some("DirectiveLiteral") = directive["value"]["type"].as_str() {
+                    let string = directive["value"]["value"].as_str()
+                        .expect("Expected a string directive");
+                    result.push(string.clone())
+                        .unwrap(); // Created just above as an array.
+                }
+            }
         }
-    }
-
-    fn convert_directive(&self, object: &mut Object) {
-        let directive_literal = &mut object["value"];
-        let directive = if let Some("DirectiveLiteral") = directive_literal["type"].as_str() {
-            directive_literal["value"].remove("value")
-        } else {
-            panic!("Directive did not contain a DirectiveLiteral")
-        };
-        directive_literal["value"] = directive;
+        object["directives"] = result;
     }
 
     fn convert_member_expression(&self, object: &mut Object) {
