@@ -61,6 +61,8 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     let field_has_direct_eval = syntax.field_name(BINJS_DIRECT_EVAL);
 
     // A scope, used to attach annotations.
+    //
+    // The scope MUST always be parsed (hence stored) BEFORE the body.
     let binjs_scope = syntax.node_name(SCOPE_NAME);
     syntax.add_kinded_interface(&binjs_scope).unwrap()
         .with_field(&field_var_decl_names, Type::string().array())
@@ -244,17 +246,17 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     // Programs
     syntax.add_kinded_interface(&program).unwrap()
-        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_field(&field_directives, Type::interface(&directive).array());
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters
+        .with_field(&field_directives, Type::interface(&directive).array())
+        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array());
 
     // Functions (shared between function declaration, function statement, function expression)
     // Note that the scope information is stored as part of `field_body`.
     syntax.add_virtual_interface(&function).unwrap()
         .with_field(&field_id, Type::interface(&identifier).defaults_to(JSON::Null))
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_field(&field_params, Type::interface(&pattern).array())
-        .with_field(&field_body, Type::interface(&block_statement).close())
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null));
+        .with_field(&field_body, Type::interface(&block_statement).close());
 
     // Statements
     syntax.add_virtual_interface(&statement).unwrap();
@@ -263,9 +265,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&block_statement).unwrap()
-        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_field(&field_directives, Type::interface(&directive).array()) // FIXME: This seems like a waste of space. Shouldn't we allow this only for functions?
+        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&expression_statement).unwrap()
@@ -324,9 +326,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&catch_clause).unwrap()
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
         .with_field(&field_param, Type::interface(&pattern).close())
-        .with_field(&field_body, Type::interface(&block_statement).close())
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null));
+        .with_field(&field_body, Type::interface(&block_statement).close());
 
     syntax.add_kinded_interface(&while_statement).unwrap()
         .with_field(&field_test, Type::interface(&expression).close())
@@ -343,10 +345,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
             &variable_declaration,
             &expression
         ]).defaults_to(JSON::Null))
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
         .with_field(&field_test, Type::interface(&expression).defaults_to(JSON::Null))
         .with_field(&field_update, Type::interface(&expression).defaults_to(JSON::Null))
         .with_field(&field_body, Type::interface(&statement).close())
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&for_in_statement).unwrap()
@@ -354,9 +356,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
             &variable_declaration,
             &pattern
         ]).close())
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
         .with_field(&field_right, Type::interface(&expression).close())
         .with_field(&field_body, Type::interface(&statement).close())
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_parent(&statement);
 
     // Declarations
