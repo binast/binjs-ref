@@ -508,7 +508,7 @@ impl Type {
             TypeSpec::Enum(ref name) =>
                 name.to_str().to_string(),
             TypeSpec::Interfaces(ref names) => {
-                let mut result = "[".to_string();
+                let mut result = String::new();
                 let mut first = true;
                 for name in names {
                     if first {
@@ -518,16 +518,15 @@ impl Type {
                     }
                     result.push_str(name.to_str());
                 }
-                result.push_str("]");
                 result
             }
         };
         let pretty_default = match self.defaults_to {
             None => String::new(),
             Some(ref default) =>
-                format!("// Defaults to `{}`", default.dump())
+                format!(" // Defaults to `{}`", default.dump())
         };
-        format!("{}; {}", pretty_type, pretty_default)
+        format!("{};{}", pretty_type, pretty_default)
     }
 }
 
@@ -1357,6 +1356,8 @@ impl Syntax {
         }
 
         result.push_str("\n\n // # Enums.\n");
+        result.push_str(" //\n");
+        result.push_str(" // The order of enum values does NOT matter.\n");
         let mut enums : Vec<_> = self.enums_by_name.iter().collect();
         enums.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
         for (_, enum_) in enums {
