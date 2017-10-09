@@ -1,4 +1,11 @@
 //! A library of specifications for versions of JavaScript.
+//!
+//! For a human-readable documentation of the latest version of the library:
+//! - build the examples
+//!    `cargo build --examples`
+//! - run example ast-doc
+//!    `./target/debug/examples/ast-doc`.
+//!
 
 use ast::grammar::*;
 use ast::annotation::*;
