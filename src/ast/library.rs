@@ -126,8 +126,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let continue_statement = syntax.node_name("ContinueStatement");
     let debugger_statement = syntax.node_name("DebuggerStatement");
     let declaration = syntax.node_name("Declaration");
-    let directive = syntax.node_name("Directive");
-    let directive_literal = syntax.node_name("DirectiveLiteral");
     let dot_expression = syntax.node_name("DotExpression");
     let do_while_statement = syntax.node_name("DoWhileStatement");
     let elision = syntax.node_name("ElisionExpression");
@@ -241,13 +239,11 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_pattern, Type::string().close())
         .with_field(&field_flags, Type::string().close())
         .with_parent(&literal);
-    syntax.add_kinded_interface(&directive_literal).unwrap()
-        .with_field(&field_value, Type::string().close());
 
     // Programs
     syntax.add_kinded_interface(&program).unwrap()
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters
-        .with_field(&field_directives, Type::interface(&directive).array())
+        .with_field(&field_directives, Type::string().array())
         .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array());
 
     // Functions (shared between function declaration, function statement, function expression)
@@ -255,6 +251,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_virtual_interface(&function).unwrap()
         .with_field(&field_id, Type::interface(&identifier).defaults_to(JSON::Null))
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
+        .with_field(&field_directives, Type::string().array())
         .with_field(&field_params, Type::interface(&pattern).array())
         .with_field(&field_body, Type::interface(&block_statement).close());
 
@@ -266,7 +263,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     syntax.add_kinded_interface(&block_statement).unwrap()
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_field(&field_directives, Type::interface(&directive).array()) // FIXME: This seems like a waste of space. Shouldn't we allow this only for functions?
         .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
         .with_parent(&statement);
 
@@ -582,9 +578,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&expression);
 
     syntax.add_virtual_interface(&pattern).unwrap();
-
-    syntax.add_kinded_interface(&directive).unwrap()
-        .with_field(&field_value, Type::interface(&directive_literal).close());
 
     struct ES5Annotator {
         parent: Box<Annotator>,

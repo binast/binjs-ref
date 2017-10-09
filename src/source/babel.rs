@@ -210,13 +210,38 @@ impl FromBabel {
                 }
                 match object["type"].as_str() {
                     Some("ArrayExpression") => self.convert_array_expression(object),
-                    Some("ObjectMethod") => self.convert_object_method(object),
+                    Some("ObjectMethod") => {
+                        self.convert_object_method(object);
+                        self.convert_function(object)
+                    },
                     Some("MemberExpression") => self.convert_member_expression(object),
+                    Some("Directive") => self.convert_directive(object),
+                    Some("FunctionDeclaration")
+                    | Some("FunctionExpression") => self.convert_function(object),
                     _ => { /* No change */ }
                 }
             }
             _ => {}
         }
+    }
+
+    fn convert_function(&self, object: &mut Object) {
+        let directives = object["body"].remove("directives");
+        if let JSON::Null = directives {
+            object["directives"] = array![]
+        } else {
+            object["directives"] = directives;
+        }
+    }
+
+    fn convert_directive(&self, object: &mut Object) {
+        let directive_literal = &mut object["value"];
+        let directive = if let Some("DirectiveLiteral") = directive_literal["type"].as_str() {
+            directive_literal["value"].remove("value")
+        } else {
+            panic!("Directive did not contain a DirectiveLiteral")
+        };
+        directive_literal["value"] = directive;
     }
 
     fn convert_member_expression(&self, object: &mut Object) {
@@ -285,15 +310,36 @@ impl ToBabel {
                     | Some("ObjectSetter")
                     | Some("BracketObjectGetter")
                     | Some("BracketObjectSetter")
-                    | Some("BracketObjectMethod") => self.convert_object_method(object),
+                    | Some("BracketObjectMethod") => {
+                        self.convert_object_method(object);
+                        self.convert_function(object);
+                    }
                     Some("DotExpression")
                     | Some("BracketExpression") => self.convert_member_expression(object),
+                    Some("FunctionDeclaration")
+                    | Some("FunctionExpression") => self.convert_function(object),
                     _ => { /* No change */ }
                 }
             }
             _ => {
                 // Nothing to do.
             }
+        }
+    }
+
+    fn convert_function(&self, object: &mut Object) {
+        if let Some(directives) = object.remove("directives") {
+            let mut dest = JSON::new_array();
+            for directive in directives.members() {
+                dest.push(object!{
+                    "type" => "Directive",
+                    "value" => object!{
+                        "type" => "DirectiveLiteral",
+                        "value" => directive.clone() // We should be able to `drain()`.
+                    }
+                }).unwrap(); // We just created it as an array.
+            }
+            object["directives"] = dest;
         }
     }
 
@@ -374,9 +420,9 @@ fn test_babel_basic() {
     let expected = object!{
         "body" => array![object!{
             "type" => "FunctionDeclaration",
+            "directives" => array![],
             "body" => object!{
                 "type" => "BlockStatement",
-                "directives" => array![],
                 "body" => array![]
             },
             "async" =>      false,
