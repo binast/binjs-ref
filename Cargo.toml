@@ -18,6 +18,7 @@ json = "*"
 log = "*"
 lzw = "*"
 rand = "*"
+topological-sort = "*"
 vec_map = "*"
 
 [dev-dependencies]

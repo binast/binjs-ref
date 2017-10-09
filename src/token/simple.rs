@@ -491,7 +491,7 @@ impl TokenWriter for TreeTokenWriter {
         Ok(self.register(result))
     }
 
-    /// For this example, use a very, very, very suboptimal encoding.
+    /// For this example, we use a very, very, very suboptimal encoding.
     /// - (if specified)
     ///   - kind (string, \0 terminated)
     ///   - field names (string, \0 terminated)

@@ -368,8 +368,6 @@ fn test_babel_basic() {
 
     use util::strip;
 
-    use json::JsonValue as JSON;
-
     let babel = Babel::new();
     let mut parsed = babel.parse_str("function foo() {}")
         .unwrap();

@@ -40,6 +40,7 @@ extern crate json;
 extern crate log;
 extern crate lzw;
 extern crate rand;
+extern crate topological_sort;
 extern crate vec_map;
 
 

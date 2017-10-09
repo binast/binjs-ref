@@ -19,6 +19,9 @@
 //!
 //! ### Interface Declaration
 //!
+//! FIXME: Order of fields inside a declaration is specified.
+//! FIXME: Order of inherited fields is unspecified.
+//!
 //! Interfaces represent nodes in the AST. Interfaces are related to each other through
 //! inheritance (e.g. an `Identifier` is also a `Pattern`, so `Identifier` inherits from
 //! `Pattern`) or properties (e.g. a `BinaryExpression` has several properties, including `left`
@@ -241,6 +244,7 @@ use ast;
 use json;
 use json::JsonValue as JSON;
 use rand;
+use topological_sort;
 
 use std;
 use std::cell::*;
@@ -805,31 +809,47 @@ impl SyntaxBuilder {
 
 
             // Compute the fields of `interface`.
-            let mut my_fields = HashMap::new();
+            let mut my_fields = HashMap::new(); // name => type
+            let mut sorter = topological_sort::TopologicalSort::<FieldName>::new();
             let borrow = interface.borrow();
+
+            // Visiting from ancestor to most descendant.
             for ancestor_name in borrow.ancestor_interfaces.iter().chain(&[name.clone()]) {
                 debug!("Visiting ancestor {:?} of {:?}", ancestor_name, name);
 
                 let ancestor = self.interfaces.get(ancestor_name)
                     .expect("Could not find ancestor");
 
-                // Copy fields.
+                // Collect dependencies between fields.
+                let mut prev = None;
                 for field in &ancestor.borrow().own_contents.fields {
                     let name = field_names.entry(field.name.to_string().clone())
                         .or_insert_with(|| field.name().clone())
                         .clone();
-                    my_fields.insert(name, field.type_.clone());
-                    // FIXME: We should handle the case in which a field is updated,
-                    // e.g. `VariableDeclaration.kind` is extended from `"var"` to
-                    // `"var" | "let" | "const"`.
-                    // I believe that we need to make sure that we never overwrite
-                    // a child with a parent.
+
+                    my_fields.insert(name.clone(), field.type_().clone());
+                    // FIXME: We should check that we always overwrite something with something at least as general.
+
+                    if let Some(prev) = prev {
+                        sorter.add_dependency(prev, name.clone());
+                    } else {
+                        // Make sure that all names appear in the topological sort.
+                        sorter.insert(name.clone());
+                    }
+                    prev = Some(name);
                 }
             }
 
-            let fields = my_fields.drain()
-                .map(|(name, type_)| Field { name, type_ })
-                .collect();
+            // Now copy the fields in an appropriate order to the interface.
+            let mut fields = Vec::with_capacity(my_fields.len());
+            while let Some(name) = sorter.pop() {
+                let type_ = my_fields.remove(&name)
+                    .expect("my_fields should contain all the names output by the topological sort");
+                fields.push( Field { name, type_ });
+            }
+            assert_eq!(sorter.len(), 0, "FIXME: Fail gracefully in a grammar with cyclic dependencies: {:?}", sorter);
+            assert_eq!(my_fields.len(), 0, "We didn't collect all names: {:?}", my_fields);
+
             let declaration = borrow.clone();
             let node = Rc::new(Interface {
                 declaration,

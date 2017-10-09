@@ -635,39 +635,35 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     fn tagged_tuple(&mut self, tag: &str, children: &[(&Field, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
         let mut data : Vec<Rc<LabelledItem>> = vec![];
         {
-            let kind = match self.syntax.get_node_name(tag) {
+            let name = match self.syntax.get_node_name(tag) {
                 None => return Err(TokenWriterError::GrammarError(GrammarError::NoSuchKind(tag.to_string()))),
                 Some(node) => node.clone()
             };
+            let interface = self.syntax.get_interface_by_name(&name)
+                .ok_or_else(|| TokenWriterError::GrammarError(GrammarError::NoSuchKind(tag.to_string())))?;
 
-            // Establish the order in which children need to be written.
-            // For the moment, this order is arbitrary, just guaranteed to work until the end of the encoding.
-            let mut order : Vec<_> = children.iter()
-                .map(|child| child.0.name().clone())
-                .collect();
-            order.sort_unstable();
+            // Reorder `children` to match the interface.
+            let mut order = Vec::with_capacity(children.len());
+            for field in interface.contents().fields() {
+                if let Some(child) = children.iter().find(|child| child.0 == field) {
+                    order.push(field.name().clone());
+                    let tree = &child.1;
+                    let item = &tree.0;
+                    data.push(item.clone());
+                }
+            }
+
             let description = NodeDescription {
-                kind,
+                kind: name,
                 fields: order.clone()
             };
             let index = self.grammar_table.insert(description);
 
-            // Now write data.
-            data.push(Rc::new(LabelledItem {
+            // Now add the prefix
+            data.insert(0, Rc::new(LabelledItem {
                 item: Item::NodeDescription(index),
                 nature: Nature::TaggedTupleHeader,
             }));
-
-            for field in order.drain(..) {
-                for child in children {
-                    if child.0.name() == &field {
-                        let tree = &child.1;
-                        let item = &tree.0;
-                        data.push(item.clone());
-                        break
-                    }
-                }
-            }
         }
         Ok(self.register(LabelledItem {
             item: Item::List(data),

@@ -276,7 +276,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&labeled_statement).unwrap()
-        .with_field(&field_label, Type::interface(&identifier).close())
+        .with_field(&field_label, Type::interface(&identifier).close()) // `field_label` MUST appear before `field_body`.
         .with_field(&field_body, Type::interface(&statement).close())
         .with_parent(&statement);
 
@@ -449,7 +449,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&unary_expression).unwrap()
         .with_field(&field_operator, Type::enumeration(&unary_operator).close())
         .with_field(&field_prefix, Type::bool().close())
-        .with_field(&field_argument, Type::interface(&expression).close())
+        .with_field(&field_argument, Type::interface(&expression).close()) // Order is important here.
         .with_parent(&expression);
 
     syntax.add_enum(&unary_operator).unwrap()
