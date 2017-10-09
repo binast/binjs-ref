@@ -4,6 +4,8 @@ use ast::grammar::*;
 use ast::annotation::*;
 use util::JSONGetter;
 
+use std;
+
 use json::JsonValue as JSON;
 use json::object::Object as Object;
 
@@ -15,7 +17,7 @@ pub static BINJS_CAPTURED_NAME: &'static str = "BINJS:CapturedNames";
 pub static BINJS_DIRECT_EVAL: &'static str = "BINJS:HasDirectEval";
 
 /// The set of features requested for a syntax.
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Level {
     /// Empty syntax, for testing purposes.
     Minimal,
@@ -24,6 +26,14 @@ pub enum Level {
     /// All the features of the latest version of JavaScript.
     Latest,
     // FIXME: More levels to be implemented.
+}
+impl std::fmt::Display for Level {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match *self {
+            Level::Minimal => write!(fmt, "Minimal"),
+            Level::ES5 | Level::Latest => write!(fmt, "ES5"),
+        }
+    }
 }
 
 fn uses_strict(object: &Object) -> bool {

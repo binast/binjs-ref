@@ -23,6 +23,8 @@ fn main() {
         Some(other) => panic!("Unknown level `{}`", other)
     };
 
-    let syntax = library::syntax(level);
-    println!("{}", syntax.pretty("    "));
+    let syntax = library::syntax(level.clone());
+    println!(" // # Documentation of the JavaScript AST, level {level}\n\n\n{pretty}",
+        level=level,
+        pretty=syntax.pretty("    "));
 }
