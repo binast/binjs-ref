@@ -450,7 +450,7 @@ impl Type {
         match self.spec {
             TypeSpec::Array { supports_empty, contents: ref type_ } => {
                 if supports_empty && depth_limit <= 0 {
-                    return JSON::Array(vec![])
+                    return array![]
                 }
                 let min = if supports_empty { 0 } else { 1 };
                 let len = rng.gen_range(min, MAX_ARRAY_LEN);
@@ -491,6 +491,43 @@ impl Type {
                 json::from(rng.next_f64())
             }
         }
+    }
+
+    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
+        let pretty_type = match self.spec {
+            TypeSpec::Array { ref contents, supports_empty: false } =>
+                format!("{} /* Non-empty */", contents.pretty(prefix, indent)),
+            TypeSpec::Array { ref contents, supports_empty: true } =>
+                contents.pretty(prefix, indent),
+            TypeSpec::Boolean =>
+                "bool".to_string(),
+            TypeSpec::String =>
+                "string".to_string(),
+            TypeSpec::Number =>
+                "number".to_string(),
+            TypeSpec::Enum(ref name) =>
+                name.to_str().to_string(),
+            TypeSpec::Interfaces(ref names) => {
+                let mut result = "[".to_string();
+                let mut first = true;
+                for name in names {
+                    if first {
+                        first = false;
+                    } else {
+                        result.push_str(" | ");
+                    }
+                    result.push_str(name.to_str());
+                }
+                result.push_str("]");
+                result
+            }
+        };
+        let pretty_default = match self.defaults_to {
+            None => String::new(),
+            Some(ref default) =>
+                format!("// Defaults to `{}`", default.dump())
+        };
+        format!("{}; {}", pretty_type, pretty_default)
     }
 }
 
@@ -561,16 +598,12 @@ impl Obj {
 /// Structure of an enum of strings. `null` is never an acceptable value.
 #[derive(Clone, Debug)]
 pub struct Enum {
+    name: NodeName,
+
     /// Unordered list of strings, without duplicates.
     strings: Vec<String>,
 }
-impl Default for Enum {
-    fn default() -> Self {
-        Enum {
-            strings: Vec::new(),
-        }
-    }
-}
+
 impl Enum {
     pub fn strings(&self) -> &[String] {
         &self.strings
@@ -590,6 +623,21 @@ impl Enum {
             self.with_string(string);
         }
         self
+    }
+
+    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
+        let mut result = format!("{prefix}enum {name} {{\n",
+            prefix = prefix,
+            name = self.name.to_str());
+        {
+            let prefix = format!("{prefix}{indent}", prefix=prefix, indent=indent);
+            for string in &self.strings {
+                result.push_str(&format!("{prefix}\"{string}\",\n", prefix=prefix, string=string));
+            }
+        }
+        result.push_str(prefix);
+        result.push_str("}\n");
+        result
     }
 }
 
@@ -611,6 +659,8 @@ pub struct InterfaceDeclaration {
 
     /// The descendants of this interface.
     sub_interfaces: Vec<NodeName>,
+
+    /// All the ancestor interfaces (not including self).
     ancestor_interfaces: Vec<NodeName>,
 
     /// The contents of this interface, excluding the contents of parent interfaces.
@@ -729,7 +779,10 @@ impl SyntaxBuilder {
         if self.enums.get(name).is_some() {
             return None;
         }
-        let e = RefCell::new(Enum::default());
+        let e = RefCell::new(Enum {
+            name: name.clone(),
+            strings: vec![]
+        });
         self.enums.insert(name.clone(), e);
         self.enums.get(name).map(RefCell::borrow_mut)
     }
@@ -932,6 +985,41 @@ impl Interface {
         None
     }
 
+    /// Export a description of this interface.
+    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
+        let inherits = if self.declaration.parent_interfaces.len() == 0 {
+            String::new()
+        } else {
+            let mut result = ":< ".to_string();
+            let mut first = true;
+            for parent in &self.declaration.parent_interfaces {
+                if !first {
+                    result.push_str(", ");
+                } else {
+                    first = false;
+                }
+                result.push_str(parent.to_str());
+            }
+            result
+        };
+        let mut result = format!("{prefix} interface {name} {inherits} {{\n", prefix=prefix, name=self.name().to_str(), inherits=inherits);
+        {
+            let prefix = format!("{prefix}{indent}",
+                prefix=prefix,
+                indent=indent);
+            for field in self.full_contents.fields() {
+                result.push_str(&format!("{prefix}{optional}{name}: {description}\n",
+                    prefix = prefix,
+                    name = field.name().to_str(),
+                    description = field.type_().pretty(&prefix, indent),
+                    optional = if field.type_().defaults_to.is_some() { "?" } else { "" }));
+            }
+        }
+        result.push_str(&format!("{prefix} }}\n", prefix=prefix));
+        result
+    }
+
+    /// Generate a random instance of this interface matching the syntax.
     fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
         // Pick one of the descendants of `start`. Exclude `start` if it is virtual
         let max = if self.declaration.kind.is_some() {
@@ -1247,6 +1335,36 @@ impl Syntax {
         let root = self.interfaces_by_name.get(&self.root)
             .expect("Root interface doesn't exist");
         root.random(self, rng, depth_limit)
+    }
+
+    pub fn pretty(&self, indent: &str) -> String {
+        let mut result = String::new();
+
+        result.push_str(" // # Interfaces.\n");
+        result.push_str(" //\n");
+        result.push_str(" // The order of fields matters: if an interface `Foo` defines field `a` before field `b`,\n");
+        result.push_str(" // any implementation of the format MUST encode the contents of `a` before the contents of `b`\n");
+        result.push_str(" // The order of fields between subinterfaces and superinterfaces is not specified, as long\n");
+        result.push_str(" // as the above is respected at each level\n");
+        let mut interfaces : Vec<_> = self.interfaces_by_name.iter().collect();
+        interfaces.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
+        for (name, interface) in interfaces {
+            if name == &self.root {
+                result.push_str(" // Root of the AST.\n")
+            }
+            result.push_str(&interface.pretty("", indent));
+            result.push_str("\n");
+        }
+
+        result.push_str("\n\n // # Enums.\n");
+        let mut enums : Vec<_> = self.enums_by_name.iter().collect();
+        enums.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
+        for (_, enum_) in enums {
+            result.push_str(&enum_.borrow().pretty("", indent));
+            result.push_str("\n");
+        };
+
+        result
     }
 }
 

@@ -126,7 +126,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let literal = syntax.node_name("Literal");
     let logical_expression = syntax.node_name("LogicalExpression");
     let logical_operator = syntax.node_name("LogicalOperator");
-    let node = syntax.node_name("Node");
     let new_expression = syntax.node_name("NewExpression");
     let null_literal = syntax.node_name("NullLiteral");
     let numeric_literal = syntax.node_name("NumericLiteral");
@@ -199,9 +198,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let field_value = syntax.field_name("value");
 
 
-    // Node objects
-    syntax.add_virtual_interface(&node).unwrap();
-
     // Identifiers
     syntax.add_kinded_interface(&identifier).unwrap()
         .with_field(&field_name, Type::string().close())
@@ -233,8 +229,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&program).unwrap()
         .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_field(&field_directives, Type::interface(&directive).array())
-        .with_parent(&node);
+        .with_field(&field_directives, Type::interface(&directive).array());
 
     // Functions (shared between function declaration, function statement, function expression)
     // Note that the scope information is stored as part of `field_body`.
@@ -242,12 +237,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_id, Type::interface(&identifier).defaults_to(JSON::Null))
         .with_field(&field_params, Type::interface(&pattern).array())
         .with_field(&field_body, Type::interface(&block_statement).close())
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_parent(&node);
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null));
 
     // Statements
-    syntax.add_virtual_interface(&statement).unwrap()
-        .with_parent(&node);
+    syntax.add_virtual_interface(&statement).unwrap();
 
     syntax.add_kinded_interface(&empty_statement).unwrap()
         .with_parent(&statement);
@@ -301,8 +294,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     syntax.add_kinded_interface(&switch_case).unwrap()
         .with_field(&field_test, Type::interface(&expression).defaults_to(JSON::Null))
-        .with_field(&field_consequent, Type::interfaces(&[&statement, &function_declaration]).array())
-        .with_parent(&node);
+        .with_field(&field_consequent, Type::interfaces(&[&statement, &function_declaration]).array());
 
     syntax.add_kinded_interface(&throw_statement).unwrap()
         .with_field(&field_argument, Type::interface(&expression).close())
@@ -317,8 +309,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&catch_clause).unwrap()
         .with_field(&field_param, Type::interface(&pattern).close())
         .with_field(&field_body, Type::interface(&block_statement).close())
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_parent(&node);
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null));
 
     syntax.add_kinded_interface(&while_statement).unwrap()
         .with_field(&field_test, Type::interface(&expression).close())
@@ -373,12 +364,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     syntax.add_kinded_interface(&variable_declarator).unwrap()
         .with_field(&field_id, Type::interface(&pattern).close())
-        .with_field(&field_init, Type::interface(&expression).defaults_to(JSON::Null))
-        .with_parent(&node);
+        .with_field(&field_init, Type::interface(&expression).defaults_to(JSON::Null));
 
     // Expressions
-    syntax.add_virtual_interface(&expression).unwrap()
-        .with_parent(&node);
+    syntax.add_virtual_interface(&expression).unwrap();
 
     syntax.add_kinded_interface(&this_expression).unwrap()
         .with_parent(&expression);
@@ -403,8 +392,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&expression);
 
     syntax.add_virtual_interface(&object_member).unwrap()
-        .with_field(&field_key, Type::interfaces(&[&identifier, &literal]).close())
-        .with_parent(&node);
+        .with_field(&field_key, Type::interfaces(&[&identifier, &literal]).close());
 
     syntax.add_kinded_interface(&object_property).unwrap()
         .with_field(&field_value, Type::interface(&expression).close())
@@ -423,8 +411,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&function);
 
     syntax.add_virtual_interface(&bracket_object_member).unwrap()
-        .with_field(&field_key, Type::interface(&expression).close())
-        .with_parent(&node);
+        .with_field(&field_key, Type::interface(&expression).close());
 
     syntax.add_kinded_interface(&bracket_object_property).unwrap()
         .with_field(&field_value, Type::interface(&expression).close())
@@ -575,12 +562,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_expressions, Type::interface(&expression).array())
         .with_parent(&expression);
 
-    syntax.add_virtual_interface(&pattern).unwrap()
-        .with_parent(&node);
+    syntax.add_virtual_interface(&pattern).unwrap();
 
     syntax.add_kinded_interface(&directive).unwrap()
-        .with_field(&field_value, Type::interface(&directive_literal).close())
-        .with_parent(&node);
+        .with_field(&field_value, Type::interface(&directive_literal).close());
 
     struct ES5Annotator {
         parent: Box<Annotator>,
