@@ -2,7 +2,7 @@
 
 use ast::grammar::{ ASTError, FieldName, Kind, Syntax };
 use ast::library::{ BINJS_CONST_NAME, BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME, SCOPE_NAME };
-use util::{ Dispose, Dump, JSONGetter };
+use util::{ Dispose, JSONGetter };
 
 use json;
 use json::JsonValue as JSON;
@@ -345,7 +345,7 @@ impl<'a> Context<'a, RefContents> {
             .expect("Could not store captured names, etc.");
         for name in &[BINJS_VAR_NAME, BINJS_LET_NAME, BINJS_CONST_NAME] {
             if object[*name].is_null() {
-                object.insert(name, JSON::new_array());
+                object.insert(name, array![]);
             }
         }
 
@@ -584,7 +584,7 @@ impl<'a> Context<'a, DeclContents> {
             BINJS_VAR_NAME => json::from(var_decl_names),
             BINJS_LET_NAME => json::from(let_decl_names),
             BINJS_CONST_NAME => json::from(const_decl_names),
-            BINJS_CAPTURED_NAME => JSON::new_array(),
+            BINJS_CAPTURED_NAME => array![],
             BINJS_DIRECT_EVAL => json::from(false)
         };
         parent.insert(SCOPE_NAME, object);

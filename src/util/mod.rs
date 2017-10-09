@@ -1,7 +1,6 @@
 use ast::grammar::ASTError;
 
 use rand;
-use json;
 use json::JsonValue as JSON;
 use json::object::Object as Object;
 
@@ -316,29 +315,5 @@ impl<S> PoisonLock<S> {
 
     pub fn is_poisoned(&self) -> bool {
         self.poisoned
-    }
-}
-
-pub trait Dump {
-    fn dump(&self) -> String;
-}
-
-impl Dump for json::object::Object {
-    fn dump(&self) -> String {
-        let mut first = true;
-        let mut buf = "{ ".to_string();
-        for (key, value) in self.iter() {
-            if !first {
-                buf.push_str(", ");
-            } else {
-                first = false;
-            }
-            buf.push_str(key);
-            buf.push_str(": ");
-            let string = value.dump();
-            buf.push_str(&string);
-        }
-        buf.push_str(" }");
-        buf
     }
 }

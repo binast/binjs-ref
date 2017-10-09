@@ -8,7 +8,7 @@ use std::path::*;
 use std::process::*;
 
 use source::parser::SourceParser;
-use util::{ Dump, get_temporary_file };
+use util::{ get_temporary_file };
 
 #[derive(Debug)]
 pub enum Error {
@@ -378,8 +378,8 @@ fn test_babel_basic() {
             "type" => "FunctionDeclaration",
             "body" => object!{
                 "type" => "BlockStatement",
-                "directives" => JSON::new_array(),
-                "body" => JSON::new_array()
+                "directives" => array![],
+                "body" => array![]
             },
             "async" =>      false,
             "expression" => false,
@@ -388,9 +388,9 @@ fn test_babel_basic() {
                 "type" => "Identifier",
                 "name" => "foo"
             },
-            "params" => JSON::new_array()
+            "params" => array![]
         }],
-        "directives" => JSON::new_array(),
+        "directives" => array![],
         "sourceType" => "script",
         "type" =>       "Program"
     };
