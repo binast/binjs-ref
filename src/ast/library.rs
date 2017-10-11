@@ -114,14 +114,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     let block_statement = syntax.node_name("BlockStatement");
     let boolean_literal = syntax.node_name("BooleanLiteral");
     let bracket_expression = syntax.node_name("BracketExpression");
-    let bracket_object_getter = syntax.node_name("BracketObjectGetter");
-    let bracket_object_member = syntax.node_name("BracketObjectMember");
-    let bracket_object_method = syntax.node_name("BracketObjectMethod");
-    let bracket_object_property = syntax.node_name("BracketObjectProperty");
-    let bracket_object_setter = syntax.node_name("BracketObjectSetter");
     let break_statement = syntax.node_name("BreakStatement");
     let call_expression = syntax.node_name("CallExpression");
     let catch_clause = syntax.node_name("CatchClause");
+    let computed_property_name = syntax.node_name("ComputedPropertyName");
     let conditional_expression = syntax.node_name("ConditionalExpression");
     let continue_statement = syntax.node_name("ContinueStatement");
     let debugger_statement = syntax.node_name("DebuggerStatement");
@@ -399,15 +395,19 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
             &object_method,
             &object_getter,
             &object_setter,
-            &bracket_object_property,
-            &bracket_object_method,
-            &bracket_object_getter,
-            &bracket_object_setter,
         ]).array())
         .with_parent(&expression);
 
     syntax.add_virtual_interface(&object_member).unwrap()
-        .with_field(&field_key, Type::interfaces(&[&identifier, &literal]).close());
+        .with_field(&field_key, Type::interfaces(&[
+            &string_literal,
+            &numeric_literal,
+            &identifier,
+            &computed_property_name,
+        ]).close());
+
+    syntax.add_kinded_interface(&computed_property_name).unwrap()
+        .with_field(&field_property, Type::interface(&expression).close());
 
     syntax.add_kinded_interface(&object_property).unwrap()
         .with_field(&field_value, Type::interface(&expression).close())
@@ -422,25 +422,6 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&function);
 
     syntax.add_kinded_interface(&object_setter).unwrap()
-        .with_parent(&object_member)
-        .with_parent(&function);
-
-    syntax.add_virtual_interface(&bracket_object_member).unwrap()
-        .with_field(&field_key, Type::interface(&expression).close());
-
-    syntax.add_kinded_interface(&bracket_object_property).unwrap()
-        .with_field(&field_value, Type::interface(&expression).close())
-        .with_parent(&bracket_object_member);
-
-    syntax.add_kinded_interface(&bracket_object_method).unwrap()
-        .with_parent(&bracket_object_member)
-        .with_parent(&function);
-
-    syntax.add_kinded_interface(&bracket_object_getter).unwrap()
-        .with_parent(&bracket_object_member)
-        .with_parent(&function);
-
-    syntax.add_kinded_interface(&bracket_object_setter).unwrap()
         .with_parent(&object_member)
         .with_parent(&function);
 
