@@ -1006,7 +1006,7 @@ impl Interface {
             let prefix = format!("{prefix}{indent}",
                 prefix=prefix,
                 indent=indent);
-            for field in self.full_contents.fields() {
+            for field in self.declaration.own_contents.fields() {
                 result.push_str(&format!("{prefix}{optional}{name}: {description}\n",
                     prefix = prefix,
                     name = field.name().to_str(),
