@@ -496,9 +496,9 @@ impl Type {
     pub fn pretty(&self, prefix: &str, indent: &str) -> String {
         let pretty_type = match self.spec {
             TypeSpec::Array { ref contents, supports_empty: false } =>
-                format!("{} /* Non-empty */", contents.pretty(prefix, indent)),
+                format!("[{}] /* Non-empty */", contents.pretty(prefix, indent)),
             TypeSpec::Array { ref contents, supports_empty: true } =>
-                contents.pretty(prefix, indent),
+                format!("[{}]", contents.pretty(prefix, indent)),
             TypeSpec::Boolean =>
                 "bool".to_string(),
             TypeSpec::String =>
@@ -526,7 +526,7 @@ impl Type {
             Some(ref default) =>
                 format!(" // Defaults to `{}`", default.dump())
         };
-        format!("{};{}", pretty_type, pretty_default)
+        format!("{}{}", pretty_type, pretty_default)
     }
 }
 

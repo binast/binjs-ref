@@ -117,6 +117,10 @@ impl Babel {
             "##,
             data);
         self.parse_script_output(&script)
+            .map_err(|err| {
+                warn!("Could not pretty-print {}", ast.pretty(2));
+                err
+            })
     }
 }
 
@@ -212,12 +216,13 @@ impl FromBabel {
                     Some("ArrayExpression") => self.convert_array_expression(object),
                     Some("ObjectMethod") => {
                         self.convert_object_member(object);
-                        self.convert_function(object)
+                        self.convert_directives(object)
                     },
                     Some("ObjectProperty") => self.convert_object_member(object),
                     Some("MemberExpression") => self.convert_member_expression(object),
                     Some("FunctionDeclaration")
-                    | Some("FunctionExpression") => self.convert_function(object),
+                    | Some("FunctionExpression")
+                    | Some("Program") => self.convert_directives(object),
                     _ => { /* No change */ }
                 }
             }
@@ -225,7 +230,7 @@ impl FromBabel {
         }
     }
 
-    fn convert_function(&self, object: &mut Object) {
+    fn convert_directives(&self, object: &mut Object) {
         let directives = object["body"].remove("directives");
         let mut result = array![];
         for directive in directives.members() {
@@ -314,14 +319,15 @@ impl ToBabel {
                     | Some("ObjectGetter")
                     | Some("ObjectSetter") => {
                         self.convert_object_member(object);
-                        self.convert_function(object);
+                        self.convert_directives(object);
                     }
                     Some("ObjectProperty") =>
                         self.convert_object_member(object),
                     Some("DotExpression")
                     | Some("BracketExpression") => self.convert_member_expression(object),
                     Some("FunctionDeclaration")
-                    | Some("FunctionExpression") => self.convert_function(object),
+                    | Some("FunctionExpression")
+                    | Some("Program") => self.convert_directives(object),
                     _ => { /* No change */ }
                 }
             }
@@ -331,7 +337,7 @@ impl ToBabel {
         }
     }
 
-    fn convert_function(&self, object: &mut Object) {
+    fn convert_directives(&self, object: &mut Object) {
         if let Some(directives) = object.remove("directives") {
             let mut dest = JSON::new_array();
             for directive in directives.members() {
