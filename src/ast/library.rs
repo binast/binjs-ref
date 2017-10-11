@@ -333,22 +333,22 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&for_statement).unwrap()
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
         .with_field(&field_init, Type::interfaces(&[
             &variable_declaration,
             &expression
         ]).defaults_to(JSON::Null))
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
         .with_field(&field_test, Type::interface(&expression).defaults_to(JSON::Null))
         .with_field(&field_update, Type::interface(&expression).defaults_to(JSON::Null))
         .with_field(&field_body, Type::interface(&statement).close())
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&for_in_statement).unwrap()
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
         .with_field(&field_left, Type::interfaces(&[
             &variable_declaration,
-            &pattern
+            &expression // Yes, that's `for (expr in expr)`. The ES specs are (barely) more restrictive, but it's still a `expr` on the left.
         ]).close())
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
         .with_field(&field_right, Type::interface(&expression).close())
         .with_field(&field_body, Type::interface(&statement).close())
         .with_parent(&statement);
@@ -529,14 +529,12 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&dot_expression).unwrap()
         .with_field(&field_object, Type::interface(&expression).close())
         .with_field(&field_property, Type::interface(&identifier).close()) // FIXME: Should this be a string?
-        .with_parent(&expression)
-        .with_parent(&pattern);
+        .with_parent(&expression);
 
     syntax.add_kinded_interface(&bracket_expression).unwrap()
         .with_field(&field_object, Type::interface(&expression).close())
         .with_field(&field_property, Type::interface(&expression).close()) // FIXME: Should this be a string?
-        .with_parent(&expression)
-        .with_parent(&pattern);
+        .with_parent(&expression);
 
     syntax.add_kinded_interface(&conditional_expression).unwrap()
         .with_field(&field_test, Type::interface(&expression).close())
