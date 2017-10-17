@@ -696,13 +696,13 @@ pub struct TreeTokenWriter<'a> {
 #[derive(Clone, Debug)]
 pub struct SectionStatistics {
     /// Number of entries in this table.
-    entries: usize,
+    pub entries: usize,
 
     /// Used when collating results across several files:
     /// max number of entries in a single file.
-    max_entries: usize,
+    pub max_entries: usize,
 
-    compression: CompressionResult,
+    pub compression: CompressionResult,
 }
 
 impl Default for SectionStatistics {
@@ -740,22 +740,22 @@ impl AddAssign for SectionStatistics {
 #[derive(Clone, Debug, Default)]
 pub struct NodeStatistics {
     /// Total number of entries of this node.
-    entries: usize,
+    pub entries: usize,
 
     /// Used when collating results across several files:
     /// max number of entries in a single file.
-    max_entries: usize,
+    pub max_entries: usize,
 
     /// Number of bytes used to represent the node, minus subnodes
     /// (e.g. the length of the entry in the grammar table).
-    own_bytes: usize,
+    pub own_bytes: usize,
 
     /// Number of bytes used to represent the node, including primitive
     /// subnodes (e.g. anything but lists) but not compound subnodes.
-    shallow_bytes: usize,
+    pub shallow_bytes: usize,
 
     /// Number of bytes used to represent the node, including all subnodes.
-    total_bytes: usize,
+    pub total_bytes: usize,
 }
 
 impl AddAssign for NodeStatistics {
@@ -770,29 +770,29 @@ impl AddAssign for NodeStatistics {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Statistics {
-    grammar_table: SectionStatistics,
-    strings_table: SectionStatistics,
-    tree: SectionStatistics,
+    pub grammar_table: SectionStatistics,
+    pub strings_table: SectionStatistics,
+    pub tree: SectionStatistics,
 
-    per_kind_index: VecMap<NodeStatistics>,
-    per_kind_name: HashMap<NodeName, NodeStatistics>,
-    per_description: HashMap<NodeDescription, NodeStatistics>,
-    list_lengths: VecMap<usize>,
+    pub per_kind_index: VecMap<NodeStatistics>,
+    pub per_kind_name: HashMap<NodeName, NodeStatistics>,
+    pub per_description: HashMap<NodeDescription, NodeStatistics>,
+    pub list_lengths: VecMap<usize>,
 
-    bool: NodeStatistics,
-    float: NodeStatistics,
-    string: NodeStatistics,
-    list: NodeStatistics,
-    list_header: NodeStatistics,
-    tagged_header: NodeStatistics,
-    tagged_tuple: NodeStatistics,
+    pub bool: NodeStatistics,
+    pub float: NodeStatistics,
+    pub string: NodeStatistics,
+    pub list: NodeStatistics,
+    pub list_header: NodeStatistics,
+    pub tagged_header: NodeStatistics,
+    pub tagged_tuple: NodeStatistics,
 
-    number_of_files: usize,
-    uncompressed_bytes: usize,
-    compressed_bytes: usize,
-    source_bytes: Option<usize>,
+    pub number_of_files: usize,
+    pub uncompressed_bytes: usize,
+    pub compressed_bytes: usize,
+    pub source_bytes: Option<usize>,
 }
 
 impl Add for Statistics {

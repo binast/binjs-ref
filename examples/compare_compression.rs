@@ -21,6 +21,19 @@ struct FileStats {
     after_binjs: u64,
     after_gzip: u64,
     after_br: u64,
+    binjs_compression: binjs::token::multipart::Statistics,
+}
+
+impl FileStats {
+    fn ratio_binjs(&self) -> f64 {
+        self.after_binjs as f64 / self.before as f64
+    }
+    fn ratio_gz(&self) -> f64 {
+        self.after_gzip as f64 / self.before as f64
+    }
+    fn ratio_br(&self) -> f64 {
+        self.after_br as f64 / self.before as f64
+    }
 }
 
 fn main() {
@@ -69,7 +82,7 @@ fn main() {
     for path in matches.values_of("in").expect("Missing `in`") {
         for source_path in glob::glob(&path).expect("Invalid pattern") {
             let source_path = source_path.expect("I/O error");
-            println!("Source: {}", source_path.to_str().expect("Could not display path"));
+            eprintln!("Source: {}", source_path.to_str().expect("Could not display path"));
 
             let source_len = std::fs::metadata(&source_path)
                 .expect("Could not open source")
@@ -79,7 +92,7 @@ fn main() {
             file_stats.before = source_len;
 
             {
-                println!("Compressing with binjs");
+                eprintln!("Compressing with binjs");
                 let mut ast = parser.parse_file(&source_path)
                     .expect("Could not parse source");
                 grammar.annotate(&mut ast)
@@ -93,13 +106,14 @@ fn main() {
                 let (data, stats) = encoder.done()
                     .expect("Could not finalize AST encoding");
 
+                file_stats.binjs_compression = stats.clone();
                 multipart_stats = multipart_stats + stats.with_source_bytes(source_len as usize);
 
                 file_stats.after_binjs = data.len() as u64;
             }
 
             {
-                println!("Comparing with gzip");
+                eprintln!("Comparing with gzip");
 
                 let out = Command::new("gzip")
                     .arg("--keep")
@@ -114,7 +128,7 @@ fn main() {
             }
 
             {
-                println!("Comparing with brotli");
+                eprintln!("Comparing with brotli");
                 let _ = std::fs::remove_file(dest_path_brotli);
                 let _ = Command::new("bro")
                     .args(&["--quality", "9"])
@@ -130,21 +144,38 @@ fn main() {
                     .len();
             }
 
-            println!("Compression results: source {}b, binjs+{} {binjs}b (x{binjs_ratio:.2}), gzip {gzip}b (x{gzip_ratio:.2}), brotli {br}b (x{br_ratio:.2})",
+            eprintln!("Compression results: source {}b, binjs+{} {binjs}b (x{binjs_ratio:.2}), gzip {gzip}b (x{gzip_ratio:.2}), brotli {br}b (x{br_ratio:.2})",
                 file_stats.before,
                 compression.code(),
                 binjs=file_stats.after_binjs,
                 gzip=file_stats.after_gzip,
                 br=file_stats.after_br,
-                binjs_ratio=(file_stats.after_binjs as f64) / (file_stats.before as f64),
-                gzip_ratio=(file_stats.after_gzip as f64)  / (file_stats.before as f64),
-                br_ratio=(file_stats.after_br as f64)    / (file_stats.before as f64)
+                binjs_ratio=file_stats.ratio_binjs(),
+                gzip_ratio=file_stats.ratio_gz(),
+                br_ratio=file_stats.ratio_br()
             );
 
             all_stats.insert(source_path, file_stats);
-
         }
     }
 
-    println!("*** Done");
+    eprintln!("*** Done");
+    println!("File, Original size, Binjs size, Gzip size, Brotli size, Number of strings, Number of identifiers, Number of grammar entries");
+    let identifier_node = grammar.get_node_name("Identifier").unwrap();
+    for (path, stats) in &all_stats {
+        let number_of_identifiers = match stats.binjs_compression.per_kind_name.get(&identifier_node) {
+            None => 0,
+            Some(identifiers) => identifiers.entries
+        };
+
+        println!("{path:?}, {before}, {after_binjs}, {after_gz}, {after_br}, {strings}, {identifiers}, {grammar_entries}",
+            before=stats.before,
+            after_binjs=stats.after_binjs,
+            after_gz=stats.after_gzip,
+            after_br=stats.after_br,
+            strings=stats.binjs_compression.strings_table.entries,
+            identifiers=number_of_identifiers,
+            grammar_entries=stats.binjs_compression.grammar_table.entries,
+            path=path);
+    }
 }
