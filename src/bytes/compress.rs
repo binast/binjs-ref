@@ -59,6 +59,18 @@ impl Compression {
             Lzw => "Lzw",
         }
     }
+
+    pub fn code(&self) -> &str {
+        use self::Compression::*;
+        match *self {
+            Identity => "identity",
+            Gzip => "gzip",
+            Deflate => "deflate",
+            Brotli => "br",
+            Lzw => "lzw",
+        }
+    }
+
     pub fn parse(name: Option<&str>) -> Option<Compression> {
         let result = match name {
             None | Some("identity") => Compression::Identity,
