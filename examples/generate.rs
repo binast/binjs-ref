@@ -22,7 +22,7 @@ fn main() {
     env_logger::init().unwrap();
 
     let matches = App::new("BinJS source file generator")
-        .author("David Teller <dteller@mozilla.com")
+        .author("David Teller <dteller@mozilla.com>")
         .about(
 r#"Generate large numbers of believed-to-be-correct-files, both in text source code and binjs.
 Note that this tool does not attempt to make sure that the files are entirely correct, only that they match BinJS's AST."#)
