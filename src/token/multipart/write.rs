@@ -511,6 +511,34 @@ impl<'a> TreeTokenWriter<'a> {
         self.statistics.strings_table.max_entries = self.strings_table.map.len();
         self.statistics.strings_table.compression = compression;
 
+        // Compute more statistics on strings.
+        for (key, value) in &self.strings_table.map {
+            let len = match *key {
+                None => 0,
+                Some(ref s) => s.len()
+            };
+            match self.statistics.string_lengths.entry(len) {
+                vec_map::Entry::Occupied(mut entry) => {
+                    let borrow = entry.get_mut();
+                    *borrow += 1;
+                }
+                vec_map::Entry::Vacant(entry) => {
+                    entry.insert(1);
+                }
+            }
+
+            match self.statistics.string_usage.entry(value.instances.borrow().clone() as usize) {
+                vec_map::Entry::Occupied(mut entry) => {
+                    let borrow = entry.get_mut();
+                    *borrow += 1;
+                }
+                vec_map::Entry::Vacant(entry) => {
+                    entry.insert(1);
+                }
+            }
+        }
+
+
         // Write tree itself to byte stream.
         self.data.write_all(HEADER_TREE.as_bytes())
             .map_err(TokenWriterError::WriteError)?;
@@ -582,6 +610,7 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
         let index = self.strings_table
             .get(&key)
             .map(|entry| entry.index.clone());
+
         if let Some(index) = index {
             return Ok(self.register(LabelledItem {
                 item: Item::String(index),
@@ -780,6 +809,8 @@ pub struct Statistics {
     pub per_kind_name: HashMap<NodeName, NodeStatistics>,
     pub per_description: HashMap<NodeDescription, NodeStatistics>,
     pub list_lengths: VecMap<usize>,
+    pub string_lengths: VecMap<usize>,
+    pub string_usage: VecMap<usize>,
 
     pub bool: NodeStatistics,
     pub float: NodeStatistics,
@@ -838,6 +869,28 @@ impl Add for Statistics {
         for (key, value) in rhs.list_lengths.drain() {
             use vec_map::Entry::*;
             match self.list_lengths.entry(key) {
+                Occupied(mut entry) => {
+                    *entry.get_mut() += value;
+                }
+                Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+        for (key, value) in rhs.string_lengths.drain() {
+            use vec_map::Entry::*;
+            match self.string_lengths.entry(key) {
+                Occupied(mut entry) => {
+                    *entry.get_mut() += value;
+                }
+                Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+        for (key, value) in rhs.string_usage.drain() {
+            use vec_map::Entry::*;
+            match self.string_usage.entry(key) {
                 Occupied(mut entry) => {
                     *entry.get_mut() += value;
                 }
@@ -989,7 +1042,7 @@ impl Display for NodeDescriptionAndStatistics {
     }
 }
 
-struct ListLengthsAndNumber(Vec<(usize, usize)>);
+struct ListLengthsAndNumber(Vec<(usize, usize)>, String);
 
 impl Display for ListLengthsAndNumber {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
@@ -999,7 +1052,7 @@ impl Display for ListLengthsAndNumber {
             .map(|&(_, number)| number)
             .sum();
         for &(ref length, ref number) in &self.0 {
-            write!(f, "\t\tlength {} x {} ({:.2}%)\n", length, number, 100. * (*number as f64) / (total_number_of_entries as f64))?;
+            write!(f, "\t\t{} {} x {} ({:.2}%)\n", self.1, length, number, 100. * (*number as f64) / (total_number_of_entries as f64))?;
         }
         Ok(())
     }
@@ -1019,10 +1072,20 @@ impl Display for Statistics {
             .collect();
         per_description.sort_unstable_by(|a, b| usize::cmp(&b.1.entries, &a.1.entries));
 
-        let mut per_size : Vec<_> = self.list_lengths.iter()
+        let mut list_per_size : Vec<_> = self.list_lengths.iter()
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect();
-        per_size.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
+        list_per_size.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
+
+        let mut strings_per_size : Vec<_> = self.string_lengths.iter()
+            .map(|(a, b)| (a.clone(), b.clone()))
+            .collect();
+        strings_per_size.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
+
+        let mut strings_per_usage : Vec<_> = self.string_usage.iter()
+            .map(|(a, b)| (a.clone(), b.clone()))
+            .collect();
+        strings_per_usage.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
 
         let total_number_of_tokens = self.bool.entries
             + self.float.entries
@@ -1054,7 +1117,12 @@ Statistics
 {token_string}
 {token_list}
 {token_tagged_tuple}
+\tLists per size:
 {lists_per_size}
+\tStrings per size:
+{strings_per_size}
+\tStrings per usage:
+{strings_per_usage}
 ",
         number_of_files = self.number_of_files,
         total_source_bytes = match self.source_bytes {
@@ -1067,7 +1135,9 @@ Statistics
             None => "<not available>".to_string(),
             Some(ref bytes) => format!("{:.2}", (self.compressed_bytes as f64) / (*bytes as f64))
         },
-        lists_per_size = ListLengthsAndNumber(per_size),
+        lists_per_size = ListLengthsAndNumber(list_per_size, "length".to_string()),
+        strings_per_size = ListLengthsAndNumber(strings_per_size, "length".to_string()),
+        strings_per_usage = ListLengthsAndNumber(strings_per_usage, "occurrences".to_string()),
         section_grammar = SectionAndStatistics {
             total_uncompressed_bytes: self.uncompressed_bytes,
             total_compressed_bytes: self.compressed_bytes,
