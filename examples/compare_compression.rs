@@ -13,6 +13,7 @@ use binjs::source::*;
 use clap::*;
 
 use std::collections::HashMap;
+use std::io::Write;
 use std::process::Command;
 
 #[derive(Default, Clone)]
@@ -38,6 +39,7 @@ impl FileStats {
 
 fn main() {
     env_logger::init().unwrap();
+    let dest_path_binjs = "/tmp/binjs-test.js.binjs";
     let dest_path_brotli = "/tmp/binjs-test.js.bro";
 
     let matches = App::new("Compare BinJS compression and brotli/gzip compression")
@@ -49,6 +51,11 @@ fn main() {
                 .required(true)
                 .takes_value(true)
                 .help("Glob path towards source files"),
+            Arg::with_name("post-compression")
+                .long("post")
+                .takes_value(true)
+                .possible_values(&["gzip", "br"])
+                .help("Post-compression format to apply to the binjs files"),
             Arg::with_name("compression")
                 .long("compression")
                 .short("c")
@@ -59,6 +66,12 @@ fn main() {
         ])
         .get_matches();
 
+    let post_compression = match matches.value_of("post-compression") {
+        None => None,
+        Some("gzip") => Some(Compression::Gzip),
+        Some("br") => Some(Compression::Brotli),
+        _ => panic!()
+    };
     let compression = matches.value_of("compression")
         .expect("Missing compression format");
     let compression = Compression::parse(Some(compression))
@@ -109,7 +122,50 @@ fn main() {
                 file_stats.binjs_compression = stats.clone();
                 multipart_stats = multipart_stats + stats.with_source_bytes(source_len as usize);
 
-                file_stats.after_binjs = data.len() as u64;
+                let len : u64 = match post_compression {
+                    None => data.len() as u64,
+                    Some(Compression::Gzip) => {
+                        eprintln!("Post-compressing with gzip");
+                        let mut file = std::fs::File::create(&dest_path_binjs)
+                            .expect("Could not create tmp .binjs file");
+                        file.write_all(&data)
+                            .expect("Could not write to tmp .bijs file");
+                        drop(file);
+                        let out = Command::new("gzip")
+                            .arg("--keep")
+                            .arg("--best")
+                            .arg("--stdout")
+                            .arg(&dest_path_binjs)
+                            .output()
+                            .expect("Error during gzip");
+                        assert!(out.status.success());
+                        assert!(out.stdout.len() != 0);
+                        out.stdout.len() as u64
+                    }
+                    Some(Compression::Brotli) => {
+                        eprintln!("Post-compressing with brotli");
+                        let mut file = std::fs::File::create(&dest_path_binjs)
+                            .expect("Could not create tmp .binjs file");
+                        file.write_all(&data)
+                            .expect("Could not write to tmp .bijs file");
+                        drop(file);
+                        let _ = std::fs::remove_file(dest_path_brotli);
+                        let _ = Command::new("bro")
+                            .args(&["--quality", "9"])
+                            .arg("--input")
+                            .arg(&dest_path_binjs)
+                            .args(&["--output", dest_path_brotli])
+                            .spawn()
+                            .expect("Couldn't start bro")
+                            .wait()
+                            .expect("Error during bro");
+                        std::fs::metadata(&dest_path_brotli)
+                            .expect("Could not open bro destination")
+                            .len()
+                    }
+                    _ => panic!()
+                };
+                file_stats.after_binjs = len;
             }
 
             {
@@ -140,7 +196,7 @@ fn main() {
                     .wait()
                     .expect("Error during bro");
                 file_stats.after_br = std::fs::metadata(&dest_path_brotli)
-                    .expect("Could not open gzip destination")
+                    .expect("Could not open bro destination")
                     .len();
             }
 

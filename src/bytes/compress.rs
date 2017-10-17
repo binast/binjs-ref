@@ -90,6 +90,14 @@ impl Compression {
         Box::new([Identity, Gzip, Deflate, Brotli /*, Lzw doesn't work yet*/])
     }
 
+    pub fn is_compressed(&self) -> bool {
+        if let Compression::Identity = *self {
+            true
+        } else {
+            false
+        }
+    }
+
     // Format:
     // - compression type (string);
     // - compressed byte length (varnum);
