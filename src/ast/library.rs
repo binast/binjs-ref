@@ -238,9 +238,11 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     // Programs
     syntax.add_kinded_interface(&program).unwrap()
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_field(&field_directives, Type::string().array())
-        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array());
+        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
+        .with_order(&field_binjs_scope, &field_body)
+        .with_order(&field_directives, &field_body);
 
     // Functions (shared between function declaration, function statement, function expression)
     // Note that the scope information is stored as part of `field_body`.
@@ -249,7 +251,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_field(&field_directives, Type::string().array())
         .with_field(&field_params, Type::interface(&pattern).array())
-        .with_field(&field_body, Type::interface(&block_statement).close());
+        .with_field(&field_body, Type::interface(&block_statement).close())
+        .with_order(&field_binjs_scope, &field_body)
+        .with_order(&field_directives, &field_body);
 
     // Statements
     syntax.add_virtual_interface(&statement).unwrap();
@@ -260,7 +264,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
     syntax.add_kinded_interface(&block_statement).unwrap()
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
-        .with_parent(&statement);
+        .with_parent(&statement)
+        .with_order(&field_binjs_scope, &field_body);
 
     syntax.add_kinded_interface(&expression_statement).unwrap()
         .with_field(&field_expression, Type::interface(&expression).close())
@@ -280,9 +285,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&labeled_statement).unwrap()
-        .with_field(&field_label, Type::interface(&identifier).close()) // `field_label` MUST appear before `field_body`.
+        .with_field(&field_label, Type::interface(&identifier).close())
         .with_field(&field_body, Type::interface(&statement).close())
-        .with_parent(&statement);
+        .with_parent(&statement)
+        .with_order(&field_label, &field_body);
 
     syntax.add_kinded_interface(&break_statement).unwrap()
         .with_field(&field_label, Type::interface(&identifier).defaults_to(JSON::Null))
@@ -318,9 +324,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&statement);
 
     syntax.add_kinded_interface(&catch_clause).unwrap()
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
+        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
         .with_field(&field_param, Type::interface(&pattern).close())
-        .with_field(&field_body, Type::interface(&block_statement).close());
+        .with_field(&field_body, Type::interface(&block_statement).close())
+        .with_order(&field_binjs_scope, &field_body);
 
     syntax.add_kinded_interface(&while_statement).unwrap()
         .with_field(&field_test, Type::interface(&expression).close())
@@ -341,7 +348,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_test, Type::interface(&expression).defaults_to(JSON::Null))
         .with_field(&field_update, Type::interface(&expression).defaults_to(JSON::Null))
         .with_field(&field_body, Type::interface(&statement).close())
-        .with_parent(&statement);
+        .with_parent(&statement)
+        .with_order(&field_binjs_scope, &field_body);
 
     syntax.add_kinded_interface(&for_in_statement).unwrap()
         .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
@@ -351,7 +359,8 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         ]).close())
         .with_field(&field_right, Type::interface(&expression).close())
         .with_field(&field_body, Type::interface(&statement).close())
-        .with_parent(&statement);
+        .with_parent(&statement)
+        .with_order(&field_binjs_scope, &field_body);
 
     // Declarations
     syntax.add_virtual_interface(&declaration).unwrap()
@@ -433,7 +442,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_operator, Type::enumeration(&unary_operator).close()) // Operator MUST appear before argument.
         .with_field(&field_prefix, Type::bool().close()) // Prefix MUST appear before argument.
         .with_field(&field_argument, Type::interface(&expression).close())
-        .with_parent(&expression);
+        .with_parent(&expression)
+        .with_order(&field_operator, &field_argument)
+        .with_order(&field_prefix, &field_argument);
 
     syntax.add_enum(&unary_operator).unwrap()
         .with_strings(&[
@@ -450,7 +461,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_operator, Type::enumeration(&update_operator).close()) // Operator MUST appear before argument.
         .with_field(&field_prefix, Type::bool().close()) // Prefix MUST appear before argument.
         .with_field(&field_argument, Type::interface(&expression).close())
-        .with_parent(&expression);
+        .with_parent(&expression)
+        .with_order(&field_operator, &field_argument)
+        .with_order(&field_prefix, &field_argument);
 
     syntax.add_enum(&update_operator).unwrap()
         .with_strings(&[
@@ -462,7 +475,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_operator, Type::enumeration(&binary_operator).close()) // Operator MUST appear before left, right.
         .with_field(&field_left, Type::interface(&expression).close())
         .with_field(&field_right, Type::interface(&expression).close())
-        .with_parent(&expression);
+        .with_parent(&expression)
+        .with_order(&field_operator, &field_left)
+        .with_order(&field_operator, &field_right);
+
 
     syntax.add_enum(&binary_operator).unwrap()
         .with_strings(&[
@@ -496,7 +512,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
             &expression
         ]).close())
         .with_field(&field_right, Type::interface(&expression).close())
-        .with_parent(&expression);
+        .with_parent(&expression)
+        .with_order(&field_operator, &field_left)
+        .with_order(&field_operator, &field_right);
 
     syntax.add_enum(&assignment_operator).unwrap()
         .with_strings(&[
@@ -518,7 +536,10 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_field(&field_operator, Type::enumeration(&logical_operator).close())  // Operator MUST appear before left, right.
         .with_field(&field_left, Type::interface(&expression).close())
         .with_field(&field_right, Type::interface(&expression).close())
-        .with_parent(&expression);
+        .with_parent(&expression)
+        .with_order(&field_operator, &field_left)
+        .with_order(&field_operator, &field_right);
+
 
     syntax.add_enum(&logical_operator).unwrap()
         .with_strings(&[

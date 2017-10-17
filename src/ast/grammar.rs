@@ -524,7 +524,7 @@ impl Type {
         let pretty_default = match self.defaults_to {
             None => String::new(),
             Some(ref default) =>
-                format!(" // Defaults to `{}`", default.dump())
+                format!(" = {}", default.dump())
         };
         format!("{}{}", pretty_type, pretty_default)
     }
@@ -664,9 +664,19 @@ pub struct InterfaceDeclaration {
 
     /// The contents of this interface, excluding the contents of parent interfaces.
     own_contents: Obj,
+
+    /// Requirements on the order between fields.
+    order_requirements: Vec<(FieldName, FieldName)>,
 }
 
 impl InterfaceDeclaration {
+    pub fn with_order(&mut self, before: &FieldName, after: &FieldName) -> &mut Self {
+        assert!(self.own_contents.fields.iter().find(|x| before == x.name()).is_some());
+        assert!(self.own_contents.fields.iter().find(|x| after == x.name()).is_some());
+        self.order_requirements.push((before.clone(), after.clone()));
+        self
+    }
+
     pub fn with_field(&mut self, name: &FieldName, type_: Type) -> &mut Self {
         // FIXME: There must be a better way to do this.
         let mut contents = Obj::new();
@@ -768,6 +778,7 @@ impl SyntaxBuilder {
             parent_interfaces: Vec::new(),
             sub_interfaces: Vec::new(),
             ancestor_interfaces: Vec::new(),
+            order_requirements: Vec::new(),
         };
         self.interfaces.insert(name.clone(), RefCell::new(interface));
         self.interfaces.get(name).map(RefCell::borrow_mut)
@@ -872,9 +883,9 @@ impl SyntaxBuilder {
                 let ancestor = self.interfaces.get(ancestor_name)
                     .expect("Could not find ancestor");
 
+                let ancestor = ancestor.borrow();
                 // Collect dependencies between fields.
-                let mut prev = None;
-                for field in &ancestor.borrow().own_contents.fields {
+                for field in &ancestor.own_contents.fields {
                     let name = field_names.entry(field.name.to_string().clone())
                         .or_insert_with(|| field.name().clone())
                         .clone();
@@ -882,13 +893,12 @@ impl SyntaxBuilder {
                     my_fields.insert(name.clone(), field.type_().clone());
                     // FIXME: We should check that we always overwrite something with something at least as general.
 
-                    if let Some(prev) = prev {
-                        sorter.add_dependency(prev, name.clone());
-                    } else {
-                        // Make sure that all names appear in the topological sort.
-                        sorter.insert(name.clone());
-                    }
-                    prev = Some(name);
+                    // Make sure that all names appear in the topological sort.
+                    sorter.insert(name.clone());
+                }
+
+                for &(ref before, ref after) in &ancestor.order_requirements {
+                    sorter.add_dependency(before.clone(), after.clone());
                 }
             }
 
@@ -1007,11 +1017,21 @@ impl Interface {
                 prefix=prefix,
                 indent=indent);
             for field in self.declaration.own_contents.fields() {
-                result.push_str(&format!("{prefix}{optional}{name}: {description}\n",
+                let mut requirements = String::new();
+                for &(ref before, ref after) in &self.declaration.order_requirements {
+                    if before == field.name() {
+                        if requirements.len() == 0 {
+                            requirements = format!("// MUST appear before `{}`", after.to_str());
+                        } else {
+                            requirements.push_str(&format!(", `{}`", after.to_str()));
+                        }
+                    }
+                }
+                result.push_str(&format!("{prefix}{name}: {description}; {requirements}\n",
                     prefix = prefix,
                     name = field.name().to_str(),
                     description = field.type_().pretty(&prefix, indent),
-                    optional = if field.type_().defaults_to.is_some() { "?" } else { "" }));
+                    requirements = requirements));
             }
         }
         result.push_str(&format!("{prefix} }}\n", prefix=prefix));
