@@ -430,9 +430,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         .with_parent(&function);
 
     syntax.add_kinded_interface(&unary_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&unary_operator).close())
-        .with_field(&field_prefix, Type::bool().close())
-        .with_field(&field_argument, Type::interface(&expression).close()) // Order is important here.
+        .with_field(&field_operator, Type::enumeration(&unary_operator).close()) // Operator MUST appear before argument.
+        .with_field(&field_prefix, Type::bool().close()) // Prefix MUST appear before argument.
+        .with_field(&field_argument, Type::interface(&expression).close())
         .with_parent(&expression);
 
     syntax.add_enum(&unary_operator).unwrap()
@@ -447,9 +447,9 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         ]);
 
     syntax.add_kinded_interface(&update_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&update_operator).close())
+        .with_field(&field_operator, Type::enumeration(&update_operator).close()) // Operator MUST appear before argument.
+        .with_field(&field_prefix, Type::bool().close()) // Prefix MUST appear before argument.
         .with_field(&field_argument, Type::interface(&expression).close())
-        .with_field(&field_prefix, Type::bool().close())
         .with_parent(&expression);
 
     syntax.add_enum(&update_operator).unwrap()
@@ -459,7 +459,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         ]);
 
     syntax.add_kinded_interface(&binary_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&binary_operator).close())
+        .with_field(&field_operator, Type::enumeration(&binary_operator).close()) // Operator MUST appear before left, right.
         .with_field(&field_left, Type::interface(&expression).close())
         .with_field(&field_right, Type::interface(&expression).close())
         .with_parent(&expression);
@@ -490,7 +490,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         ]);
 
     syntax.add_kinded_interface(&assignment_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&assignment_operator).close())
+        .with_field(&field_operator, Type::enumeration(&assignment_operator).close()) // Operator MUST appear before left, right.
         .with_field(&field_left, Type::interfaces(&[
             &pattern,
             &expression
@@ -515,7 +515,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         ]);
 
     syntax.add_kinded_interface(&logical_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&logical_operator).close())
+        .with_field(&field_operator, Type::enumeration(&logical_operator).close())  // Operator MUST appear before left, right.
         .with_field(&field_left, Type::interface(&expression).close())
         .with_field(&field_right, Type::interface(&expression).close())
         .with_parent(&expression);
