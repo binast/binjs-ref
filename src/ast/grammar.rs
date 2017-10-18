@@ -302,6 +302,7 @@ impl FieldName {
 pub struct Field {
     name: FieldName,
     type_: Type,
+    documentation: Option<String>,
 }
 impl Hash for Field {
     fn hash<H>(&self, state: &mut H) where H: Hasher {
@@ -312,7 +313,8 @@ impl Field {
     pub fn new(name: FieldName, type_: Type) -> Self {
         Field {
             name,
-            type_
+            type_,
+            documentation: None,
         }
     }
     pub fn name(&self) -> &FieldName {
@@ -320,6 +322,12 @@ impl Field {
     }
     pub fn type_(&self) -> &Type {
         &self.type_
+    }
+    pub fn doc(&self) -> Option<&str> {
+        match self.documentation {
+            None => None,
+            Some(ref s) => Some(&*s)
+        }
     }
 }
 
@@ -577,8 +585,7 @@ impl Obj {
         }
     }
 
-    /// Extend a structure with a field.
-    pub fn with_field(self, name: &FieldName, type_: Type) -> Self {
+    fn with_field_aux(self, name: &FieldName, type_: Type, doc: Option<&str>) -> Self {
         if self.field(name).is_some() {
             warn!("Field: attempting to overwrite {:?}", name);
             return self
@@ -586,11 +593,22 @@ impl Obj {
         let mut fields = self.fields;
         fields.push(Field {
             name: name.clone(),
-            type_
+            type_,
+            documentation: doc.map(str::to_string),
         });
         Obj {
             fields
         }
+
+    }
+
+    /// Extend a structure with a field.
+    pub fn with_field(self, name: &FieldName, type_: Type) -> Self {
+        self.with_field_aux(name, type_, None)
+    }
+
+    pub fn with_field_doc(self, name: &FieldName, type_: Type, doc: &str) -> Self {
+        self.with_field_aux(name, type_, Some(doc))
     }
 }
 
@@ -678,10 +696,16 @@ impl InterfaceDeclaration {
     }
 
     pub fn with_field(&mut self, name: &FieldName, type_: Type) -> &mut Self {
+        self.with_field_aux(name, type_, None)
+    }
+    pub fn with_field_doc(&mut self, name: &FieldName, type_: Type, doc: &str) -> &mut Self {
+        self.with_field_aux(name, type_, Some(doc))
+    }
+    fn with_field_aux(&mut self, name: &FieldName, type_: Type, doc: Option<&str>) -> &mut Self {
         // FIXME: There must be a better way to do this.
         let mut contents = Obj::new();
         std::mem::swap(&mut self.own_contents, &mut contents);
-        self.own_contents = contents.with_field(name, type_);
+        self.own_contents = contents.with_field_aux(name, type_, doc);
         self
     }
     pub fn with_own_field(&mut self, field: Field) -> &mut Self {
@@ -872,7 +896,7 @@ impl SyntaxBuilder {
 
 
             // Compute the fields of `interface`.
-            let mut my_fields = HashMap::new(); // name => type
+            let mut my_fields = HashMap::new(); // name => (type, doc)
             let mut sorter = topological_sort::TopologicalSort::<FieldName>::new();
             let borrow = interface.borrow();
 
@@ -890,7 +914,7 @@ impl SyntaxBuilder {
                         .or_insert_with(|| field.name().clone())
                         .clone();
 
-                    my_fields.insert(name.clone(), field.type_().clone());
+                    my_fields.insert(name.clone(), (field.type_().clone(), field.documentation.clone()));
                     // FIXME: We should check that we always overwrite something with something at least as general.
 
                     // Make sure that all names appear in the topological sort.
@@ -905,9 +929,9 @@ impl SyntaxBuilder {
             // Now copy the fields in an appropriate order to the interface.
             let mut fields = Vec::with_capacity(my_fields.len());
             while let Some(name) = sorter.pop() {
-                let type_ = my_fields.remove(&name)
+                let (type_, documentation) = my_fields.remove(&name)
                     .expect("my_fields should contain all the names output by the topological sort");
-                fields.push( Field { name, type_ });
+                fields.push( Field { name, type_, documentation });
             }
             assert_eq!(sorter.len(), 0, "FIXME: Fail gracefully in a grammar with cyclic dependencies: {:?}", sorter);
             assert_eq!(my_fields.len(), 0, "We didn't collect all names: {:?}", my_fields);
@@ -1026,6 +1050,9 @@ impl Interface {
                             requirements.push_str(&format!(", `{}`", after.to_str()));
                         }
                     }
+                }
+                if let Some(ref doc) = field.doc() {
+                    result.push_str(&format!("{prefix}// {doc}", prefix = prefix, doc = doc));
                 }
                 result.push_str(&format!("{prefix}{name}: {description}; {requirements}\n",
                     prefix = prefix,

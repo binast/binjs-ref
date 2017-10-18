@@ -68,7 +68,7 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
         .with_field(&field_var_decl_names, Type::string().array())
         .with_field(&field_let_declared_names, Type::string().array())
         .with_field(&field_const_declared_names, Type::string().array())
-        .with_field(&field_captured_names, Type::string().array())
+        .with_field_doc(&field_captured_names, Type::string().array(), "Names declared in this scope and captured in an inner function.")
         .with_field(&field_has_direct_eval, Type::bool().close());
 
     struct BaseAnnotator;
