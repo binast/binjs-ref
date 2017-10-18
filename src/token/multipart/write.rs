@@ -808,8 +808,14 @@ pub struct Statistics {
     pub per_kind_index: VecMap<NodeStatistics>,
     pub per_kind_name: HashMap<NodeName, NodeStatistics>,
     pub per_description: HashMap<NodeDescription, NodeStatistics>,
+
+    /// Mapping length -> number of lists of that length.
     pub list_lengths: VecMap<usize>,
+
+    /// Mapping length -> number of strings of that length.
     pub string_lengths: VecMap<usize>,
+
+    /// Mapping number of occurrences -> number of lists of that length.
     pub string_usage: VecMap<usize>,
 
     pub bool: NodeStatistics,

@@ -1361,7 +1361,7 @@ impl Syntax {
 
         result.push_str(" // # Interfaces.\n");
         result.push_str(" //\n");
-        result.push_str(" // Unless specified otherwise in comments, the order of fields does NOT matter\n");
+        result.push_str(" // Unless specified otherwise in comments, the order of fields does NOT matter.\n\n\n");
         let mut interfaces : Vec<_> = self.interfaces_by_name.iter().collect();
         interfaces.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
         for (name, interface) in interfaces {
