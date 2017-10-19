@@ -65,11 +65,11 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     // The scope MUST always be parsed (hence stored) BEFORE the body.
     let binjs_scope = syntax.node_name(SCOPE_NAME);
     syntax.add_kinded_interface(&binjs_scope).unwrap()
-        .with_field(&field_var_decl_names, Type::string().array())
-        .with_field(&field_let_declared_names, Type::string().array())
-        .with_field(&field_const_declared_names, Type::string().array())
+        .with_field_doc(&field_var_decl_names, Type::string().array(), "Names declared with `var` (or an implicit `var`) in this var-scope. Empty unless this is a function scope.")
+        .with_field_doc(&field_let_declared_names, Type::string().array(), "Names declared with `let` (or an implicit `let`) in this lexical scope.")
+        .with_field_doc(&field_const_declared_names, Type::string().array(), "Names declared with `const` (or an implicit `const`) in this lexical scope.")
         .with_field_doc(&field_captured_names, Type::string().array(), "Names declared in this scope and captured in an inner function.")
-        .with_field(&field_has_direct_eval, Type::bool().close());
+        .with_field_doc(&field_has_direct_eval, Type::bool().close(), "``true` if either in this scope or in a subscope, we have a call to the built-in function `eval()`.");
 
     struct BaseAnnotator;
     impl Annotator for BaseAnnotator {

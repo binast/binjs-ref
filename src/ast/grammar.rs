@@ -1052,13 +1052,16 @@ impl Interface {
                     }
                 }
                 if let Some(ref doc) = field.doc() {
-                    result.push_str(&format!("{prefix}// {doc}", prefix = prefix, doc = doc));
+                    result.push_str(&format!("{prefix}// {doc}\n", prefix = prefix, doc = doc));
                 }
                 result.push_str(&format!("{prefix}{name}: {description}; {requirements}\n",
                     prefix = prefix,
                     name = field.name().to_str(),
                     description = field.type_().pretty(&prefix, indent),
                     requirements = requirements));
+                if field.doc().is_some() {
+                    result.push_str("\n");
+                }
             }
         }
         result.push_str(&format!("{prefix} }}\n", prefix=prefix));
