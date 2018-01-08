@@ -24,7 +24,8 @@ pub mod multipart;
 
 #[derive(Debug)]
 pub enum GrammarError {
-    NoSuchKind(String),
+    NoSuchInterface(String),
+    NoSuchType(String),
     NoSuchField {
         kind: NodeName,
         field: String

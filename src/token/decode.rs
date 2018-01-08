@@ -10,6 +10,7 @@ use json::object::Object as Object;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Error<E> where E: Debug {
@@ -19,7 +20,7 @@ pub enum Error<E> where E: Debug {
     NoSuchRefinement(String),
     NoSuchKind(String),
     NoSuchField(String),
-    NoSuchEnum(String),
+    NoSuchType(String),
     InvalidValue(String),
     MissingField {
         name: String,
@@ -54,8 +55,80 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
 
     pub fn decode(&mut self) -> Result<JSON, Error<E::Error>> {
         let start = self.grammar.get_root();
-        let kind = Type::interfaces(&[start.name()]).close();
-        self.decode_from_type(&kind)
+        self.decode_from_named_type(&start)
+    }
+    fn decode_from_named_type(&mut self, named: &NamedType) -> Result<JSON, Error<E::Error>> {
+        match *named {
+            NamedType::Typedef(ref type_) =>
+                return self.decode_from_type(type_),
+            NamedType::StringEnum(ref enum_) => {
+                let string = self.extractor.string()
+                    .map_err(Error::TokenReaderError)?
+                    .ok_or_else(|| Error::UnexpectedValue("null string".to_owned()))?;
+                for candidate in enum_.strings() {
+                    if candidate == &string {
+                        return Ok(self.register(json::from(string)));
+                    }
+                }
+                return Err(Error::UnexpectedValue(string))
+            }
+            NamedType::Interface(ref interface) => {
+                // 1. Get the the interface.
+                let (object_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
+                    .map_err(Error::TokenReaderError)?;
+                debug!("decoder: found kind {:?}", object_name);
+
+                // 2. Check that the object is appropriate here.
+                if object_name != interface.name().to_str() {
+                    return Err(Error::UnexpectedValue(object_name));
+                }
+
+                // 3. Parse within interface.
+                self.decode_object_contents(interface, mapped_field_names, guard)
+            }
+        }
+    }
+    pub fn decode_object_contents(&mut self, interface: &Interface, mapped_field_names: Rc<Box<[Field]>>, guard: E::TaggedGuard) -> Result<JSON, Error<E::Error>> {
+        // Determine all the fields that we were expecting.
+        let mut expected: HashMap<_,_> = interface.contents()
+            .fields()
+            .iter()
+            .map(|field| {
+                (field.name().clone(), field.type_())
+            })
+            .collect();
+
+        // Read the fields **in the order** in which they appear in the stream.
+        let mut object = Object::new();
+        for field in mapped_field_names.as_ref().iter() {
+            let item = self.decode_from_type(field.type_())?;
+            let name = field.name().to_str();
+            if expected.remove(field.name()).is_none() {
+                return Err(Error::NoSuchField(name.to_string()))
+            }
+            object.insert(name, item);
+        }
+
+        // Any field missing? Find out if there is a default value.
+        for (name, type_) in expected.drain() {
+            let name = name.to_str();
+            match type_.default() {
+                None => return Err(Error::MissingField {
+                    name: name.to_string(),
+                    kind: interface.name().to_string().clone()
+                }),
+                Some(default) => {
+                    object.insert(name, default.clone());
+                }
+            }
+        }
+
+        // Don't forget `"type"`.
+        object.insert("type", json::from(interface.name().to_str()));
+        guard.done()
+            .map_err(Error::TokenReaderError)?;
+
+        Ok(self.register(JSON::Object(object)))
     }
     pub fn decode_from_type(&mut self, kind: &Type) -> Result<JSON, Error<E::Error>> {
         use ast::grammar::TypeSpec::*;
@@ -74,83 +147,6 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 guard.done()
                     .map_err(Error::TokenReaderError)?;
                 Ok(self.register(JSON::Array(values)))
-            }
-            Enum(ref name) => {
-                // FIXME: Do we really need to check this here?
-                let enum_ = self.grammar.get_enum_by_name(&name)
-                    .ok_or_else(|| Error::NoSuchEnum(name.to_string().clone()))?;
-                let string = self.extractor.string()
-                    .map_err(Error::TokenReaderError)?
-                    .ok_or_else(|| Error::UnexpectedValue("null string".to_owned()))?;
-                for candidate in enum_.strings() {
-                    if candidate == &string {
-                        return Ok(self.register(json::from(string)))
-                    }
-                }
-                Err(Error::UnexpectedValue(string))
-            }
-            Interfaces(ref names) => {
-                let (kind_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
-                    .map_err(Error::TokenReaderError)?;
-                debug!("decoder: found kind {:?}", kind_name);
-
-                // We have a kind, so we know how to parse the data. We just need
-                // to make sure that we expected this interface here.
-                let kind = self.grammar.get_kind(&kind_name)
-                    .ok_or_else(|| {
-                        self.extractor.poison();
-                        Error::NoSuchKind(kind_name)
-                    })?;
-
-                if let Some(interface) = self.grammar.get_interface_by_kind(&kind) {
-                    if !self.grammar.has_ancestor_in(interface, names) {
-                        self.extractor.poison();
-                        return Err(Error::NoSuchRefinement(kind.to_string().clone()))
-                    }
-
-                    // Determine all the fields that we were expecting.
-                    let mut expected: HashMap<_,_> = interface.contents()
-                        .fields()
-                        .iter()
-                        .map(|field| {
-                            (field.name().clone(), field.type_())
-                        })
-                        .collect();
-
-                    // Read the fields **in the order** in which they appear in the stream.
-                    let mut object = Object::new();
-                    for field in mapped_field_names.as_ref().iter() {
-                        let item = self.decode_from_type(field.type_())?;
-                        let name = field.name().to_str();
-                        if expected.remove(field.name()).is_none() {
-                            return Err(Error::NoSuchField(name.to_string()))
-                        }
-                        object.insert(name, item);
-                    }
-
-                    // Any field missing? Find out if there is a default value.
-                    for (name, type_) in expected.drain() {
-                        let name = name.to_str();
-                        match type_.default() {
-                            None => return Err(Error::MissingField {
-                                name: name.to_string(),
-                                kind: kind.to_string().clone()
-                            }),
-                            Some(default) => {
-                                object.insert(name, default.clone());
-                            }
-                        }
-                    }
-
-                    // Don't forget `"type"`.
-                    object.insert("type", json::from(kind.to_str()));
-                    guard.done()
-                        .map_err(Error::TokenReaderError)?;
-
-                    Ok(self.register(JSON::Object(object)))
-                } else {
-                    Err(Error::NoSuchKind(kind.to_string().clone()))
-                }
             }
             String => {
                 let extracted = self.extractor.string()
@@ -182,6 +178,35 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                         Ok(self.register(json::from(f)))
                 }
             }
+            NamedType(ref name) => {
+                let named_type = self.grammar.get_type_by_name(name)
+                    .ok_or_else(|| Error::NoSuchType(name.to_string().clone()))?;
+                self.decode_from_named_type(&named_type)
+            }
+            TypeSum(ref sum) => {
+                // The `sum` is necessarily a sum of interfaces, so this must be an object.
+                // 1. Get the the interface.
+                let (interface_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
+                    .map_err(Error::TokenReaderError)?;
+                debug!("decoder: found kind {:?}", interface_name);
+                let interface_node_name = self.grammar.get_node_name(&interface_name)
+                    .ok_or_else(|| Error::NoSuchInterface(interface_name.to_string().clone()))?;
+                let interface = self.grammar.get_interface_by_name(&interface_node_name)
+                    .ok_or_else(|| Error::NoSuchInterface(interface_name.to_string().clone()))?;
+
+                // 2. Check that the interface somehow belongs in `sum`
+                if sum.iter()
+                    .find(|type_| {
+                        type_.get_interface(self.grammar, interface_node_name)
+                            .is_some()
+                    }).is_none() {
+                    return Err(Error::UnexpectedValue(interface_name));
+                }
+
+                // 3. Parse within interface.
+                self.decode_object_contents(interface, mapped_field_names, guard)
+            }
+            Void => Ok(self.register(JSON::Null))
         }
     }
 }

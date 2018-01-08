@@ -11,8 +11,8 @@ use std::io::*;
 test!(test_simple_tokenization, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     for source in [
         "function foo() {}",
@@ -53,7 +53,7 @@ test!(test_simple_tokenization, {
         let decoded = decoder.decode()
             .expect("Could not decode AST");
 
-        let pretty = parser.to_source(&decoded)
+        let pretty = parser.to_source(&grammar, &decoded)
             .expect("Could not pretty-print");
 
         println!("Decoded: {}", pretty);
@@ -63,3 +63,4 @@ test!(test_simple_tokenization, {
         assert!(equal)
     }
 });
+

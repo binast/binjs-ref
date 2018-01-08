@@ -9,6 +9,7 @@
 
 use ast::grammar::*;
 use ast::annotation::*;
+use ast::annotation::ScopeNodeName as ScopeKind;
 use util::JSONGetter;
 
 use std;
@@ -16,20 +17,19 @@ use std;
 use json::JsonValue as JSON;
 use json::object::Object as Object;
 
-pub static SCOPE_NAME: &'static str = "BINJS:Scope";
-pub static BINJS_VAR_NAME: &'static str = "BINJS:VarDeclaredNames";
-pub static BINJS_LET_NAME: &'static str = "BINJS:LetDeclaredNames";
-pub static BINJS_CONST_NAME: &'static str = "BINJS:ConstDeclaredNames";
-pub static BINJS_CAPTURED_NAME: &'static str = "BINJS:CapturedNames";
-pub static BINJS_DIRECT_EVAL: &'static str = "BINJS:HasDirectEval";
+pub static SCOPE_NAME: &'static str = "AssertedScope";
+pub static BINJS_VAR_NAME: &'static str = "varDeclaredNames";
+pub static BINJS_LET_NAME: &'static str = "lexicallyDeclaredNames";
+pub static BINJS_CAPTURED_NAME: &'static str = "capturedNames";
+pub static BINJS_DIRECT_EVAL: &'static str = "hasDirectEval";
 
 /// The set of features requested for a syntax.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Level {
     /// Empty syntax, for testing purposes.
     Minimal,
-    /// All the features for ES5.
-    ES5,
+    /// All the features for ES6.
+    ES6,
     /// All the features of the latest version of JavaScript.
     Latest,
     // FIXME: More levels to be implemented.
@@ -38,7 +38,7 @@ impl std::fmt::Display for Level {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
             Level::Minimal => write!(fmt, "Minimal"),
-            Level::ES5 | Level::Latest => write!(fmt, "ES5"),
+            Level::ES6 | Level::Latest => write!(fmt, "ES6"),
         }
     }
 }
@@ -54,9 +54,11 @@ fn uses_strict(object: &Object) -> bool {
 
 /// Special nodes used by BINJS. Not visible at source level.
 fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
+    let identifier_name = syntax.node_name("IdentifierName");
+
+    // Field names
     let field_var_decl_names = syntax.field_name(BINJS_VAR_NAME);
-    let field_let_declared_names = syntax.field_name(BINJS_LET_NAME);
-    let field_const_declared_names = syntax.field_name(BINJS_CONST_NAME);
+    let field_lex_declared_names = syntax.field_name(BINJS_LET_NAME);
     let field_captured_names = syntax.field_name(BINJS_CAPTURED_NAME);
     let field_has_direct_eval = syntax.field_name(BINJS_DIRECT_EVAL);
 
@@ -64,12 +66,10 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     //
     // The scope MUST always be parsed (hence stored) BEFORE the body.
     let binjs_scope = syntax.node_name(SCOPE_NAME);
-    syntax.add_kinded_interface(&binjs_scope).unwrap()
-        .with_field_doc(&field_var_decl_names, Type::string().array(), "Names declared with `var` (or an implicit `var`) in this var-scope. Empty unless this is a function scope.")
-        .with_field_doc(&field_let_declared_names, Type::string().array(), "Names declared with `let` (or an implicit `let`) in this lexical scope.")
-        .with_field_doc(&field_const_declared_names, Type::string().array(), "Names declared with `const` (or an implicit `const`) in this lexical scope.")
-        .with_field_doc(&field_captured_names, Type::string().array(), "Names declared in this scope and captured in an inner function.")
-        .with_field_doc(&field_has_direct_eval, Type::bool().close(), "``true` if either in this scope or in a subscope, we have a call to the built-in function `eval()`.");
+    syntax.add_interface(&binjs_scope).unwrap()
+        .with_field_doc(&field_var_decl_names, Type::named(&identifier_name).array(), "Names declared with `var` (or an implicit `var`) in this var-scope. Empty unless this is a function scope.")
+        .with_field_doc(&field_lex_declared_names, Type::named(&identifier_name).array(), "Names declared with `let` (or an implicit `let`) in this lexical scope.")
+        .with_field_doc(&field_captured_names, Type::named(&identifier_name).array(), "Names declared in this scope and captured in an inner function.") .with_field_doc(&field_has_direct_eval, Type::bool().close(), "``true` if either in this scope or in a subscope, we have a call to the built-in function `eval()`.");
 
     struct BaseAnnotator;
     impl Annotator for BaseAnnotator {
@@ -101,494 +101,878 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     Box::new(BaseAnnotator)
 }
 
-/// Hardcoding for the subset of https://github.com/babel/babylon/blob/master/ast/spec.md
-/// dedicated to ES5.
-fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotator> {
-    // Interface names (by alphabetical order)
-    let array_expression = syntax.node_name("ArrayExpression");
-    let assignment_expression = syntax.node_name("AssignmentExpression");
-    let assignment_operator = syntax.node_name("AssignmentOperator");
-    let binary_expression = syntax.node_name("BinaryExpression");
-    let binary_operator = syntax.node_name("BinaryOperator");
-    let binjs_scope = syntax.node_name(SCOPE_NAME);
-    let block_statement = syntax.node_name("BlockStatement");
-    let boolean_literal = syntax.node_name("BooleanLiteral");
-    let bracket_expression = syntax.node_name("BracketExpression");
-    let break_statement = syntax.node_name("BreakStatement");
-    let call_expression = syntax.node_name("CallExpression");
-    let catch_clause = syntax.node_name("CatchClause");
-    let computed_property_name = syntax.node_name("ComputedPropertyName");
-    let conditional_expression = syntax.node_name("ConditionalExpression");
-    let continue_statement = syntax.node_name("ContinueStatement");
-    let debugger_statement = syntax.node_name("DebuggerStatement");
-    let declaration = syntax.node_name("Declaration");
-    let dot_expression = syntax.node_name("DotExpression");
-    let do_while_statement = syntax.node_name("DoWhileStatement");
-    let elision = syntax.node_name("ElisionExpression");
-    let empty_statement = syntax.node_name("EmptyStatement");
-    let expression = syntax.node_name("Expression");
-    let expression_statement = syntax.node_name("ExpressionStatement");
-    let for_statement = syntax.node_name("ForStatement");
-    let for_in_statement = syntax.node_name("ForInStatement");
-    let function = syntax.node_name("Function");
-    let function_expression = syntax.node_name("FunctionExpression");
-    let function_declaration = syntax.node_name("FunctionDeclaration");
-    let identifier = syntax.node_name("Identifier");
-    let if_statement = syntax.node_name("IfStatement");
-    let labeled_statement = syntax.node_name("LabeledStatement");
-    let literal = syntax.node_name("Literal");
-    let logical_expression = syntax.node_name("LogicalExpression");
-    let logical_operator = syntax.node_name("LogicalOperator");
-    let new_expression = syntax.node_name("NewExpression");
-    let null_literal = syntax.node_name("NullLiteral");
-    let numeric_literal = syntax.node_name("NumericLiteral");
-    let object_expression = syntax.node_name("ObjectExpression");
-    let object_getter = syntax.node_name("ObjectGetter");
-    let object_member = syntax.node_name("ObjectMember");
-    let object_method = syntax.node_name("ObjectMethod");
-    let object_property = syntax.node_name("ObjectProperty");
-    let object_setter = syntax.node_name("ObjectSetter");
-    let pattern = syntax.node_name("Pattern");
-    let program = syntax.node_name("Program");
-    let regexp_literal = syntax.node_name("RegExpLiteral");
-    let return_statement = syntax.node_name("ReturnStatement");
-    let sequence_expression = syntax.node_name("SequenceExpression");
-    let string_literal = syntax.node_name("StringLiteral");
-    let statement = syntax.node_name("Statement");
-    let switch_case = syntax.node_name("SwitchCase");
-    let switch_statement = syntax.node_name("SwitchStatement");
-    let this_expression = syntax.node_name("ThisExpression");
-    let throw_statement = syntax.node_name("ThrowStatement");
-    let try_statement = syntax.node_name("TryStatement");
-    let unary_expression = syntax.node_name("UnaryExpression");
-    let unary_operator = syntax.node_name("UnaryOperator");
-    let update_expression = syntax.node_name("UpdateExpression");
-    let update_operator = syntax.node_name("UpdateOperator");
-    let variable_declaration = syntax.node_name("VariableDeclaration");
-    let variable_declarator = syntax.node_name("VariableDeclarator");
-    let variable_kind = syntax.node_name("VariableKind");
-    let while_statement = syntax.node_name("WhileStatement");
-    let with_statement = syntax.node_name("WithStatement");
-
-
-    // Field names (by alphabetical order)
-    let field_alternate = syntax.field_name("alternate");
-    let field_argument = syntax.field_name("argument");
-    let field_arguments = syntax.field_name("arguments");
-    let field_binjs_scope = syntax.field_name(SCOPE_NAME);
-    let field_block = syntax.field_name("block");
-    let field_callee = syntax.field_name("callee");
-    let field_cases = syntax.field_name("cases");
-    let field_consequent = syntax.field_name("consequent");
-    let field_body = syntax.field_name("body");
-    let field_declarations = syntax.field_name("declarations");
-    let field_directives = syntax.field_name("directives");
-    let field_discriminant = syntax.field_name("discriminant");
-    let field_elements = syntax.field_name("elements");
-    let field_expression = syntax.field_name("expression");
-    let field_expressions = syntax.field_name("expressions");
-    let field_finalizer = syntax.field_name("finalizer");
-    let field_flags = syntax.field_name("flags");
-    let field_handler = syntax.field_name("handler");
-    let field_id = syntax.field_name("id");
-    let field_init = syntax.field_name("init");
-    let field_key = syntax.field_name("key");
-    let field_kind = syntax.field_name("kind");
-    let field_label = syntax.field_name("label");
-    let field_left = syntax.field_name("left");
-    let field_name = syntax.field_name("name");
-    let field_object = syntax.field_name("object");
-    let field_operator = syntax.field_name("operator");
-    let field_param = syntax.field_name("param");
-    let field_params = syntax.field_name("params");
-    let field_pattern = syntax.field_name("pattern");
-    let field_prefix = syntax.field_name("prefix");
-    let field_properties = syntax.field_name("properties");
-    let field_property = syntax.field_name("property");
-    let field_right = syntax.field_name("right");
-    let field_test = syntax.field_name("test");
-    let field_update = syntax.field_name("update");
-    let field_value = syntax.field_name("value");
-
-
-    // Identifiers
-    syntax.add_kinded_interface(&identifier).unwrap()
-        .with_field(&field_name, Type::string().close())
-        .with_parent(&expression)
-        .with_parent(&pattern);
-
-    // Literals
-    syntax.add_virtual_interface(&literal).unwrap()
-        .with_parent(&expression);
-    syntax.add_kinded_interface(&string_literal).unwrap()
-        .with_field(&field_value, Type::string().close())
-        .with_parent(&literal);
-    syntax.add_kinded_interface(&boolean_literal).unwrap()
-        .with_field(&field_value, Type::bool().close())
-        .with_parent(&literal);
-    syntax.add_kinded_interface(&null_literal).unwrap()
-        .with_parent(&literal);
-    syntax.add_kinded_interface(&numeric_literal).unwrap()
-        .with_field(&field_value, Type::number().close())
-        .with_parent(&literal);
-    syntax.add_kinded_interface(&regexp_literal).unwrap()
-        .with_field(&field_pattern, Type::string().close())
-        .with_field(&field_flags, Type::string().close())
-        .with_parent(&literal);
-
-    // Programs
-    syntax.add_kinded_interface(&program).unwrap()
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_field(&field_directives, Type::string().array())
-        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
-        .with_order(&field_binjs_scope, &field_body)
-        .with_order(&field_directives, &field_body);
-
-    // Functions (shared between function declaration, function statement, function expression)
-    // Note that the scope information is stored as part of `field_body`.
-    syntax.add_virtual_interface(&function).unwrap()
-        .with_field(&field_id, Type::interface(&identifier).defaults_to(JSON::Null))
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_field(&field_directives, Type::string().array())
-        .with_field(&field_params, Type::interface(&pattern).array())
-        .with_field(&field_body, Type::interface(&block_statement).close())
-        .with_order(&field_binjs_scope, &field_body)
-        .with_order(&field_directives, &field_body);
-
-    // Statements
-    syntax.add_virtual_interface(&statement).unwrap();
-
-    syntax.add_kinded_interface(&empty_statement).unwrap()
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&block_statement).unwrap()
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_field(&field_body, Type::interfaces(&[&statement, &function_declaration]).array())
-        .with_parent(&statement)
-        .with_order(&field_binjs_scope, &field_body);
-
-    syntax.add_kinded_interface(&expression_statement).unwrap()
-        .with_field(&field_expression, Type::interface(&expression).close())
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&debugger_statement).unwrap()
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&with_statement).unwrap()
-        .with_field(&field_object, Type::interface(&expression).close())
-        .with_field(&field_body, Type::interface(&statement).close())
-        .with_parent(&statement);
-
-    // Control flow
-    syntax.add_kinded_interface(&return_statement).unwrap()
-        .with_field(&field_argument, Type::interface(&expression).defaults_to(JSON::Null))
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&labeled_statement).unwrap()
-        .with_field(&field_label, Type::interface(&identifier).close())
-        .with_field(&field_body, Type::interface(&statement).close())
-        .with_parent(&statement)
-        .with_order(&field_label, &field_body);
-
-    syntax.add_kinded_interface(&break_statement).unwrap()
-        .with_field(&field_label, Type::interface(&identifier).defaults_to(JSON::Null))
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&continue_statement).unwrap()
-        .with_field(&field_label, Type::interface(&identifier).defaults_to(JSON::Null))
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&if_statement).unwrap()
-        .with_field(&field_test, Type::interface(&expression).close())
-        .with_field(&field_consequent, Type::interface(&statement).close())
-        .with_field(&field_alternate, Type::interface(&statement).defaults_to(JSON::Null))
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&switch_statement).unwrap()
-        .with_field(&field_discriminant, Type::interface(&expression).close())
-        .with_field(&field_cases, Type::interface(&switch_case).array())
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&switch_case).unwrap()
-        .with_field(&field_test, Type::interface(&expression).defaults_to(JSON::Null))
-        .with_field(&field_consequent, Type::interfaces(&[&statement, &function_declaration]).array());
-
-    syntax.add_kinded_interface(&throw_statement).unwrap()
-        .with_field(&field_argument, Type::interface(&expression).close())
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&try_statement).unwrap()
-        .with_field(&field_block, Type::interface(&block_statement).close())
-        .with_field(&field_handler, Type::interface(&catch_clause).defaults_to(JSON::Null))
-        .with_field(&field_finalizer, Type::interface(&block_statement).defaults_to(JSON::Null))
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&catch_clause).unwrap()
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null))
-        .with_field(&field_param, Type::interface(&pattern).close())
-        .with_field(&field_body, Type::interface(&block_statement).close())
-        .with_order(&field_binjs_scope, &field_body);
-
-    syntax.add_kinded_interface(&while_statement).unwrap()
-        .with_field(&field_test, Type::interface(&expression).close())
-        .with_field(&field_body, Type::interface(&statement).close())
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&do_while_statement).unwrap()
-        .with_field(&field_body, Type::interface(&statement).close())
-        .with_field(&field_test, Type::interface(&expression).close())
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&for_statement).unwrap()
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
-        .with_field(&field_init, Type::interfaces(&[
-            &variable_declaration,
-            &expression
-        ]).defaults_to(JSON::Null))
-        .with_field(&field_test, Type::interface(&expression).defaults_to(JSON::Null))
-        .with_field(&field_update, Type::interface(&expression).defaults_to(JSON::Null))
-        .with_field(&field_body, Type::interface(&statement).close())
-        .with_parent(&statement)
-        .with_order(&field_binjs_scope, &field_body);
-
-    syntax.add_kinded_interface(&for_in_statement).unwrap()
-        .with_field(&field_binjs_scope, Type::interface(&binjs_scope).defaults_to(JSON::Null)) // Order matters.
-        .with_field(&field_left, Type::interfaces(&[
-            &variable_declaration,
-            &expression // Yes, that's `for (expr in expr)`. The ES specs are (barely) more restrictive, but it's still a `expr` on the left.
-        ]).close())
-        .with_field(&field_right, Type::interface(&expression).close())
-        .with_field(&field_body, Type::interface(&statement).close())
-        .with_parent(&statement)
-        .with_order(&field_binjs_scope, &field_body);
-
-    // Declarations
-    syntax.add_virtual_interface(&declaration).unwrap()
-        .with_parent(&statement);
-
-    syntax.add_kinded_interface(&function_declaration).unwrap()
-        .with_field(&field_id, Type::interface(&identifier).close())
-        .with_parent(&function);
-
-    syntax.add_kinded_interface(&variable_declaration).unwrap()
-        .with_field(&field_declarations, Type::interface(&variable_declarator).non_empty_array())
-        .with_field(&field_kind, Type::enumeration(&variable_kind).close())
-        .with_parent(&declaration);
-
-    syntax.add_enum(&variable_kind).unwrap()
-        .with_strings(&[
-            "let",
-            "var",
-            "const"
-        ]);
-
-    syntax.add_kinded_interface(&variable_declarator).unwrap()
-        .with_field(&field_id, Type::interface(&pattern).close())
-        .with_field(&field_init, Type::interface(&expression).defaults_to(JSON::Null));
-
-    // Expressions
-    syntax.add_virtual_interface(&expression).unwrap();
-
-    syntax.add_kinded_interface(&this_expression).unwrap()
-        .with_parent(&expression);
-
-    syntax.add_kinded_interface(&array_expression).unwrap()
-        .with_field(&field_elements, Type::interfaces(&[&expression, &elision]).array())
-        .with_parent(&expression);
-
-    syntax.add_kinded_interface(&elision).unwrap();
-
-    syntax.add_kinded_interface(&object_expression).unwrap()
-        .with_field(&field_properties, Type::interfaces(&[
-            &object_property,
-            &object_method,
-            &object_getter,
-            &object_setter,
-        ]).array())
-        .with_parent(&expression);
-
-    syntax.add_virtual_interface(&object_member).unwrap()
-        .with_field(&field_key, Type::interfaces(&[
-            &string_literal,
-            &numeric_literal,
-            &identifier,
-            &computed_property_name,
-        ]).close());
-
-    syntax.add_kinded_interface(&computed_property_name).unwrap()
-        .with_field(&field_property, Type::interface(&expression).close());
-
-    syntax.add_kinded_interface(&object_property).unwrap()
-        .with_field(&field_value, Type::interface(&expression).close())
-        .with_parent(&object_member);
-
-    syntax.add_kinded_interface(&object_method).unwrap()
-        .with_parent(&object_member)
-        .with_parent(&function);
-
-    syntax.add_kinded_interface(&object_getter).unwrap()
-        .with_parent(&object_member)
-        .with_parent(&function);
-
-    syntax.add_kinded_interface(&object_setter).unwrap()
-        .with_parent(&object_member)
-        .with_parent(&function);
-
-    syntax.add_kinded_interface(&function_expression).unwrap()
-        .with_parent(&expression)
-        .with_parent(&function);
-
-    syntax.add_kinded_interface(&unary_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&unary_operator).close()) // Operator MUST appear before argument.
-        .with_field(&field_prefix, Type::bool().close()) // Prefix MUST appear before argument.
-        .with_field(&field_argument, Type::interface(&expression).close())
-        .with_parent(&expression)
-        .with_order(&field_operator, &field_argument)
-        .with_order(&field_prefix, &field_argument);
-
-    syntax.add_enum(&unary_operator).unwrap()
-        .with_strings(&[
-            "-",
-            "+",
-            "!",
-            "~",
-            "typeof",
-            "void",
-            "delete"
-        ]);
-
-    syntax.add_kinded_interface(&update_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&update_operator).close()) // Operator MUST appear before argument.
-        .with_field(&field_prefix, Type::bool().close()) // Prefix MUST appear before argument.
-        .with_field(&field_argument, Type::interface(&expression).close())
-        .with_parent(&expression)
-        .with_order(&field_operator, &field_argument)
-        .with_order(&field_prefix, &field_argument);
-
-    syntax.add_enum(&update_operator).unwrap()
-        .with_strings(&[
-            "++",
-            "--"
-        ]);
-
-    syntax.add_kinded_interface(&binary_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&binary_operator).close()) // Operator MUST appear before left, right.
-        .with_field(&field_left, Type::interface(&expression).close())
-        .with_field(&field_right, Type::interface(&expression).close())
-        .with_parent(&expression)
-        .with_order(&field_operator, &field_left)
-        .with_order(&field_operator, &field_right);
-
-
-    syntax.add_enum(&binary_operator).unwrap()
-        .with_strings(&[
-            "==",
-            "!=",
-            "===",
-            "!==",
-            "<",
-            "<=",
-            ">",
-            ">=",
-            "<<",
-            ">>",
-            ">>>",
-            "+",
-            "-",
-            "*",
-            "/",
-            "%",
-            "|",
-            "^",
-            "&",
-            "in",
-            "instanceof"
-        ]);
-
-    syntax.add_kinded_interface(&assignment_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&assignment_operator).close()) // Operator MUST appear before left, right.
-        .with_field(&field_left, Type::interfaces(&[
-            &pattern,
-            &expression
-        ]).close())
-        .with_field(&field_right, Type::interface(&expression).close())
-        .with_parent(&expression)
-        .with_order(&field_operator, &field_left)
-        .with_order(&field_operator, &field_right);
-
-    syntax.add_enum(&assignment_operator).unwrap()
-        .with_strings(&[
-            "=",
-            "+=",
-            "-=",
-            "*=",
-            "/=",
-            "%=",
-            "<<=",
-            ">>=",
-            ">>>=",
-            "|=",
-            "^=",
-            "&="
-        ]);
-
-    syntax.add_kinded_interface(&logical_expression).unwrap()
-        .with_field(&field_operator, Type::enumeration(&logical_operator).close())  // Operator MUST appear before left, right.
-        .with_field(&field_left, Type::interface(&expression).close())
-        .with_field(&field_right, Type::interface(&expression).close())
-        .with_parent(&expression)
-        .with_order(&field_operator, &field_left)
-        .with_order(&field_operator, &field_right);
-
-
-    syntax.add_enum(&logical_operator).unwrap()
-        .with_strings(&[
-            "||",
-            "&&"
-        ]);
-
-    syntax.add_kinded_interface(&dot_expression).unwrap()
-        .with_field(&field_object, Type::interface(&expression).close())
-        .with_field(&field_property, Type::interface(&identifier).close()) // FIXME: Should this be a string?
-        .with_parent(&expression);
-
-    syntax.add_kinded_interface(&bracket_expression).unwrap()
-        .with_field(&field_object, Type::interface(&expression).close())
-        .with_field(&field_property, Type::interface(&expression).close()) // FIXME: Should this be a string?
-        .with_parent(&expression);
-
-    syntax.add_kinded_interface(&conditional_expression).unwrap()
-        .with_field(&field_test, Type::interface(&expression).close())
-        .with_field(&field_alternate, Type::interface(&expression).close())
-        .with_field(&field_consequent, Type::interface(&expression).close())
-        .with_parent(&expression);
-
-    syntax.add_kinded_interface(&call_expression).unwrap()
-        .with_field(&field_callee, Type::interface(&expression).close())
-        .with_field(&field_arguments, Type::interface(&expression).array())
-        .with_parent(&expression);
-
-    syntax.add_kinded_interface(&new_expression).unwrap()
-        .with_field(&field_callee, Type::interface(&expression).close())
-        .with_field(&field_arguments, Type::interface(&expression).array())
-        .with_parent(&expression);
-
-    syntax.add_kinded_interface(&sequence_expression).unwrap()
-        .with_field(&field_expressions, Type::interface(&expression).array())
-        .with_parent(&expression);
-
-    syntax.add_virtual_interface(&pattern).unwrap();
-
-    struct ES5Annotator {
+fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotator> {
+    // The declarative parts of this section have been autogenerated from https://github.com/binast/ecmascript-binary-ast/commit/89bbe7d02377321936ebed1539f6e669c80a787a
+
+// Node names (by lexicographical order)
+let arguments = syntax.node_name("Arguments");
+let array_assignment_target = syntax.node_name("ArrayAssignmentTarget");
+let array_binding = syntax.node_name("ArrayBinding");
+let array_expression = syntax.node_name("ArrayExpression");
+let arrow_expression = syntax.node_name("ArrowExpression");
+let asserted_scope = syntax.node_name("AssertedScope");
+let assignment_expression = syntax.node_name("AssignmentExpression");
+let assignment_target = syntax.node_name("AssignmentTarget");
+let assignment_target_identifier = syntax.node_name("AssignmentTargetIdentifier");
+let assignment_target_pattern = syntax.node_name("AssignmentTargetPattern");
+let assignment_target_property = syntax.node_name("AssignmentTargetProperty");
+let assignment_target_property_identifier = syntax.node_name("AssignmentTargetPropertyIdentifier");
+let assignment_target_property_property = syntax.node_name("AssignmentTargetPropertyProperty");
+let assignment_target_with_default = syntax.node_name("AssignmentTargetWithDefault");
+let await_expression = syntax.node_name("AwaitExpression");
+let binary_expression = syntax.node_name("BinaryExpression");
+let binary_operator = syntax.node_name("BinaryOperator");
+let binding = syntax.node_name("Binding");
+let binding_identifier = syntax.node_name("BindingIdentifier");
+let binding_pattern = syntax.node_name("BindingPattern");
+let binding_property = syntax.node_name("BindingProperty");
+let binding_property_identifier = syntax.node_name("BindingPropertyIdentifier");
+let binding_property_property = syntax.node_name("BindingPropertyProperty");
+let binding_with_default = syntax.node_name("BindingWithDefault");
+let block = syntax.node_name("Block");
+let break_statement = syntax.node_name("BreakStatement");
+let call_expression = syntax.node_name("CallExpression");
+let catch_clause = syntax.node_name("CatchClause");
+let class_declaration = syntax.node_name("ClassDeclaration");
+let class_element = syntax.node_name("ClassElement");
+let class_expression = syntax.node_name("ClassExpression");
+let compound_assignment_expression = syntax.node_name("CompoundAssignmentExpression");
+let compound_assignment_operator = syntax.node_name("CompoundAssignmentOperator");
+let computed_member_assignment_target = syntax.node_name("ComputedMemberAssignmentTarget");
+let computed_member_expression = syntax.node_name("ComputedMemberExpression");
+let computed_property_name = syntax.node_name("ComputedPropertyName");
+let conditional_expression = syntax.node_name("ConditionalExpression");
+let continue_statement = syntax.node_name("ContinueStatement");
+let data_property = syntax.node_name("DataProperty");
+let debugger_statement = syntax.node_name("DebuggerStatement");
+let directive = syntax.node_name("Directive");
+let do_while_statement = syntax.node_name("DoWhileStatement");
+let empty_statement = syntax.node_name("EmptyStatement");
+let export = syntax.node_name("Export");
+let export_all_from = syntax.node_name("ExportAllFrom");
+let export_declaration = syntax.node_name("ExportDeclaration");
+let export_default = syntax.node_name("ExportDefault");
+let export_from = syntax.node_name("ExportFrom");
+let export_from_specifier = syntax.node_name("ExportFromSpecifier");
+let export_local_specifier = syntax.node_name("ExportLocalSpecifier");
+let export_locals = syntax.node_name("ExportLocals");
+let expression = syntax.node_name("Expression");
+let expression_statement = syntax.node_name("ExpressionStatement");
+let for_in_of_binding = syntax.node_name("ForInOfBinding");
+let for_in_statement = syntax.node_name("ForInStatement");
+let for_of_statement = syntax.node_name("ForOfStatement");
+let for_statement = syntax.node_name("ForStatement");
+let formal_parameters = syntax.node_name("FormalParameters");
+let function_body = syntax.node_name("FunctionBody");
+let function_declaration = syntax.node_name("FunctionDeclaration");
+let function_expression = syntax.node_name("FunctionExpression");
+let getter = syntax.node_name("Getter");
+let identifier = syntax.node_name("Identifier");
+let identifier_expression = syntax.node_name("IdentifierExpression");
+let identifier_name = syntax.node_name("IdentifierName");
+let if_statement = syntax.node_name("IfStatement");
+let import = syntax.node_name("Import");
+let import_declaration = syntax.node_name("ImportDeclaration");
+let import_namespace = syntax.node_name("ImportNamespace");
+let import_specifier = syntax.node_name("ImportSpecifier");
+let iteration_statement = syntax.node_name("IterationStatement");
+let label = syntax.node_name("Label");
+let labeled_statement = syntax.node_name("LabeledStatement");
+let literal = syntax.node_name("Literal");
+let literal_boolean_expression = syntax.node_name("LiteralBooleanExpression");
+let literal_infinity_expression = syntax.node_name("LiteralInfinityExpression");
+let literal_null_expression = syntax.node_name("LiteralNullExpression");
+let literal_numeric_expression = syntax.node_name("LiteralNumericExpression");
+let literal_reg_exp_expression = syntax.node_name("LiteralRegExpExpression");
+let literal_string_expression = syntax.node_name("LiteralStringExpression");
+let method = syntax.node_name("Method");
+let method_definition = syntax.node_name("MethodDefinition");
+let module = syntax.node_name("Module");
+let new_expression = syntax.node_name("NewExpression");
+let new_target_expression = syntax.node_name("NewTargetExpression");
+let object_assignment_target = syntax.node_name("ObjectAssignmentTarget");
+let object_binding = syntax.node_name("ObjectBinding");
+let object_expression = syntax.node_name("ObjectExpression");
+let object_property = syntax.node_name("ObjectProperty");
+let parameter = syntax.node_name("Parameter");
+let program = syntax.node_name("Program");
+let property_name = syntax.node_name("PropertyName");
+let return_statement = syntax.node_name("ReturnStatement");
+let script = syntax.node_name("Script");
+let setter = syntax.node_name("Setter");
+let shorthand_property = syntax.node_name("ShorthandProperty");
+let simple_assignment_target = syntax.node_name("SimpleAssignmentTarget");
+let spread_element = syntax.node_name("SpreadElement");
+let statement = syntax.node_name("Statement");
+let static_member_assignment_target = syntax.node_name("StaticMemberAssignmentTarget");
+let static_member_expression = syntax.node_name("StaticMemberExpression");
+let static_property_name = syntax.node_name("StaticPropertyName");
+let super_ = syntax.node_name("Super");
+let switch_case = syntax.node_name("SwitchCase");
+let switch_default = syntax.node_name("SwitchDefault");
+let switch_statement = syntax.node_name("SwitchStatement");
+let switch_statement_with_default = syntax.node_name("SwitchStatementWithDefault");
+let template_element = syntax.node_name("TemplateElement");
+let template_expression = syntax.node_name("TemplateExpression");
+let this_expression = syntax.node_name("ThisExpression");
+let throw_statement = syntax.node_name("ThrowStatement");
+let try_catch_statement = syntax.node_name("TryCatchStatement");
+let try_finally_statement = syntax.node_name("TryFinallyStatement");
+let unary_expression = syntax.node_name("UnaryExpression");
+let unary_operator = syntax.node_name("UnaryOperator");
+let update_expression = syntax.node_name("UpdateExpression");
+let update_operator = syntax.node_name("UpdateOperator");
+let variable_declaration = syntax.node_name("VariableDeclaration");
+let variable_declaration_kind = syntax.node_name("VariableDeclarationKind");
+let variable_declarator = syntax.node_name("VariableDeclarator");
+let while_statement = syntax.node_name("WhileStatement");
+let with_statement = syntax.node_name("WithStatement");
+let yield_expression = syntax.node_name("YieldExpression");
+let yield_star_expression = syntax.node_name("YieldStarExpression");
+let string = syntax.node_name("string");
+
+
+
+// Field names (by lexicographical order)
+let field_alternate = syntax.field_name("alternate");
+let field_arguments = syntax.field_name("arguments");
+let field_binding = syntax.field_name("binding");
+let field_body = syntax.field_name("body");
+let field_callee = syntax.field_name("callee");
+let field_cases = syntax.field_name("cases");
+let field_catch_clause = syntax.field_name("catchClause");
+let field_consequent = syntax.field_name("consequent");
+let field_declaration = syntax.field_name("declaration");
+let field_declarators = syntax.field_name("declarators");
+let field_default_binding = syntax.field_name("defaultBinding");
+let field_default_case = syntax.field_name("defaultCase");
+let field_directives = syntax.field_name("directives");
+let field_discriminant = syntax.field_name("discriminant");
+let field_elements = syntax.field_name("elements");
+let field_exported_name = syntax.field_name("exportedName");
+let field_expression = syntax.field_name("expression");
+let field_finalizer = syntax.field_name("finalizer");
+let field_flags = syntax.field_name("flags");
+let field_init = syntax.field_name("init");
+let field_is_async = syntax.field_name("isAsync");
+let field_is_generator = syntax.field_name("isGenerator");
+let field_is_prefix = syntax.field_name("isPrefix");
+let field_is_static = syntax.field_name("isStatic");
+let field_items = syntax.field_name("items");
+let field_kind = syntax.field_name("kind");
+let field_label = syntax.field_name("label");
+let field_left = syntax.field_name("left");
+let field_method = syntax.field_name("method");
+let field_module_specifier = syntax.field_name("moduleSpecifier");
+let field_name = syntax.field_name("name");
+let field_named_exports = syntax.field_name("namedExports");
+let field_named_imports = syntax.field_name("namedImports");
+let field_namespace_binding = syntax.field_name("namespaceBinding");
+let field_object = syntax.field_name("object");
+let field_operand = syntax.field_name("operand");
+let field_operator = syntax.field_name("operator");
+let field_param = syntax.field_name("param");
+let field_params = syntax.field_name("params");
+let field_pattern = syntax.field_name("pattern");
+let field_post_default_cases = syntax.field_name("postDefaultCases");
+let field_pre_default_cases = syntax.field_name("preDefaultCases");
+let field_properties = syntax.field_name("properties");
+let field_property = syntax.field_name("property");
+let field_raw_value = syntax.field_name("rawValue");
+let field_rest = syntax.field_name("rest");
+let field_right = syntax.field_name("right");
+let field_scope = syntax.field_name("scope");
+let field_statements = syntax.field_name("statements");
+let field_super_ = syntax.field_name("super");
+let field_tag = syntax.field_name("tag");
+let field_test = syntax.field_name("test");
+let field_update = syntax.field_name("update");
+let field_value = syntax.field_name("value");
+
+// Enumerations
+syntax.add_string_enum(&update_operator).unwrap()
+                .with_strings(&[
+                    "++",
+	"--"
+                ]);
+
+syntax.add_string_enum(&variable_declaration_kind).unwrap()
+                .with_strings(&[
+                    "var",
+	"let",
+	"const"
+                ]);
+
+syntax.add_string_enum(&compound_assignment_operator).unwrap()
+                .with_strings(&[
+                    "+=",
+	"-=",
+	"*=",
+	"/=",
+	"%=",
+	"**=",
+	"<<=",
+	">>=",
+	">>>=",
+	"|=",
+	"^=",
+	"&="
+                ]);
+
+syntax.add_string_enum(&unary_operator).unwrap()
+                .with_strings(&[
+                    "+",
+	"-",
+	"!",
+	"~",
+	"typeof",
+	"void",
+	"delete"
+                ]);
+
+syntax.add_string_enum(&binary_operator).unwrap()
+                .with_strings(&[
+                    ",",
+	"||",
+	"&&",
+	"|",
+	"^",
+	"&",
+	"==",
+	"!=",
+	"===",
+	"!==",
+	"<",
+	"<=",
+	">",
+	">=",
+	"in",
+	"instanceof",
+	"<<",
+	">>",
+	">>>",
+	"+",
+	"-",
+	"*",
+	"/",
+	"%",
+	"**"
+                ]);
+
+syntax.add_typedef(&identifier).unwrap()
+                .with_type(Type::named(&string).close());
+
+syntax.add_typedef(&iteration_statement).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&do_while_statement),
+	Type::named(&for_in_statement),
+	Type::named(&for_of_statement),
+	Type::named(&for_statement),
+	Type::named(&while_statement)
+]).close());
+
+syntax.add_typedef(&statement).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&block),
+	Type::named(&break_statement),
+	Type::named(&continue_statement),
+	Type::named(&class_declaration),
+	Type::named(&debugger_statement),
+	Type::named(&empty_statement),
+	Type::named(&expression_statement),
+	Type::named(&function_declaration),
+	Type::named(&if_statement),
+	Type::named(&iteration_statement),
+	Type::named(&labeled_statement),
+	Type::named(&return_statement),
+	Type::named(&switch_statement),
+	Type::named(&switch_statement_with_default),
+	Type::named(&throw_statement),
+	Type::named(&try_catch_statement),
+	Type::named(&try_finally_statement),
+	Type::named(&variable_declaration),
+	Type::named(&with_statement)
+]).close());
+
+syntax.add_typedef(&property_name).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&computed_property_name),
+	Type::named(&static_property_name)
+]).close());
+
+syntax.add_typedef(&export_declaration).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&export_all_from),
+	Type::named(&export_from),
+	Type::named(&export_locals),
+	Type::named(&export_default),
+	Type::named(&export)
+]).close());
+
+syntax.add_typedef(&parameter).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&binding),
+	Type::named(&binding_with_default)
+]).close());
+
+syntax.add_typedef(&assignment_target_property).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&assignment_target_property_identifier),
+	Type::named(&assignment_target_property_property)
+]).close());
+
+syntax.add_typedef(&object_property).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&method_definition),
+	Type::named(&data_property),
+	Type::named(&shorthand_property)
+]).close());
+
+syntax.add_typedef(&identifier_name).unwrap()
+                .with_type(Type::named(&string).close());
+
+syntax.add_typedef(&assignment_target).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&assignment_target_pattern),
+	Type::named(&simple_assignment_target)
+]).close());
+
+syntax.add_typedef(&expression).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&literal),
+	Type::named(&literal_reg_exp_expression),
+	Type::named(&array_expression),
+	Type::named(&arrow_expression),
+	Type::named(&assignment_expression),
+	Type::named(&binary_expression),
+	Type::named(&call_expression),
+	Type::named(&compound_assignment_expression),
+	Type::named(&computed_member_expression),
+	Type::named(&conditional_expression),
+	Type::named(&class_expression),
+	Type::named(&function_expression),
+	Type::named(&identifier_expression),
+	Type::named(&new_expression),
+	Type::named(&new_target_expression),
+	Type::named(&object_expression),
+	Type::named(&unary_expression),
+	Type::named(&static_member_expression),
+	Type::named(&template_expression),
+	Type::named(&this_expression),
+	Type::named(&update_expression),
+	Type::named(&yield_expression),
+	Type::named(&yield_star_expression),
+	Type::named(&await_expression)
+]).close());
+
+syntax.add_typedef(&method_definition).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&method),
+	Type::named(&getter),
+	Type::named(&setter)
+]).close());
+
+syntax.add_typedef(&binding_pattern).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&object_binding),
+	Type::named(&array_binding)
+]).close());
+
+syntax.add_typedef(&binding).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&binding_pattern),
+	Type::named(&binding_identifier)
+]).close());
+
+syntax.add_typedef(&simple_assignment_target).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&assignment_target_identifier),
+	Type::named(&computed_member_assignment_target),
+	Type::named(&static_member_assignment_target)
+]).close());
+
+syntax.add_typedef(&literal).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&literal_boolean_expression),
+	Type::named(&literal_infinity_expression),
+	Type::named(&literal_null_expression),
+	Type::named(&literal_numeric_expression),
+	Type::named(&literal_string_expression)
+]).close());
+
+syntax.add_typedef(&arguments).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&spread_element),
+	Type::named(&expression)
+]).close().array().close());
+
+syntax.add_typedef(&program).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&script),
+	Type::named(&module)
+]).close());
+
+syntax.add_typedef(&import_declaration).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&import_namespace),
+	Type::named(&import)
+]).close());
+
+syntax.add_typedef(&assignment_target_pattern).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&object_assignment_target),
+	Type::named(&array_assignment_target)
+]).close());
+
+syntax.add_typedef(&string).unwrap()
+                .with_type(Type::string().close());
+
+syntax.add_typedef(&label).unwrap()
+                .with_type(Type::named(&string).close());
+
+syntax.add_typedef(&binding_property).unwrap()
+                .with_type(Type::sum(&[
+	Type::named(&binding_property_identifier),
+	Type::named(&binding_property_property)
+]).close());
+
+syntax.add_interface(&script).unwrap()
+  .with_field(&field_directives, Type::named(&directive).close().array().close())
+  .with_field(&field_statements, Type::named(&statement).close().array().close());
+
+syntax.add_interface(&binding_identifier).unwrap()
+  .with_field(&field_name, Type::named(&identifier).close());
+
+syntax.add_interface(&template_element).unwrap()
+  .with_field(&field_raw_value, Type::named(&string).close());
+
+syntax.add_interface(&import).unwrap()
+  .with_field(&field_module_specifier, Type::named(&string).close())
+  .with_field(&field_default_binding, Type::named(&binding_identifier).defaults_to(JSON::Null))
+  .with_field(&field_named_imports, Type::named(&import_specifier).close().array().close());
+
+syntax.add_interface(&literal_numeric_expression).unwrap()
+  .with_field(&field_value, Type::number().close());
+
+syntax.add_interface(&static_member_assignment_target).unwrap()
+  .with_field(&field_object, Type::sum(&[
+	Type::named(&expression),
+	Type::named(&super_)
+]).close())
+  .with_field(&field_property, Type::named(&identifier_name).close());
+
+syntax.add_interface(&debugger_statement).unwrap();
+
+syntax.add_interface(&expression_statement).unwrap()
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&directive).unwrap()
+  .with_field(&field_raw_value, Type::named(&string).close());
+
+syntax.add_interface(&unary_expression).unwrap()
+  .with_field(&field_operator, Type::named(&unary_operator).close())
+  .with_field(&field_operand, Type::named(&expression).close());
+
+syntax.add_interface(&function_expression).unwrap()
+  .with_field(&field_is_async, Type::bool().close())
+  .with_field(&field_is_generator, Type::bool().close())
+  .with_field(&field_scope, Type::named(&asserted_scope).defaults_to(JSON::Null))
+  .with_field(&field_name, Type::named(&binding_identifier).defaults_to(JSON::Null))
+  .with_field(&field_params, Type::named(&formal_parameters).close())
+  .with_field(&field_body, Type::named(&function_body).close());
+
+syntax.add_interface(&for_in_of_binding).unwrap()
+  .with_field(&field_kind, Type::named(&variable_declaration_kind).close())
+  .with_field(&field_binding, Type::named(&binding).close());
+
+syntax.add_interface(&import_namespace).unwrap()
+  .with_field(&field_module_specifier, Type::named(&string).close())
+  .with_field(&field_default_binding, Type::named(&binding_identifier).defaults_to(JSON::Null))
+  .with_field(&field_namespace_binding, Type::named(&binding_identifier).close());
+
+syntax.add_interface(&class_element).unwrap()
+  .with_field(&field_is_static, Type::bool().close())
+  .with_field(&field_method, Type::named(&method_definition).close());
+
+syntax.add_interface(&module).unwrap()
+  .with_field(&field_directives, Type::named(&directive).close().array().close())
+  .with_field(&field_items, Type::sum(&[
+	Type::named(&import_declaration),
+	Type::named(&export_declaration),
+	Type::named(&statement)
+]).close().array().close());
+
+syntax.add_interface(&yield_star_expression).unwrap()
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&for_statement).unwrap()
+  .with_field(&field_init, Type::sum(&[
+	Type::named(&variable_declaration),
+	Type::named(&expression)
+]).defaults_to(JSON::Null))
+  .with_field(&field_test, Type::named(&expression).defaults_to(JSON::Null))
+  .with_field(&field_update, Type::named(&expression).defaults_to(JSON::Null))
+  .with_field(&field_body, Type::named(&statement).close());
+
+syntax.add_interface(&continue_statement).unwrap()
+  .with_field(&field_label, Type::named(&label).defaults_to(JSON::Null));
+
+syntax.add_interface(&empty_statement).unwrap();
+
+syntax.add_interface(&function_body).unwrap()
+  .with_field(&field_directives, Type::named(&directive).close().array().close())
+  .with_field(&field_statements, Type::named(&statement).close().array().close());
+
+syntax.add_interface(&variable_declaration).unwrap()
+  .with_field(&field_kind, Type::named(&variable_declaration_kind).close())
+  .with_field(&field_declarators, Type::named(&variable_declarator).close().array().close());
+
+syntax.add_interface(&shorthand_property).unwrap()
+  .with_field(&field_name, Type::named(&identifier_expression).close());
+
+syntax.add_interface(&setter).unwrap()
+  .with_field(&field_name, Type::named(&property_name).close())
+  .with_field(&field_param, Type::named(&parameter).close())
+  .with_field(&field_body, Type::named(&function_body).close());
+
+syntax.add_interface(&do_while_statement).unwrap()
+  .with_field(&field_test, Type::named(&expression).close())
+  .with_field(&field_body, Type::named(&statement).close());
+
+syntax.add_interface(&computed_member_assignment_target).unwrap()
+  .with_field(&field_object, Type::sum(&[
+	Type::named(&expression),
+	Type::named(&super_)
+]).close())
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&literal_null_expression).unwrap();
+
+syntax.add_interface(&object_assignment_target).unwrap()
+  .with_field(&field_properties, Type::named(&assignment_target_property).close().array().close());
+
+syntax.add_interface(&labeled_statement).unwrap()
+  .with_field(&field_label, Type::named(&label).close())
+  .with_field(&field_body, Type::named(&statement).close());
+
+syntax.add_interface(&export_default).unwrap()
+  .with_field(&field_body, Type::sum(&[
+	Type::named(&function_declaration),
+	Type::named(&class_declaration),
+	Type::named(&expression)
+]).close());
+
+syntax.add_interface(&return_statement).unwrap()
+  .with_field(&field_expression, Type::named(&expression).defaults_to(JSON::Null));
+
+syntax.add_interface(&break_statement).unwrap()
+  .with_field(&field_label, Type::named(&label).defaults_to(JSON::Null));
+
+syntax.add_interface(&array_assignment_target).unwrap()
+  .with_field(&field_elements, Type::sum(&[
+	Type::named(&assignment_target),
+	Type::named(&assignment_target_with_default)
+]).close().array().close())
+  .with_field(&field_rest, Type::named(&assignment_target).defaults_to(JSON::Null));
+
+syntax.add_interface(&try_finally_statement).unwrap()
+  .with_field(&field_body, Type::named(&block).close())
+  .with_field(&field_catch_clause, Type::named(&catch_clause).defaults_to(JSON::Null))
+  .with_field(&field_finalizer, Type::named(&block).close());
+
+syntax.add_interface(&switch_case).unwrap()
+  .with_field(&field_test, Type::named(&expression).close())
+  .with_field(&field_consequent, Type::named(&statement).close().array().close());
+
+syntax.add_interface(&switch_default).unwrap()
+  .with_field(&field_consequent, Type::named(&statement).close().array().close());
+
+syntax.add_interface(&update_expression).unwrap()
+  .with_field(&field_is_prefix, Type::bool().close())
+  .with_field(&field_operator, Type::named(&update_operator).close())
+  .with_field(&field_operand, Type::named(&simple_assignment_target).close());
+
+syntax.add_interface(&class_expression).unwrap()
+  .with_field(&field_name, Type::named(&binding_identifier).defaults_to(JSON::Null))
+  .with_field(&field_super_, Type::named(&expression).defaults_to(JSON::Null))
+  .with_field(&field_elements, Type::named(&class_element).close().array().close());
+
+syntax.add_interface(&array_binding).unwrap()
+  .with_field(&field_elements, Type::sum(&[
+	Type::named(&binding),
+	Type::named(&binding_with_default)
+]).defaults_to(JSON::Null).array().close())
+  .with_field(&field_rest, Type::named(&binding).defaults_to(JSON::Null));
+
+syntax.add_interface(&export).unwrap()
+  .with_field(&field_declaration, Type::sum(&[
+	Type::named(&function_declaration),
+	Type::named(&class_declaration),
+	Type::named(&variable_declaration)
+]).close());
+
+syntax.add_interface(&yield_expression).unwrap()
+  .with_field(&field_expression, Type::named(&expression).defaults_to(JSON::Null));
+
+syntax.add_interface(&static_property_name).unwrap()
+  .with_field(&field_value, Type::named(&string).close());
+
+syntax.add_interface(&formal_parameters).unwrap()
+  .with_field(&field_items, Type::named(&parameter).close().array().close())
+  .with_field(&field_rest, Type::named(&binding).defaults_to(JSON::Null));
+
+syntax.add_interface(&binding_property_property).unwrap()
+  .with_field(&field_name, Type::named(&property_name).close())
+  .with_field(&field_binding, Type::sum(&[
+	Type::named(&binding),
+	Type::named(&binding_with_default)
+]).close());
+
+syntax.add_interface(&data_property).unwrap()
+  .with_field(&field_name, Type::named(&property_name).close())
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&catch_clause).unwrap()
+  .with_field(&field_binding, Type::named(&binding).close())
+  .with_field(&field_body, Type::named(&block).close());
+
+syntax.add_interface(&export_locals).unwrap()
+  .with_field(&field_named_exports, Type::named(&export_local_specifier).close().array().close());
+
+syntax.add_interface(&object_binding).unwrap()
+  .with_field(&field_properties, Type::named(&binding_property).close().array().close());
+
+syntax.add_interface(&for_in_statement).unwrap()
+  .with_field(&field_left, Type::sum(&[
+	Type::named(&for_in_of_binding),
+	Type::named(&assignment_target)
+]).close())
+  .with_field(&field_right, Type::named(&expression).close())
+  .with_field(&field_body, Type::named(&statement).close());
+
+syntax.add_interface(&class_declaration).unwrap()
+  .with_field(&field_name, Type::named(&binding_identifier).close())
+  .with_field(&field_super_, Type::named(&expression).defaults_to(JSON::Null))
+  .with_field(&field_elements, Type::named(&class_element).close().array().close());
+
+syntax.add_interface(&block).unwrap()
+  .with_field(&field_scope, Type::named(&asserted_scope).defaults_to(JSON::Null))
+  .with_field(&field_statements, Type::named(&statement).close().array().close());
+
+syntax.add_interface(&assignment_expression).unwrap()
+  .with_field(&field_binding, Type::named(&assignment_target).close())
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&arrow_expression).unwrap()
+  .with_field(&field_is_async, Type::bool().close())
+  .with_field(&field_params, Type::named(&formal_parameters).close())
+  .with_field(&field_body, Type::sum(&[
+	Type::named(&function_body),
+	Type::named(&expression)
+]).close());
+
+syntax.add_interface(&computed_property_name).unwrap()
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&literal_infinity_expression).unwrap();
+
+syntax.add_interface(&literal_reg_exp_expression).unwrap()
+  .with_field(&field_pattern, Type::named(&string).close())
+  .with_field(&field_flags, Type::named(&string).close());
+
+syntax.add_interface(&literal_string_expression).unwrap()
+  .with_field(&field_value, Type::named(&string).close());
+
+syntax.add_interface(&if_statement).unwrap()
+  .with_field(&field_test, Type::named(&expression).close())
+  .with_field(&field_consequent, Type::named(&statement).close())
+  .with_field(&field_alternate, Type::named(&statement).defaults_to(JSON::Null));
+
+syntax.add_interface(&conditional_expression).unwrap()
+  .with_field(&field_test, Type::named(&expression).close())
+  .with_field(&field_consequent, Type::named(&expression).close())
+  .with_field(&field_alternate, Type::named(&expression).close());
+
+syntax.add_interface(&switch_statement_with_default).unwrap()
+  .with_field(&field_discriminant, Type::named(&expression).close())
+  .with_field(&field_pre_default_cases, Type::named(&switch_case).close().array().close())
+  .with_field(&field_default_case, Type::named(&switch_default).close())
+  .with_field(&field_post_default_cases, Type::named(&switch_case).close().array().close());
+
+syntax.add_interface(&export_local_specifier).unwrap()
+  .with_field(&field_name, Type::named(&identifier_expression).close())
+  .with_field(&field_exported_name, Type::named(&identifier_name).defaults_to(JSON::Null));
+
+syntax.add_interface(&getter).unwrap()
+  .with_field(&field_name, Type::named(&property_name).close())
+  .with_field(&field_body, Type::named(&function_body).close());
+
+syntax.add_interface(&literal_boolean_expression).unwrap()
+  .with_field(&field_value, Type::bool().close());
+
+syntax.add_interface(&import_specifier).unwrap()
+  .with_field(&field_name, Type::named(&identifier_name).defaults_to(JSON::Null))
+  .with_field(&field_binding, Type::named(&binding_identifier).close());
+
+syntax.add_interface(&super_).unwrap();
+
+syntax.add_interface(&assignment_target_property_identifier).unwrap()
+  .with_field(&field_binding, Type::named(&assignment_target_identifier).close())
+  .with_field(&field_init, Type::named(&expression).defaults_to(JSON::Null));
+
+syntax.add_interface(&array_expression).unwrap()
+  .with_field(&field_elements, Type::sum(&[
+	Type::named(&spread_element),
+	Type::named(&expression)
+]).defaults_to(JSON::Null).array().close());
+
+syntax.add_interface(&function_declaration).unwrap()
+  .with_field(&field_is_async, Type::bool().close())
+  .with_field(&field_is_generator, Type::bool().close())
+  .with_field(&field_scope, Type::named(&asserted_scope).defaults_to(JSON::Null))
+  .with_field(&field_name, Type::named(&binding_identifier).close())
+  .with_field(&field_params, Type::named(&formal_parameters).close())
+  .with_field(&field_body, Type::named(&function_body).close());
+
+syntax.add_interface(&throw_statement).unwrap()
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&export_from_specifier).unwrap()
+  .with_field(&field_name, Type::named(&identifier_name).close())
+  .with_field(&field_exported_name, Type::named(&identifier_name).defaults_to(JSON::Null));
+
+syntax.add_interface(&switch_statement).unwrap()
+  .with_field(&field_discriminant, Type::named(&expression).close())
+  .with_field(&field_cases, Type::named(&switch_case).close().array().close());
+
+syntax.add_interface(&export_all_from).unwrap()
+  .with_field(&field_module_specifier, Type::named(&string).close());
+
+syntax.add_interface(&computed_member_expression).unwrap()
+  .with_field(&field_object, Type::sum(&[
+	Type::named(&expression),
+	Type::named(&super_)
+]).close())
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&new_expression).unwrap()
+  .with_field(&field_callee, Type::named(&expression).close())
+  .with_field(&field_arguments, Type::named(&arguments).close());
+
+syntax.add_interface(&await_expression).unwrap()
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&template_expression).unwrap()
+  .with_field(&field_tag, Type::named(&expression).defaults_to(JSON::Null))
+  .with_field(&field_elements, Type::sum(&[
+	Type::named(&expression),
+	Type::named(&template_element)
+]).close().array().close());
+
+syntax.add_interface(&call_expression).unwrap()
+  .with_field(&field_callee, Type::sum(&[
+	Type::named(&expression),
+	Type::named(&super_)
+]).close())
+  .with_field(&field_arguments, Type::named(&arguments).close());
+
+syntax.add_interface(&binary_expression).unwrap()
+  .with_field(&field_operator, Type::named(&binary_operator).close())
+  .with_field(&field_left, Type::named(&expression).close())
+  .with_field(&field_right, Type::named(&expression).close());
+
+syntax.add_interface(&method).unwrap()
+  .with_field(&field_is_async, Type::bool().close())
+  .with_field(&field_is_generator, Type::bool().close())
+  .with_field(&field_name, Type::named(&property_name).close())
+  .with_field(&field_params, Type::named(&formal_parameters).close())
+  .with_field(&field_body, Type::named(&function_body).close());
+
+syntax.add_interface(&export_from).unwrap()
+  .with_field(&field_named_exports, Type::named(&export_from_specifier).close().array().close())
+  .with_field(&field_module_specifier, Type::named(&string).close());
+
+syntax.add_interface(&identifier_expression).unwrap()
+  .with_field(&field_name, Type::named(&identifier).close());
+
+syntax.add_interface(&assignment_target_identifier).unwrap()
+  .with_field(&field_name, Type::named(&identifier).close());
+
+syntax.add_interface(&variable_declarator).unwrap()
+  .with_field(&field_binding, Type::named(&binding).close())
+  .with_field(&field_init, Type::named(&expression).defaults_to(JSON::Null));
+
+syntax.add_interface(&binding_property_identifier).unwrap()
+  .with_field(&field_binding, Type::named(&binding_identifier).close())
+  .with_field(&field_init, Type::named(&expression).defaults_to(JSON::Null));
+
+syntax.add_interface(&try_catch_statement).unwrap()
+  .with_field(&field_body, Type::named(&block).close())
+  .with_field(&field_catch_clause, Type::named(&catch_clause).close());
+
+syntax.add_interface(&static_member_expression).unwrap()
+  .with_field(&field_object, Type::sum(&[
+	Type::named(&expression),
+	Type::named(&super_)
+]).close())
+  .with_field(&field_property, Type::named(&identifier_name).close());
+
+syntax.add_interface(&assignment_target_with_default).unwrap()
+  .with_field(&field_binding, Type::named(&assignment_target).close())
+  .with_field(&field_init, Type::named(&expression).close());
+
+syntax.add_interface(&for_of_statement).unwrap()
+  .with_field(&field_left, Type::sum(&[
+	Type::named(&for_in_of_binding),
+	Type::named(&assignment_target)
+]).close())
+  .with_field(&field_right, Type::named(&expression).close())
+  .with_field(&field_body, Type::named(&statement).close());
+
+syntax.add_interface(&compound_assignment_expression).unwrap()
+  .with_field(&field_operator, Type::named(&compound_assignment_operator).close())
+  .with_field(&field_binding, Type::named(&simple_assignment_target).close())
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&spread_element).unwrap()
+  .with_field(&field_expression, Type::named(&expression).close());
+
+syntax.add_interface(&binding_with_default).unwrap()
+  .with_field(&field_binding, Type::named(&binding).close())
+  .with_field(&field_init, Type::named(&expression).close());
+
+syntax.add_interface(&with_statement).unwrap()
+  .with_field(&field_object, Type::named(&expression).close())
+  .with_field(&field_body, Type::named(&statement).close());
+
+syntax.add_interface(&assignment_target_property_property).unwrap()
+  .with_field(&field_name, Type::named(&property_name).close())
+  .with_field(&field_binding, Type::sum(&[
+	Type::named(&assignment_target),
+	Type::named(&assignment_target_with_default)
+]).close());
+
+syntax.add_interface(&object_expression).unwrap()
+  .with_field(&field_properties, Type::named(&object_property).close().array().close());
+
+syntax.add_interface(&this_expression).unwrap();
+
+syntax.add_interface(&while_statement).unwrap()
+  .with_field(&field_test, Type::named(&expression).close())
+  .with_field(&field_body, Type::named(&statement).close());
+
+syntax.add_interface(&new_target_expression).unwrap();
+
+
+    struct ES6Annotator {
         parent: Box<Annotator>,
     }
-    impl Annotator for ES5Annotator {
+    impl Annotator for ES6Annotator {
         fn name(&self) -> String {
-            "ES5Annotator".to_string()
+            "ES6Annotator".to_string()
         }
 
         fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError> {
-            use ast::annotation::*;
             match ctx.kind_str() {
                 "Identifier" => {
                     // Collect the name of the identifier.
@@ -799,8 +1183,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
                             match parent.field_str() {
                                 Some("id") | Some("params") => {
-                                    let fun_scope = parent.fun_scope()
-                                        .expect("Expected a fun scope");
+                                    let fun_scope = parent.fun_scope() .expect("Expected a fun scope");
                                     fun_scope.borrow_mut().add_binding(name);
                                 }
                                 _ => return Err(ASTError::InvalidField("<FIXME: specify field>".to_string())),
@@ -910,7 +1293,7 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         }
     }
 
-    Box::new(ES5Annotator {
+    Box::new(ES6Annotator {
         parent
     })
 }
@@ -920,22 +1303,22 @@ fn setup_es5(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 pub fn syntax(level: Level) -> Syntax {
     let mut builder = SyntaxBuilder::new();
 
-    let program    = builder.node_name("Program");
+    let root    = builder.node_name("Script");
 
     let base_annotator = setup_binjs(&mut builder);
 
     let annotator = match level {
         Level::Minimal => {
-            builder.add_virtual_interface(&program).unwrap();
+            builder.add_interface(&root).unwrap();
             base_annotator
         }
-        Level::ES5
+        Level::ES6
         | Level::Latest => {
-            setup_es5(&mut builder, base_annotator)
+            setup_es6(&mut builder, base_annotator)
         }
     };
     builder.into_syntax(SyntaxOptions {
-        root: &program,
+        root: &root,
         annotator
     })
 }
@@ -945,6 +1328,6 @@ pub fn syntax(level: Level) -> Syntax {
 #[test]
 fn test_syntax() {
     syntax(Level::Minimal);
-    syntax(Level::ES5);
+    syntax(Level::ES6);
     syntax(Level::Latest);
 }

@@ -1,3 +1,9 @@
+fn main() {
+    unimplemented!()
+}
+/* FIXME: Refactoring
+
+
 extern crate binjs;
 #[macro_use]
 extern crate json;
@@ -11,8 +17,8 @@ use json::JsonValue as JSON;
 test!(test_annotations_scopes_1, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function h() { { let x; { var y; } } }";
 
@@ -68,8 +74,8 @@ test!(test_annotations_scopes_1, {
 test!(test_annotations_scopes_2, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function f() { function g() { var x; } for (var i = 0; i < 10; i++) ; }";
 
@@ -127,8 +133,8 @@ test!(test_annotations_scopes_2, {
 test!(test_annotations_capture_1, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function f(a, b) { function g() { var c = f; var d = b; } }";
 
@@ -184,8 +190,8 @@ test!(test_annotations_capture_1, {
 test!(test_annotations_capture_2, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function f(a, b) { function g(b, f) { var c = f; var d = b; } }";
 
@@ -243,8 +249,8 @@ test!(test_annotations_capture_2, {
 test!(test_annotations_capture_3, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function f() { } function g() { var a = f; }";
 
@@ -269,8 +275,8 @@ test!(test_annotations_capture_3, {
 test!(test_annotations_scopes_3, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function f() { let x; {/*1*/ const y = 5; function g() {} } }";
 
@@ -318,8 +324,8 @@ test!(test_annotations_scopes_3, {
 test!(test_annotations_capture_4, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function f() { var x; function g() { print(x); } }";
 
@@ -356,8 +362,8 @@ test!(test_annotations_capture_4, {
 test!(test_annotations_eval_1, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function foo() { eval('abc'); } { /* 1 */ }";
 
@@ -416,8 +422,8 @@ test!(test_annotations_eval_1, {
 test!(test_annotations_eval_2, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function foo() { eval('abc'); var eval; } { /* 1 */ }";
 
@@ -464,8 +470,8 @@ test!(test_annotations_eval_2, {
 test!(test_directives_1, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = "function foo() { function bar() {} }";
 
@@ -488,8 +494,8 @@ test!(test_directives_1, {
 test!(test_directives_2, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = r#"function foo() { function bar() { "use strict"; } }"#;
 
@@ -515,8 +521,8 @@ test!(test_directives_2, {
 test!(test_directives_3, {
     println!("Preparing test.");
 
-    let parser = Babel::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES5);
+    let parser = Shift::new();
+    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
 
     let source = r#"function foo() { "use strict"; function bar() { "something different"; } }"#;
 
@@ -539,3 +545,5 @@ test!(test_directives_3, {
     assert_eq!(array.len(), 1);
     assert_eq!(array[0].as_str(), Some("something different"));
 });
+
+*/

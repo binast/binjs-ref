@@ -6,7 +6,6 @@ rust:
 node_js:
   - "8"
 before_install:
-  - "npm install babel-core"
-  - "npm install babylon"
-  - "npm install esprima"
-  - "npm install mktemp"
+  - "npm install shift-codegen"
+  - "npm install shift-scope"
+  - "npm install shift-parser"

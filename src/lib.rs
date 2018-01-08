@@ -34,6 +34,7 @@ extern crate brotli;
 #[cfg(test)]
 extern crate env_logger;
 extern crate flate2;
+extern crate inflector;
 #[macro_use]
 extern crate json;
 #[macro_use]
@@ -42,6 +43,7 @@ extern crate lzw;
 extern crate rand;
 extern crate topological_sort;
 extern crate vec_map;
+extern crate webidl;
 
 
 /// Manipulating the AST.

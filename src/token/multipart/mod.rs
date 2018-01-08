@@ -183,9 +183,9 @@ fn test_multipart_io() {
     let field_string = Field::new(builder.field_name("id"), Type::string().close());
     let field_number = Field::new(builder.field_name("value"), Type::number().close());
 
-    builder.add_kinded_interface(&kinded).unwrap()
-        .with_own_field(field_string.clone())
-        .with_own_field(field_number.clone());
+    builder.add_interface(&kinded).unwrap()
+        .with_full_field(field_string.clone())
+        .with_full_field(field_number.clone());
 
     struct FakeAnnotator;
     impl Annotator for FakeAnnotator {

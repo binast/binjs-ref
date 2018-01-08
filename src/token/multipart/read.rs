@@ -128,10 +128,8 @@ impl<'a> NodeDescription<'a> {
     /// May fail if the kind_name doesn't exist or the field_names do not appear in this interface.
     pub fn new(syntax: &'a Syntax, kind_name: NodeName, field_names: Vec<FieldName>) -> Result<Self, GrammarError> {
         // Get the kind
-        let kind = syntax.get_kind(kind_name.to_str())
-            .ok_or_else(|| GrammarError::NoSuchKind(kind_name.to_string().clone()))?;
-        let interface = syntax.get_interface_by_kind(&kind)
-            .ok_or_else(|| GrammarError::NoSuchKind(kind_name.to_string().clone()))?;
+        let interface = syntax.get_interface_by_name(&kind_name)
+            .ok_or_else(|| GrammarError::NoSuchInterface(kind_name.to_string().clone()))?;
 
         // Build the list of fields
         let mut fields = Vec::with_capacity(field_names.len());
@@ -164,12 +162,12 @@ impl<'a> Deserializer for NodeDescriptionDeserializer<'a> {
         // Extract kind
         let strings_deserializer : Option<String> = None;
         let name = match strings_deserializer.read(inp)? {
-            None => return Err(TokenReaderError::GrammarError(GrammarError::NoSuchKind("<none>".to_string())).into()),
+            None => return Err(TokenReaderError::GrammarError(GrammarError::NoSuchInterface("<none>".to_string())).into()),
             Some(x) => x
         };
 
         let kind = match self.syntax.get_node_name(&name) {
-            None => return Err(TokenReaderError::GrammarError(GrammarError::NoSuchKind(name.to_string())).into()),
+            None => return Err(TokenReaderError::GrammarError(GrammarError::NoSuchInterface(name.to_string())).into()),
             Some(x) => x.clone()
         };
 

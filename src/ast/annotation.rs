@@ -1,7 +1,7 @@
 // FIXME: Too much copy&paste in this file.
 
-use ast::grammar::{ ASTError, FieldName, Kind, Syntax };
-use ast::library::{ BINJS_CONST_NAME, BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME, SCOPE_NAME };
+use ast::grammar::{ ASTError, FieldName, NodeName, Syntax };
+use ast::library::{ BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME, SCOPE_NAME };
 use util::{ Dispose, JSONGetter };
 
 use json;
@@ -17,13 +17,13 @@ use std::rc::{ Rc, Weak };
 #[derive(Clone)]
 pub struct Position {
     /// The kind of object currently being examined.
-    kind: Kind,
+    kind: NodeName,
 
     /// If a field is being examined, its name.
     field: Option<FieldName>
 }
 impl Position {
-    pub fn new(kind: &Kind, field: Option<&FieldName>) -> Self {
+    pub fn new(kind: &NodeName, field: Option<&FieldName>) -> Self {
         Position {
             kind: kind.clone(),
             field: field.map(FieldName::clone)
@@ -40,7 +40,7 @@ impl Position {
             Some(ref x) => Some(x.to_str())
         }
     }
-    pub fn kind(&self) -> &Kind {
+    pub fn kind(&self) -> &NodeName {
         &self.kind
     }
 }
@@ -134,8 +134,8 @@ impl<'a, T> Context<'a, T> where T: Default, ContextContents<'a, T>: Dispose {
         let position = {
             let grammar = self.contents.borrow()
                 .grammar;
-            let kind = grammar.get_kind(kind)
-                .ok_or_else(|| ASTError::InvalidKind(kind.to_string()))?;
+            let kind = grammar.get_node_name(kind)
+                .ok_or_else(|| ASTError::InvalidType(kind.to_string()))?;
             Position::new(&kind, None)
         };
         let lex_scope = self.contents.borrow().lex_scope.clone();
@@ -182,11 +182,13 @@ impl<'a, T> ContextContents<'a, T> where T: Default {
     /// at the default position.
     fn new(syntax: &'a Syntax) -> Self {
         let root = syntax.get_root()
-            .kind()
+            .into_interface()
             .expect("Could not extract kind of syntax root");
+        let root_name = root
+            .name();
         ContextContents {
             grammar: syntax,
-            position: Position::new(&root, None),
+            position: Position::new(&root_name, None),
             parent: None,
             lex_scope: None,
             var_scope: None,
@@ -343,7 +345,7 @@ impl<'a> Context<'a, RefContents> {
     pub fn store(&self, parent: &mut Object) {
         let object = parent.get_object_mut(SCOPE_NAME, "Scope field")
             .expect("Could not store captured names, etc.");
-        for name in &[BINJS_VAR_NAME, BINJS_LET_NAME, BINJS_CONST_NAME] {
+        for name in &[BINJS_VAR_NAME, BINJS_LET_NAME] {
             if object[*name].is_null() {
                 object.insert(name, array![]);
             }
@@ -385,15 +387,6 @@ impl<'a> Context<'a, RefContents> {
                 .to_string();
             borrow.data.binding.insert(item);
         }
-
-        let const_names = object.get_array(BINJS_CONST_NAME, "Repository of LexDecl bindings")
-            .expect("Could not fetch LexDecl repository");
-        for item in const_names {
-            let item = item.as_str()
-                .expect("Item should be a string")
-                .to_string();
-            borrow.data.binding.insert(item);
-        }
     }
 }
 #[derive(Clone)]
@@ -423,20 +416,20 @@ pub struct DeclContents {
     let_names: HashSet<String>,
     var_names: HashSet<String>,
     unknown_names: HashSet<String>,
-    scope_kind: ScopeKind,
+    scope_kind: ScopeNodeName,
     uses_strict: bool,
 }
 
 #[derive(Clone, Copy)]
-pub enum ScopeKind {
+pub enum ScopeNodeName {
     VarDecl,
     LetDecl,
     ConstDecl,
     Nothing
 }
-impl Default for ScopeKind {
+impl Default for ScopeNodeName {
     fn default() -> Self {
-        ScopeKind::Nothing
+        ScopeNodeName::Nothing
     }
 }
 impl<'a> ContextContents<'a, DeclContents> {
@@ -464,12 +457,12 @@ impl<'a> ContextContents<'a, DeclContents> {
         }
         false
     }
-    pub fn scope_kind(&self) -> ScopeKind {
-        if let ScopeKind::Nothing = self.data.scope_kind {
+    pub fn scope_kind(&self) -> ScopeNodeName {
+        if let ScopeNodeName::Nothing = self.data.scope_kind {
             if let Some(ref parent) = self.parent {
                 return parent.borrow().scope_kind()
             }
-            return ScopeKind::Nothing
+            return ScopeNodeName::Nothing
         }
         return self.data.scope_kind
     }
@@ -517,10 +510,10 @@ impl<'a> Context<'a, DeclContents> {
         let borrow = self.contents.borrow();
         borrow.is_lex_bound(name)
     }
-    pub fn scope_kind(&self) -> ScopeKind {
+    pub fn scope_kind(&self) -> ScopeNodeName {
         self.contents.borrow().scope_kind()
     }
-    pub fn set_scope_kind(&mut self, kind: ScopeKind) {
+    pub fn set_scope_kind(&mut self, kind: ScopeNodeName) {
         self.contents.borrow_mut().data.scope_kind = kind
     }
     pub fn promote_unknown_names_to_var(&mut self) {
@@ -573,17 +566,12 @@ impl<'a> Context<'a, DeclContents> {
         let_decl_names.sort(); // To simplify testing (and hopefully improve compression)
         let let_decl_names: Vec<_> = let_decl_names.drain(..).map(|name| json::from(name as &str)).collect();
 
-        let mut const_decl_names: Vec<_> = borrow.data.const_names.iter().collect();
-        const_decl_names.sort();
-        let const_decl_names: Vec<_> = const_decl_names.drain(..).map(|name| json::from(name as &str)).collect();
-
         // Ignore overwrites: we may be overwriting an existing "BINJS:Scope" object,
         // in case we are used to re-annotate an existing tree.
         let object : JSON = object!{
             "type" => SCOPE_NAME,
             BINJS_VAR_NAME => json::from(var_decl_names),
             BINJS_LET_NAME => json::from(let_decl_names),
-            BINJS_CONST_NAME => json::from(const_decl_names),
             BINJS_CAPTURED_NAME => array![],
             BINJS_DIRECT_EVAL => json::from(false)
         };
