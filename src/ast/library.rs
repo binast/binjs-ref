@@ -55,12 +55,18 @@ fn uses_strict(object: &Object) -> bool {
 /// Special nodes used by BINJS. Not visible at source level.
 fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     let identifier_name = syntax.node_name("IdentifierName");
+    let string = syntax.node_name("string");
 
     // Field names
     let field_var_decl_names = syntax.field_name(BINJS_VAR_NAME);
     let field_lex_declared_names = syntax.field_name(BINJS_LET_NAME);
     let field_captured_names = syntax.field_name(BINJS_CAPTURED_NAME);
     let field_has_direct_eval = syntax.field_name(BINJS_DIRECT_EVAL);
+
+    syntax.add_typedef(&string).unwrap()
+        .with_type(Type::string().close());
+    syntax.add_typedef(&identifier_name).unwrap()
+        .with_type(Type::named(&string).close());
 
     // A scope, used to attach annotations.
     //
@@ -428,9 +434,6 @@ syntax.add_typedef(&object_property).unwrap()
 	Type::named(&shorthand_property)
 ]).close());
 
-syntax.add_typedef(&identifier_name).unwrap()
-                .with_type(Type::named(&string).close());
-
 syntax.add_typedef(&assignment_target).unwrap()
                 .with_type(Type::sum(&[
 	Type::named(&assignment_target_pattern),
@@ -523,9 +526,6 @@ syntax.add_typedef(&assignment_target_pattern).unwrap()
 	Type::named(&object_assignment_target),
 	Type::named(&array_assignment_target)
 ]).close());
-
-syntax.add_typedef(&string).unwrap()
-                .with_type(Type::string().close());
 
 syntax.add_typedef(&label).unwrap()
                 .with_type(Type::named(&string).close());

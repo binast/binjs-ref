@@ -117,7 +117,7 @@ impl Field {
 }
 
 /// A type, typically that of a field.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeSpec {
     /// An array of values of the same type.
     Array {
@@ -421,6 +421,35 @@ impl TypeSpec {
             }
         }
     }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a TypeSpec> {
+        let mut result = Vec::new();
+        let mut stack = vec![self];
+        while let Some(current) = stack.pop() {
+            result.push(current);
+            match *current {
+                TypeSpec::Array { ref contents, .. } => {
+                    stack.push(contents.spec());
+                }
+                TypeSpec::TypeSum(ref sum) => {
+                    for item in sum {
+                        stack.push(item)
+                    }
+                }
+                _ => {}
+            }            
+        }
+        result.into_iter()
+    }
+    pub fn typenames<'a>(&'a self) -> impl Iterator<Item = &'a NodeName> {
+        let mut result = HashSet::new();
+        for spec in self.iter() {
+            if let TypeSpec::NamedType(ref name) = *spec {
+                result.insert(name);                
+            }
+        }
+        result.into_iter()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -432,6 +461,11 @@ pub struct Type {
     pub defaults_to: Option<JSON>,
 }
 impl Eq for Type {}
+impl Hash for Type {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+        self.spec.hash(state)
+    }
+}
 
 impl Type {
     pub fn with_default(&mut self, default: JSON) -> &mut Self {
@@ -765,10 +799,7 @@ impl SyntaxBuilder {
 
     /// Generate the graph.
     pub fn into_syntax<'a>(self, options: SyntaxOptions<'a>) -> Syntax {
-        // FIXME: Check that all node names are defined.
-        // FIXME: Check that all field names are defined.
-        // FIXME: Check that each name is only defined once.
-        // FIXME: Check that all typesums resolve to sums of interfaces.
+        // 1. Collect all node names.
         let mut interfaces_by_name = self.interfaces_by_name;
         let interfaces_by_name : HashMap<_, _> = interfaces_by_name.drain()
             .map(|(k, v)| (k, Rc::new(Interface {
@@ -788,14 +819,60 @@ impl SyntaxBuilder {
         for name in interfaces_by_name.keys().chain(string_enums_by_name.keys()).chain(typedefs_by_name.keys()) {
             node_names.insert(name.to_string().clone(), name.clone());
         }
+
+        // 2. Collect all field names.
         let mut fields = HashMap::new();
         for interface in interfaces_by_name.values() {
             for field in &interface.declaration.contents.fields {
                 fields.insert(field.name.to_string().clone(), field.name.clone());
             }
         }
+        {
+            // 3. Check that node names are not duplicated.
+            for name in node_names.values() {
+                let mut instances = 0;
+                if interfaces_by_name.contains_key(name) {
+                    instances += 1;
+                }
+                if string_enums_by_name.contains_key(name) {
+                    instances += 1;
+                }
+                if typedefs_by_name.contains_key(name) {
+                    instances += 1;
+                }
+                assert!(instances > 0);
+                assert_eq!(instances, 1, "Duplicate type name {}", name.to_str());
+            }
 
-        Syntax {
+            // 4. Check that all instances of `TypeSpec::NamedType` refer to an existing name.
+            let mut used_typenames = HashSet::new();
+            for type_ in typedefs_by_name.values() {
+                for name in type_.spec().typenames() {
+                    used_typenames.insert(name);
+                }
+            }
+            for interface in interfaces_by_name.values() {
+                for field in interface.declaration.contents.fields() {
+                    for name in field.type_().spec().typenames() {
+                        used_typenames.insert(name);
+                    }
+                }
+            }
+            for name in &used_typenames {
+                if typedefs_by_name.contains_key(name) {
+                    continue;
+                }
+                if interfaces_by_name.contains_key(name) {
+                    continue;
+                }
+                if string_enums_by_name.contains_key(name) {
+                    continue;
+                }
+                panic!("No definition for type {}", name.to_str());
+            }
+        }
+
+        let syntax = Syntax {
             interfaces_by_name: interfaces_by_name,
             string_enums_by_name: string_enums_by_name,
             typedefs_by_name: typedefs_by_name,
@@ -803,7 +880,71 @@ impl SyntaxBuilder {
             fields: fields,
             root: options.root.clone(),
             annotator: options.annotator,
+        };
+
+        // 5. Classify typedefs between
+        // - stuff that can only be put in a sum of interfaces (interfaces, sums of interfaces, typedefs thereof);
+        // - stuff that can never be put in a sum of interfaces (other stuff)
+        // - bad stuff that attempts to mix both
+        #[derive(Clone, Copy)]
+        enum TypeClassification {
+            SumOfInterfaces,
+            BadForSumOfInterfaces,
         }
+        let mut classification : HashMap<NodeName, Option<TypeClassification>> = HashMap::new();
+        fn classify_type(syntax: &Syntax, cache: &mut HashMap<NodeName, Option<TypeClassification>>, type_: &TypeSpec, name: &NodeName) -> TypeClassification {
+            match *type_ {
+                TypeSpec::Array { ref contents, .. } => {
+                    // Check that the contents are correct.
+                    let _ = classify_type(syntax, cache, contents.spec(), name);
+                    // Regardless, the result is bad for a sum of interfaces.
+                    TypeClassification::BadForSumOfInterfaces
+                },
+                TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => TypeClassification::BadForSumOfInterfaces,
+                TypeSpec::NamedType(ref name) => {
+                    if let Some(fetch) = cache.get(name) {
+                        if let Some(ref result) = *fetch {
+                            return *result;
+                        } else {
+                            panic!("Cycle detected while examining {}", name.to_str());
+                        }
+                    }
+                    let named_type = syntax.get_type_by_name(name)
+                        .unwrap(); // Completeness checked above in this method.alloc
+                    cache.insert(name.clone(), None);
+                    let result = match named_type {
+                        NamedType::Interface(_) => TypeClassification::SumOfInterfaces,
+                        NamedType::StringEnum(_) => TypeClassification::BadForSumOfInterfaces,
+                        NamedType::Typedef(ref type_) => classify_type(syntax, cache, type_.spec(), name)
+                    };
+                    cache.insert(name.clone(), Some(result));
+                    result
+                }
+                TypeSpec::TypeSum(ref sum) => {
+                    for type_ in sum {
+                        if let TypeClassification::BadForSumOfInterfaces = classify_type(syntax, cache, type_, name) {
+                            panic!("In type {}, there is a non-interface type in a sum");
+                        }
+                    }
+                    TypeClassification::SumOfInterfaces
+                }
+            }
+        }
+        for (name, type_) in &syntax.typedefs_by_name {
+            classification.insert(name.clone(), None);
+            let class = classify_type(&syntax, &mut classification, type_.spec(), name);
+            classification.insert(name.clone(), Some(class));
+        }
+
+        // 6. Using this classification, check that the attributes of interfaces don't mix
+        // poorly items of both kinds.
+        for (name, interface) in &syntax.interfaces_by_name {
+            for field in interface.declaration.contents.fields() {
+                classify_type(&syntax, &mut classification, field.type_().spec(), name);
+            }
+        }
+
+        syntax
     }
 
     pub fn into_rust_source(&self) -> String {

@@ -27,6 +27,8 @@
 //! - the Token Streams (see module `token`);
 //! - the Byte Streams (see module `bytes`).
 
+#![feature(conservative_impl_trait, universal_impl_trait)]
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate assert_matches;

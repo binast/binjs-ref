@@ -1,7 +1,5 @@
 language: rust
 rust:
-  - stable
-  - beta
   - nightly
 node_js:
   - "8"
