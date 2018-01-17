@@ -406,7 +406,7 @@ impl MutASTVisitor for ToShift {
 #[test]
 fn test_shift_basic() {
     use env_logger;
-    env_logger::init().unwrap();
+    env_logger::init();
 
     use util::strip;
 

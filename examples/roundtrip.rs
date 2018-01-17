@@ -26,7 +26,7 @@ fn parse_compression(name: Option<&str>) -> Compression {
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let matches = App::new("BinJS roundtrip tester")
         .author("David Teller, <dteller@mozilla.com>")

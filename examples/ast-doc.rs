@@ -6,7 +6,7 @@ use binjs::ast::library;
 use clap:: { App, Arg };
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let matches = App::new("BinJS AST documentation")
         .author("David Teller <dteller@mozilla.com")

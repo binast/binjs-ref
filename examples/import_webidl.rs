@@ -11,7 +11,7 @@ use std::io::*;
 use clap::*;
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let matches = App::new("BinJS import from webidl")
         .author("David Teller, <dteller@mozilla.com>")
