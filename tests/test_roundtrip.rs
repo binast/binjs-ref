@@ -16,7 +16,7 @@ fn test_roundtrip() {
 
     env_logger::init().unwrap();
 
-    let parser = Babel::new();
+    let parser = Shift::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
     // All combinations of options for compression.
@@ -115,3 +115,4 @@ fn test_roundtrip() {
         }
     }
 }
+

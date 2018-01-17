@@ -7,253 +7,20 @@
 //!
 //! To ensure this, we define not only the AST of EcmaScript as the language is today, but
 //! the mechanism to define and evolve this AST, without incurring breaking changes in BinJS.
-//!
-//! This abstracts away the concepts of [ESTree](https://github.com/estree/estree).
-//!
-//! # Specifications
-//!
-//! A Grammar is composed of Interfaces and Enumerations, which may be *declared*
-//! and *amended*.
-//!
-//! ## Declarations
-//!
-//! ### Interface Declaration
-//!
-//! FIXME: Order of fields inside a declaration is specified.
-//! FIXME: Order of inherited fields is unspecified.
-//!
-//! Interfaces represent nodes in the AST. Interfaces are related to each other through
-//! inheritance (e.g. an `Identifier` is also a `Pattern`, so `Identifier` inherits from
-//! `Pattern`) or properties (e.g. a `BinaryExpression` has several properties, including `left`
-//! and `right`, both of which are `Expression`s).
-//!
-//! Each Interface Declaration consists in *all* of:
-//!
-//! - *name*: `InterfaceName` (e.g. `Expression`, `ExpressionStatement`, ...);
-//! - *virtual*: boolean;
-//! - *parents*: `[InterfaceName]` a (possibly empty) list of `InterfaceName`.
-//! - *own_structure*: `Structure`
-//!
-//! Property *name* is used to represent relationships between Interfaces.
-//!
-//! Some interfaces are purely virtual, insofar as there exist no nodes with their name
-//! (e.g. `Expression`). Other interfaces are concrete, insofar as there may be nodes with
-//! their name (e.g. `BinaryOperation`).
-//!
-//! Property *own_structure* determines the list of properties defined by this interface.
-//! This does not include properties defined by parent interfaces.
-//!
-//!
-//! ### Structure Declarations
-//!
-//! Each `Structure` is:
-//! - properties: `[Property]`, a (possibly empty) list of properties;
-//!
-//! Each `Property` consists in *all* of:
-//!
-//! - *name*: `PropertyName` (e.g. `body`);
-//! - *type*: `Type` (e.g. `Number`).
-//!
-//!
-//! ### Enumeration Declarations
-//!
-//! Each Enumeration Declaration consists in *all* of:
-//!
-//! - *name*: `EnumerationName`;
-//! - *cases*: `[String]` (a non empty list);
-//!
-//! Enumerations describe one of several possible strings, e.g.: `"+" | "-" | "/" | "-"`. Value`
-//! `null` is never an acceptable string.
-//!
-//!
-//! ### Type Declarations
-//!
-//! Each `Type` is *one* of:
-//!
-//! - `Enumeration`: `EnumerationName`; or
-//! - `Interfaces`: `([InterfaceName], Nullability)`;
-//! - `Boolean`: Nullability; or
-//! - `String`: Nullability; or
-//! - `Number`: Nullability; or
-//! - `Array`: `Type`
-//!
-//! `Nullability` is *one* of:
-//! - `CanBeNull`: empty; or
-//! - `CannotBeNull`: empty.
-//!
-//!
-//! ## Amendments
-//!
-//! Amendments are used to modify existing Interfaces and Enumerations, to let them handle more
-//! sophisticated cases.
-//!
-//! ## Interface Amendment
-//!
-//! An Interface Amendment modifies an existing Interface. The most common use of an Interface
-//! Amendment is to extend an Interface with new properties or to make an existing property
-//! accept values that it previously didn't accept.
-//!
-//! Interface Amendments CANNOT:
-//! - remove properties;
-//! - remove parent interfaces;
-//! - make a property reject any AST that would previously have been accepted (FIXME: Specify this).
-//!
-//! An Interface Amendment consists in *all* of:
-//!
-//! - `name`: an `InterfaceName`;
-//! - `structure`: a `StructureAmendment`.
-//!
-//! ## Structure Amendment
-//!
-//! Each `StructureAmendment` is:
-//! - properties: `[Property | PropertyAmendment]`, a (possibly empty) list of properties;
-//!
-//! If a property is an instance of `Property`, it MUST be a property that appears neither in
-//! - `own_structure` of the interface; nor in
-//! - `own_structure` of any of its ancestors.
-//!
-//! Conversely, if a property is an instance of `PropertyAmendment`, it MUST be a property that
-//! appears either in
-//! - `own_structure` of the interface; or in
-//! - `own_structure` of any of its ancestors.
-//!
-//! FIXME: Specify this as an algorithm.
-//!
-//! ## Property Amendment
-//!
-//! Each `PropertyAmendment` consists in *all* of:
-//!
-//! - *name*: `PropertyName` (e.g. `body`);
-//! - *type*: `TypeAmendment` (e.g. `Number`).
-//!
-//! ## Type Amendment
-//!
-//! Each `TypeAmendment` is *one* of:
-//!
-//! - `Interfaces`: `([InterfaceName], Nullability)` (a list of new interfaces supported by the property);
-//! - `Boolean`: CanBeNull; or
-//! - `String`: CanBeNull; or
-//! - `Number`: CanBeNull; or
-//! - `Array`: `TypeAmendment`
-//!
-//! A Type Amendment MUST NOT make an existing value be rejected.
-//!
-//! FIXME: Specify this as an algorithm.
-//!
-//! ## Enumeration Amendment
-//!
-//! An Enumeration Amendment adds new possible values to an enumeration.
-//!
-//! An `EnumerationAmendment` is:
-//! - *name*: `EnumerationName`;
-//! - *cases*: `[String]` (a non empty list of new accepted values).
-//!
-//!
-//! ## Grammar start
-//!
-//! The Grammar start specifies the root node of an AST.
-//!
-//! - `root`: `InterfaceName`.
-//!
-//! # Inhabiting a grammar
-//!
-//! **Warning** The AST described here may be more expressive in places than the JavaScript source
-//! grammar. Therefore, it is possible that not all the inhabitants of the grammar are correct
-//! (or even syntactically-correct) JavaScript ASTs.
-//!
-//! For instance, it is unlikely that any variant of the grammar can detect that the following
-//! snippets are syntactically incorrect:
-//!
-//! ```javascript
-//! let x;
-//! let x;
-//! ```
-//!
-//! ## Algorithm
-//!
-//! ```javascript
-//!
-//! Grammar.prototype.inhabits = function(ast) {
-//!   return inhabitsType(ast, new Type.Interfaces([this.root()]), grammar);
-//! };
-//!
-//! Grammar.prototype.inhabitsType = function(ast, type) {
-//!   if (type.isString()) {
-//!     return typeof ast == "string" || (type.canBeNull() && ast == null);
-//!   } else if (type.isBoolean()) {
-//!     return typeof ast == "boolean" || (type.canBeNull() && ast == null);
-//!   } else if (type.isNumber()) {
-//!     return typeof ast == "number" || (type.canBeNull() && ast == null);
-//!   } else if (type.isArray()) {
-//!     if (!Array.isArray(ast)) {
-//!       return false;
-//!     }
-//!     let wrapped = type.wrapped();
-//!     for (let subtree of ast) {
-//!       if (!this.inhabitsType(subtree, wrapped)) {
-//!         return false;
-//!       }
-//!     }
-//!     return true;
-//!   } else if (type.isEnumeration()) {
-//!     let name = type.enumerationName;
-//!     let enumeration = self.grammar.resolveEnumeration(name); // FIXME: Specify (affected by amendments)
-//!     if (typeof ast != "string") {
-//!       return false;
-//!     }
-//!     for (let candidate of enumeration) {
-//!       if (candidate == ast) {
-//!         return true;
-//!       }
-//!     }
-//!     return false;
-//!   } else if (type.isInterfaceList()) {
-//!     if (type.canBeNull() && ast == null) {
-//!        return true;
-//!     }
-//!     if (typeof ast != "object") {
-//!       return false;
-//!     }
-//!     let interface  = self.grammar.resolveInterface(ast.name());   // FIXME: Specify
-//!     let list = type.interfaceList;
-//!     for (let candidateName of list) {
-//!       let parentInterface = self.grammar.resolveInterface(candidateName); // FIXME: Specify
-//!       if (interface.isInstanceOf(parentInterface)) {             // FIXME: Specify
-//!         // At this stage, `ast` has the right name.
-//!         // Now check that the contents of `ast` match the structure.
-//!         for (let property of interface.properties()) {           // FIXME: Specify (affected by inheritance and amendments)
-//!           // Determine whether `ast` has a property with the right type.
-//!           let value = ast.getProperty(property.name());
-//!           if (typeof value == "undefined") {
-//!             return false;
-//!           }
-//!           if (!this.inhabitsType(value, property.type())) {        // FIXME: Specify (affected by amendments).
-//!             return false;
-//!           }
-//!         }
-//!         return true;
-//!       }
-//!     }
-//!     return false;
-//!   }
-//! };
-//! ```
-//!
+
 use ast;
+use util::{ pick, to_snake_case, type_of };
 
 use json;
 use json::JsonValue as JSON;
 use rand;
-use topological_sort;
 
 use std;
 use std::cell::*;
 use std::collections::{ HashMap, HashSet };
 use std::fmt::Debug;
 use std::hash::*;
-use std::ops::Deref;
 use std::rc::*;
-
 
 /// The name of an interface or enum.
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -272,32 +39,50 @@ impl Debug for NodeName {
     }
 }
 
-/// The kind attached to an actual AST node, representing the interface
-/// it inhabits (aka "dynamic type").
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct Kind(Rc<String>);
-impl Kind {
-    pub fn to_string(&self) -> &String {
-        self.0.as_ref()
-    }
-    pub fn to_str(&self) -> &str {
-        &self.0
-    }
-}
 
-/// The name of a field.
-#[derive(Clone, Hash, PartialEq, Eq, Debug, PartialOrd, Ord)]
+/// The name of a field in an interface.
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FieldName(Rc<String>);
 impl FieldName {
-    pub fn to_str(&self) -> &str {
-        self.0.as_ref()
-    }
     pub fn to_string(&self) -> &String {
         self.0.as_ref()
     }
+    pub fn to_str(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+impl Debug for FieldName {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        self.to_str().fmt(formatter)
+    }
 }
 
-/// Representation of a field in an object.
+/// An enumeration of strings.
+///
+/// A valid value is any of these strings.
+#[derive(Debug)]
+pub struct StringEnum {
+    name: NodeName,
+    // Invariant: values are distinct // FIXME: Not checked yet.
+    values: Vec<String>,
+}
+
+/// An enumeration of interfaces.
+#[derive(Debug)]
+pub struct TypeSum {
+    name: NodeName,
+    values: Vec<NodeName>,
+}
+impl TypeSum {
+    pub fn with_types(&mut self, names: &[&NodeName]) -> &mut Self {
+        for name in names {
+            self.values.push((*name).clone())
+        }
+        self
+    }
+}
+
+/// Representation of a field in an interface.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Field {
     name: FieldName,
@@ -332,19 +117,20 @@ impl Field {
 }
 
 /// A type, typically that of a field.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeSpec {
     /// An array of values of the same type.
     Array {
+        /// The type of values in the array.
         contents: Box<Type>,
+
+        /// If `true`, the array may be empty.
         supports_empty: bool,
     },
 
-    /// A choice between several literals, e.g. `"get" | "set"`.
-    Enum(NodeName),
+    NamedType(NodeName),
 
-    /// A value that may belong to one or more interfaces.
-    Interfaces(Vec<NodeName>),
+    TypeSum(Vec<TypeSpec>),
 
     /// A boolean.
     Boolean,
@@ -354,6 +140,60 @@ pub enum TypeSpec {
 
     /// A number.
     Number,
+
+    Void,
+}
+
+#[derive(Clone, Debug)]
+pub enum NamedType {
+    Interface(Rc<Interface>),
+    Typedef(Rc<Type>), // FIXME: Check that there are no cycles.
+    StringEnum(Rc<StringEnum>),
+}
+
+impl NamedType {
+    pub fn into_interface(self) -> Option<Rc<Interface>> {
+        if let NamedType::Interface(result) = self {
+            Some(result)
+        } else {
+            None
+        }
+    }
+    pub fn as_interface(&self, syntax: &Syntax) -> Option<Rc<Interface>> {
+        match *self {
+            NamedType::Interface(ref result) => Some(result.clone()),
+            NamedType::Typedef(ref type_) => {
+                if let TypeSpec::NamedType(ref named) = *type_.spec() {
+                    let named = syntax.get_type_by_name(named)
+                        .expect("Type not found");
+                    named.as_interface(syntax)
+                } else {
+                    None
+                }
+            }
+            NamedType::StringEnum(_) => None,
+        }
+    }
+
+    fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
+        match *self {
+            NamedType::Interface(ref interface) =>
+                return interface.compare(syntax, left, right),
+            NamedType::Typedef(ref type_) =>
+                return type_.compare(syntax, left, right),
+            NamedType::StringEnum(_) if left.as_str().is_some() && right.as_str().is_some() => {
+                if left.as_str() == right.as_str() {
+                    return Ok(true)
+                }
+                return Ok(false)
+            }
+            _ => {}
+        }
+        return Err(ASTError::InvalidValue {
+            got: format!("{} =?= {}", left.dump(), right.dump()),
+            expected: format!("{:?}", self)
+        })
+    }
 }
 
 impl TypeSpec {
@@ -383,11 +223,12 @@ impl TypeSpec {
             defaults_to: Some(value)
         }
     }
+
     pub fn close(self) -> Type {
         match self {
             TypeSpec::Array { supports_empty: true, .. } => Type {
                 spec: self,
-                defaults_to: Some(JSON::Array(vec![]))
+                defaults_to: None,
             },
             TypeSpec::Array { supports_empty: false, .. } => Type {
                 spec: self,
@@ -395,11 +236,11 @@ impl TypeSpec {
             },
             TypeSpec::Boolean => Type {
                 spec: self,
-                defaults_to: Some(JSON::Boolean(false))
+                defaults_to: None,
             },
             TypeSpec::Number => Type {
                 spec: self,
-                defaults_to: Some(JSON::from(0))
+                defaults_to: None,
             },
             _ => Type {
                 spec: self,
@@ -407,55 +248,73 @@ impl TypeSpec {
             },
         }
     }
-}
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Type {
-    spec: TypeSpec,
+    pub fn to_rust_source(&self) -> String {
+        match *self {
+            TypeSpec::Array { ref contents, supports_empty: false } => {
+                format!("{}.non_empty_array()", contents.to_rust_source())
+            }
+            TypeSpec::Array { ref contents, supports_empty: true } => {
+                format!("{}.array()", contents.to_rust_source())
+            }
+            TypeSpec::Boolean => "Type::bool()".to_string(),
+            TypeSpec::String => "Type::string()".to_string(),
+            TypeSpec::Number => "Type::number()".to_string(),
+            TypeSpec::NamedType(ref name) => format!("Type::named(&{})", to_snake_case(name.to_str())),
+            TypeSpec::TypeSum(ref types) => {
+                let mut source = String::new();
+                let mut first = true;
+                for type_ in types {
+                    if first {
+                        first = false;
+                    } else {
+                        source.push_str(",");
+                    }
+                    source.push_str("\n\t");
+                    source.push_str(&type_.to_rust_source())
+                }
+                format!("Type::sum(&[{}\n])", source)
+            }
+            TypeSpec::Void => "void".to_string()
+        }
+    }
 
-    /// If the value is not specified, it defaults to...
-    /// (`None` if the value MUST be specified)
-    defaults_to: Option<JSON>,
-}
-impl Eq for Type {}
-
-impl Type {
-    pub fn spec(&self) -> &TypeSpec {
-        &self.spec
-    }
-    pub fn default(&self) -> Option<&JSON> {
-        self.defaults_to.as_ref()
-    }
-
-    /// Shorthand constructor.
-    pub fn interface(name: &NodeName) -> TypeSpec {
-        TypeSpec::Interfaces(vec![name.clone()])
-    }
-    pub fn enumeration(name: &NodeName) -> TypeSpec {
-        TypeSpec::Enum(name.clone())
-    }
-    pub fn interfaces(names: &[&NodeName]) -> TypeSpec {
-        TypeSpec::Interfaces(names.iter().cloned().cloned().collect())
-    }
-    pub fn string() -> TypeSpec {
-        TypeSpec::String
-    }
-    pub fn number() -> TypeSpec {
-        TypeSpec::Number
-    }
-    pub fn bool() -> TypeSpec {
-        TypeSpec::Boolean
+    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
+        match *self {
+            TypeSpec::Array { ref contents, supports_empty: false } =>
+                format!("[{}] /* Non-empty */", contents.pretty(prefix, indent)),
+            TypeSpec::Array { ref contents, supports_empty: true } =>
+                format!("[{}]", contents.pretty(prefix, indent)),
+            TypeSpec::Boolean =>
+                "bool".to_string(),
+            TypeSpec::String =>
+                "string".to_string(),
+            TypeSpec::Number =>
+                "number".to_string(),
+            TypeSpec::NamedType(ref name) =>
+                name.to_str().to_string(),
+            TypeSpec::TypeSum(ref types) => {
+                let mut result = String::new();
+                result.push('(');
+                let mut first = true;
+                for typ in types {
+                    if first {
+                        first = false;
+                    } else {
+                        result.push_str(" or ");
+                    }
+                    result.push_str(&typ.pretty("", indent));
+                }
+                result.push(')');
+                result
+            }
+            TypeSpec::Void => "void".to_string()
+        }
     }
 
     pub fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
-        if let Some(ref value) = self.defaults_to {
-            // 50% chance of returning the default value
-            if depth_limit <= 0 || rng.gen() {
-                return value.clone()
-            }
-        }
         const MAX_ARRAY_LEN: usize = 16;
-        match self.spec {
+        match *self {
             TypeSpec::Array { supports_empty, contents: ref type_ } => {
                 if supports_empty && depth_limit <= 0 {
                     return array![]
@@ -468,23 +327,25 @@ impl Type {
                 }
                 JSON::Array(buf)
             }
-            TypeSpec::Enum(ref name) => {
-                let enum_ = syntax.get_enum_by_name(name)
-                    .expect("Could not find enum");
-                let choice = rng.choose(&enum_.strings)
-                    .expect("Empty enum");
-                json::from(choice as &str)
-            }
-            TypeSpec::Interfaces(ref names) => {
-                // Pick one of the interfaces.
-                let max = names.len();
-                let pick = rng.gen_range(0, max);
-                if pick == names.len() {
-                    return JSON::Null
+            TypeSpec::NamedType(ref name) => {
+                use self::NamedType::*;
+                match syntax.get_type_by_name(name) {
+                    Some(Interface(interface)) =>
+                        interface.random(syntax, rng, depth_limit),
+                    Some(Typedef(typedef)) =>
+                        typedef.random(syntax, rng, depth_limit),
+                    Some(StringEnum(string_enum)) => {
+                        let string = pick(rng, &string_enum.values);
+                        JSON::String(string.clone()) // FIXME: Use json::from
+                    }
+                    None => {
+                        panic!("Could not find named type {:?}", name)
+                    }
                 }
-                let interface = syntax.get_interface_by_name(&names[pick])
-                    .unwrap_or_else(|| panic!("Interface doesn't exist {:?}", names[pick]));
-                interface.random(syntax, rng, depth_limit - 1)
+            }
+            TypeSpec::TypeSum(ref types) => {
+                let type_ = pick(rng, &*types);
+                type_.random(syntax, rng, depth_limit)
             }
             TypeSpec::Boolean => {
                 JSON::Boolean(rng.gen())
@@ -498,43 +359,220 @@ impl Type {
             TypeSpec::Number => {
                 json::from(rng.next_f64())
             }
+            TypeSpec::Void =>
+                JSON::Null
+        }
+    }
+
+    fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
+        use json::JsonValue::*;
+        match (self, left, right) {
+            (&TypeSpec::Boolean, &Boolean(ref a), &Boolean(ref b)) =>
+                Ok(a == b),
+            (&TypeSpec::String, _, _) if left.as_str().is_some() && right.as_str().is_some() => // Strings are complicated as they have two different representations in JSON.
+                Ok(left.as_str() == right.as_str()),
+            (&TypeSpec::Number, &Number(ref a), &Number(ref b)) =>
+                Ok(a == b),
+            (&TypeSpec::Array { contents: ref type_, .. }, &Array(ref vec_a), &Array(ref vec_b)) => {
+                if vec_a.len() != vec_b.len() {
+                    Ok(false)
+                } else {
+                    for (a, b) in vec_a.iter().zip(vec_b.iter()) {
+                        if !type_.compare(syntax, a, b)? {
+                            return Ok(false)
+                        }
+                    }
+                    Ok(true)
+                }
+            }
+            (&TypeSpec::NamedType(ref name), _, _) => {
+                match syntax.get_type_by_name(name) {
+                    Some(NamedType::StringEnum(_)) if left.as_str().is_some() && right.as_str().is_some() =>
+                        return Ok(left.as_str().unwrap() == right.as_str().unwrap()),
+                    Some(NamedType::Interface(interface)) =>
+                        return interface.compare(syntax, left, right),
+                    Some(NamedType::Typedef(typedef)) =>
+                        return typedef.compare(syntax, left, right),
+                    None =>
+                        panic!("Could not find a type named {:?}", name),
+                    _ => {}
+                }
+                return Err(ASTError::InvalidValue {
+                    expected: format!("{:?}", self),
+                    got: format!("{:?} =?= {:?}", left, right)
+                })
+            },
+            (&TypeSpec::TypeSum(ref types), _, _) => {
+                for type_ in types {
+                    if let Ok(result) = type_.compare(syntax, left, right) {
+                        return Ok(result)
+                    }
+                }
+                Err(ASTError::InvalidValue {
+                    expected: format!("{:?}", self),
+                    got: format!("{:?} =?= {:?}", left, right)
+                })
+            }
+            _ => {
+                Err(ASTError::InvalidValue {
+                    expected: format!("{:?}", self),
+                    got: format!("{:?} =?= {:?}", left, right)
+                })
+            }
+        }
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a TypeSpec> {
+        let mut result = Vec::new();
+        let mut stack = vec![self];
+        while let Some(current) = stack.pop() {
+            result.push(current);
+            match *current {
+                TypeSpec::Array { ref contents, .. } => {
+                    stack.push(contents.spec());
+                }
+                TypeSpec::TypeSum(ref sum) => {
+                    for item in sum {
+                        stack.push(item)
+                    }
+                }
+                _ => {}
+            }            
+        }
+        result.into_iter()
+    }
+    pub fn typenames<'a>(&'a self) -> impl Iterator<Item = &'a NodeName> {
+        let mut result = HashSet::new();
+        for spec in self.iter() {
+            if let TypeSpec::NamedType(ref name) = *spec {
+                result.insert(name);                
+            }
+        }
+        result.into_iter()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Type {
+    pub spec: TypeSpec,
+
+    /// If the value is not specified, it defaults to...
+    /// (`None` if the value MUST be specified)
+    pub defaults_to: Option<JSON>,
+}
+impl Eq for Type {}
+impl Hash for Type {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+        self.spec.hash(state)
+    }
+}
+
+impl Type {
+    pub fn with_default(&mut self, default: JSON) -> &mut Self {
+        self.defaults_to = Some(default);
+        self
+    }
+
+    pub fn with_named_sum(&mut self, names: &[&NodeName]) -> &mut Self {
+        let sum = names.iter()
+            .cloned()
+            .cloned()
+            .map(|name| TypeSpec::NamedType(name))
+            .collect();
+        self.spec = TypeSpec::TypeSum(sum);
+        self
+    }
+
+    pub fn with_spec(&mut self, spec: TypeSpec) -> &mut Self {
+        self.spec = spec;
+        self
+    }
+
+    pub fn with_type(&mut self, type_: Type) -> &mut Self {
+        self.spec = type_.spec;
+        self.defaults_to = type_.defaults_to;
+        self
+    }
+
+    pub fn spec(&self) -> &TypeSpec {
+        &self.spec
+    }
+    pub fn default(&self) -> Option<&JSON> {
+        self.defaults_to.as_ref()
+    }
+
+    /// Shorthand constructors.
+    pub fn named(name: &NodeName) -> TypeSpec {
+        TypeSpec::NamedType(name.clone())
+    }
+    pub fn sum(types: &[TypeSpec]) -> TypeSpec {
+        TypeSpec::TypeSum(types.iter().cloned().collect())
+    }
+    pub fn string() -> TypeSpec {
+        TypeSpec::String
+    }
+    pub fn number() -> TypeSpec {
+        TypeSpec::Number
+    }
+    pub fn bool() -> TypeSpec {
+        TypeSpec::Boolean
+    }
+
+    pub fn array(self) -> TypeSpec {
+        TypeSpec::Array {
+            contents: Box::new(self),
+            supports_empty: true,
+        }
+    }
+
+    pub fn non_empty_array(self) -> TypeSpec {
+        TypeSpec::Array {
+            contents: Box::new(self),
+            supports_empty: false,
+        }
+    }
+
+    pub fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
+        if let Some(ref value) = self.defaults_to {
+            // 50% chance of returning the default value
+            if depth_limit <= 0 || rng.gen() {
+                return value.clone()
+            }
+        }
+        self.spec.random(syntax, rng, depth_limit)
+    }
+
+    pub fn to_rust_source(&self) -> String {
+        let pretty_type = self.spec.to_rust_source();
+        match self.defaults_to {
+            None => format!("{}.close()", pretty_type),
+            Some(JSON::Null) => {
+                format!("{}.defaults_to(JSON::Null)",
+                    pretty_type)
+            }
+            _ => unimplemented!()
         }
     }
 
     pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        let pretty_type = match self.spec {
-            TypeSpec::Array { ref contents, supports_empty: false } =>
-                format!("[{}] /* Non-empty */", contents.pretty(prefix, indent)),
-            TypeSpec::Array { ref contents, supports_empty: true } =>
-                format!("[{}]", contents.pretty(prefix, indent)),
-            TypeSpec::Boolean =>
-                "bool".to_string(),
-            TypeSpec::String =>
-                "string".to_string(),
-            TypeSpec::Number =>
-                "number".to_string(),
-            TypeSpec::Enum(ref name) =>
-                name.to_str().to_string(),
-            TypeSpec::Interfaces(ref names) => {
-                let mut result = String::new();
-                let mut first = true;
-                for name in names {
-                    if first {
-                        first = false;
-                    } else {
-                        result.push_str(" | ");
-                    }
-                    result.push_str(name.to_str());
-                }
-                result
-            }
-        };
+        let pretty_type = self.spec.pretty(prefix, indent);
         let pretty_default = match self.defaults_to {
             None => String::new(),
             Some(ref default) =>
                 format!(" = {}", default.dump())
         };
         format!("{}{}", pretty_type, pretty_default)
+    }
+
+    /// Compare two ASTs, restricting comparison to the
+    /// items that appear in the grammar.
+    pub fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
+        use json::JsonValue::*;
+        if let (&Some(Null), &Null, &Null) = (&self.defaults_to, left, right) {
+            // This is the only case in which we accept `null` as a value.
+            return Ok(true)
+        }
+        self.spec.compare(syntax, left, right)
     }
 }
 
@@ -573,16 +611,13 @@ impl Obj {
         self.fields.iter().find(|field| &field.name == name)
     }
 
-    pub fn with_own_field(self, field: Field) -> Self {
+    pub fn with_full_field(&mut self, field: Field) -> &mut Self {
         if self.field(field.name()).is_some() {
             warn!("Field: attempting to overwrite {:?}", field.name());
             return self
         }
-        let mut fields = self.fields;
-        fields.push(field);
-        Obj {
-            fields
-        }
+        self.fields.push(field);
+        self
     }
 
     fn with_field_aux(self, name: &FieldName, type_: Type, doc: Option<&str>) -> Self {
@@ -612,25 +647,16 @@ impl Obj {
     }
 }
 
-/// Structure of an enum of strings. `null` is never an acceptable value.
-#[derive(Clone, Debug)]
-pub struct Enum {
-    name: NodeName,
-
-    /// Unordered list of strings, without duplicates.
-    strings: Vec<String>,
-}
-
-impl Enum {
+impl StringEnum {
     pub fn strings(&self) -> &[String] {
-        &self.strings
+        &self.values
     }
 
     /// Add a string to the enum. Idempotent.
     pub fn with_string(&mut self, string: &str) -> &mut Self {
         let string = string.to_string();
-        if self.strings.iter().find(|x| **x == string).is_none() {
-            self.strings.push(string.to_string())
+        if self.values.iter().find(|x| **x == string).is_none() {
+            self.values.push(string.to_string())
         }
         self
     }
@@ -648,7 +674,7 @@ impl Enum {
             name = self.name.to_str());
         {
             let prefix = format!("{prefix}{indent}", prefix=prefix, indent=indent);
-            for string in &self.strings {
+            for string in &self.values {
                 result.push_str(&format!("{prefix}\"{string}\",\n", prefix=prefix, string=string));
             }
         }
@@ -663,38 +689,15 @@ pub struct InterfaceDeclaration {
     /// The name of the interface, e.g. `Node`.
     name: NodeName,
 
-    /// The kind used to differentiate node that inhabit this
-    /// interface from nodes inhabiting other interfaces.
-    ///
-    /// May be `None` for interfaces such as `Node` or `Expression`
-    /// that serve only as a common ancestor for a sum of refined sub-interfaces
-    /// and have no inhabitants of their own.
-    kind: Option<Kind>,
-
-    /// The parents of this interface.
-    parent_interfaces: Vec<NodeName>,
-
-    /// The descendants of this interface.
-    sub_interfaces: Vec<NodeName>,
-
-    /// All the ancestor interfaces (not including self).
-    ancestor_interfaces: Vec<NodeName>,
-
     /// The contents of this interface, excluding the contents of parent interfaces.
-    own_contents: Obj,
-
-    /// Requirements on the order between fields.
-    order_requirements: Vec<(FieldName, FieldName)>,
+    contents: Obj,
 }
 
 impl InterfaceDeclaration {
-    pub fn with_order(&mut self, before: &FieldName, after: &FieldName) -> &mut Self {
-        assert!(self.own_contents.fields.iter().find(|x| before == x.name()).is_some());
-        assert!(self.own_contents.fields.iter().find(|x| after == x.name()).is_some());
-        self.order_requirements.push((before.clone(), after.clone()));
+    pub fn with_full_field(&mut self, contents: Field) -> &mut Self {
+        let _ = self.contents.with_full_field(contents);
         self
     }
-
     pub fn with_field(&mut self, name: &FieldName, type_: Type) -> &mut Self {
         self.with_field_aux(name, type_, None)
     }
@@ -702,27 +705,9 @@ impl InterfaceDeclaration {
         self.with_field_aux(name, type_, Some(doc))
     }
     fn with_field_aux(&mut self, name: &FieldName, type_: Type, doc: Option<&str>) -> &mut Self {
-        // FIXME: There must be a better way to do this.
         let mut contents = Obj::new();
-        std::mem::swap(&mut self.own_contents, &mut contents);
-        self.own_contents = contents.with_field_aux(name, type_, doc);
-        self
-    }
-    pub fn with_own_field(&mut self, field: Field) -> &mut Self {
-        // FIXME: There must be a better way to do this.
-        let mut contents = Obj::new();
-        std::mem::swap(&mut self.own_contents, &mut contents);
-        self.own_contents = contents.with_own_field(field);
-        self
-    }
-    /// Add a parent to the interface.
-    /// An interface may have several parents. Each parent MUST be
-    /// an interface, however, parents may be added at any time before
-    /// the call to `into_syntax`.
-    pub fn with_parent(&mut self, parent: &NodeName) -> &mut Self {
-        if self.parent_interfaces.iter().find(|x| *x == parent).is_none() {
-            self.parent_interfaces.push(parent.clone())
-        }
+        std::mem::swap(&mut self.contents, &mut contents);
+        self.contents = contents.with_field_aux(name, type_, doc);
         self
     }
 }
@@ -730,10 +715,12 @@ impl InterfaceDeclaration {
 /// A data structure used to progressively construct the `Syntax`.
 pub struct SyntaxBuilder {
     /// All the interfaces entered so far.
-    interfaces: HashMap<NodeName, RefCell<InterfaceDeclaration>>,
+    interfaces_by_name: HashMap<NodeName, RefCell<InterfaceDeclaration>>,
 
     /// All the enums entered so far.
-    enums: HashMap<NodeName, RefCell<Enum>>,
+    string_enums_by_name: HashMap<NodeName, RefCell<StringEnum>>,
+
+    typedefs_by_name: HashMap<NodeName, RefCell<Type>>,
 
     names: HashMap<String, Rc<String>>,
 }
@@ -741,8 +728,9 @@ pub struct SyntaxBuilder {
 impl SyntaxBuilder {
     pub fn new() -> Self {
         SyntaxBuilder {
-            interfaces: HashMap::new(),
-            enums: HashMap::new(),
+            interfaces_by_name: HashMap::new(),
+            string_enums_by_name: HashMap::new(),
+            typedefs_by_name: HashMap::new(),
             names: HashMap::new()
         }
     }
@@ -770,213 +758,277 @@ impl SyntaxBuilder {
         result
     }
 
-    pub fn kind_name(&mut self, name: &str) -> Kind {
-        if let Some(result) = self.names.get(name) {
-            return Kind(result.clone());
-        }
-        let shared = Rc::new(name.to_string());
-        let result = Kind(shared.clone());
-        self.names.insert(name.to_string(), shared);
-        result
-    }
-
-    /// Add an interface with a `kind` identical to its name.
-    pub fn add_kinded_interface(&mut self, name: &NodeName) -> Option<RefMut<InterfaceDeclaration>> {
-        let kind = Kind(name.0.clone());
-        let result = self.add_virtual_interface(name)
-            .map(|mut result| {result.kind = Some(kind); result});
-        result
-    }
-
-    /// Add a virtual interface, i.e. one that doesn't have a `kind`,
-    /// i.e. one that does not have immediate inhabitants. Super-interfaces
-    /// or sub-interfaces with a `kind` may have inhabitants.
-    pub fn add_virtual_interface(&mut self, name: &NodeName) -> Option<RefMut<InterfaceDeclaration>> {
-        if self.interfaces.get(name).is_some() {
+    pub fn add_interface(&mut self, name: &NodeName) -> Option<RefMut<InterfaceDeclaration>> {
+        if self.interfaces_by_name.get(name).is_some() {
             return None;
         }
-        let interface = InterfaceDeclaration {
+        let result = RefCell::new(InterfaceDeclaration {
             name: name.clone(),
-            kind: None,
-            own_contents: Obj::new(),
-            parent_interfaces: Vec::new(),
-            sub_interfaces: Vec::new(),
-            ancestor_interfaces: Vec::new(),
-            order_requirements: Vec::new(),
-        };
-        self.interfaces.insert(name.clone(), RefCell::new(interface));
-        self.interfaces.get(name).map(RefCell::borrow_mut)
+            contents: Obj::new(),
+        });
+        self.interfaces_by_name.insert(name.clone(), result);
+        self.interfaces_by_name.get(name)
+            .map(RefCell::borrow_mut)
+    }
+    pub fn get_interface(&mut self, name: &NodeName) -> Option<RefMut<InterfaceDeclaration>> {
+        self.interfaces_by_name.get(name)
+            .map(RefCell::borrow_mut)
     }
 
     /// Add a named enumeration.
-    pub fn add_enum(&mut self, name: &NodeName) -> Option<RefMut<Enum>> {
-        if self.enums.get(name).is_some() {
+    pub fn add_string_enum(&mut self, name: &NodeName) -> Option<RefMut<StringEnum>> {
+        if self.string_enums_by_name.get(name).is_some() {
             return None;
         }
-        let e = RefCell::new(Enum {
+        let e = RefCell::new(StringEnum {
             name: name.clone(),
-            strings: vec![]
+            values: vec![]
         });
-        self.enums.insert(name.clone(), e);
-        self.enums.get(name).map(RefCell::borrow_mut)
+        self.string_enums_by_name.insert(name.clone(), e);
+        self.string_enums_by_name.get(name).map(RefCell::borrow_mut)
+    }
+
+    pub fn add_typedef(&mut self, name: &NodeName) -> Option<RefMut<Type>> {
+        if self.typedefs_by_name.get(name).is_some() {
+            return None;
+        }
+        let e = RefCell::new(TypeSpec::Void.close());
+        self.typedefs_by_name.insert(name.clone(), e);
+        self.typedefs_by_name.get(name).map(RefCell::borrow_mut)
     }
 
     /// Generate the graph.
     pub fn into_syntax<'a>(self, options: SyntaxOptions<'a>) -> Syntax {
-        let mut interfaces_by_name = HashMap::new();
-        let mut interfaces_by_kind = HashMap::new();
+        // 1. Collect all node names.
+        let mut interfaces_by_name = self.interfaces_by_name;
+        let interfaces_by_name : HashMap<_, _> = interfaces_by_name.drain()
+            .map(|(k, v)| (k, Rc::new(Interface {
+                declaration: RefCell::into_inner(v)
+            })))
+            .collect();
+        let mut string_enums_by_name = self.string_enums_by_name;
+        let string_enums_by_name : HashMap<_, _> = string_enums_by_name.drain()
+            .map(|(k, v)| (k, Rc::new(RefCell::into_inner(v))))
+            .collect();
+        let mut typedefs_by_name = self.typedefs_by_name;
+        let typedefs_by_name : HashMap<_, _> = typedefs_by_name.drain()
+            .map(|(k, v)| (k, Rc::new(RefCell::into_inner(v))))
+            .collect();
+
         let mut node_names = HashMap::new();
-        let mut kinds = HashMap::new();
-        let mut field_names : HashMap<String, FieldName> = HashMap::new();
-
-        assert!(self.interfaces.get(options.root).is_some(),
-            "Cannot find root interface {:?}", options.root);
-
-        // First walk: generate lists of ancestors/descendants.
-        for (name, interface) in &self.interfaces {
-            let mut ancestors_met = HashSet::new();
-
-            // To do so, walk the ancestors of `interface`. Algorithmically,
-            // this could explode, but in practice, I haven't seen a depth higher than 4.
-            let mut ancestors = vec![name.clone()];
-
-            while let Some(ancestor) = ancestors.pop() {
-                if ancestors_met.contains(&ancestor) {
-                    // With multiple inheritance, let's not copy stuff more than
-                    // once. Should also prevent (but not detect) infinite loops.
-                    continue;
-                }
-                ancestors_met.insert(ancestor.clone());
-
-                // Handle node.
-                let node = self.interfaces.get(&ancestor).unwrap();
-                debug_assert_eq!(node.borrow().name, ancestor);
-                for parent_names in &node.borrow().parent_interfaces {
-                    ancestors.push(parent_names.clone());
-                }
-
-                if name != &ancestor {
-                    debug!("Adding descendant {:?} to ancestor {:?}", name, ancestor);
-                    node.borrow_mut().sub_interfaces.push(name.clone());
-                    interface.borrow_mut().ancestor_interfaces.push(ancestor.clone());
-                }
-            }
+        for name in interfaces_by_name.keys().chain(string_enums_by_name.keys()).chain(typedefs_by_name.keys()) {
+            node_names.insert(name.to_string().clone(), name.clone());
         }
 
-        // Second walk: generate `Interface`.
-        for (name, interface) in &self.interfaces {
-            debug!("Registering name and interface.");
-            {
-                let string = name.to_str().to_string();
-                assert!(node_names.insert(string.clone(), name.clone()).is_none());
+        // 2. Collect all field names.
+        let mut fields = HashMap::new();
+        for interface in interfaces_by_name.values() {
+            for field in &interface.declaration.contents.fields {
+                fields.insert(field.name.to_string().clone(), field.name.clone());
+            }
+        }
+        {
+            // 3. Check that node names are not duplicated.
+            for name in node_names.values() {
+                let mut instances = 0;
+                if interfaces_by_name.contains_key(name) {
+                    instances += 1;
+                }
+                if string_enums_by_name.contains_key(name) {
+                    instances += 1;
+                }
+                if typedefs_by_name.contains_key(name) {
+                    instances += 1;
+                }
+                assert!(instances > 0);
+                assert_eq!(instances, 1, "Duplicate type name {}", name.to_str());
             }
 
-            if let Some(ref kind) = interface.borrow().kind {
-                assert!(kinds.insert(kind.to_string().clone(), kind.clone()).is_none());
+            // 4. Check that all instances of `TypeSpec::NamedType` refer to an existing name.
+            let mut used_typenames = HashSet::new();
+            for type_ in typedefs_by_name.values() {
+                for name in type_.spec().typenames() {
+                    used_typenames.insert(name);
+                }
             }
-
-            debug!("Checking that all enums/interfaces are defined.");
-            {
-                for field in interface.borrow().own_contents.fields() {
-                    match field.type_().spec {
-                        TypeSpec::Enum(ref field_name) =>
-                            assert!(self.enums.get(field_name).is_some(),
-                                "While compiling {:?}, could not find an enum named {:?}",
-                                name, field_name),
-                        TypeSpec::Interfaces(ref names) =>
-                            for interface_name in names {
-                                assert!(self.interfaces.get(interface_name).is_some(),
-                                    "While compiling {:?}, could not find an interface named {:?}",
-                                    name, interface_name)
-                            },
-                        _ => {}
+            for interface in interfaces_by_name.values() {
+                for field in interface.declaration.contents.fields() {
+                    for name in field.type_().spec().typenames() {
+                        used_typenames.insert(name);
                     }
                 }
             }
-
-
-            // Compute the fields of `interface`.
-            let mut my_fields = HashMap::new(); // name => (type, doc)
-            let mut sorter = topological_sort::TopologicalSort::<FieldName>::new();
-            let borrow = interface.borrow();
-
-            // Visiting from ancestor to most descendant.
-            for ancestor_name in borrow.ancestor_interfaces.iter().chain(&[name.clone()]) {
-                debug!("Visiting ancestor {:?} of {:?}", ancestor_name, name);
-
-                let ancestor = self.interfaces.get(ancestor_name)
-                    .expect("Could not find ancestor");
-
-                let ancestor = ancestor.borrow();
-                // Collect dependencies between fields.
-                for field in &ancestor.own_contents.fields {
-                    let name = field_names.entry(field.name.to_string().clone())
-                        .or_insert_with(|| field.name().clone())
-                        .clone();
-
-                    my_fields.insert(name.clone(), (field.type_().clone(), field.documentation.clone()));
-                    // FIXME: We should check that we always overwrite something with something at least as general.
-
-                    // Make sure that all names appear in the topological sort.
-                    sorter.insert(name.clone());
+            for name in &used_typenames {
+                if typedefs_by_name.contains_key(name) {
+                    continue;
                 }
-
-                for &(ref before, ref after) in &ancestor.order_requirements {
-                    sorter.add_dependency(before.clone(), after.clone());
+                if interfaces_by_name.contains_key(name) {
+                    continue;
                 }
+                if string_enums_by_name.contains_key(name) {
+                    continue;
+                }
+                panic!("No definition for type {}", name.to_str());
             }
-
-            // Now copy the fields in an appropriate order to the interface.
-            let mut fields = Vec::with_capacity(my_fields.len());
-            while let Some(name) = sorter.pop() {
-                let (type_, documentation) = my_fields.remove(&name)
-                    .expect("my_fields should contain all the names output by the topological sort");
-                fields.push( Field { name, type_, documentation });
-            }
-            assert_eq!(sorter.len(), 0, "FIXME: Fail gracefully in a grammar with cyclic dependencies: {:?}", sorter);
-            assert_eq!(my_fields.len(), 0, "We didn't collect all names: {:?}", my_fields);
-
-            let declaration = borrow.clone();
-            let node = Rc::new(Interface {
-                declaration,
-                full_contents: Obj { fields }
-            });
-
-            if let Some(ref kind) = node.declaration.kind {
-                assert!(interfaces_by_kind.insert(kind.clone(), node.clone()).is_none());
-            }
-
-            assert!(interfaces_by_name.insert(name.clone(), node).is_none());
         }
-        // FIXME: What about RegexpLiteral? & co
 
-        // Now handle `enums`.
-        for key in self.enums.keys() {
-            let string = key.to_str().to_string();
-            assert!(node_names.insert(string.clone(), key.clone()).is_none());
-        }
-        let enums_by_name = self.enums;
-
-        Syntax {
-            interfaces_by_name,
-            interfaces_by_kind,
-            enums_by_name,
-            node_names,
-            kinds,
-            fields: field_names,
+        let syntax = Syntax {
+            interfaces_by_name: interfaces_by_name,
+            string_enums_by_name: string_enums_by_name,
+            typedefs_by_name: typedefs_by_name,
+            node_names: node_names,
+            fields: fields,
             root: options.root.clone(),
-            annotator: options.annotator
+            annotator: options.annotator,
+        };
+
+        // 5. Classify typedefs between
+        // - stuff that can only be put in a sum of interfaces (interfaces, sums of interfaces, typedefs thereof);
+        // - stuff that can never be put in a sum of interfaces (other stuff)
+        // - bad stuff that attempts to mix both
+        #[derive(Clone, Copy)]
+        enum TypeClassification {
+            SumOfInterfaces,
+            BadForSumOfInterfaces,
         }
+        let mut classification : HashMap<NodeName, Option<TypeClassification>> = HashMap::new();
+        fn classify_type(syntax: &Syntax, cache: &mut HashMap<NodeName, Option<TypeClassification>>, type_: &TypeSpec, name: &NodeName) -> TypeClassification {
+            match *type_ {
+                TypeSpec::Array { ref contents, .. } => {
+                    // Check that the contents are correct.
+                    let _ = classify_type(syntax, cache, contents.spec(), name);
+                    // Regardless, the result is bad for a sum of interfaces.
+                    TypeClassification::BadForSumOfInterfaces
+                },
+                TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => TypeClassification::BadForSumOfInterfaces,
+                TypeSpec::NamedType(ref name) => {
+                    if let Some(fetch) = cache.get(name) {
+                        if let Some(ref result) = *fetch {
+                            return *result;
+                        } else {
+                            panic!("Cycle detected while examining {}", name.to_str());
+                        }
+                    }
+                    let named_type = syntax.get_type_by_name(name)
+                        .unwrap(); // Completeness checked above in this method.alloc
+                    cache.insert(name.clone(), None);
+                    let result = match named_type {
+                        NamedType::Interface(_) => TypeClassification::SumOfInterfaces,
+                        NamedType::StringEnum(_) => TypeClassification::BadForSumOfInterfaces,
+                        NamedType::Typedef(ref type_) => classify_type(syntax, cache, type_.spec(), name)
+                    };
+                    cache.insert(name.clone(), Some(result));
+                    result
+                }
+                TypeSpec::TypeSum(ref sum) => {
+                    for type_ in sum {
+                        if let TypeClassification::BadForSumOfInterfaces = classify_type(syntax, cache, type_, name) {
+                            panic!("In type {}, there is a non-interface type in a sum");
+                        }
+                    }
+                    TypeClassification::SumOfInterfaces
+                }
+            }
+        }
+        for (name, type_) in &syntax.typedefs_by_name {
+            classification.insert(name.clone(), None);
+            let class = classify_type(&syntax, &mut classification, type_.spec(), name);
+            classification.insert(name.clone(), Some(class));
+        }
+
+        // 6. Using this classification, check that the attributes of interfaces don't mix
+        // poorly items of both kinds.
+        for (name, interface) in &syntax.interfaces_by_name {
+            for field in interface.declaration.contents.fields() {
+                classify_type(&syntax, &mut classification, field.type_().spec(), name);
+            }
+        }
+
+        syntax
+    }
+
+    pub fn into_rust_source(&self) -> String {
+        let mut buffer = String::new();
+
+        buffer.push_str("// Node names (by lexicographical order)\n");
+        let mut names : Vec<_> = self.string_enums_by_name.keys().chain(self.interfaces_by_name.keys()).chain(self.typedefs_by_name.keys())
+            .map(|x| x.to_string())
+            .collect();
+        names.sort();
+        for name in names {
+            let source = format!("let {snake} = syntax.node_name(\"{original}\");\n",
+                snake = to_snake_case(name),
+                original = name);
+            buffer.push_str(&source);
+        }
+
+        buffer.push_str("\n\n\n// Field names (by lexicographical order)\n");
+        let mut fields = HashSet::new();
+        for interface in self.interfaces_by_name.values() {
+            for field in &interface.borrow().contents.fields {
+                fields.insert(field.name.to_string().clone());
+            }
+        }
+        let mut fields : Vec<_> = fields.drain().collect();
+        fields.sort();
+        for name in fields {
+            let source = format!("let field_{snake} = syntax.field_name(\"{original}\");\n",
+                snake = to_snake_case(&name),
+                original = name);
+            buffer.push_str(&source);
+        }
+
+        buffer.push_str("\n\n\n// Enumerations\n");
+        for (name, def) in &self.string_enums_by_name {
+            let mut strings = String::new();
+            let mut first = true;
+            for string in &def.borrow().values {
+                if first {
+                    first = false;
+                } else {
+                    strings.push_str(",\n\t");
+                }
+                strings.push_str("\"");
+                strings.push_str(&*string);
+                strings.push_str("\"");
+            }
+            let source = format!("syntax.add_string_enum(&{name}).unwrap()
+                .with_strings(&[
+                    {strings}
+                ]);\n\n",
+                name = to_snake_case(name.to_str()),
+                strings = strings);
+            buffer.push_str(&source);
+        }
+        for (name, def) in &self.typedefs_by_name {
+            let source = format!("syntax.add_typedef(&{name}).unwrap()
+                .with_type({spec});\n\n",
+                name = to_snake_case(name.to_str()),
+                spec = def.borrow().to_rust_source());
+            buffer.push_str(&source);
+        }
+        for (name, def) in &self.interfaces_by_name {
+            let mut fields = String::new();
+            for field in &def.borrow().contents.fields {
+                let source = format!("\n  .with_field(&field_{name}, {spec})",
+                    name = to_snake_case(field.name.to_str()),
+                    spec = field.type_.to_rust_source());
+                fields.push_str(&source);
+            }
+            let source = format!("syntax.add_interface(&{name}).unwrap(){fields};\n\n",
+                name = to_snake_case(name.to_str()),
+                fields = fields);
+            buffer.push_str(&source);
+        }
+        buffer
     }
 }
 
 /// An interface, once compiled through
 /// `SyntaxBuilder::as_syntax`.
+#[derive(Debug)]
 pub struct Interface {
     declaration: InterfaceDeclaration,
-
-    /// The full contents of this interface, including parents interfaces.
-    full_contents: Obj,
 }
 
 impl Interface {
@@ -986,27 +1038,19 @@ impl Interface {
     /// - disregarding ignored fields (i.e. `position`, `type`);
     /// - disregarding fields with a single possible value.
     pub fn contents(&self) -> &Obj {
-        &self.full_contents
+        &self.declaration.contents
     }
 
     pub fn name(&self) -> &NodeName {
         &self.declaration.name
     }
 
-    pub fn kind(&self) -> Option<Kind> {
-        match self.declaration.kind {
-            None => None,
-            Some(ref x) => Some(x.clone())
-        }
-    }
-
     pub fn spec(&self) -> TypeSpec {
-        Type::interfaces(&[self.name()])
+        TypeSpec::NamedType(self.name().clone())
     }
 
     pub fn type_(&self) -> Type {
-        Type::interfaces(&[self.name()])
-            .close()
+        self.spec().close()
     }
 
     pub fn get_field_by_name(&self, name: &FieldName) -> Option<&Field> {
@@ -1020,45 +1064,20 @@ impl Interface {
 
     /// Export a description of this interface.
     pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        let inherits = if self.declaration.parent_interfaces.len() == 0 {
-            String::new()
-        } else {
-            let mut result = ":< ".to_string();
-            let mut first = true;
-            for parent in &self.declaration.parent_interfaces {
-                if !first {
-                    result.push_str(", ");
-                } else {
-                    first = false;
-                }
-                result.push_str(parent.to_str());
-            }
-            result
-        };
-        let mut result = format!("{prefix} interface {name} {inherits} {{\n", prefix=prefix, name=self.name().to_str(), inherits=inherits);
+        let mut result = format!("{prefix} interface {name} : Node {{\n", prefix=prefix, name=self.name().to_str());
         {
             let prefix = format!("{prefix}{indent}",
                 prefix=prefix,
                 indent=indent);
-            for field in self.declaration.own_contents.fields() {
-                let mut requirements = String::new();
-                for &(ref before, ref after) in &self.declaration.order_requirements {
-                    if before == field.name() {
-                        if requirements.len() == 0 {
-                            requirements = format!("// MUST appear before `{}`", after.to_str());
-                        } else {
-                            requirements.push_str(&format!(", `{}`", after.to_str()));
-                        }
-                    }
-                }
+            for field in self.declaration.contents.fields() {
                 if let Some(ref doc) = field.doc() {
                     result.push_str(&format!("{prefix}// {doc}\n", prefix = prefix, doc = doc));
                 }
-                result.push_str(&format!("{prefix}{name}: {description}; {requirements}\n",
+                result.push_str(&format!("{prefix}{name}: {description};\n",
                     prefix = prefix,
                     name = field.name().to_str(),
-                    description = field.type_().pretty(&prefix, indent),
-                    requirements = requirements));
+                    description = field.type_().pretty(&prefix, indent)
+                ));
                 if field.doc().is_some() {
                     result.push_str("\n");
                 }
@@ -1070,84 +1089,62 @@ impl Interface {
 
     /// Generate a random instance of this interface matching the syntax.
     fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
-        // Pick one of the descendants of `start`. Exclude `start` if it is virtual
-        let max = if self.declaration.kind.is_some() {
-            self.declaration.sub_interfaces.len() + 1
-        } else {
-            self.declaration.sub_interfaces.len()
-        };
-        assert!(max > 0, "This interface is purely virtual but doesn't have any concrete descendent {:?}", self.name());
-
-        let index = rng.gen_range(0, max);
-        let start =
-            if index < self.declaration.sub_interfaces.len() {
-                syntax.interfaces_by_name.get(&self.declaration.sub_interfaces[index])
-                    .unwrap_or_else(|| panic!("Interface doesn't exist {:?}", self.declaration.sub_interfaces[index]))
-            } else {
-                self
-            };
-
-        if start.declaration.kind.is_none() {
-            // Ah, we picked a virtual node. Let's do it again.
-            return start.random(syntax, rng, depth_limit - 1)
+        let mut obj = json::object::Object::with_capacity(self.declaration.contents.fields.len());
+        for field in &self.declaration.contents.fields {
+            let value = field.type_.random(syntax, rng, depth_limit - 1);
+            obj.insert(field.name.to_str(), value);
         }
+        json::JsonValue::Object(obj)
+    }
 
-        // At this stage, we know that `start` is a non-virtual interface.
-        // Let's build the contents.
-        let mut result = json::object::Object::with_capacity(start.full_contents.fields().len() + 1);
-
-        let kind = start.declaration.kind
-            .as_ref()
-            .unwrap()
-            .to_string()
-            .clone();
-
-        result.insert("type", json::from(kind));
-        for field in start.full_contents.fields() {
-            result.insert(field.name.to_str(), field.type_().random(syntax, rng, depth_limit - 1));
+    fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
+        // Compare types
+        if left["type"].as_str() != right["type"].as_str() {
+            return Ok(false)
         }
-
-        JSON::Object(result)
+        // Compare fields
+        for field in &self.declaration.contents.fields {
+            let index = field.name().to_str();
+            let result = field.type_().compare(syntax, &left[index], &right[index])?;
+            if !result {
+                return Ok(false)
+            }
+        }
+        // Everything is fine.
+        Ok(true)
     }
 }
 
 /// Immutable representation of the syntax.
 pub struct Syntax {
     interfaces_by_name: HashMap<NodeName, Rc<Interface>>,
-    interfaces_by_kind: HashMap<Kind, Rc<Interface>>,
-    enums_by_name: HashMap<NodeName, RefCell<Enum>>,
+    string_enums_by_name: HashMap<NodeName, Rc<StringEnum>>,
+    typedefs_by_name: HashMap<NodeName, Rc<Type>>,
     node_names: HashMap<String, NodeName>,
-    kinds: HashMap<String, Kind>,
     fields: HashMap<String, FieldName>,
     root: NodeName,
     annotator: Box<ast::annotation::Annotator>,
 }
 
 impl Syntax {
-    /// Return all the ancestors of an interface, including itself.
-    pub fn get_ancestors_by_name(&self, name: &NodeName) -> Option<&[NodeName]> {
-        self.interfaces_by_name
-            .get(name)
-            .map(|node| node.declaration.ancestor_interfaces.as_slice())
-    }
-    pub fn get_interface_by_kind(&self, kind: &Kind) -> Option<&Interface> {
-        self.interfaces_by_kind
-            .get(kind)
-            .map(Rc::deref)
-    }
     pub fn get_interface_by_name(&self, name: &NodeName) -> Option<&Interface> {
-        self.interfaces_by_name
-            .get(name)
-            .map(Rc::deref)
+        self.interfaces_by_name.get(name)
+            .map(std::borrow::Borrow::borrow)
     }
-    pub fn get_enum_by_name(&self, name: &NodeName) -> Option<Ref<Enum>> {
-        self.enums_by_name
-            .get(name)
-            .map(RefCell::borrow)
-    }
-    pub fn get_kind(&self, name: &str) -> Option<&Kind> {
-        self.kinds
-            .get(name)
+    pub fn get_type_by_name(&self, name: &NodeName) -> Option<NamedType> {
+        if let Some(interface) = self.interfaces_by_name
+            .get(name) {
+            return Some(NamedType::Interface(interface.clone()))
+        }
+        if let Some(strings_enum) = self.string_enums_by_name
+            .get(name) {
+            return Some(NamedType::StringEnum(strings_enum.clone()))
+        }
+        if let Some(type_) = self.typedefs_by_name
+            .get(name) {
+            return Some(NamedType::Typedef(type_.clone()))
+        }
+        None
     }
     pub fn get_field_name(&self, name: &str) -> Option<&FieldName> {
         self.fields
@@ -1158,90 +1155,22 @@ impl Syntax {
             .get(name)
     }
 
+    pub fn get_root_name(&self) -> &NodeName {
+        &self.root
+    }
+
     /// The starting point for parsing.
-    pub fn get_root(&self) -> &Interface {
-        self.get_interface_by_name(&self.root)
+    pub fn get_root(&self) -> NamedType {
+        self.get_type_by_name(&self.root)
             .unwrap()
     }
 
     /// Ensure that a value is an inhabitant of the grammar.
     pub fn validate(&self, a: &JSON) -> Result<(), ASTError> {
-        self.validate_from(a, &self.get_root().type_())
-    }
-
-    /// Ensure that a value is an inhabitant of the grammar.
-    pub fn validate_from(&self, a: &JSON, type_: &Type) -> Result<(), ASTError> {
-        use json::JsonValue::*;
-        if let Some(ref default) = type_.defaults_to {
-            if a == default {
-                return Ok(())
-            }
-        }
-        match (type_.spec(), a) {
-            (&TypeSpec::Boolean, &Boolean(_)) => Ok(()),
-            (&TypeSpec::String,  &String(_)) => Ok(()),
-            (&TypeSpec::String,  &Short(_))  => Ok(()),
-            (&TypeSpec::Number,  &Number(_)) => Ok(()),
-            (&TypeSpec::Array { supports_empty, contents: ref type_ }, &Array(ref values)) => {
-                if !supports_empty && values.len() == 0 {
-                    return Err(ASTError::InvalidValue {
-                        got: a.dump(),
-                        expected: format!("{:?}", type_.spec())
-                    });
-                }
-                for value in values {
-                    self.validate_from(value, type_)?;
-                }
-                Ok(())
-            }
-            (&TypeSpec::Enum(ref name), &String(ref a)) => {
-                let enum_ = self.get_enum_by_name(name)
-                    .expect("Could not find enum in grammar"); // At this stage, this shouldn't be possible.
-                enum_.strings.iter().find(|x| *x == a).
-                    ok_or_else(|| ASTError::InvalidValue {
-                            got: a.clone(),
-                            expected: format!("{:?}", enum_.strings)
-                    })?;
-                Ok(())
-            }
-            (&TypeSpec::Interfaces(ref names), &Object(ref a))
-                if a.get("type").is_some() =>
-            {
-                let check_valid = |obj: &json::object::Object| {
-                    let type_ = obj.get("type").unwrap(); // Just checked above.
-                    let name = type_.as_str()
-                        .ok_or_else(|| ASTError::InvalidValue {
-                            expected: "String".to_string(),
-                            got: type_.dump(),
-                        })?;
-                    let kind = self.get_kind(&name)
-                        .ok_or_else(|| ASTError::InvalidType(name.to_string()))?;
-                    let interface = self.get_interface_by_kind(&kind)
-                        .expect("Could not find interface by kind");
-                    if self.has_ancestor_in(interface, &names) {
-                        Ok(interface)
-                    } else {
-                        Err(ASTError::InvalidDescendent {
-                            got: kind.to_string().clone(),
-                            valid: names.iter().map(NodeName::to_string).cloned().collect()
-                        })
-                    }
-                };
-
-                let interface = check_valid(a)?;
-
-                for field in interface.full_contents.fields() {
-                    let a = a.get(field.name().to_str())
-                        .ok_or_else(|| ASTError::MissingField(field.name().to_string().clone()))?;
-                    self.validate_from(a, field.type_())?;
-                }
-                Ok(())
-            },
-            _ => Err(ASTError::InvalidValue {
-                expected: format!("{:?}", type_),
-                got: format!("{:?}", a)
-            })
-        }
+        struct ValidationVisitor;
+        impl ASTVisitor for ValidationVisitor { /* Do nothing */  }
+        let mut walker = ASTWalker::new(self, ValidationVisitor);
+        walker.walk(a)
     }
 
     pub fn annotate(&self, tree: &mut JSON) -> Result<(), ASTError> {
@@ -1256,125 +1185,7 @@ impl Syntax {
     ///
     /// This method assumes that both items are full ASTs.
     pub fn compare(&self, a: &JSON, b: &JSON) -> Result<bool, ASTError> {
-        self.compare_from(a, b, &self.get_root().type_())
-    }
-
-    /// Compare two ASTs, restricting comparison to the
-    /// items that appear in the grammar.
-    pub fn compare_from(&self, left: &JSON, right: &JSON, inhabit: &Type) -> Result<bool, ASTError> {
-        use json::JsonValue::*;
-        match (&inhabit.spec, &inhabit.defaults_to, left, right) {
-            (_, &Some(Null), &Null, &Null) => // This is the only case in which we accept `null` as a value.
-                Ok(true),
-            (&TypeSpec::Boolean, _, &Boolean(ref a), &Boolean(ref b)) =>
-                Ok(a == b),
-            (&TypeSpec::String, _, _, _) if left.as_str().is_some() && right.as_str().is_some() => // Strings are complicated as they have two different representations in JSON.
-                Ok(left.as_str() == right.as_str()),
-            (&TypeSpec::Number, _, &Number(ref a), &Number(ref b)) =>
-                Ok(a == b),
-            (&TypeSpec::Array { contents: ref type_, .. }, _, &Array(ref vec_a), &Array(ref vec_b)) => {
-                if vec_a.len() != vec_b.len() {
-                    Ok(false)
-                } else {
-                    for (a, b) in vec_a.iter().zip(vec_b.iter()) {
-                        if !self.compare_from(a, b, type_)? {
-                            return Ok(false)
-                        }
-                    }
-                    Ok(true)
-                }
-            }
-            (&TypeSpec::Enum(ref name), _, _, _) if left.as_str().is_some() && right.as_str().is_some() => { // Strings are complicated as they have two different representations in JSON.
-                let a = left.as_str().unwrap();  // Checked above.
-                let b = right.as_str().unwrap(); // Checked above.
-                let enum_ = self.get_enum_by_name(name)
-                    .expect("Could not find enum in grammar"); // At this stage, this shouldn't be possible.
-                if enum_.strings.iter().find(|x| *x == a).is_some() {
-                    if enum_.strings.iter().find(|x| *x == b).is_some() {
-                        Ok(a == b)
-                    } else {
-                        Err(ASTError::InvalidValue {
-                            got: b.to_string(),
-                            expected: format!("{:?}", enum_.strings)
-                        })
-                    }
-                } else {
-                    Err(ASTError::InvalidValue {
-                        got: a.to_string(),
-                        expected: format!("{:?}", enum_.strings)
-                    })
-                }
-            }
-            (&TypeSpec::Interfaces(ref names), _, &Object(ref a), &Object(ref b))
-                if a.get("type").is_some() && b.get("type").is_some() =>
-            {
-                let check_valid = |obj: &json::object::Object| {
-                    let type_ = obj.get("type").unwrap(); // Just checked above.
-                    let name = type_.as_str()
-                        .ok_or_else(|| ASTError::InvalidValue {
-                            expected: "String".to_string(),
-                            got: type_.dump(),
-                        })?;
-                    let kind = self.get_kind(&name)
-                        .ok_or_else(|| ASTError::InvalidType(name.to_string()))?;
-                    let interface = self.get_interface_by_kind(&kind)
-                        .expect("Could not find interface by kind");
-                    if self.has_ancestor_in(interface, &names) {
-                        Ok(interface)
-                    } else {
-                        Err(ASTError::InvalidDescendent {
-                            got: kind.to_string().clone(),
-                            valid: names.iter().map(NodeName::to_string).cloned().collect()
-                        })
-                    }
-                };
-
-                let interface_a = check_valid(a)?;
-                let interface_b = check_valid(b)?; // Could generally be avoided.
-
-                if interface_a.name() != interface_b.name() {
-                    return Ok(false)
-                }
-                if interface_a.full_contents != interface_b.full_contents {
-                    return Ok(false)
-                }
-                for field in interface_a.full_contents.fields() {
-                    let a = a.get(field.name().to_str())
-                        .ok_or_else(|| ASTError::MissingField(field.name().to_string().clone()))?;
-                    let b = b.get(field.name().to_str())
-                        .ok_or_else(|| ASTError::MissingField(field.name().to_string().clone()))?;
-                    if !self.compare_from(a, b, field.type_()) ? {
-                        return Ok(false)
-                    }
-                }
-                Ok(true)
-            },
-            _ => {
-                Err(ASTError::InvalidValue {
-                    expected: format!("{:?}", inhabit),
-                    got: format!("{:?} =?= {:?}", left, right)
-                })
-            }
-        }
-    }
-
-    pub fn has_ancestor_in(&self, interface: &Interface, one_of: &[NodeName]) -> bool {
-        for name in one_of {
-            if interface.name() == name {
-                return true;
-            }
-        }
-        self.get_ancestors_by_name(interface.name())
-            .unwrap()
-            .iter()
-            .find(|ancestor|
-                one_of.iter()
-                    .find(|candidate| {
-                        debug!("Looking for {:?} =?= {:?}", candidate, ancestor);
-                        candidate == ancestor
-                    })
-                    .is_some()
-            ).is_some()
+        self.get_root().compare(self, a, b)
     }
 
     /// Generate a random AST matching the grammar.
@@ -1405,10 +1216,10 @@ impl Syntax {
         result.push_str("\n\n // # Enums.\n");
         result.push_str(" //\n");
         result.push_str(" // The order of enum values does NOT matter.\n");
-        let mut enums : Vec<_> = self.enums_by_name.iter().collect();
+        let mut enums : Vec<_> = self.string_enums_by_name.iter().collect();
         enums.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
         for (_, enum_) in enums {
-            result.push_str(&enum_.borrow().pretty("", indent));
+            result.push_str(&enum_.pretty("", indent));
             result.push_str("\n");
         };
 
@@ -1418,7 +1229,6 @@ impl Syntax {
 
 #[derive(Debug)]
 pub enum ASTError {
-    InvalidKind(String),
     InvalidField(String),
     Mismatch(Type),
     InvalidValue {
@@ -1435,13 +1245,10 @@ pub enum ASTError {
     InvalidScope
 }
 impl ASTError {
-    pub fn invalid_kind(kind: &str) -> Self {
-        ASTError::InvalidKind(kind.to_string())
-    }
     pub fn invalid_field(name: &str) -> Self {
         ASTError::InvalidField(name.to_string())
     }
-    pub fn invalid_value(value: &JSON, expected: &str) -> Self {
+    pub fn invalid_value<T>(value: T, expected: &str) -> Self where T: std::ops::Deref<Target = JSON> {
         ASTError::InvalidValue {
             got: value.dump(),
             expected: expected.to_string()
@@ -1460,3 +1267,264 @@ pub struct SyntaxOptions<'a> {
     pub annotator: Box<ast::annotation::Annotator>,
 }
 
+/// Define immutable and mutable visitors.
+macro_rules! make_ast_visitor {
+    ($visitor_name:ident, $walker_name:ident, $($mutability: ident)*) => {
+        pub trait $visitor_name {
+            fn enter_type(&mut self, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
+                // Do nothing
+                Ok(())
+            }
+            fn exit_type(&mut self, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
+                // Do nothing
+                Ok(())
+            }
+            fn enter_typespec(&mut self, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
+                // Do nothing
+                Ok(())
+            }
+            fn exit_typespec(&mut self, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
+                // Do nothing
+                Ok(())
+            }
+            fn enter_string_enum(&mut self, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
+                // Do nothing
+                Ok(())
+            }
+            fn exit_string_enum(&mut self, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
+                // Do nothing
+                Ok(())
+            }
+            fn enter_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
+                // Do nothing
+                Ok(())
+            }
+            fn exit_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
+                // Do nothing
+                Ok(())
+            }
+        }
+
+        pub struct $walker_name<'a, V> where V: $visitor_name {
+            syntax: &'a Syntax,
+            visitor: V,
+        }
+
+        // Indirection is either &JSON or &mut JSON
+        impl<'a, V> $walker_name<'a, V> where V: $visitor_name {
+            pub fn new(syntax: &'a Syntax, visitor: V) -> Self {
+                $walker_name {
+                    syntax,
+                    visitor,
+                }
+            }
+            pub fn walk(&mut self, value: & $($mutability)* JSON) -> Result<(), ASTError> {
+                let root = self.syntax.get_root();
+                let name = self.syntax.get_root_name();
+                self.walk_named_type(value, &root, name)
+            }
+            pub fn walk_named_type(&mut self, value: & $($mutability)* JSON, named: &NamedType, name: &NodeName) -> Result<(), ASTError> {
+                match *named {
+                    NamedType::StringEnum(ref enum_) => self.walk_string_enum(value, enum_, name),
+                    NamedType::Interface(ref interface_) => self.walk_interface(value, interface_, name),
+                    NamedType::Typedef(ref typedef_) => self.walk_type(value, typedef_, name),
+                }
+            }
+            pub fn walk_string_enum(&mut self, value: & $($mutability)* JSON, enum_: &StringEnum, name: &NodeName) -> Result<(), ASTError> {
+                self.visitor.enter_string_enum(value, enum_, name)?;
+                if let Some(ref s) = value.as_str() {
+                    if enum_.values.iter()
+                        .find(|x| x == s)
+                        .is_none()
+                    {
+                        return Err(ASTError::InvalidValue {
+                            expected: format!("One of {:?}", enum_.values),
+                            got: s.to_string()
+                        })
+                    }
+                } else {
+                    return Err(ASTError::InvalidValue {
+                        expected: "string".to_string(),
+                        got: format!("{:?}", *value)
+                    })
+                }
+                self.visitor.exit_string_enum(value, enum_, name)?;
+                Ok(())
+            }
+            pub fn walk_type(&mut self, value: & $($mutability)* JSON, type_: &Type, name: &NodeName) -> Result<(), ASTError> {
+                self.visitor.enter_type(value, type_, name)?;
+                if let JSON::Null = *value {
+                    if let Some(_) = type_.defaults_to {
+                        self.visitor.exit_type(value, type_, name)?;
+                        return Ok(())
+                    }
+                }
+                self.walk_type_spec(value, type_.spec(), name)?;
+                self.visitor.exit_type(value, type_, name)?;
+                Ok(())
+            }
+            pub fn walk_type_spec(&mut self, value: & $($mutability)* JSON, spec: &TypeSpec, name: &NodeName) -> Result<(), ASTError> {
+                self.visitor.enter_typespec(value, spec, name)?;
+                self.walk_type_spec_aux(value, spec, name)?;
+                self.visitor.exit_typespec(value, spec, name)?;
+                Ok(())
+            }
+
+            pub fn walk_interface(&mut self, value: & $($mutability)* JSON, interface: &Interface, name: &NodeName) -> Result<(), ASTError> {
+                // Let the visitor rewrite the object if necessary.
+                self.visitor.enter_interface(value, interface, name)?;
+                // Check type.
+                let is_ok =
+                    if let Some(name) = value["type"].as_str() {
+                        name == interface.name().to_str()
+                    } else {
+                        false
+                    };
+                if !is_ok {
+                    return Err(ASTError::invalid_value(value, &format!("Instance of {:?}", interface.name())))                    
+                }
+                if value.is_object() {
+                    // Visit fields, ignoring excess fields and, if necessary, optional fields.
+                    for field in &interface.declaration.contents.fields {
+                        let ref $($mutability)* value = value[field.name().to_str()];
+                        self.walk_type(value, field.type_(), interface.name())?;
+                    }
+                } else {
+                    return Err(ASTError::InvalidValue {
+                        expected: "object".to_string(),
+                        got: type_of(&*value)
+                    })
+                }
+                self.visitor.exit_interface(value, interface, name)?;
+                Ok(())
+            }
+            fn walk_type_spec_aux(&mut self, value: & $($mutability)* JSON, spec: &TypeSpec, name: &NodeName) -> Result<(), ASTError> {
+                match spec {
+                    &TypeSpec::Boolean => {
+                        if let JSON::Boolean(_) = *value {
+                            return Ok(())
+                        }
+                    }
+                    &TypeSpec::Number => {
+                        if let JSON::Number(_) = *value {
+                            return Ok(())
+                        }
+                    }
+                    &TypeSpec::String => {
+                        if value.as_str().is_some() {
+                            return Ok(())
+                        }
+                    }
+                    &TypeSpec::Void => {
+                        if let JSON::Null = *value {
+                            return Ok(())
+                        }
+                    }
+                    &TypeSpec::NamedType(ref name) => {
+                        let named = self.syntax.get_type_by_name(name)
+                            .ok_or_else(|| ASTError::InvalidType(name.to_str().to_string()))?;
+                        return self.walk_named_type(value, &named, name);
+                    }
+                    &TypeSpec::Array { ref contents, supports_empty } => {
+                        if value.is_array() {
+                            if value.len() == 0 {
+                                if supports_empty {
+                                    return Ok(())
+                                } else {
+                                    return Err(ASTError::InvalidValue {
+                                        expected: "non-empty array".to_string(),
+                                        got: "empty array".to_string()
+                                    })
+                                }
+                            }
+                            for i in 0..value.len() {
+                                let ref $($mutability)* value = value[i];
+                                self.walk_type(value, contents, name)?;
+                            }
+                            return Ok(())
+                        }
+                    }
+                    &TypeSpec::TypeSum(ref sum) => {
+                        // Find out to which element in the sum we belong.
+                        let interface = {
+                            let kind = value["type"].as_str()
+                                .ok_or_else(|| ASTError::InvalidValue {
+                                    expected: "object with a type".to_string(),
+                                    got: value.dump()
+                                })?;
+                            let kind_name = self.syntax.get_node_name(kind)
+                                .ok_or_else(|| ASTError::InvalidType(kind.to_string()))?;
+                            let interface = sum.get_interface(self.syntax, kind_name)
+                                .ok_or_else(|| ASTError::InvalidType(kind.to_string()))?;
+                            interface.clone()
+                        };
+                        return self.walk_interface(value, &interface, name);
+                    }
+                }
+                return Err(ASTError::InvalidValue {
+                    expected: format!("{:?}", spec),
+                    got: value.dump()
+                })
+            }
+        }
+    }
+}
+
+/// Define immutable AST Visitor/walker
+make_ast_visitor!(ASTVisitor,ASTWalker,);
+
+/// Define mutable AST Visitor/walker
+make_ast_visitor!(MutASTVisitor, MutASTWalker, mut);
+
+pub trait HasInterfaces {
+    fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>>;
+}
+
+impl HasInterfaces for Vec<TypeSpec> {
+    fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>> {
+        debug!(target: "grammar", "get_interface, looking for {:?} in sum {:?}", name, self);
+        for item in self {
+            let result = item.get_interface(grammar, name);
+            if result.is_some() {
+                return result
+            }
+        }
+        None
+    }
+}
+
+
+impl HasInterfaces for NamedType {
+    fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>> {
+        debug!(target: "grammar", "get_interface, looking for {:?} in named type {:?}", name, self);
+        match *self {
+            NamedType::Interface(_) => None,
+            NamedType::StringEnum(_) => None,
+            NamedType::Typedef(ref type_) =>
+                type_.spec().get_interface(grammar, name)
+        }
+    }
+}
+
+impl HasInterfaces for TypeSpec {
+    fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>> {
+        debug!(target: "grammar", "get_interface, looking for {:?} in spec {:?}", name, self);
+        match *self {
+            TypeSpec::NamedType(ref my_name) => {
+                let follow = grammar.get_type_by_name(my_name);
+                if let Some(follow) = follow {
+                    if name == my_name {
+                        follow.as_interface(grammar)
+                    } else {
+                        follow.get_interface(grammar, name)
+                    }
+                } else {
+                    None
+                }
+            },
+            TypeSpec::TypeSum(ref sum) =>
+                sum.get_interface(grammar, name),
+            _ => None
+        }
+    }
+}

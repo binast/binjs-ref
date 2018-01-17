@@ -665,11 +665,11 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
         let mut data : Vec<Rc<LabelledItem>> = vec![];
         {
             let name = match self.syntax.get_node_name(tag) {
-                None => return Err(TokenWriterError::GrammarError(GrammarError::NoSuchKind(tag.to_string()))),
+                None => return Err(TokenWriterError::GrammarError(GrammarError::NoSuchInterface(tag.to_string()))),
                 Some(node) => node.clone()
             };
             let interface = self.syntax.get_interface_by_name(&name)
-                .ok_or_else(|| TokenWriterError::GrammarError(GrammarError::NoSuchKind(tag.to_string())))?;
+                .ok_or_else(|| TokenWriterError::GrammarError(GrammarError::NoSuchInterface(tag.to_string())))?;
 
             // Reorder `children` to match the interface.
             let mut order = Vec::with_capacity(children.len());

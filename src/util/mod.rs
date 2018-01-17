@@ -317,3 +317,18 @@ impl<S> PoisonLock<S> {
         self.poisoned
     }
 }
+
+pub fn pick<'a, T: rand::Rng, U,>(rng: &mut T, slice: &'a [U]) -> &'a U {
+    let index = rng.gen_range(0, slice.len());
+    &slice[index]
+}
+
+pub fn to_snake_case(value: &str) -> String {
+    use inflector;
+    let snake = inflector::cases::snakecase::to_snake_case(value);
+    match &snake as &str {
+        "super" => "super_".to_string(),
+        "type" => "type_".to_string(),
+        _ => snake
+    }
+}

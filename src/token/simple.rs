@@ -302,10 +302,10 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek + 'a {
 
             // Read (and validate) the kind.
             let kind_name = state.read_string()?;
-            let kind = state.grammar.get_kind(&kind_name)
-                .ok_or_else(|| TokenReaderError::GrammarError(GrammarError::NoSuchKind(kind_name.clone())))?;
-            let interface = state.grammar.get_interface_by_kind(&kind)
-                .ok_or_else(|| TokenReaderError::GrammarError(GrammarError::NoSuchKind(kind_name.clone())))?;
+            let kind = state.grammar.get_node_name(&kind_name)
+                .ok_or_else(|| TokenReaderError::GrammarError(GrammarError::NoSuchType(kind_name.clone())))?;
+            let interface = state.grammar.get_interface_by_name(&kind)
+                .ok_or_else(|| TokenReaderError::GrammarError(GrammarError::NoSuchInterface(kind_name.clone())))?;
 
             // Read the field names
             let len = state.read_u32()?;
@@ -562,9 +562,9 @@ fn test_simple_io() {
     let field_string = Field::new(builder.field_name("id"), Type::string().close());
     let field_number = Field::new(builder.field_name("value"), Type::number().close());
 
-    builder.add_kinded_interface(&kinded).unwrap()
-        .with_own_field(field_string.clone())
-        .with_own_field(field_number.clone());
+    builder.add_interface(&kinded).unwrap()
+        .with_full_field(field_string.clone())
+        .with_full_field(field_number.clone());
 
     struct FakeAnnotator;
     impl Annotator for FakeAnnotator {

@@ -113,7 +113,7 @@ fn main() {
         .with_source_bytes(0);
     let mut simple_stats = binjs::token::simple::Statistics::default();
 
-    let parser = Babel::new();
+    let parser = Shift::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
     for source_path in files {

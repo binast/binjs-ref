@@ -2,6 +2,7 @@
 //!
 //! Note that the JS file is only correct insofar as the AST matches the grammar.
 
+
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
@@ -13,7 +14,7 @@ use clap::*;
 use rand::Rand;
 
 use binjs::ast::library;
-use binjs::source::Babel;
+use binjs::source::Shift;
 use binjs::token::encode::Encode;
 
 use std::io::Write;
@@ -44,7 +45,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
             Arg::with_name("level")
                 .long("level")
                 .takes_value(true)
-                .possible_values(&["es5"])
+                .possible_values(&["es6"])
                 .help("JavaScript level to use."),
             Arg::with_name("size")
                 .long("size")
@@ -77,14 +78,14 @@ Note that this tool does not attempt to make sure that the files are entirely co
     };
 
     let grammar = match matches.value_of("level") {
-        None | Some("es5") => library::syntax(library::Level::ES5),
+        None | Some("es6") => library::syntax(library::Level::ES6),
         _ => panic!("Invalid level")
     };
 
     let random_metadata = matches.is_present("random-metadata");
 
     let mut rng = rand::thread_rng();
-    let parser = Babel::new();
+    let parser = Shift::new();
 
     let mut i = 0;
     loop {
@@ -99,7 +100,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .expect("Could not infer annotations");
         }
 
-        if let Ok(source) = parser.to_source(&ast) {
+        if let Ok(source) = parser.to_source(&grammar, &ast) {
             i += 1;
 
             println!("Generated sample {}/{}", i, number);

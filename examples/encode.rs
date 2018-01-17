@@ -145,7 +145,7 @@ fn main() {
     let show_stats = matches.is_present("statistics");
 
     // Setup.
-    let parser = Babel::new();
+    let parser = Shift::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
     let mut multipart_stats = binjs::token::multipart::Statistics::default()

@@ -37,7 +37,7 @@ fn main() {
         .expect("Expected output file");
 
     // Setup.
-    let parser = Babel::new();
+    let parser = Shift::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
     println!("Reading.");
@@ -70,7 +70,7 @@ fn main() {
     }
 
     println!("Pretty-printing");
-    let source = parser.to_source(&tree)
+    let source = parser.to_source(&grammar, &tree)
         .expect("Could not pretty-print");
 
     println!("Writing.");

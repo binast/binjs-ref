@@ -14,12 +14,12 @@ fn main() {
             Arg::with_name("level")
                 .long("level")
                 .takes_value(true)
-                .possible_values(&["es5"])
-                .help("JavaScript level to use. If unspecified, default to es5."),
+                .possible_values(&["es6"])
+                .help("JavaScript level to use. If unspecified, default to es6."),
         ]).get_matches();
 
     let level = match matches.value_of("level") {
-        None | Some("es5") => library::Level::ES5,
+        None | Some("es6") => library::Level::ES6,
         Some(other) => panic!("Unknown level `{}`", other)
     };
 
