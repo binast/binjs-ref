@@ -950,17 +950,27 @@ impl SyntaxBuilder {
     pub fn into_rust_source(&self) -> String {
         let mut buffer = String::new();
 
-        buffer.push_str("// Node names (by lexicographical order)\n");
-        let mut names : Vec<_> = self.string_enums_by_name.keys().chain(self.interfaces_by_name.keys()).chain(self.typedefs_by_name.keys())
-            .map(|x| x.to_string())
-            .collect();
-        names.sort();
-        for name in names {
-            let source = format!("let {snake} = syntax.node_name(\"{original}\");\n",
-                snake = to_snake_case(name),
-                original = name);
-            buffer.push_str(&source);
+        fn print_names<'a, T>(buffer: &mut String, source: T) where T: Iterator<Item = &'a NodeName> {
+            use inflector;
+            let mut names : Vec<_> = source.map(|x| x.to_string())
+                .collect();
+            names.sort();
+            for name in names {
+                let source = format!("let {snake} = syntax.node_name(\"{original}\"); // C name {cname}\n",
+                    snake = to_snake_case(name),
+                    original = name,
+                    cname = inflector::cases::camelcase::to_camel_case(name));
+                buffer.push_str(&source);
+            }
         }
+        buffer.push_str("// String enum names (by lexicographical order)\n");
+        print_names(&mut buffer, self.string_enums_by_name.keys());
+
+        buffer.push_str("\n\n// Typedef names (by lexicographical order)\n");
+        print_names(&mut buffer, self.typedefs_by_name.keys());
+
+        buffer.push_str("\n\n// Interface names (by lexicographical order)\n");
+        print_names(&mut buffer, self.interfaces_by_name.keys());
 
         buffer.push_str("\n\n\n// Field names (by lexicographical order)\n");
         let mut fields = HashSet::new();
