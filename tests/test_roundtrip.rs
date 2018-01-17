@@ -14,7 +14,7 @@ use std::io::*;
 #[test]
 fn test_roundtrip() {
 
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let parser = Shift::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);

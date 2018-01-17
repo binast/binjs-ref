@@ -16,7 +16,7 @@ use clap::*;
 
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let matches = App::new("BinJS encoder")
         .author("David Teller, <dteller@mozilla.com>")

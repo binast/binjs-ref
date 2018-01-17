@@ -38,7 +38,7 @@ impl FileStats {
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
     let dest_path_binjs = "/tmp/binjs-test.js.binjs";
     let dest_path_brotli = "/tmp/binjs-test.js.bro";
 

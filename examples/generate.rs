@@ -20,7 +20,7 @@ use binjs::token::encode::Encode;
 use std::io::Write;
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let matches = App::new("BinJS source file generator")
         .author("David Teller <dteller@mozilla.com>")

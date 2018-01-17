@@ -12,7 +12,7 @@ esprima = []
 [dependencies]
 assert_matches = "*"
 brotli = "1.*"
-env_logger = "*"
+env_logger = "^0.5"
 flate2 = "0.2"
 Inflector = "*"
 json = "*"
