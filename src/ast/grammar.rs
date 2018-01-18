@@ -67,21 +67,6 @@ pub struct StringEnum {
     values: Vec<String>,
 }
 
-/// An enumeration of interfaces.
-#[derive(Debug)]
-pub struct TypeSum {
-    name: NodeName,
-    values: Vec<NodeName>,
-}
-impl TypeSum {
-    pub fn with_types(&mut self, names: &[&NodeName]) -> &mut Self {
-        for name in names {
-            self.values.push((*name).clone())
-        }
-        self
-    }
-}
-
 /// Representation of a field in an interface.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Field {
@@ -146,12 +131,14 @@ pub enum TypeSpec {
 
 #[derive(Clone, Debug)]
 pub enum NamedType {
-    Interface(Rc<Interface>),
-    Typedef(Rc<Type>), // FIXME: Check that there are no cycles.
+    Typedef(Rc<Type>),
+    /// Invariant: The length is >= 1.
+    Interfaces(Vec<Rc<Interface>>),
     StringEnum(Rc<StringEnum>),
 }
 
 impl NamedType {
+/*
     pub fn into_interface(self) -> Option<Rc<Interface>> {
         if let NamedType::Interface(result) = self {
             Some(result)
@@ -159,9 +146,10 @@ impl NamedType {
             None
         }
     }
+*/
     pub fn as_interface(&self, syntax: &Syntax) -> Option<Rc<Interface>> {
         match *self {
-            NamedType::Interface(ref result) => Some(result.clone()),
+            NamedType::Interfaces(ref result) if result.len() >= 1 => Some(result[0].clone()),
             NamedType::Typedef(ref type_) => {
                 if let TypeSpec::NamedType(ref named) = *type_.spec() {
                     let named = syntax.get_type_by_name(named)
@@ -172,15 +160,36 @@ impl NamedType {
                 }
             }
             NamedType::StringEnum(_) => None,
+            NamedType::Interfaces(_) => None,
         }
     }
 
     fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
         match *self {
-            NamedType::Interface(ref interface) =>
-                return interface.compare(syntax, left, right),
             NamedType::Typedef(ref type_) =>
                 return type_.compare(syntax, left, right),
+            NamedType::Interfaces(ref sum) => {
+                // Compare types
+                if left["type"].as_str() != right["type"].as_str() {
+                    return Ok(false)
+                }
+                if let Some(kind) = left["type"].as_str() {
+                    for interface in sum {
+                        if interface.name().to_str() == kind {
+                            return interface.compare(syntax, left, right)
+                        }
+                    }
+                    return Err(ASTError::InvalidValue {
+                        expected: format!("{:?}", sum),
+                        got: left.dump()
+                    })                    
+                } else {
+                    return Err(ASTError::InvalidValue {
+                        expected: "object".to_string(),
+                        got: left.dump()
+                    })
+                }
+            }
             NamedType::StringEnum(_) if left.as_str().is_some() && right.as_str().is_some() => {
                 if left.as_str() == right.as_str() {
                     return Ok(true)
@@ -300,8 +309,10 @@ impl TypeSpec {
             TypeSpec::NamedType(ref name) => {
                 use self::NamedType::*;
                 match syntax.get_type_by_name(name) {
-                    Some(Interface(interface)) =>
-                        interface.random(syntax, rng, depth_limit),
+                    Some(Interfaces(interfaces)) => {
+                        let interface = pick(rng, &interfaces);
+                        interface.random(syntax, rng, depth_limit)
+                    }
                     Some(Typedef(typedef)) =>
                         typedef.random(syntax, rng, depth_limit),
                     Some(StringEnum(string_enum)) => {
@@ -356,21 +367,9 @@ impl TypeSpec {
                 }
             }
             (&TypeSpec::NamedType(ref name), _, _) => {
-                match syntax.get_type_by_name(name) {
-                    Some(NamedType::StringEnum(_)) if left.as_str().is_some() && right.as_str().is_some() =>
-                        return Ok(left.as_str().unwrap() == right.as_str().unwrap()),
-                    Some(NamedType::Interface(interface)) =>
-                        return interface.compare(syntax, left, right),
-                    Some(NamedType::Typedef(typedef)) =>
-                        return typedef.compare(syntax, left, right),
-                    None =>
-                        panic!("Could not find a type named {:?}", name),
-                    _ => {}
-                }
-                return Err(ASTError::InvalidValue {
-                    expected: format!("{:?}", self),
-                    got: format!("{:?} =?= {:?}", left, right)
-                })
+                let named = syntax.get_type_by_name(name)
+                    .unwrap(); // Invariant of `syntax`.
+                 named.compare(syntax, left, right)
             },
             (&TypeSpec::TypeSum(ref types), _, _) => {
                 for type_ in types {
@@ -1031,7 +1030,7 @@ impl Syntax {
     pub fn get_type_by_name(&self, name: &NodeName) -> Option<NamedType> {
         if let Some(interface) = self.interfaces_by_name
             .get(name) {
-            return Some(NamedType::Interface(interface.clone()))
+            return Some(NamedType::Interfaces(vec![interface.clone()]))
         }
         if let Some(strings_enum) = self.string_enums_by_name
             .get(name) {
@@ -1192,11 +1191,11 @@ macro_rules! make_ast_visitor {
                 // Do nothing
                 Ok(())
             }
-            fn enter_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_interfaces(&mut self, _value: & $($mutability)* JSON, interfaces: &[Rc<Interface>], _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_interfaces(&mut self, _value: & $($mutability)* JSON, interfaces: &[Rc<Interface>], _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
@@ -1223,7 +1222,7 @@ macro_rules! make_ast_visitor {
             pub fn walk_named_type(&mut self, value: & $($mutability)* JSON, named: &NamedType, name: &NodeName) -> Result<(), ASTError> {
                 match *named {
                     NamedType::StringEnum(ref enum_) => self.walk_string_enum(value, enum_, name),
-                    NamedType::Interface(ref interface_) => self.walk_interface(value, interface_, name),
+                    NamedType::Interfaces(ref interfaces) => self.walk_interfaces(value, interfaces, name),
                     NamedType::Typedef(ref typedef_) => self.walk_type(value, typedef_, name),
                 }
             }

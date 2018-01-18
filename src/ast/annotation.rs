@@ -181,11 +181,7 @@ impl<'a, T> ContextContents<'a, T> where T: Default {
     /// Create a new ContextContents containing no data, no parent,
     /// at the default position.
     fn new(syntax: &'a Syntax) -> Self {
-        let root = syntax.get_root()
-            .into_interface()
-            .expect("Could not extract kind of syntax root");
-        let root_name = root
-            .name();
+        let root_name = syntax.get_root_name();
         ContextContents {
             grammar: syntax,
             position: Position::new(&root_name, None),
