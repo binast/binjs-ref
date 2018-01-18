@@ -7,15 +7,14 @@ pub struct Importer {
     builder: SyntaxBuilder,
 }
 impl Importer {
-    pub fn new() -> Self {
-        Importer {
+    pub fn import(ast: &AST) -> SyntaxBuilder {
+        let mut importer = Importer {
             builder: SyntaxBuilder::new()
-        }
+        };
+        importer.import_ast(ast);
+        importer.builder
     }
-    pub fn builder(&self) -> &SyntaxBuilder {
-        &self.builder
-    }
-    pub fn import_ast(&mut self, ast: &AST) {
+    fn import_ast(&mut self, ast: &AST) {
         for definition in ast {
             self.import_definition(&definition)
         }

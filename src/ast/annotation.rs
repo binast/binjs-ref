@@ -586,7 +586,9 @@ pub trait Annotator {
     /// At the end of this pass:
     /// - LexicallyDeclaredNames is correct;
     /// - VarDeclaredNames is correct;
-    fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError>;
+    fn process_declarations(&self, _me: &Annotator, _ctx: &mut Context<DeclContents>, _object: &mut Object) -> Result<(), ASTError> {
+        unimplemented!()
+    }
     fn process_declarations_aux(&self, me: &Annotator, ctx: &mut Context<DeclContents>, tree: &mut JSON) -> Result<(), ASTError> {
         // Only process object nodes.
         match *tree {
@@ -631,7 +633,9 @@ pub trait Annotator {
     /// - VarDeclaredNames is correct;
     /// - CapturedNames is correct;
     /// - HasDirectEval is correct;
-    fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError>;
+    fn process_references(&self, _me: &Annotator, _ctx: &mut Context<RefContents>, _object: &mut Object) -> Result<(), ASTError> {
+        unimplemented!()
+    }
     fn process_references_aux(&self, me: &Annotator, ctx: &mut Context<RefContents>, tree: &mut JSON) -> Result<(), ASTError> {
         // Only process object nodes and array.
         match *tree {

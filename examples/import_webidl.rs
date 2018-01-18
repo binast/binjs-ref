@@ -3,6 +3,8 @@ extern crate clap;
 extern crate env_logger;
 extern crate webidl;
 
+use binjs::ast::annotation::Annotator;
+use binjs::ast::grammar::SyntaxOptions;
 use binjs::ast::webidl::Importer;
 
 use std::fs::*;
@@ -41,10 +43,21 @@ fn main() {
         .expect("Could not parse source");
 
     println!("...importing");
-    let mut importer = Importer::new();
-    importer.import_ast(&ast);
+    let mut builder = Importer::import(&ast);
+    let fake_root = builder.node_name("");
+    struct FakeAnnotator;
+    impl Annotator for FakeAnnotator {
+        fn name(&self) -> String {
+            "FakeAnnotator".to_string()
+        }
+    }
+    let fake_annotator = Box::new(FakeAnnotator);
+    let syntax = builder.into_syntax(SyntaxOptions {
+            root: &fake_root,
+            annotator: fake_annotator
+        });
 
     println!("...exporting");
-    let source = importer.builder().into_rust_source();
+    let source = syntax.to_rust_source();
     println!("{}", source);
 }

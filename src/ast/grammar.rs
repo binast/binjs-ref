@@ -9,7 +9,7 @@
 //! the mechanism to define and evolve this AST, without incurring breaking changes in BinJS.
 
 use ast;
-use util::{ pick, to_snake_case, type_of };
+use util::{ pick, type_of };
 
 use json;
 use json::JsonValue as JSON;
@@ -246,36 +246,6 @@ impl TypeSpec {
                 spec: self,
                 defaults_to: None,
             },
-        }
-    }
-
-    pub fn to_rust_source(&self) -> String {
-        match *self {
-            TypeSpec::Array { ref contents, supports_empty: false } => {
-                format!("{}.non_empty_array()", contents.to_rust_source())
-            }
-            TypeSpec::Array { ref contents, supports_empty: true } => {
-                format!("{}.array()", contents.to_rust_source())
-            }
-            TypeSpec::Boolean => "Type::bool()".to_string(),
-            TypeSpec::String => "Type::string()".to_string(),
-            TypeSpec::Number => "Type::number()".to_string(),
-            TypeSpec::NamedType(ref name) => format!("Type::named(&{})", to_snake_case(name.to_str())),
-            TypeSpec::TypeSum(ref types) => {
-                let mut source = String::new();
-                let mut first = true;
-                for type_ in types {
-                    if first {
-                        first = false;
-                    } else {
-                        source.push_str(",");
-                    }
-                    source.push_str("\n\t");
-                    source.push_str(&type_.to_rust_source())
-                }
-                format!("Type::sum(&[{}\n])", source)
-            }
-            TypeSpec::Void => "void".to_string()
         }
     }
 
@@ -540,18 +510,6 @@ impl Type {
             }
         }
         self.spec.random(syntax, rng, depth_limit)
-    }
-
-    pub fn to_rust_source(&self) -> String {
-        let pretty_type = self.spec.to_rust_source();
-        match self.defaults_to {
-            None => format!("{}.close()", pretty_type),
-            Some(JSON::Null) => {
-                format!("{}.defaults_to(JSON::Null)",
-                    pretty_type)
-            }
-            _ => unimplemented!()
-        }
     }
 
     pub fn pretty(&self, prefix: &str, indent: &str) -> String {
@@ -870,6 +828,74 @@ impl SyntaxBuilder {
                 }
                 panic!("No definition for type {}", name.to_str());
             }
+
+            // 5. Classify typedefs between
+            // - stuff that can only be put in a sum of interfaces (interfaces, sums of interfaces, typedefs thereof);
+            // - stuff that can never be put in a sum of interfaces (other stuff)
+            // - bad stuff that attempts to mix both
+            #[derive(Clone, Copy)]
+            enum TypeClassification {
+                SumOfInterfaces,
+                BadForSumOfInterfaces,
+            }
+            let mut classification : HashMap<NodeName, Option<TypeClassification>> = HashMap::new();
+            fn classify_type(typedefs_by_name: &HashMap<NodeName, Rc<Type>>,
+                string_enums_by_name: &HashMap<NodeName, Rc<StringEnum>>,
+                interfaces_by_name: &HashMap<NodeName, Rc<Interface>>,
+                cache: &mut HashMap<NodeName, Option<TypeClassification>>, type_: &TypeSpec, name: &NodeName) -> TypeClassification {
+                match *type_ {
+                    TypeSpec::Array { ref contents, .. } => {
+                        // Check that the contents are correct.
+                        let _ = classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, contents.spec(), name);
+                        // Regardless, the result is bad for a sum of interfaces.
+                        TypeClassification::BadForSumOfInterfaces
+                    },
+                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => TypeClassification::BadForSumOfInterfaces,
+                    TypeSpec::NamedType(ref name) => {
+                        if let Some(fetch) = cache.get(name) {
+                            if let Some(ref result) = *fetch {
+                                return *result;
+                            } else {
+                                panic!("Cycle detected while examining {}", name.to_str());
+                            }
+                        }
+                        // Start lookup for this name.
+                        cache.insert(name.clone(), None);
+                        let result = if interfaces_by_name.contains_key(name) {
+                            TypeClassification::SumOfInterfaces
+                        } else if string_enums_by_name.contains_key(name) {
+                            TypeClassification::BadForSumOfInterfaces
+                        } else {
+                            let type_ = typedefs_by_name.get(name)
+                                .unwrap(); // Completeness checked abover in this method.
+                            classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_.spec(), name)
+                        };
+                        cache.insert(name.clone(), Some(result));
+                        result
+                    }
+                    TypeSpec::TypeSum(ref sum) => {
+                        for type_ in sum {
+                            if let TypeClassification::BadForSumOfInterfaces = classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_, name) {
+                                panic!("In type {}, there is a non-interface type in a sum");
+                            }
+                        }
+                        TypeClassification::SumOfInterfaces
+                    }
+                }
+            }
+            for (name, type_) in &typedefs_by_name {
+                classification.insert(name.clone(), None);
+                let class = classify_type(&typedefs_by_name, &string_enums_by_name, &interfaces_by_name, &mut classification, type_.spec(), name);
+                classification.insert(name.clone(), Some(class));
+            }
+
+            // 6. Using this classification, check that the attributes of interfaces don't mix
+            // poorly items of both kinds.
+            for (name, interface) in &interfaces_by_name {
+                for field in interface.declaration.contents.fields() {
+                    classify_type(&typedefs_by_name, &string_enums_by_name, &interfaces_by_name, &mut classification, field.type_().spec(), name);
+                }
+            }
         }
 
         let syntax = Syntax {
@@ -882,155 +908,7 @@ impl SyntaxBuilder {
             annotator: options.annotator,
         };
 
-        // 5. Classify typedefs between
-        // - stuff that can only be put in a sum of interfaces (interfaces, sums of interfaces, typedefs thereof);
-        // - stuff that can never be put in a sum of interfaces (other stuff)
-        // - bad stuff that attempts to mix both
-        #[derive(Clone, Copy)]
-        enum TypeClassification {
-            SumOfInterfaces,
-            BadForSumOfInterfaces,
-        }
-        let mut classification : HashMap<NodeName, Option<TypeClassification>> = HashMap::new();
-        fn classify_type(syntax: &Syntax, cache: &mut HashMap<NodeName, Option<TypeClassification>>, type_: &TypeSpec, name: &NodeName) -> TypeClassification {
-            match *type_ {
-                TypeSpec::Array { ref contents, .. } => {
-                    // Check that the contents are correct.
-                    let _ = classify_type(syntax, cache, contents.spec(), name);
-                    // Regardless, the result is bad for a sum of interfaces.
-                    TypeClassification::BadForSumOfInterfaces
-                },
-                TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => TypeClassification::BadForSumOfInterfaces,
-                TypeSpec::NamedType(ref name) => {
-                    if let Some(fetch) = cache.get(name) {
-                        if let Some(ref result) = *fetch {
-                            return *result;
-                        } else {
-                            panic!("Cycle detected while examining {}", name.to_str());
-                        }
-                    }
-                    let named_type = syntax.get_type_by_name(name)
-                        .unwrap(); // Completeness checked above in this method.alloc
-                    cache.insert(name.clone(), None);
-                    let result = match named_type {
-                        NamedType::Interface(_) => TypeClassification::SumOfInterfaces,
-                        NamedType::StringEnum(_) => TypeClassification::BadForSumOfInterfaces,
-                        NamedType::Typedef(ref type_) => classify_type(syntax, cache, type_.spec(), name)
-                    };
-                    cache.insert(name.clone(), Some(result));
-                    result
-                }
-                TypeSpec::TypeSum(ref sum) => {
-                    for type_ in sum {
-                        if let TypeClassification::BadForSumOfInterfaces = classify_type(syntax, cache, type_, name) {
-                            panic!("In type {}, there is a non-interface type in a sum");
-                        }
-                    }
-                    TypeClassification::SumOfInterfaces
-                }
-            }
-        }
-        for (name, type_) in &syntax.typedefs_by_name {
-            classification.insert(name.clone(), None);
-            let class = classify_type(&syntax, &mut classification, type_.spec(), name);
-            classification.insert(name.clone(), Some(class));
-        }
-
-        // 6. Using this classification, check that the attributes of interfaces don't mix
-        // poorly items of both kinds.
-        for (name, interface) in &syntax.interfaces_by_name {
-            for field in interface.declaration.contents.fields() {
-                classify_type(&syntax, &mut classification, field.type_().spec(), name);
-            }
-        }
-
         syntax
-    }
-
-    pub fn into_rust_source(&self) -> String {
-        let mut buffer = String::new();
-
-        fn print_names<'a, T>(buffer: &mut String, source: T) where T: Iterator<Item = &'a NodeName> {
-            use inflector;
-            let mut names : Vec<_> = source.map(|x| x.to_string())
-                .collect();
-            names.sort();
-            for name in names {
-                let source = format!("let {snake} = syntax.node_name(\"{original}\"); // C name {cname}\n",
-                    snake = to_snake_case(name),
-                    original = name,
-                    cname = inflector::cases::camelcase::to_camel_case(name));
-                buffer.push_str(&source);
-            }
-        }
-        buffer.push_str("// String enum names (by lexicographical order)\n");
-        print_names(&mut buffer, self.string_enums_by_name.keys());
-
-        buffer.push_str("\n\n// Typedef names (by lexicographical order)\n");
-        print_names(&mut buffer, self.typedefs_by_name.keys());
-
-        buffer.push_str("\n\n// Interface names (by lexicographical order)\n");
-        print_names(&mut buffer, self.interfaces_by_name.keys());
-
-        buffer.push_str("\n\n\n// Field names (by lexicographical order)\n");
-        let mut fields = HashSet::new();
-        for interface in self.interfaces_by_name.values() {
-            for field in &interface.borrow().contents.fields {
-                fields.insert(field.name.to_string().clone());
-            }
-        }
-        let mut fields : Vec<_> = fields.drain().collect();
-        fields.sort();
-        for name in fields {
-            let source = format!("let field_{snake} = syntax.field_name(\"{original}\");\n",
-                snake = to_snake_case(&name),
-                original = name);
-            buffer.push_str(&source);
-        }
-
-        buffer.push_str("\n\n\n// Enumerations\n");
-        for (name, def) in &self.string_enums_by_name {
-            let mut strings = String::new();
-            let mut first = true;
-            for string in &def.borrow().values {
-                if first {
-                    first = false;
-                } else {
-                    strings.push_str(",\n\t");
-                }
-                strings.push_str("\"");
-                strings.push_str(&*string);
-                strings.push_str("\"");
-            }
-            let source = format!("syntax.add_string_enum(&{name}).unwrap()
-                .with_strings(&[
-                    {strings}
-                ]);\n\n",
-                name = to_snake_case(name.to_str()),
-                strings = strings);
-            buffer.push_str(&source);
-        }
-        for (name, def) in &self.typedefs_by_name {
-            let source = format!("syntax.add_typedef(&{name}).unwrap()
-                .with_type({spec});\n\n",
-                name = to_snake_case(name.to_str()),
-                spec = def.borrow().to_rust_source());
-            buffer.push_str(&source);
-        }
-        for (name, def) in &self.interfaces_by_name {
-            let mut fields = String::new();
-            for field in &def.borrow().contents.fields {
-                let source = format!("\n  .with_field(&field_{name}, {spec})",
-                    name = to_snake_case(field.name.to_str()),
-                    spec = field.type_.to_rust_source());
-                fields.push_str(&source);
-            }
-            let source = format!("syntax.add_interface(&{name}).unwrap(){fields};\n\n",
-                name = to_snake_case(name.to_str()),
-                fields = fields);
-            buffer.push_str(&source);
-        }
-        buffer
     }
 }
 
@@ -1140,6 +1018,15 @@ impl Syntax {
     pub fn get_interface_by_name(&self, name: &NodeName) -> Option<&Interface> {
         self.interfaces_by_name.get(name)
             .map(std::borrow::Borrow::borrow)
+    }
+    pub fn interfaces_by_name(&self) -> &HashMap<NodeName, Rc<Interface>> {
+        &self.interfaces_by_name
+    }
+    pub fn string_enums_by_name(&self) -> &HashMap<NodeName, Rc<StringEnum>> {
+        &self.string_enums_by_name
+    }
+    pub fn typedefs_by_name(&self) -> &HashMap<NodeName, Rc<Type>> {
+        &self.typedefs_by_name
     }
     pub fn get_type_by_name(&self, name: &NodeName) -> Option<NamedType> {
         if let Some(interface) = self.interfaces_by_name
