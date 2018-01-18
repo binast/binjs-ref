@@ -67,6 +67,39 @@ pub struct StringEnum {
     values: Vec<String>,
 }
 
+/// An enumeration of interfaces.
+#[derive(Clone, Debug, PartialEq, Eq)] // FIXME: Get rid of Eq
+pub struct TypeSum {
+    types: Vec<TypeSpec>,
+    /// Once we have called `into_syntax`, this is guaranteed to resolve
+    /// to at least one Interface.
+    interfaces: HashSet<NodeName>,
+}
+impl TypeSum {
+    pub fn new(types: Vec<TypeSpec>) -> Self {
+        TypeSum {
+            types,
+            interfaces: HashSet::new()
+        }
+    }
+    pub fn types(&self) -> &[TypeSpec] {
+        &self.types
+    }
+    pub fn types_mut(&mut self) -> &mut [TypeSpec] {
+        &mut self.types
+    }
+    pub fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>> {
+        debug!(target: "grammar", "get_interface, looking for {:?} in sum {:?}", name, self);
+        for item in &self.types {
+            let result = item.get_interface(grammar, name);
+            if result.is_some() {
+                return result
+            }
+        }
+        None
+    }
+}
+
 /// Representation of a field in an interface.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Field {
@@ -102,7 +135,7 @@ impl Field {
 }
 
 /// A type, typically that of a field.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeSpec {
     /// An array of values of the same type.
     Array {
@@ -115,7 +148,7 @@ pub enum TypeSpec {
 
     NamedType(NodeName),
 
-    TypeSum(Vec<TypeSpec>),
+    TypeSum(TypeSum),
 
     /// A boolean.
     Boolean,
@@ -131,25 +164,15 @@ pub enum TypeSpec {
 
 #[derive(Clone, Debug)]
 pub enum NamedType {
-    Typedef(Rc<Type>),
-    /// Invariant: The length is >= 1.
-    Interfaces(Vec<Rc<Interface>>),
+    Interface(Rc<Interface>),
+    Typedef(Rc<Type>), // FIXME: Check that there are no cycles.
     StringEnum(Rc<StringEnum>),
 }
 
 impl NamedType {
-/*
-    pub fn into_interface(self) -> Option<Rc<Interface>> {
-        if let NamedType::Interface(result) = self {
-            Some(result)
-        } else {
-            None
-        }
-    }
-*/
     pub fn as_interface(&self, syntax: &Syntax) -> Option<Rc<Interface>> {
         match *self {
-            NamedType::Interfaces(ref result) if result.len() >= 1 => Some(result[0].clone()),
+            NamedType::Interface(ref result) => Some(result.clone()),
             NamedType::Typedef(ref type_) => {
                 if let TypeSpec::NamedType(ref named) = *type_.spec() {
                     let named = syntax.get_type_by_name(named)
@@ -160,36 +183,15 @@ impl NamedType {
                 }
             }
             NamedType::StringEnum(_) => None,
-            NamedType::Interfaces(_) => None,
         }
     }
 
     fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
         match *self {
+            NamedType::Interface(ref interface) =>
+                return interface.compare(syntax, left, right),
             NamedType::Typedef(ref type_) =>
                 return type_.compare(syntax, left, right),
-            NamedType::Interfaces(ref sum) => {
-                // Compare types
-                if left["type"].as_str() != right["type"].as_str() {
-                    return Ok(false)
-                }
-                if let Some(kind) = left["type"].as_str() {
-                    for interface in sum {
-                        if interface.name().to_str() == kind {
-                            return interface.compare(syntax, left, right)
-                        }
-                    }
-                    return Err(ASTError::InvalidValue {
-                        expected: format!("{:?}", sum),
-                        got: left.dump()
-                    })                    
-                } else {
-                    return Err(ASTError::InvalidValue {
-                        expected: "object".to_string(),
-                        got: left.dump()
-                    })
-                }
-            }
             NamedType::StringEnum(_) if left.as_str().is_some() && right.as_str().is_some() => {
                 if left.as_str() == right.as_str() {
                     return Ok(true)
@@ -276,7 +278,7 @@ impl TypeSpec {
                 let mut result = String::new();
                 result.push('(');
                 let mut first = true;
-                for typ in types {
+                for typ in types.types() {
                     if first {
                         first = false;
                     } else {
@@ -309,10 +311,8 @@ impl TypeSpec {
             TypeSpec::NamedType(ref name) => {
                 use self::NamedType::*;
                 match syntax.get_type_by_name(name) {
-                    Some(Interfaces(interfaces)) => {
-                        let interface = pick(rng, &interfaces);
-                        interface.random(syntax, rng, depth_limit)
-                    }
+                    Some(Interface(interface)) =>
+                        interface.random(syntax, rng, depth_limit),
                     Some(Typedef(typedef)) =>
                         typedef.random(syntax, rng, depth_limit),
                     Some(StringEnum(string_enum)) => {
@@ -325,7 +325,7 @@ impl TypeSpec {
                 }
             }
             TypeSpec::TypeSum(ref types) => {
-                let type_ = pick(rng, &*types);
+                let type_ = pick(rng, types.types());
                 type_.random(syntax, rng, depth_limit)
             }
             TypeSpec::Boolean => {
@@ -367,12 +367,24 @@ impl TypeSpec {
                 }
             }
             (&TypeSpec::NamedType(ref name), _, _) => {
-                let named = syntax.get_type_by_name(name)
-                    .unwrap(); // Invariant of `syntax`.
-                 named.compare(syntax, left, right)
+                match syntax.get_type_by_name(name) {
+                    Some(NamedType::StringEnum(_)) if left.as_str().is_some() && right.as_str().is_some() =>
+                        return Ok(left.as_str().unwrap() == right.as_str().unwrap()),
+                    Some(NamedType::Interface(interface)) =>
+                        return interface.compare(syntax, left, right),
+                    Some(NamedType::Typedef(typedef)) =>
+                        return typedef.compare(syntax, left, right),
+                    None =>
+                        panic!("Could not find a type named {:?}", name),
+                    _ => {}
+                }
+                return Err(ASTError::InvalidValue {
+                    expected: format!("{:?}", self),
+                    got: format!("{:?} =?= {:?}", left, right)
+                })
             },
             (&TypeSpec::TypeSum(ref types), _, _) => {
-                for type_ in types {
+                for type_ in types.types() {
                     if let Ok(result) = type_.compare(syntax, left, right) {
                         return Ok(result)
                     }
@@ -401,7 +413,7 @@ impl TypeSpec {
                     stack.push(contents.spec());
                 }
                 TypeSpec::TypeSum(ref sum) => {
-                    for item in sum {
+                    for item in sum.types() {
                         stack.push(item)
                     }
                 }
@@ -430,25 +442,10 @@ pub struct Type {
     pub defaults_to: Option<JSON>,
 }
 impl Eq for Type {}
-impl Hash for Type {
-    fn hash<H>(&self, state: &mut H) where H: Hasher {
-        self.spec.hash(state)
-    }
-}
 
 impl Type {
     pub fn with_default(&mut self, default: JSON) -> &mut Self {
         self.defaults_to = Some(default);
-        self
-    }
-
-    pub fn with_named_sum(&mut self, names: &[&NodeName]) -> &mut Self {
-        let sum = names.iter()
-            .cloned()
-            .cloned()
-            .map(|name| TypeSpec::NamedType(name))
-            .collect();
-        self.spec = TypeSpec::TypeSum(sum);
         self
     }
 
@@ -466,6 +463,9 @@ impl Type {
     pub fn spec(&self) -> &TypeSpec {
         &self.spec
     }
+    pub fn spec_mut(&mut self) -> &mut TypeSpec {
+        &mut self.spec
+    }
     pub fn default(&self) -> Option<&JSON> {
         self.defaults_to.as_ref()
     }
@@ -475,7 +475,10 @@ impl Type {
         TypeSpec::NamedType(name.clone())
     }
     pub fn sum(types: &[TypeSpec]) -> TypeSpec {
-        TypeSpec::TypeSum(types.iter().cloned().collect())
+        let specs = types.iter()
+            .cloned()
+            .collect();
+        TypeSpec::TypeSum(TypeSum::new(specs))
     }
     pub fn string() -> TypeSpec {
         TypeSpec::String
@@ -784,6 +787,8 @@ impl SyntaxBuilder {
                 fields.insert(field.name.to_string().clone(), field.name.clone());
             }
         }
+
+        let mut resolved_type_sums_by_name = HashMap::new();
         {
             // 3. Check that node names are not duplicated.
             for name in node_names.values() {
@@ -828,32 +833,45 @@ impl SyntaxBuilder {
                 panic!("No definition for type {}", name.to_str());
             }
 
+            #[derive(Clone, Debug)]
+            enum TypeClassification {
+                SumOfInterfaces(HashSet<NodeName>),
+                BadForSumOfInterfaces,
+            }
+
             // 5. Classify typedefs between
             // - stuff that can only be put in a sum of interfaces (interfaces, sums of interfaces, typedefs thereof);
             // - stuff that can never be put in a sum of interfaces (other stuff)
             // - bad stuff that attempts to mix both
-            #[derive(Clone, Copy)]
-            enum TypeClassification {
-                SumOfInterfaces,
-                BadForSumOfInterfaces,
-            }
+
+            // name => unbound if we haven't seen the name yet
+            //      => `None` if we are currently classifying (used to detect cycles),
+            //      => `Some(SumOfInterfaces(set))` if the name describes a sum of interfaces
+            //      => `Some(BadForSumOfInterfaces)` if the name describes something that can't be summed with an interface
             let mut classification : HashMap<NodeName, Option<TypeClassification>> = HashMap::new();
             fn classify_type(typedefs_by_name: &HashMap<NodeName, Rc<Type>>,
                 string_enums_by_name: &HashMap<NodeName, Rc<StringEnum>>,
                 interfaces_by_name: &HashMap<NodeName, Rc<Interface>>,
-                cache: &mut HashMap<NodeName, Option<TypeClassification>>, type_: &TypeSpec, name: &NodeName) -> TypeClassification {
+                cache: &mut HashMap<NodeName, Option<TypeClassification>>, type_: &TypeSpec, name: &NodeName) -> TypeClassification
+            {
+                debug!(target: "grammar", "classify_type for {:?}: walking {:?}", name, type_);
                 match *type_ {
                     TypeSpec::Array { ref contents, .. } => {
                         // Check that the contents are correct.
                         let _ = classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, contents.spec(), name);
                         // Regardless, the result is bad for a sum of interfaces.
+                        debug!(target: "grammar", "classify_type => don't put me in an interface");
                         TypeClassification::BadForSumOfInterfaces
                     },
-                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => TypeClassification::BadForSumOfInterfaces,
+                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => {
+                        debug!(target: "grammar", "classify_type => don't put me in an interface");
+                        TypeClassification::BadForSumOfInterfaces
+                    }
                     TypeSpec::NamedType(ref name) => {
                         if let Some(fetch) = cache.get(name) {
                             if let Some(ref result) = *fetch {
-                                return *result;
+                                debug!(target: "grammar", "classify_type {:?} => (cached) {:?}", name, result);
+                                return result.clone();
                             } else {
                                 panic!("Cycle detected while examining {}", name.to_str());
                             }
@@ -861,7 +879,9 @@ impl SyntaxBuilder {
                         // Start lookup for this name.
                         cache.insert(name.clone(), None);
                         let result = if interfaces_by_name.contains_key(name) {
-                            TypeClassification::SumOfInterfaces
+                            let mut names = HashSet::new();
+                            names.insert(name.clone());
+                            TypeClassification::SumOfInterfaces(names)
                         } else if string_enums_by_name.contains_key(name) {
                             TypeClassification::BadForSumOfInterfaces
                         } else {
@@ -869,16 +889,23 @@ impl SyntaxBuilder {
                                 .unwrap(); // Completeness checked abover in this method.
                             classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_.spec(), name)
                         };
-                        cache.insert(name.clone(), Some(result));
+                        debug!(target: "grammar", "classify_type {:?} => (inserting in cache) {:?}", name, result);
+                        cache.insert(name.clone(), Some(result.clone()));
                         result
                     }
                     TypeSpec::TypeSum(ref sum) => {
-                        for type_ in sum {
-                            if let TypeClassification::BadForSumOfInterfaces = classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_, name) {
-                                panic!("In type {}, there is a non-interface type in a sum");
+                        let mut names = HashSet::new();
+                        for type_ in sum.types() {
+                            match classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_, name) {
+                                TypeClassification::BadForSumOfInterfaces =>
+                                    panic!("In type {}, there is a non-interface type in a sum"),
+                                TypeClassification::SumOfInterfaces(sum) => {
+                                    names.extend(sum);
+                                }
                             }
                         }
-                        TypeClassification::SumOfInterfaces
+                        debug!(target: "grammar", "classify_type => built sum {:?}", names);
+                        TypeClassification::SumOfInterfaces(names)
                     }
                 }
             }
@@ -895,14 +922,25 @@ impl SyntaxBuilder {
                     classify_type(&typedefs_by_name, &string_enums_by_name, &interfaces_by_name, &mut classification, field.type_().spec(), name);
                 }
             }
+
+            // 7. Fill resolved_type_sums_by_name, for later use.
+            for (name, class) in classification.drain() {
+                if !typedefs_by_name.contains_key(&name) {
+                    continue;
+                }
+                if let Some(TypeClassification::SumOfInterfaces(sum)) = class {
+                    resolved_type_sums_by_name.insert(name, sum);
+                }
+            }
         }
 
         let syntax = Syntax {
-            interfaces_by_name: interfaces_by_name,
-            string_enums_by_name: string_enums_by_name,
-            typedefs_by_name: typedefs_by_name,
-            node_names: node_names,
-            fields: fields,
+            interfaces_by_name,
+            string_enums_by_name,
+            typedefs_by_name,
+            resolved_type_sums_by_name,
+            node_names,
+            fields,
             root: options.root.clone(),
             annotator: options.annotator,
         };
@@ -1007,6 +1045,7 @@ pub struct Syntax {
     interfaces_by_name: HashMap<NodeName, Rc<Interface>>,
     string_enums_by_name: HashMap<NodeName, Rc<StringEnum>>,
     typedefs_by_name: HashMap<NodeName, Rc<Type>>,
+    resolved_type_sums_by_name: HashMap<NodeName, HashSet<NodeName>>,
     node_names: HashMap<String, NodeName>,
     fields: HashMap<String, FieldName>,
     root: NodeName,
@@ -1027,10 +1066,13 @@ impl Syntax {
     pub fn typedefs_by_name(&self) -> &HashMap<NodeName, Rc<Type>> {
         &self.typedefs_by_name
     }
+    pub fn get_sums_of_interfaces(&self) -> impl Iterator<Item = (&NodeName, &HashSet<NodeName>)> {
+        self.resolved_type_sums_by_name.iter()
+    }
     pub fn get_type_by_name(&self, name: &NodeName) -> Option<NamedType> {
         if let Some(interface) = self.interfaces_by_name
             .get(name) {
-            return Some(NamedType::Interfaces(vec![interface.clone()]))
+            return Some(NamedType::Interface(interface.clone()))
         }
         if let Some(strings_enum) = self.string_enums_by_name
             .get(name) {
@@ -1191,11 +1233,11 @@ macro_rules! make_ast_visitor {
                 // Do nothing
                 Ok(())
             }
-            fn enter_interfaces(&mut self, _value: & $($mutability)* JSON, interfaces: &[Rc<Interface>], _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_interfaces(&mut self, _value: & $($mutability)* JSON, interfaces: &[Rc<Interface>], _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
@@ -1222,7 +1264,7 @@ macro_rules! make_ast_visitor {
             pub fn walk_named_type(&mut self, value: & $($mutability)* JSON, named: &NamedType, name: &NodeName) -> Result<(), ASTError> {
                 match *named {
                     NamedType::StringEnum(ref enum_) => self.walk_string_enum(value, enum_, name),
-                    NamedType::Interfaces(ref interfaces) => self.walk_interfaces(value, interfaces, name),
+                    NamedType::Interface(ref interface_) => self.walk_interface(value, interface_, name),
                     NamedType::Typedef(ref typedef_) => self.walk_type(value, typedef_, name),
                 }
             }
@@ -1375,20 +1417,6 @@ make_ast_visitor!(MutASTVisitor, MutASTWalker, mut);
 pub trait HasInterfaces {
     fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>>;
 }
-
-impl HasInterfaces for Vec<TypeSpec> {
-    fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>> {
-        debug!(target: "grammar", "get_interface, looking for {:?} in sum {:?}", name, self);
-        for item in self {
-            let result = item.get_interface(grammar, name);
-            if result.is_some() {
-                return result
-            }
-        }
-        None
-    }
-}
-
 
 impl HasInterfaces for NamedType {
     fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>> {
