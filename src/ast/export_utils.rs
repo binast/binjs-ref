@@ -22,7 +22,7 @@ impl TypeSpec {
             TypeSpec::TypeSum(ref types) => {
                 let mut source = String::new();
                 let mut first = true;
-                for type_ in types {
+                for type_ in types.types() {
                     if first {
                         first = false;
                     } else {
@@ -74,6 +74,31 @@ impl Syntax {
 
         buffer.push_str("\n\n// Typedef names (by lexicographical order)\n");
         print_names(&mut buffer, self.typedefs_by_name().keys());
+
+        buffer.push_str("\n\n// Resolving sums of interfaces (by lexicographical order)\n");
+        let mut sums_of_interfaces : Vec<_> = self.get_sums_of_interfaces()
+            .collect();
+        sums_of_interfaces.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
+
+        for (name, nodes) in sums_of_interfaces.drain(..) {
+            let mut nodes : Vec<_> = nodes.iter()
+                .collect();
+            nodes.sort_by(|a, b| str::cmp(a.to_str(), b.to_str()));
+            buffer.push_str("/*\n ");
+            buffer.push_str(name.to_str());
+            buffer.push_str(" ::= ");
+            let mut first = true;
+            for node in nodes {
+                if first {
+                    first = false;
+                } else {
+                    buffer.push_str("     ");
+                }
+                buffer.push_str(node.to_str());
+                buffer.push_str("\n");
+            }
+            buffer.push_str("*/\n");
+        }
 
         buffer.push_str("\n\n// Interface names (by lexicographical order)\n");
         print_names(&mut buffer, self.interfaces_by_name().keys());

@@ -195,7 +195,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     .ok_or_else(|| Error::NoSuchInterface(interface_name.to_string().clone()))?;
 
                 // 2. Check that the interface somehow belongs in `sum`
-                if sum.iter()
+                if sum.types().iter()
                     .find(|type_| {
                         type_.get_interface(self.grammar, interface_node_name)
                             .is_some()

@@ -1,4 +1,4 @@
-use ast::grammar::{ self, SyntaxBuilder };
+use ast::grammar::{ self, SyntaxBuilder, TypeSum };
 
 use json::JsonValue as JSON;
 use webidl::ast::*;
@@ -85,7 +85,7 @@ impl Importer {
                 for typ in types {
                     dest.push(self.convert_type(&*typ).spec)
                 }
-                grammar::TypeSpec::TypeSum(dest)
+                grammar::TypeSpec::TypeSum(TypeSum::new(dest))
             }
             TypeKind::FrozenArray(ref type_) => {
                 grammar::TypeSpec::Array {
