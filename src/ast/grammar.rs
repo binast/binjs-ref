@@ -11,6 +11,7 @@
 use ast;
 use util::{ pick, type_of };
 
+use itertools::Itertools;
 use json;
 use json::JsonValue as JSON;
 use rand;
@@ -18,12 +19,12 @@ use rand;
 use std;
 use std::cell::*;
 use std::collections::{ HashMap, HashSet };
-use std::fmt::Debug;
+use std::fmt::{ Debug, Display };
 use std::hash::*;
 use std::rc::*;
 
 /// The name of an interface or enum.
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NodeName(Rc<String>);
 impl NodeName {
     pub fn to_string(&self) -> &String {
@@ -35,7 +36,12 @@ impl NodeName {
 }
 impl Debug for NodeName {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.to_str().fmt(formatter)
+        Debug::fmt(self.to_str(), formatter)
+    }
+}
+impl Display for NodeName {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Display::fmt(self.to_str(), formatter)
     }
 }
 
@@ -53,7 +59,7 @@ impl FieldName {
 }
 impl Debug for FieldName {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.to_str().fmt(formatter)
+        Debug::fmt(self.to_str(), formatter)
     }
 }
 
@@ -87,6 +93,9 @@ impl TypeSum {
     }
     pub fn types_mut(&mut self) -> &mut [TypeSpec] {
         &mut self.types
+    }
+    pub fn interfaces(&self) -> &HashSet<NodeName> {
+        &self.interfaces
     }
     pub fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>> {
         debug!(target: "grammar", "get_interface, looking for {:?} in sum {:?}", name, self);
@@ -398,6 +407,47 @@ impl TypeSpec {
         }
         result.into_iter()
     }
+    pub fn get_primitive(&self, syntax: &Syntax) -> Option<IsNullable<Primitive>> {
+        match *self {
+            TypeSpec::Boolean => Some(IsNullable::non_nullable(Primitive::Boolean)),
+            TypeSpec::Void => Some(IsNullable::non_nullable(Primitive::Void)),
+            TypeSpec::Number => Some(IsNullable::non_nullable(Primitive::Number)),
+            TypeSpec::String => Some(IsNullable::non_nullable(Primitive::String)),
+            TypeSpec::NamedType(ref name) => {
+                match syntax.get_type_by_name(name).unwrap() {
+                    NamedType::Interface(ref interface) =>
+                        Some(IsNullable::non_nullable(Primitive::Interface(interface.clone()))),
+                    NamedType::Typedef(ref type_) =>
+                        type_.get_primitive(syntax),
+                    NamedType::StringEnum(_) => None
+                }
+            }
+            _ => None
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct IsNullable<T> {
+    pub is_nullable: bool,
+    pub content: T,
+}
+impl<T> IsNullable<T> {
+    fn non_nullable(value: T) -> Self {
+        IsNullable {
+            is_nullable: false,
+            content: value
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Primitive {
+    String,
+    Boolean,
+    Void,
+    Number,
+    Interface(Rc<Interface>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -413,6 +463,10 @@ impl Eq for Type {}
 impl Type {
     pub fn with_default(&mut self, default: JSON) -> &mut Self {
         self.defaults_to = Some(default);
+        self
+    }
+    pub fn no_default(&mut self) -> &mut Self {
+        self.defaults_to = None;
         self
     }
 
@@ -490,6 +544,15 @@ impl Type {
             return Ok(true)
         }
         self.spec.compare(syntax, left, right)
+    }
+
+    pub fn get_primitive(&self, syntax: &Syntax) -> Option<IsNullable<Primitive>> {
+        if let Some(mut primitive) = self.spec.get_primitive(syntax) {
+            primitive.is_nullable = primitive.is_nullable || self.defaults_to.is_some();
+            Some(primitive)
+        } else {
+            None
+        }
     }
 }
 
@@ -618,6 +681,122 @@ impl InterfaceDeclaration {
     }
 }
 
+struct TypeDeanonymizer {
+    types_by_name: HashMap<String, Rc<Type>>,
+
+    /// Store dependency parseFooOption => parseFoo
+    option_types_by_name: HashMap</* Option type*/ String, String>,
+
+    /// Store dependency parseFooList => parseFoo
+    list_types_by_name: HashMap</* List type */ String, (/* supports_empty */ bool, String)>,
+
+    /// Cache node names
+    nodenames_by_name: HashMap<String, NodeName>,
+}
+impl TypeDeanonymizer {
+    fn new<'a>(builder: &mut SyntaxBuilder) -> Self {
+        let mut result = TypeDeanonymizer {
+            types_by_name: HashMap::new(),
+            option_types_by_name: HashMap::new(),
+            list_types_by_name: HashMap::new(),
+            nodenames_by_name: HashMap::new(),
+        };
+        for declaration in builder.interfaces_by_name.values() {
+            for field in declaration.borrow().contents.fields() {
+                result.add_type_names(field.type_(), None);
+            }
+        }
+        for (name, definition) in &builder.typedefs_by_name {
+            result.add_type_names(&definition.borrow(), Some(name.to_string().clone()));
+        }
+        for name in result.types_by_name.keys() {
+            let node_name = builder.node_name(name);
+            result.nodenames_by_name
+                .insert(name.clone(), node_name);
+        }
+        result
+    }
+    fn add_type_names(&mut self, type_: &Type, public_name: Option<String>) -> String {
+        if let Some(_) = type_.defaults_to {
+            // Rewrite the typename to Foo|Null.
+/*
+            // FIXME: This won't work for string?, bool?, foo[]?, ...
+            let or_null = Type::sum(&[
+                type_.spec().clone(),
+                Type::named(&self.null_name)
+            ]);
+            self.add_typespec_names(&or_null, public_name)
+*/
+            let spec_name = self.add_typespec_names(&type_.spec, None);
+            let mut result = "Optional".to_string();
+            result.push_str(&spec_name);
+            match public_name {
+                None => {
+                    self.types_by_name.insert(result.clone(), Rc::new(type_.clone()));
+                    self.option_types_by_name.insert(result.clone(), spec_name);
+                }
+                Some(ref name) => {
+                    // Don't duplicate this type in `types_by_name`, it's already in `typedefs_by_name`.
+                    // Also, reuse the existing name.
+                    self.option_types_by_name.insert(name.clone(), spec_name);
+                }
+            }
+            result
+        } else {
+            let spec_name = self.add_typespec_names(&type_.spec, public_name);
+            spec_name
+        }
+    }
+    fn add_typespec_names(&mut self, spec: &TypeSpec, public_name: Option<String>) -> String {
+        let name = match *spec {
+            TypeSpec::Boolean => "rawBoolean".to_string(),
+            TypeSpec::Number  => "rawNumber".to_string(),
+            TypeSpec::String  => "rawString".to_string(),
+            TypeSpec::Void    => "rawVoid".to_string(),
+            TypeSpec::NamedType(ref name) => name.to_string().clone(),
+            TypeSpec::Array {
+                ref contents,
+                ref supports_empty
+            } => {
+                let contents_name = self.add_type_names(contents, None);
+                let mut name;
+                if *supports_empty {
+                    name = "ListOf".to_string();
+                } else {
+                    name = "NonEmptyListOf".to_string();
+                }
+                name.push_str(&contents_name);
+                match public_name {
+                    None => {
+                        self.types_by_name.insert(name.clone(), Rc::new(spec.clone().close()));
+                        self.list_types_by_name.insert(name.clone(), (*supports_empty, contents_name));
+                    }
+                    Some(ref name) => {
+                        // Don't duplicate this type in `types_by_name`, it's already in `typedefs_by_name`.
+                        // Also, reuse the existing name.
+                        self.list_types_by_name.insert(name.clone(), (*supports_empty, contents_name));
+                    }
+                }
+                name
+            }
+            TypeSpec::TypeSum(ref sum) => {
+                let mut names = vec![];
+                for type_ in sum.types() {
+                    names.push(self.add_typespec_names(type_, None));
+                }
+                let name = format!("{}", names.drain(..).format("Or"));
+                if public_name.is_none() {
+                    self.types_by_name.insert(name.clone(), Rc::new(spec.clone().close()));
+                } else {
+                    // Sums are handled much later, when they are fully resolved.
+                }
+                name
+            }
+        };
+        name
+    }
+}
+
 /// A data structure used to progressively construct the `Syntax`.
 pub struct SyntaxBuilder {
     /// All the interfaces entered so far.
@@ -704,8 +883,11 @@ impl SyntaxBuilder {
     }
 
     /// Generate the graph.
-    pub fn into_syntax<'a>(self, options: SyntaxOptions<'a>) -> Syntax {
-        // 1. Collect all node names.
+    pub fn into_syntax<'a>(mut self, options: SyntaxOptions<'a>) -> Syntax {
+        // 0. Generate node names for anonymous types.
+        let deanonymizer = TypeDeanonymizer::new(&mut self);
+
+        // 1. Collect node names.
         let mut interfaces_by_name = self.interfaces_by_name;
         let interfaces_by_name : HashMap<_, _> = interfaces_by_name.drain()
             .map(|(k, v)| (k, Rc::new(Interface {
@@ -717,9 +899,16 @@ impl SyntaxBuilder {
             .map(|(k, v)| (k, Rc::new(RefCell::into_inner(v))))
             .collect();
         let mut typedefs_by_name = self.typedefs_by_name;
-        let typedefs_by_name : HashMap<_, _> = typedefs_by_name.drain()
+        let mut typedefs_by_name : HashMap<_, _> = typedefs_by_name.drain()
             .map(|(k, v)| (k, Rc::new(RefCell::into_inner(v))))
             .collect();
+        for (name, definition) in &deanonymizer.types_by_name {
+            let node_name = deanonymizer.nodenames_by_name.get(name)
+                .unwrap()  // We just inserted them above.
+                .clone();
+            typedefs_by_name.insert(node_name, definition.clone());
+        }
+        let typedefs_by_name = typedefs_by_name; // Drop `mut`.
 
         let mut node_names = HashMap::new();
         for name in interfaces_by_name.keys().chain(string_enums_by_name.keys()).chain(typedefs_by_name.keys()) {
@@ -734,7 +923,7 @@ impl SyntaxBuilder {
             }
         }
 
-        let mut resolved_type_sums_by_name = HashMap::new();
+        let mut resolved_type_sums_by_name : HashMap<NodeName, HashSet<NodeName>> = HashMap::new();
         {
             // 3. Check that node names are not duplicated.
             for name in node_names.values() {
@@ -844,7 +1033,7 @@ impl SyntaxBuilder {
                         for type_ in sum.types() {
                             match classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_, name) {
                                 TypeClassification::BadForSumOfInterfaces =>
-                                    panic!("In type {}, there is a non-interface type in a sum"),
+                                    panic!("In type {}, there is a non-interface type {:?} in a sum", name.to_str(), type_),
                                 TypeClassification::SumOfInterfaces(sum) => {
                                     names.extend(sum);
                                 }
@@ -858,7 +1047,12 @@ impl SyntaxBuilder {
             for (name, type_) in &typedefs_by_name {
                 classification.insert(name.clone(), None);
                 let class = classify_type(&typedefs_by_name, &string_enums_by_name, &interfaces_by_name, &mut classification, type_.spec(), name);
-                classification.insert(name.clone(), Some(class));
+                if type_.default().is_none() {
+                    classification.insert(name.clone(), Some(class));
+                } else {
+                    // FIXME: That looks weird.
+                    classification.insert(name.clone(), Some(TypeClassification::BadForSumOfInterfaces));
+                }
             }
 
             // 6. Using this classification, check that the attributes of interfaces don't mix
@@ -880,14 +1074,40 @@ impl SyntaxBuilder {
             }
         }
 
+        // 8. Build options_by_name, lists_by_name
+        let options_by_name = deanonymizer.option_types_by_name.iter()
+            .map(|(k, v)| {
+                (node_names.get(k)
+                    .expect("Could not get option parser outer NodeName")
+                    .clone(),
+                 node_names.get(v)
+                    .expect("Coult not get option parser inner NodeName")
+                    .clone()
+            )})
+            .collect();
+        let lists_by_name = deanonymizer.list_types_by_name.iter()
+            .map(|(k, &(ref supports_empty, ref inner_name))| {
+                (node_names.get(k)
+                    .expect("Could not get list parser outer NodeName")
+                    .clone(),
+                 (*supports_empty, node_names.get(inner_name)
+                    .expect("Coult not get list parser inner NodeName")
+                    .clone())
+            )})
+            .collect();
+
+
         let syntax = Syntax {
             interfaces_by_name,
             string_enums_by_name,
             typedefs_by_name,
+            options_by_name,
+            lists_by_name,
             resolved_type_sums_by_name,
             node_names,
             fields,
             root: options.root.clone(),
+            null: options.null.clone(),
             annotator: options.annotator,
         };
 
@@ -961,15 +1181,46 @@ impl Interface {
     }
 }
 
+/*
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub enum Name {
+    Generated(String),
+    Public(NodeName),
+}
+impl PartialOrd for Name {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Name {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.to_str().cmp(other.to_str())
+    }
+}
+impl Name {
+    pub fn to_str(&self) -> &str {
+        match *self {
+            Name::Generated(ref string) => &*string,
+            Name::Public(ref node_name) => node_name.to_str()
+        }
+    }
+}
+*/
+
 /// Immutable representation of the syntax.
 pub struct Syntax {
     interfaces_by_name: HashMap<NodeName, Rc<Interface>>,
     string_enums_by_name: HashMap<NodeName, Rc<StringEnum>>,
     typedefs_by_name: HashMap<NodeName, Rc<Type>>,
+
     resolved_type_sums_by_name: HashMap<NodeName, HashSet<NodeName>>,
+    options_by_name: HashMap<NodeName, NodeName>,
+    lists_by_name: HashMap<NodeName, (bool /* supports_empty */, NodeName)>,
+
     node_names: HashMap<String, NodeName>,
     fields: HashMap<String, FieldName>,
     root: NodeName,
+    null: NodeName,
     annotator: Box<ast::annotation::Annotator>,
 }
 
@@ -986,6 +1237,15 @@ impl Syntax {
     }
     pub fn typedefs_by_name(&self) -> &HashMap<NodeName, Rc<Type>> {
         &self.typedefs_by_name
+    }
+    pub fn options_by_name(&self) -> &HashMap<NodeName, NodeName> {
+        &self.options_by_name
+    }
+    pub fn lists_by_name(&self) -> &HashMap<NodeName, (/* supports empty */ bool, NodeName)> {
+        &self.lists_by_name
+    }
+    pub fn resolved_sums_of_interfaces_by_name(&self) -> &HashMap<NodeName, HashSet<NodeName>> {
+        &self.resolved_type_sums_by_name
     }
     pub fn get_sums_of_interfaces(&self) -> impl Iterator<Item = (&NodeName, &HashSet<NodeName>)> {
         self.resolved_type_sums_by_name.iter()
@@ -1013,9 +1273,17 @@ impl Syntax {
         self.node_names
             .get(name)
     }
-
+    pub fn node_names(&self) -> &HashMap<String, NodeName> {
+        &self.node_names
+    }
+    pub fn field_names(&self) -> &HashMap<String, FieldName> {
+        &self.fields
+    }
     pub fn get_root_name(&self) -> &NodeName {
         &self.root
+    }
+    pub fn get_null_name(&self) -> &NodeName {
+        &self.null
     }
 
     /// The starting point for parsing.
@@ -1093,6 +1361,7 @@ impl ASTError {
 pub struct SyntaxOptions<'a> {
     /// The name of the node used to start encoding.
     pub root: &'a NodeName,
+    pub null: &'a NodeName,
 
     pub annotator: Box<ast::annotation::Annotator>,
 }

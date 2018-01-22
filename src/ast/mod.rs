@@ -14,8 +14,6 @@
 //! - the documentation of module `grammar` for the grammar of grammars;
 //! - the documentation of module `library` for the actual grammars of ES5, ES6, ...;
 
-pub mod export_utils;
-
 /// Definition of a grammar, tools for describing the grammar.
 pub mod grammar;
 

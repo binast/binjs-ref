@@ -56,6 +56,7 @@ fn uses_strict(object: &Object) -> bool {
 fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
     let identifier_name = syntax.node_name("IdentifierName");
     let string = syntax.node_name("string");
+    let null = syntax.node_name("null");
 
     // Field names
     let field_var_decl_names = syntax.field_name(BINJS_VAR_NAME);
@@ -76,6 +77,8 @@ fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
         .with_field_doc(&field_var_decl_names, Type::named(&identifier_name).array(), "Names declared with `var` (or an implicit `var`) in this var-scope. Empty unless this is a function scope.")
         .with_field_doc(&field_lex_declared_names, Type::named(&identifier_name).array(), "Names declared with `let` (or an implicit `let`) in this lexical scope.")
         .with_field_doc(&field_captured_names, Type::named(&identifier_name).array(), "Names declared in this scope and captured in an inner function.") .with_field_doc(&field_has_direct_eval, Type::bool().close(), "``true` if either in this scope or in a subscope, we have a call to the built-in function `eval()`.");
+
+    syntax.add_interface(&null).unwrap();
 
     struct BaseAnnotator;
     impl Annotator for BaseAnnotator {
@@ -1304,6 +1307,7 @@ pub fn syntax(level: Level) -> Syntax {
     let mut builder = SyntaxBuilder::new();
 
     let root    = builder.node_name("Script");
+    let null    = builder.node_name("_Null");
 
     let base_annotator = setup_binjs(&mut builder);
 
@@ -1319,6 +1323,7 @@ pub fn syntax(level: Level) -> Syntax {
     };
     builder.into_syntax(SyntaxOptions {
         root: &root,
+        null: &null,
         annotator
     })
 }

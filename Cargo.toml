@@ -1,20 +1,18 @@
 [package]
 name = "binjs"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [features]
 default = []
-# If specified, build support for using SpiderMonkey as a parser.
-spidermonkey = []
-esprima = []
 
 [dependencies]
 assert_matches = "*"
 brotli = "1.*"
 env_logger = "^0.5"
 flate2 = "0.2"
-Inflector = "*"
+Inflector = { path = "../blurbs/Inflector" }
+itertools = "*"
 json = "*"
 log = "*"
 lzw = "*"
@@ -28,3 +26,4 @@ clap = "*"
 env_logger = "*"
 glob = "*"
 test-logger = "*"
+yaml-rust = "^0.4"
