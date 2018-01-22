@@ -323,12 +323,3 @@ pub fn pick<'a, T: rand::Rng, U,>(rng: &mut T, slice: &'a [U]) -> &'a U {
     &slice[index]
 }
 
-pub fn to_rust_case(value: &str) -> String {
-    use inflector;
-    let snake = inflector::cases::snakecase::to_snake_case(value);
-    match &snake as &str {
-        "super" => "super_".to_string(),
-        "type" => "type_".to_string(),
-        _ => snake
-    }
-}

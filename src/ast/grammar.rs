@@ -260,39 +260,6 @@ impl TypeSpec {
         }
     }
 
-    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        match *self {
-            TypeSpec::Array { ref contents, supports_empty: false } =>
-                format!("[{}] /* Non-empty */", contents.pretty(prefix, indent)),
-            TypeSpec::Array { ref contents, supports_empty: true } =>
-                format!("[{}]", contents.pretty(prefix, indent)),
-            TypeSpec::Boolean =>
-                "bool".to_string(),
-            TypeSpec::String =>
-                "string".to_string(),
-            TypeSpec::Number =>
-                "number".to_string(),
-            TypeSpec::NamedType(ref name) =>
-                name.to_str().to_string(),
-            TypeSpec::TypeSum(ref types) => {
-                let mut result = String::new();
-                result.push('(');
-                let mut first = true;
-                for typ in types.types() {
-                    if first {
-                        first = false;
-                    } else {
-                        result.push_str(" or ");
-                    }
-                    result.push_str(&typ.pretty("", indent));
-                }
-                result.push(')');
-                result
-            }
-            TypeSpec::Void => "void".to_string()
-        }
-    }
-
     pub fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
         const MAX_ARRAY_LEN: usize = 16;
         match *self {
@@ -514,16 +481,6 @@ impl Type {
         self.spec.random(syntax, rng, depth_limit)
     }
 
-    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        let pretty_type = self.spec.pretty(prefix, indent);
-        let pretty_default = match self.defaults_to {
-            None => String::new(),
-            Some(ref default) =>
-                format!(" = {}", default.dump())
-        };
-        format!("{}{}", pretty_type, pretty_default)
-    }
-
     /// Compare two ASTs, restricting comparison to the
     /// items that appear in the grammar.
     pub fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
@@ -608,6 +565,10 @@ impl Obj {
 }
 
 impl StringEnum {
+    pub fn name(&self) -> &NodeName {
+        &self.name
+    }
+
     pub fn strings(&self) -> &[String] {
         &self.values
     }
@@ -626,21 +587,6 @@ impl StringEnum {
             self.with_string(string);
         }
         self
-    }
-
-    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        let mut result = format!("{prefix}enum {name} {{\n",
-            prefix = prefix,
-            name = self.name.to_str());
-        {
-            let prefix = format!("{prefix}{indent}", prefix=prefix, indent=indent);
-            for string in &self.values {
-                result.push_str(&format!("{prefix}\"{string}\",\n", prefix=prefix, string=string));
-            }
-        }
-        result.push_str(prefix);
-        result.push_str("}\n");
-        result
     }
 }
 
@@ -987,31 +933,6 @@ impl Interface {
         None
     }
 
-    /// Export a description of this interface.
-    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        let mut result = format!("{prefix} interface {name} : Node {{\n", prefix=prefix, name=self.name().to_str());
-        {
-            let prefix = format!("{prefix}{indent}",
-                prefix=prefix,
-                indent=indent);
-            for field in self.declaration.contents.fields() {
-                if let Some(ref doc) = field.doc() {
-                    result.push_str(&format!("{prefix}// {doc}\n", prefix = prefix, doc = doc));
-                }
-                result.push_str(&format!("{prefix}{name}: {description};\n",
-                    prefix = prefix,
-                    name = field.name().to_str(),
-                    description = field.type_().pretty(&prefix, indent)
-                ));
-                if field.doc().is_some() {
-                    result.push_str("\n");
-                }
-            }
-        }
-        result.push_str(&format!("{prefix} }}\n", prefix=prefix));
-        result
-    }
-
     /// Generate a random instance of this interface matching the syntax.
     fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
         let mut obj = json::object::Object::with_capacity(self.declaration.contents.fields.len());
@@ -1133,35 +1054,6 @@ impl Syntax {
         let root = self.interfaces_by_name.get(&self.root)
             .expect("Root interface doesn't exist");
         root.random(self, rng, depth_limit)
-    }
-
-    pub fn pretty(&self, indent: &str) -> String {
-        let mut result = String::new();
-
-        result.push_str(" // # Interfaces.\n");
-        result.push_str(" //\n");
-        result.push_str(" // Unless specified otherwise in comments, the order of fields does NOT matter.\n\n\n");
-        let mut interfaces : Vec<_> = self.interfaces_by_name.iter().collect();
-        interfaces.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
-        for (name, interface) in interfaces {
-            if name == &self.root {
-                result.push_str(" // Root of the AST.\n")
-            }
-            result.push_str(&interface.pretty("", indent));
-            result.push_str("\n");
-        }
-
-        result.push_str("\n\n // # Enums.\n");
-        result.push_str(" //\n");
-        result.push_str(" // The order of enum values does NOT matter.\n");
-        let mut enums : Vec<_> = self.string_enums_by_name.iter().collect();
-        enums.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
-        for (_, enum_) in enums {
-            result.push_str(&enum_.pretty("", indent));
-            result.push_str("\n");
-        };
-
-        result
     }
 }
 

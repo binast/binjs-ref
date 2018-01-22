@@ -23,13 +23,15 @@ fn main() {
                 .required(true)
                 .help("Input file to use. Must be a webidl source file."),
             Arg::with_name("OUTPUT")
-                .required(false)
-                .help("Output file to use. Will be overwritten. If none, print to stdout."),
+                .required(true)
+                .help("Prefix of output files to use. Will be overwritten."),
         ])
     .get_matches();
 
     let source_path = matches.value_of("INPUT")
         .expect("Expected INPUT");
+    let dest_path = matches.value_of("OUTPUT")
+        .expect("Expected OUTPUT");
 
     let mut file = File::open(source_path)
         .expect("Could not open source");
@@ -57,7 +59,17 @@ fn main() {
             annotator: fake_annotator
         });
 
-    println!("...exporting");
-    let source = syntax.to_rust_source();
-    println!("{}", source);
+    println!("...exporting Rust code");
+    let mut dest = File::create(format!("{}.rs", dest_path))
+        .expect("Could not create Rust source output");
+    dest.write_all(syntax.to_rust_source().as_bytes())
+        .expect("Could not write Rust source output");
+
+    println!("...exporting C++ code");
+    let mut dest = File::create(format!("{}.cpp", dest_path))
+        .expect("Could not create C++ source output");
+    dest.write_all(syntax.to_spidermonkey_cpp().as_bytes())
+        .expect("Could not write C++ source output");
+
+    println!("...done");
 }
