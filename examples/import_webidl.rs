@@ -65,11 +65,17 @@ fn main() {
     dest.write_all(syntax.to_rust_source().as_bytes())
         .expect("Could not write Rust source output");
 
-    println!("...exporting C++ code");
+    println!("...exporting C++ header code");
+    let mut dest = File::create(format!("{}.h", dest_path))
+        .expect("Could not create C++ header source output");
+    dest.write_all(syntax.to_spidermonkey_hpp().as_bytes())
+        .expect("Could not write C++ header source output");
+
+    println!("...exporting C++ implementation code");
     let mut dest = File::create(format!("{}.cpp", dest_path))
-        .expect("Could not create C++ source output");
+        .expect("Could not create C++ implementation source output");
     dest.write_all(syntax.to_spidermonkey_cpp().as_bytes())
-        .expect("Could not write C++ source output");
+        .expect("Could not write C++ implementation source output");
 
     println!("...done");
 }

@@ -1,13 +1,15 @@
 use ast::grammar::*;
 use inflector;
+use itertools::Itertools;
 
 use json::JsonValue as JSON;
 
-use std::collections::HashSet;
+use std::collections::{ HashMap, HashSet };
+use std::ops::Deref;
 
-fn to_rust_case(value: &str) -> String {
+fn to_rust_case(string: &str) -> String {
     use inflector;
-    let snake = inflector::cases::snakecase::to_snake_case(value);
+    let snake = inflector::cases::snakecase::to_snake_case(string);
     match &snake as &str {
         "super" => "super_".to_string(),
         "type" => "type_".to_string(),
@@ -15,13 +17,69 @@ fn to_rust_case(value: &str) -> String {
     }
 }
 
-fn to_cpp_case(value: &str) -> String {
+
+fn to_cpp_case(string: &str) -> String {
     use inflector;
-    let snake = inflector::cases::snakecase::to_snake_case(value);
+    let snake = inflector::cases::snakecase::to_snake_case(string);
     match &snake as &str {
         "class" => "class_".to_string(),
         "operator" => "operator_".to_string(),
+        "const" => "const_".to_string(),
+        "void" => "void_".to_string(),
+        "delete" => "delete_".to_string(),
+        "in" => "in_".to_string(),
+        "result" => "result_".to_string(),
+        "" => unimplemented!(),
         _ => snake
+    }
+}
+
+fn to_cpp_enum_case(string: &str) -> String {
+    match string {
+        "+=" => "PlusAssign".to_string(),
+        "-=" => "MinusAssign".to_string(),
+        "*=" => "MulAssign".to_string(),
+        "/=" => "DivAssign".to_string(),
+        "%=" => "ModAssign".to_string(),
+        "**=" => "PowAssign".to_string(),
+        "<<=" => "LshAssign".to_string(),
+        ">>=" => "RshAssign".to_string(),
+        ">>>=" => "UrshAssign".to_string(),
+        "|=" => "BitOrAssign".to_string(),
+        "^=" => "BitXorAssign".to_string(),
+        "&=" => "BitAndAssign".to_string(),
+        "," => "Comma".to_string(),
+        "||" => "LogicalOr".to_string(),
+        "&&" => "LogicalAnd".to_string(),
+        "|" => "BitOr".to_string(),
+        "^" => "BitXor".to_string(),
+        "&" => "BitAnd".to_string(),
+        "==" => "Eq".to_string(),
+        "!=" => "Neq".to_string(),
+        "===" => "StrictEq".to_string(),
+        "!==" => "StrictNeq".to_string(),
+        "<" => "LessThan".to_string(),
+        "<=" => "LeqThan".to_string(),
+        ">" => "GreaterThan".to_string(),
+        ">=" => "GeqThan".to_string(),
+        "<<" => "Lsh".to_string(),
+        ">>" => "Rsh".to_string(),
+        ">>>" => "Ursh".to_string(),
+        "+" => "Plus".to_string(),
+        "-" => "Minus".to_string(),
+        "~" => "Opposite".to_string(),
+        "*" => "Mul".to_string(),
+        "/" => "Div".to_string(),
+        "%" => "Mod".to_string(),
+        "**" => "Pow".to_string(),
+        "!" => "Not".to_string(),
+        "++" => "Incr".to_string(),
+        "--" => "Decr".to_string(),
+        _ => {
+            let class_cased = inflector::cases::classcase::to_class_case(string);
+            assert!(&class_cased != "");
+            class_cased
+        }
     }
 }
 
@@ -71,19 +129,35 @@ impl TypeSpec {
             TypeSpec::Void =>
                 "_Void".to_string(),
             TypeSpec::TypeSum(ref sum) => {
-                let mut result = String::new();
-                let mut first = true;
-                for item in sum.types() {
-                    if first {
-                        first = false;
-                    } else {
-                        result.push_str("Or");
-                    }
-                    result.push_str(&item.to_name());
-                }
-                result
+                format!("{}", sum.types()
+                    .iter()
+                    .map(TypeSpec::to_name)
+                    .format("Or"))
             }
         }
+    }
+
+    pub fn to_cpp_arg_name(&self, syntax: &Syntax) -> Option<String> {
+        let result = match *self {
+            TypeSpec::Void => {
+                return None;
+            }
+            TypeSpec::String => "HandleAtom".to_string(),
+            TypeSpec::Number => "double".to_string(),
+            TypeSpec::Boolean => "bool".to_string(),
+            TypeSpec::TypeSum(_) => "ParseNode*".to_string(),
+            TypeSpec::NamedType(ref key) => {
+                match syntax.get_type_by_name(key).unwrap() {
+                    NamedType::Interface(_) => "ParseNode*".to_string(),
+                    NamedType::StringEnum(_) => inflector::cases::classcase::to_class_case(key.to_str()),
+                    NamedType::Typedef(ref type_) => {
+                        return type_.to_cpp_arg_name(syntax)
+                    }
+                }
+            }
+            _ => "ParseNode*".to_string()
+        };
+        Some(result)
     }
 
     pub fn to_webidl(&self, prefix: &str, indent: &str) -> String {
@@ -100,20 +174,11 @@ impl TypeSpec {
                 "number".to_string(),
             TypeSpec::NamedType(ref name) =>
                 name.to_str().to_string(),
-            TypeSpec::TypeSum(ref types) => {
-                let mut result = String::new();
-                result.push('(');
-                let mut first = true;
-                for typ in types.types() {
-                    if first {
-                        first = false;
-                    } else {
-                        result.push_str(" or ");
-                    }
-                    result.push_str(&typ.to_webidl("", indent));
-                }
-                result.push(')');
-                result
+            TypeSpec::TypeSum(ref sum) => {
+                format!("({})", sum.types()
+                    .iter()
+                    .map(|x| x.to_webidl("", indent))
+                    .format(" or "))
             }
             TypeSpec::Void => "void".to_string()
         }
@@ -198,15 +263,114 @@ impl Type {
             _ => unimplemented!()
         }
     }
+
+    pub fn to_cpp_arg_name(&self, syntax: &Syntax) -> Option<String> {
+        self.spec.to_cpp_arg_name(syntax)
+    }
 }
 
 impl Syntax {
     /// Generate C++ code for SpiderMonkey
-    pub fn to_spidermonkey_cpp(&self) -> String {
+    pub fn to_spidermonkey_hpp(&self) -> String {
+        let mut buffer = String::new();
+
+        // 1. String Enums
+        buffer.push_str("\n\n// ----- Declaring string enums (by lexicographical order)\n");
+        let mut string_enums_by_name : Vec<_> = self.string_enums_by_name()
+            .iter()
+            .collect();
+        string_enums_by_name.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
+        for (name, enum_) in string_enums_by_name {
+            let rendered_cases = enum_.strings()
+                .iter()
+                .map(|str| to_cpp_enum_case(*&str))
+                .format(",\n    ");
+            let rendered = format!("enum class {name} {{\n    {cases}\n}};\n\n",
+                cases = rendered_cases,
+                name = inflector::cases::classcase::to_class_case(name.to_str()));
+            buffer.push_str(&rendered);
+        }
+
+        // 2. Class
+
+        buffer.push_str("\n\n\n /*insert me into */class BinASTParser {\n");
+
+        // 2.a Parse driver
+        buffer.push_str("\n\n    // ----- Parse driver (by lexicographical order)\n");
+
+        let mut interfaces_by_name : Vec<_> = self.interfaces_by_name()
+            .iter()
+            .collect();
+        interfaces_by_name.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
+
+        for &(name, interface) in &interfaces_by_name {
+            let rendered_args = interface.contents()
+                .fields()
+                .iter()
+                .filter_map(|field| {
+                    let type_name = match field.type_().to_cpp_arg_name(self) {
+                        None => { return None; }
+                        Some(type_name) => type_name
+                    };
+                    Some(format!("{} {}", type_name, to_cpp_case(field.name().to_str())))
+                })
+                .format(", ");
+            buffer.push_str(&format!("
+    JS::Result<ParseNode*> parse{kind}(const size_t start, const BinKind kind, const BinFields& fields) {{
+        // Default implementation. Get rid of it as needed.
+        return parseTuple{kind}(start, kind, fields);
+    }}
+    JS::Result<ParseNode*> build{kind}(const size_t start, {args});\n",
+                kind = inflector::cases::classcase::to_class_case(name.to_str()),
+                args = rendered_args));
+        }
+
+        // 2.b Sums of interfaces
+        let mut sums_of_interfaces : Vec<_> = self.get_sums_of_interfaces()
+            .collect();
+        sums_of_interfaces.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
+        buffer.push_str("\n\n    // ----- Sums of interfaces (by lexicographical order)\n");
+        buffer.push_str("    // Implementations are autogenerated\n");
+        buffer.push_str("    // `ParseNode*` may never be nullptr\n");
+        for (name, _) in sums_of_interfaces {
+            let rendered = format!("    JS::Result<ParseNode*> parse{kind}();\n",
+                kind = inflector::cases::classcase::to_class_case(name.to_str()));
+            buffer.push_str(&rendered);
+        }
+
+        // 2.c Interfaces
+        buffer.push_str("\n\n    // ----- Interfaces (by lexicographical order)\n");
+        buffer.push_str("    // Implementations are autogenerated\n");
+        buffer.push_str("    // `ParseNode*` may never be nullptr\n");
+        for &(name, _) in &interfaces_by_name {
+            let rendered = format!("    JS::Result<ParseNode*> parse{kind}();\n    JS::Result<ParseNode*> parseTuple{kind}(const size_t start, const BinKind kind, const BinFields& fields);\n",
+                kind = inflector::cases::classcase::to_class_case(name.to_str()));
+            buffer.push_str(&rendered);
+        }
+
+        // 2.d Sums of interfaces
+        buffer.push_str("\n\n    // ----- String enums (by lexicographical order)\n");
+        buffer.push_str("    // Implementations are autogenerated\n");
+        let mut string_enums_by_name : Vec<_> = self.string_enums_by_name()
+            .iter()
+            .collect();
+        string_enums_by_name.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
+        for (name, _) in string_enums_by_name {
+            let rendered = format!("    JS::Result<{kind}> parse{kind}();\n",
+                kind = inflector::cases::classcase::to_class_case(name.to_str()));
+            buffer.push_str(&rendered);
+        }
+        buffer.push_str("\n};\n");
+
+        buffer
+    }
+
+    /// Generate C++ code for SpiderMonkey
+    pub fn to_spidermonkey_cpp(&self, pre_rules: HashMap<NodeName, String>, post_rules: HashMap<NodeName, String>) -> String {
         let mut buffer = String::new();
 
         // 1. Typesums
-        buffer.push_str("\n\n// ----- Sums of interfaces (by lexicographical order)\n");
+        buffer.push_str("\n\n// ----- Sums of interfaces (autogenerated, by lexicographical order)\n");
 
         let mut sums_of_interfaces : Vec<_> = self.get_sums_of_interfaces()
             .collect();
@@ -217,31 +381,22 @@ impl Syntax {
             let mut nodes : Vec<_> = nodes.iter()
                 .collect();
             nodes.sort_by(|a, b| str::cmp(a.to_str(), b.to_str()));
-            buffer.push_str("/*\n ");
-            buffer.push_str(name.to_str());
-            buffer.push_str(" ::= ");
-            let mut first = true;
-            for node in &nodes {
-                if first {
-                    first = false;
-                } else {
-                    buffer.push_str("     ");
-                }
-                buffer.push_str(node.to_str());
-                buffer.push_str("\n");
-            }
-            buffer.push_str("*/\n");
+            let rendered_bnf = format!("/*\n{name} ::= {nodes} \n*/",
+                nodes = nodes.drain(..)
+                    .map(NodeName::to_str)
+                    .format("\n    "),
+                name = name.to_str());
 
             // Generate code
             let mut buffer_cases = String::new();
             for node in nodes {
                 buffer_cases.push_str(&format!("
-          case BinKind::{kind}:
-            MOZ_TRY_VAR(result, parse{kind}Aux(kind, fields));
-            break;",
+      case BinKind::{kind}:
+        MOZ_TRY_VAR(result, parse{kind}(start, kind, fields));
+        break;",
                 kind = inflector::cases::classcase::to_class_case(node.to_str())));
             }
-            buffer.push_str(&format!("JS::Result<ParseNode*>
+            buffer.push_str(&format!("{bnf}\nJS::Result<ParseNode*>
 BinASTParser::parse{kind}()
 {{
     BinKind kind;
@@ -249,6 +404,8 @@ BinASTParser::parse{kind}()
     AutoTaggedTuple guard(*tokenizer_);
 
     TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
+
+    const auto start = tokenizer_->offset();
     ParseNode* result(nullptr);
     switch(kind) {{ {cases}
       default:
@@ -260,15 +417,21 @@ BinASTParser::parse{kind}()
 }}
 
 ",
+    bnf= rendered_bnf,
     kind = inflector::cases::classcase::to_class_case(name.to_str()),
     cases = buffer_cases));
         }
 
         // 2. Single interfaces
-        // FIXME: This will generate lots of dead code.
-        buffer.push_str("\n\n// ----- Interfaces (by lexicographical order)\n");
+        buffer.push_str("\n\n// ----- Interfaces (autogenerated, by lexicographical order)\n");
+        let mut interfaces_by_name : Vec<_> = self.interfaces_by_name()
+            .iter()
+            .collect();
+        interfaces_by_name.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
 
-        for (name, interface) in self.interfaces_by_name() {
+        // FIXME: This will generate lots of dead code.
+
+        for (name, interface) in interfaces_by_name {
             // Generate comments
             let comment = format!("\n/*\n{}*/\n", interface.to_webidl("", "    "));
             buffer.push_str(&comment);
@@ -283,7 +446,9 @@ BinASTParser::parse{kind}()
     AutoTaggedTuple guard(*tokenizer_);
 
     TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
-    TRY_DECL(result, parse{kind}Aux(kind, field));
+    const auto start = tokenizer_->offset();
+
+    TRY_DECL(result, parse{kind}(start, kind, field));
     TRY(guard.done());
 
     return result;
@@ -294,47 +459,114 @@ BinASTParser::parse{kind}()
             ));
 
             // Generate aux method
-            let mut fields_list = String::new();
-            fields_list.push_str("{ ");
+            let mut fields_type_list = String::new();
+            let mut fields_name_list = String::new();
+            fields_type_list.push_str("{ ");
             let mut first = true;
             for field in interface.contents().fields() {
                 if first {
                     first = false;
                 } else {
-                    fields_list.push_str(", ");
+                    fields_type_list.push_str(", ");
+                    fields_name_list.push_str(", ");
                 }
-                fields_list.push_str("BinFields::");
-                fields_list.push_str(to_cpp_case(field.name().to_str()));
+                fields_type_list.push_str(&to_cpp_enum_case(field.name().to_str()));
+                fields_type_list.push_str("BinFields::");
+                fields_name_list.push_str(&to_cpp_case(field.name().to_str()));
             }
-            fields_list.push_str(" }");
+            fields_type_list.push_str(" }");
 
             let mut fields_implem = String::new();
             for field in interface.contents().fields() {
-                let typename = field.type_().to_name();
-                let single_field_implem = format!("    TRY_DECL({name}, parse{typename}());\n",
-                    name = to_cpp_case(field.name().to_str()),
-                    typename = typename);
-                fields_implem.push_str(&single_field_implem);
+                let var_name = to_cpp_case(field.name().to_str());
+                match *field.type_().spec() {
+                    TypeSpec::String => {
+                        fields_implem.push_str(&format!("    RootedAtom {var_name}(cx);\n    TRY(readString({var_name}));\n",
+                            var_name = var_name));
+                    }
+                    TypeSpec::Number => {
+                        fields_implem.push_str(&format!("    double {var_name};\n    TRY(readNumber({var_name}));\n",
+                            var_name = var_name));
+                    }
+                    TypeSpec::Boolean => {
+                        fields_implem.push_str(&format!("    bool {var_name};\n    TRY(readBool({var_name}));\n",
+                            var_name = var_name));                        
+                    }
+                    TypeSpec::Void => {
+                        fields_implem.push_str(&format!("    // Skipping void field {}\n", field.name().to_str()));
+                    }
+                    _ => {
+                        let typename = field.type_().to_name();
+                        let single_field_implem = format!("    TRY_DECL({var_name}, parse{typename}());\n",
+                            var_name = var_name,
+                            typename = typename);
+                        fields_implem.push_str(&single_field_implem);
+                    }
+                }
             }
 
             buffer.push_str(&format!("JS::Result<ParseNode*>
-BinASTParser::parse{kind}Aux(const BinKind kind, const BinFields& fields)
+BinASTParser::parseTuple{kind}(const size_t start, const BinKind kind, const BinFields& fields)
 {{
     MOZ_ASSERT(kind == BinKind::{kind});
-    MOZ_TRY(checkFields(kind, fields, {fields_list});
+    MOZ_TRY(checkFields(kind, fields, {fields_type_list});
+
+    {pre}
 
 {fields_implem}
-    // FIXME: Unimplemented
+
+    {post}
+    return result;
 }}
 
 ",
                 kind = kind,
-                fields_list = fields_list,
-                fields_implem = fields_implem
+                fields_type_list = fields_type_list,
+                fields_implem = fields_implem,
+                pre = pre_rules.get(name)
+                    .map(Deref::deref)
+                    .unwrap_or_else(|| ""),
+                post = post_rules.get(name)
+                    .map(Deref::deref)
+                    .unwrap_or_else(|| "")
             ));
         }
 
         // 3. String Enums
+        buffer.push_str("\n\n// ----- String enums (autogenerated, by lexicographical order)\n");
+        let mut string_enums_by_name : Vec<_> = self.string_enums_by_name()
+            .iter()
+            .collect();
+        string_enums_by_name.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
+        for (name, enum_) in string_enums_by_name {
+            let kind = inflector::cases::classcase::to_class_case(name.to_str());
+            let mut cases = String::new();
+            for string in enum_.strings() {
+                cases.push_str(&format!("if (*chars == \"{string}\")
+        return {kind}::{variant};\n    else ",
+                    string = string,
+                    kind = kind,
+                    variant = to_cpp_enum_case(&string)
+                ));
+            }
+            cases.push_str(&format!("\n        return raiseInvalidEnum(\"{kind}\", *chars);",
+                kind = kind));
+
+            buffer.push_str(&format!("JS::Result<{kind}>
+BinASTParser::parse{kind}()
+{{
+    // Unoptimized implementation.
+    Chars chars;
+    MOZ_TRY(readString(chars));
+
+    {cases}
+}}
+
+",
+                kind = kind,
+                cases = cases,
+            ));
+        }
         buffer
     }
     pub fn to_rust_source(&self) -> String {

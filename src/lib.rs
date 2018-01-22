@@ -37,6 +37,7 @@ extern crate brotli;
 extern crate env_logger;
 extern crate flate2;
 extern crate inflector;
+extern crate itertools;
 #[macro_use]
 extern crate json;
 #[macro_use]
