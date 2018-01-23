@@ -15,6 +15,18 @@ use std::io::*;
 
 use clap::*;
 
+fn update_rule(rule: &mut Option<String>, entry: &yaml_rust::Yaml) -> Option<Option<()>> {
+    if entry.is_badvalue() {
+        return Some(None)
+    } else if let Some(as_str) = entry.as_str() {
+        *rule = Some(as_str.to_string());
+        Some(Some(()))
+    } else {
+        None
+    }    
+}
+
+
 fn main() {
     env_logger::init();
 
@@ -116,23 +128,21 @@ fn main() {
 
                             let ref block_entries = field_entries["block"];
                             if !block_entries.is_badvalue() {
-                                let ref declare = block_entries["declare"];
-                                let as_str = declare.as_str()
-                                    .unwrap_or_else(|| panic!("Rule {}.field-{}.block.declare must be a string", node_key, field_key))
-                                    .to_string();
-                                field_rule.declare = Some(as_str);
+                                update_rule(&mut field_rule.declare, &block_entries["declare"])
+                                    .unwrap_or_else(|| panic!("Rule {}.field-{}.block.declare must be present", node_key, field_key))
+                                    .unwrap_or_else(|| panic!("Rule {}.field-{}.block.declare must be a string", node_key, field_key));
 
-                                let ref block_before_field = block_entries["before"];
-                                if !block_before_field.is_badvalue() {
-                                    eprintln!("Found rule {}.field-{}.block.before, inserting in {:?}", node_key, field_key, field_name);
-                                    let as_str = block_before_field.as_str()
-                                        .unwrap_or_else(|| panic!("Rule {}.field-{}.block.before must be a string", node_key, field_key))
-                                        .to_string();
-                                    field_rule.block_before_field = Some(as_str);
-                                }
+                                let _ = update_rule(&mut field_rule.block_before_field, &block_entries["before"])
+                                    .unwrap_or_else(|| panic!("Rule {}.field-{}.block.before must be a string", node_key, field_key));
 
-                                node_rule.by_field.insert(field_name.clone(), field_rule);
+                                let _ = update_rule(&mut field_rule.block_after_field, &block_entries["after"])
+                                    .unwrap_or_else(|| panic!("Rule {}.field-{}.block.after must be a string", node_key, field_key));
                             }
+                            let _ = update_rule(&mut field_rule.before_field, &field_entries["before"])
+                                    .unwrap_or_else(|| panic!("Rule {}.field-{}.before must be a string", node_key, field_key));
+                            let _ = update_rule(&mut field_rule.after_field, &field_entries["after"])
+                                    .unwrap_or_else(|| panic!("Rule {}.field-{}.after must be a string", node_key, field_key));
+                            node_rule.by_field.insert(field_name.clone(), field_rule);
                         }
                         _ => panic!("Unexpected subkey {}.{}", node_key, as_string)
                     }
