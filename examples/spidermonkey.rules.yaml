@@ -1,0 +1,154 @@
+Block:
+    init: |
+        ParseContext::Statement stmt(parseContext_, StatementKind::Block);
+        ParseContext::Scope scope(cx_, parseContext_, usedNames_);
+        TRY(scope.init(parseContext_));
+    build: |
+        MOZ_TRY_VAR(body, appendDirectivesToBody(body, directives));
+        TRY_DECL(bindings, NewLexicalScopeData(cx_, scope, alloc_, parseContext_));
+        TRY_DECL(result, factory_.newLexicalScope(*bindings, body));
+
+BreakStatement:
+    build: |
+        if (label && !label->isKind(ParseNodeKind::Name)) {
+            // The grammar does not differentiate between a label and any other string.
+            return raiseError("BreakStatement - Label MUST be an identifier");
+        }
+
+        auto validity = parseContext_->checkBreakStatement(label ? label->name() : nullptr);
+
+        if (validity.isErr()) {
+            switch (validity.unwrapErr()) {
+              case ParseContext::BreakStatementError::ToughBreak:
+                 return raiseError(kind, "Not in a loop");
+              case ParseContext::BreakStatementError::LabelNotFound:
+                 return raiseError(kind, "Label not found");
+            }
+        }
+
+        TRY_VAR(result, factory_.newBreakStatement(label ? label->name() : nullptr, pos));
+
+
+ContinueStatement:
+    build: |
+        if (label && !label->isKind(ParseNodeKind::Name)) {
+            // The grammar does not differentiate between a label and any other string.
+            return raiseError("ContinueStatement - Label MUST be an identifier");
+        }
+
+        auto validity = parseContext_->checkContinueStatement(label ? label->name() : nullptr);
+        if (validity.isErr()) {
+            switch (validity.unwrapErr()) {
+              case ParseContext::ContinueStatementError::NotInALoop:
+                return raiseError(kind, "Not in a loop");
+              case ParseContext::ContinueStatementError::LabelNotFound:
+                return raiseError(kind, "Label not found");
+            }
+        }
+
+        TRY_VAR(result, factory_.newContinueStatement(label ? label->name() : nullptr, pos));
+        
+DoWhileStatement:
+    init:        
+        ParseContext::Statement stmt(parseContext_, StatementKind::DoLoop);
+    build:
+        TRY_DECL(result, factory_.newDoWhileStatement(body, test, tokenizer_->pos(start)));
+
+ForInStatement:
+    init: |
+        ParseContext::Statement stmt(parseContext_, StatementKind::ForInLoop);
+
+        // Implicit scope around the `for`, used to store `for (let x in  ...)`
+        // or `for (const x in ...)`-style declarations. Detail on the
+        // declaration is stored as part of `BINJS_Scope`.
+        ParseContext::Scope scope(cx_, parseContext_, usedNames_);
+        TRY(scope.init(parseContext_));
+    build: |
+        TRY_DECL(forHead, factory_.newForInOrOfHead(ParseNodeKind::ForIn, left, right, tokenizer_->pos(start)));
+        TRY_DECL(result, factory_.newForStatement(start, forHead, body, /*flags*/ 0));
+
+        if (!scope.isEmpty()) {
+            TRY_DECL(bindings, NewLexicalScopeData(cx_, scope, alloc_, parseContext_));
+            TRY_VAR(result, factory_.newLexicalScope(*bindings, result));
+        }
+
+
+ForStatement:
+    init: |
+        ParseContext::Statement stmt(parseContext_, StatementKind::ForLoop);
+
+        // Implicit scope around the `for`, used to store `for (let x; ...; ...)`
+        // or `for (const x; ...; ...)`-style declarations. Detail on the
+        // declaration is stored as part of `BINJS_Scope`.
+        ParseContext::Scope scope(cx_, parseContext_, usedNames_);
+        TRY(scope.init(parseContext_));
+    build: |
+        TRY_DECL(forHead, factory_.newForHead(init, test, update, tokenizer_->pos(start)));
+        TRY_DECL(result, factory_.newForStatement(start, forHead, body, /* iflags = */ 0));
+
+        if (!scope.isEmpty()) {
+            TRY_DECL(bindings, NewLexicalScopeData(cx_, scope, alloc_, parseContext_));
+            TRY_VAR(result, factory_.newLexicalScope(*bindings, result));
+        }
+
+
+ReturnStatement:
+    init: |
+        if (!parseContext_->isFunctionBox()) {
+            // Return statements are permitted only inside functions.
+            return raiseInvalidKind("Toplevel Statement", kind);
+        }
+
+        parseContext_->functionBox()->usesReturn = true;
+    build: 
+        TRY_DECL(result, factory_.newReturnStatement(expression, start));
+
+SwitchStatement:
+    build: 
+        TRY_DECL(result, factory_.newSwitchStatement(start, discriminant, cases));
+
+ThrowStatement:
+    build: 
+        TRY_DECL(result, factory_.newThrowStatement(arg, tokenizer_->pos(start)));
+
+TryCatchStatement:
+    field-body:
+        block:
+            declare:
+                ParseNode* body;
+            before: |
+                ParseContext::Statement stmt(parseContext_, StatementKind::Try);
+                ParseContext::Scope scope(cx_, parseContext_, usedNames_);
+                TRY(scope.init(parseContext_));
+    build:
+        TRY_VAR(result, factory_.newTryStatement(start, body, catch_clause, /* finally = */ nullptr));
+
+TryFinallyStatement:
+    field-body:
+        block:
+            declare:
+                ParseNode* body;
+            before: |
+                ParseContext::Statement stmt(parseContext_, StatementKind::Try);
+                ParseContext::Scope scope(cx_, parseContext_, usedNames_);
+                TRY(scope.init(parseContext_));
+    field-finalizer:
+        block:
+            declare:
+                ParseNode* finalizer;
+            before: |
+                ParseContext::Statement stmt(parseContext_, StatementKind::Finally);
+                ParseContext::Scope scope(cx_, parseContext_, usedNames_);
+                TRY(scope.init(parseContext_));            
+    build:
+        TRY_VAR(result, factory_.newTryStatement(start, body, catch_clause, finalizer));
+        
+WhileStatement:
+    init: 
+        ParseContext::Statement stmt(parseContext_, kind == StatementKind::WhileLoop);
+    build: 
+        TRY_DECL(result, factory_.newWhileStatement(start, test, body));
+
+WithStatement:
+    build: 
+        TRY_DECL(result, factory_.newWithStatement(start, object, body));
