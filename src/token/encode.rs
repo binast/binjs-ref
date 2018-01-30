@@ -19,6 +19,7 @@ pub enum Error<E> {
     MissingField(String),
     NoSuchLiteral { strings: Vec<String> },
     TokenWriterError(E),
+    NonNullableType(String),
 }
 
 impl<E> From<E> for Error<E> {
@@ -57,9 +58,9 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
     pub fn encode(&self, value: &JSON) -> Result<Tree, Error<E>> {
         let root = self.grammar.get_root();
         let node = self.grammar.get_root_name();
-        self.encode_from_named_type(value, &root, &node)
+        self.encode_from_named_type(value, &root, &node, false)
     }
-    pub fn encode_from_named_type(&self, value: &JSON, named: &NamedType, node: &NodeName) -> Result<Tree, Error<E>> {
+    pub fn encode_from_named_type(&self, value: &JSON, named: &NamedType, node: &NodeName, is_optional: bool) -> Result<Tree, Error<E>> {
         match *named {
             NamedType::StringEnum(ref enum_) => {
                 let string = value.as_str()
@@ -82,52 +83,54 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                 return self.encode_from_type(value, type_, node),
             NamedType::Interface(ref interface) => {
                 debug!(target:"encode", "Attempting to encode value {:?} with interface {:?}", value, interface.name());
-                if let JSON::Object(ref object) = *value {
-                    debug!(target:"encode", "Attempting to encode object {:?} with interface {:?}", value["type"].as_str(), interface.name());
-                    let interface_name = interface.name()
-                        .to_string();
-                    let type_field = object.get("type")
-                        .ok_or_else(|| Error::missing_field("type", node))?
-                        .as_str()
-                        .ok_or_else(|| Error::missing_field("type", node))?;
-                    if interface_name == type_field {
-                        let fields = interface.contents().fields();
-                        let contents = self.encode_structure(object, fields, interface.name())?;
+                match *value {
+                    JSON::Object(ref object) => {
+                        debug!(target:"encode", "Attempting to encode object {:?} with interface {:?}", value["type"].as_str(), interface.name());
+                        let interface_name = interface.name()
+                            .to_string();
+                        let type_field = object.get("type")
+                            .ok_or_else(|| Error::missing_field("type", node))?
+                            .as_str()
+                            .ok_or_else(|| Error::missing_field("type", node))?;
+                        if interface_name == type_field {
+                            let fields = interface.contents().fields();
+                            let contents = self.encode_structure(object, fields, interface.name())?;
+                            // Write the contents with the tag of the refined interface.
+                            let labelled = self.builder
+                                .borrow_mut()
+                                .tagged_tuple(&type_field, &contents)
+                                .map_err(Error::TokenWriterError)?;
+                            return Ok(labelled)
+                        } else {
+                            return Err(Error::Mismatch {
+                                expected: interface_name.clone(),
+                                got: type_field.to_string()
+                            })
+                        }
+                    }
+                    JSON::Null if is_optional => {
                         // Write the contents with the tag of the refined interface.
                         let labelled = self.builder
                             .borrow_mut()
-                            .tagged_tuple(&type_field, &contents)
+                            .tagged_tuple(self.grammar.get_null_name().to_str(), &[])
                             .map_err(Error::TokenWriterError)?;
-                        return Ok(labelled) 
-                    } else {
+                        return Ok(labelled)
+                    }
+                    _ => {
                         return Err(Error::Mismatch {
-                            expected: interface_name.clone(),
-                            got: type_field.to_string()
+                            expected: node.to_string().clone(),
+                            got: value.dump()
                         })
                     }
-               } else {
-                   return Err(Error::Mismatch {
-                       expected: node.to_string().clone(),
-                       got: value.dump()
-                   })
-               }
+                }
             }
         }
     }
     pub fn encode_from_type(&self, value: &JSON, type_: &Type, node: &NodeName) -> Result<Tree, Error<E>> {
         debug!(target:"encode", "value {:?} within node {:?}, type {:?}", value, node, type_);
-        if let &JSON::Null = value {
-            if let Some(ref default) = type_.defaults_to {
-                warn!(target: "encode", "inserting default value {:?} while encoding {:?}", default, node);
-                if let &JSON::Null = default {
-                    unimplemented!()
-                }
-                return self.encode_from_type(default, type_, node)
-            }
-        }
-        self.encode_from_type_spec(value, type_.spec(), node)
+        self.encode_from_type_spec(value, type_.spec(), node, type_.is_optional())
     }
-    fn encode_from_type_spec(&self, value: &JSON, spec: &TypeSpec, node: &NodeName) -> Result<Tree, Error<E>> {
+    fn encode_from_type_spec(&self, value: &JSON, spec: &TypeSpec, node: &NodeName, is_optional: bool) -> Result<Tree, Error<E>> {
         use ast::grammar::TypeSpec::*;
         match (spec, value) {
             (&Array { contents: ref kind, .. }, &JSON::Array(ref array)) => {
@@ -155,10 +158,10 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             (&NamedType(ref name), _) => {
                 let named_type = self.grammar.get_type_by_name(name)
                     .ok_or_else(|| Error::NoSuchType(name.to_string().clone()))?;
-                return self.encode_from_named_type(value, &named_type, node)
+                return self.encode_from_named_type(value, &named_type, node, is_optional)
             }
             (&TypeSum(ref sum), &JSON::Object(ref object)) => {
-                // Sums may only be used to encode objects.
+                // Sums may only be used to encode objects or null.
                 let kind = object["type"].as_str()
                     .ok_or_else(|| Error::MissingField("type".to_string()))?;
                 let name = self.grammar.get_node_name(kind)
@@ -167,12 +170,19 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                     .ok_or_else(|| Error::NoSuchInterface(name.to_string().clone()))?;
                 let named_type = self.grammar.get_type_by_name(name)
                     .ok_or_else(|| Error::NoSuchInterface(name.to_string().clone()))?;
-                return self.encode_from_named_type(value, &named_type, node)
+                return self.encode_from_named_type(value, &named_type, node, is_optional)
+            }
+            (&TypeSum(_), &JSON::Null) if is_optional => {
+                // The `Null` interface can be substituted.
+                let null_name = self.grammar.get_null_name();
+                let null_type = self.grammar.get_type_by_name(self.grammar.get_null_name())
+                    .unwrap_or_else(|| panic!("Could not find type named {}", null_name.to_str()));
+                return self.encode_from_named_type(value, &null_type, null_name, /* is_optional = */ true)
             }
             _ => {}
         }
         Err(Error::Mismatch {
-            expected: format!("{:?}", spec),
+            expected: format!("{:?}{is_optional}", spec, is_optional = if is_optional { " (optional)"} else { " (required)" }),
             got: value.dump()
         })
     }
@@ -180,12 +190,6 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
         let mut result = Vec::with_capacity(fields.len());
         'fields: for field in fields {
             if let Some(source) = object.get(field.name().to_string()) {
-                if let Some(default) = field.type_().default() {
-                    if default == source {
-                        // Nothing to do, this is the default value.
-                        continue 'fields;
-                    }
-                }
                 let encoded = self.encode_from_type(source, field.type_(), node)?;
                 result.push((field, encoded))
             } else {

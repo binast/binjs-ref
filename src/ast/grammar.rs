@@ -9,9 +9,8 @@
 //! the mechanism to define and evolve this AST, without incurring breaking changes in BinJS.
 
 use ast;
-use util::{ pick, type_of };
+use util::{ pick, type_of, ToCases };
 
-use itertools::Itertools;
 use json;
 use json::JsonValue as JSON;
 use rand;
@@ -44,6 +43,11 @@ impl Display for NodeName {
         Display::fmt(self.to_str(), formatter)
     }
 }
+impl ToCases for NodeName {
+    fn to_str(&self) -> &str {
+        NodeName::to_str(self)
+    }
+}
 
 
 /// The name of a field in an interface.
@@ -60,6 +64,11 @@ impl FieldName {
 impl Debug for FieldName {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         Debug::fmt(self.to_str(), formatter)
+    }
+}
+impl ToCases for FieldName {
+    fn to_str(&self) -> &str {
+        FieldName::to_str(self)
     }
 }
 
@@ -221,51 +230,33 @@ impl TypeSpec {
         TypeSpec::Array {
             contents: Box::new(Type {
                 spec: self,
-                defaults_to: None
+                or_null: false
             }),
             supports_empty: true,
-        }.close()
+        }.required()
     }
 
     pub fn non_empty_array(self) -> Type {
         TypeSpec::Array {
             contents: Box::new(Type {
                 spec: self,
-                defaults_to: None
+                or_null: false,
             }),
             supports_empty: false,
-        }.close()
+        }.required()
     }
 
-    pub fn defaults_to(self, value: JSON) -> Type {
+    pub fn optional(self) -> Type {
         Type {
             spec: self,
-            defaults_to: Some(value)
+            or_null: true
         }
     }
 
-    pub fn close(self) -> Type {
-        match self {
-            TypeSpec::Array { supports_empty: true, .. } => Type {
-                spec: self,
-                defaults_to: None,
-            },
-            TypeSpec::Array { supports_empty: false, .. } => Type {
-                spec: self,
-                defaults_to: None,
-            },
-            TypeSpec::Boolean => Type {
-                spec: self,
-                defaults_to: None,
-            },
-            TypeSpec::Number => Type {
-                spec: self,
-                defaults_to: None,
-            },
-            _ => Type {
-                spec: self,
-                defaults_to: None,
-            },
+    pub fn required(self) -> Type {
+        Type {
+            spec: self,
+            or_null: false
         }
     }
 
@@ -453,20 +444,13 @@ pub enum Primitive {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Type {
     pub spec: TypeSpec,
-
-    /// If the value is not specified, it defaults to...
-    /// (`None` if the value MUST be specified)
-    pub defaults_to: Option<JSON>,
+    or_null: bool,
 }
 impl Eq for Type {}
 
 impl Type {
-    pub fn with_default(&mut self, default: JSON) -> &mut Self {
-        self.defaults_to = Some(default);
-        self
-    }
-    pub fn no_default(&mut self) -> &mut Self {
-        self.defaults_to = None;
+    pub fn or_null(&mut self) -> &mut Self {
+        self.or_null = true;
         self
     }
 
@@ -477,7 +461,7 @@ impl Type {
 
     pub fn with_type(&mut self, type_: Type) -> &mut Self {
         self.spec = type_.spec;
-        self.defaults_to = type_.defaults_to;
+        self.or_null = type_.or_null;
         self
     }
 
@@ -487,8 +471,8 @@ impl Type {
     pub fn spec_mut(&mut self) -> &mut TypeSpec {
         &mut self.spec
     }
-    pub fn default(&self) -> Option<&JSON> {
-        self.defaults_to.as_ref()
+    pub fn is_optional(&self) -> bool {
+        self.or_null
     }
 
     /// Shorthand constructors.
@@ -510,6 +494,9 @@ impl Type {
     pub fn bool() -> TypeSpec {
         TypeSpec::Boolean
     }
+    pub fn void() -> TypeSpec {
+        TypeSpec::Void
+    }
 
     pub fn array(self) -> TypeSpec {
         TypeSpec::Array {
@@ -526,10 +513,10 @@ impl Type {
     }
 
     pub fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
-        if let Some(ref value) = self.defaults_to {
+        if self.or_null {
             // 50% chance of returning the default value
             if depth_limit <= 0 || rng.gen() {
-                return value.clone()
+                return JSON::Null
             }
         }
         self.spec.random(syntax, rng, depth_limit)
@@ -539,16 +526,18 @@ impl Type {
     /// items that appear in the grammar.
     pub fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
         use json::JsonValue::*;
-        if let (&Some(Null), &Null, &Null) = (&self.defaults_to, left, right) {
-            // This is the only case in which we accept `null` as a value.
-            return Ok(true)
+        if self.or_null {
+            if let (&Null, &Null) = (left, right) {
+                // This is the only case in which we accept `null` as a value.
+                return Ok(true)                
+            }
         }
         self.spec.compare(syntax, left, right)
     }
 
     pub fn get_primitive(&self, syntax: &Syntax) -> Option<IsNullable<Primitive>> {
         if let Some(mut primitive) = self.spec.get_primitive(syntax) {
-            primitive.is_nullable = primitive.is_nullable || self.defaults_to.is_some();
+            primitive.is_nullable = primitive.is_nullable || self.or_null;
             Some(primitive)
         } else {
             None
@@ -681,122 +670,6 @@ impl InterfaceDeclaration {
     }
 }
 
-struct TypeDeanonymizer {
-    types_by_name: HashMap<String, Rc<Type>>,
-
-    /// Store dependency parseFooOption => parseFoo
-    option_types_by_name: HashMap</* Option type*/ String, String>,
-
-    /// Store dependency parseFooList => parseFoo
-    list_types_by_name: HashMap</* List type */ String, (/* supports_empty */ bool, String)>,
-
-    /// Cache node names
-    nodenames_by_name: HashMap<String, NodeName>,
-}
-impl TypeDeanonymizer {
-    fn new<'a>(builder: &mut SyntaxBuilder) -> Self {
-        let mut result = TypeDeanonymizer {
-            types_by_name: HashMap::new(),
-            option_types_by_name: HashMap::new(),
-            list_types_by_name: HashMap::new(),
-            nodenames_by_name: HashMap::new(),
-        };
-        for declaration in builder.interfaces_by_name.values() {
-            for field in declaration.borrow().contents.fields() {
-                result.add_type_names(field.type_(), None);
-            }
-        }
-        for (name, definition) in &builder.typedefs_by_name {
-            result.add_type_names(&definition.borrow(), Some(name.to_string().clone()));
-        }
-        for name in result.types_by_name.keys() {
-            let node_name = builder.node_name(name);
-            result.nodenames_by_name
-                .insert(name.clone(), node_name);
-        }
-        result
-    }
-    fn add_type_names(&mut self, type_: &Type, public_name: Option<String>) -> String {
-        if let Some(_) = type_.defaults_to {
-            // Rewrite the typename to Foo|Null.
-/*
-            // FIXME: This won't work for string?, bool?, foo[]?, ...
-            let or_null = Type::sum(&[
-                type_.spec().clone(),
-                Type::named(&self.null_name)
-            ]);
-            self.add_typespec_names(&or_null, public_name)
-*/
-            let spec_name = self.add_typespec_names(&type_.spec, None);
-            let mut result = "Optional".to_string();
-            result.push_str(&spec_name);
-            match public_name {
-                None => {
-                    self.types_by_name.insert(result.clone(), Rc::new(type_.clone()));
-                    self.option_types_by_name.insert(result.clone(), spec_name);
-                }
-                Some(ref name) => {
-                    // Don't duplicate this type in `types_by_name`, it's already in `typedefs_by_name`.
-                    // Also, reuse the existing name.
-                    self.option_types_by_name.insert(name.clone(), spec_name);
-                }
-            }
-            result
-        } else {
-            let spec_name = self.add_typespec_names(&type_.spec, public_name);
-            spec_name
-        }
-    }
-    fn add_typespec_names(&mut self, spec: &TypeSpec, public_name: Option<String>) -> String {
-        let name = match *spec {
-            TypeSpec::Boolean => "rawBoolean".to_string(),
-            TypeSpec::Number  => "rawNumber".to_string(),
-            TypeSpec::String  => "rawString".to_string(),
-            TypeSpec::Void    => "rawVoid".to_string(),
-            TypeSpec::NamedType(ref name) => name.to_string().clone(),
-            TypeSpec::Array {
-                ref contents,
-                ref supports_empty
-            } => {
-                let contents_name = self.add_type_names(contents, None);
-                let mut name;
-                if *supports_empty {
-                    name = "ListOf".to_string();
-                } else {
-                    name = "NonEmptyListOf".to_string();
-                }
-                name.push_str(&contents_name);
-                match public_name {
-                    None => {
-                        self.types_by_name.insert(name.clone(), Rc::new(spec.clone().close()));
-                        self.list_types_by_name.insert(name.clone(), (*supports_empty, contents_name));
-                    }
-                    Some(ref name) => {
-                        // Don't duplicate this type in `types_by_name`, it's already in `typedefs_by_name`.
-                        // Also, reuse the existing name.
-                        self.list_types_by_name.insert(name.clone(), (*supports_empty, contents_name));
-                    }
-                }
-                name
-            }
-            TypeSpec::TypeSum(ref sum) => {
-                let mut names = vec![];
-                for type_ in sum.types() {
-                    names.push(self.add_typespec_names(type_, None));
-                }
-                let name = format!("{}", names.drain(..).format("Or"));
-                if public_name.is_none() {
-                    self.types_by_name.insert(name.clone(), Rc::new(spec.clone().close()));
-                } else {
-                    // Sums are handled much later, when they are fully resolved.
-                }
-                name
-            }
-        };
-        name
-    }
-}
-
 /// A data structure used to progressively construct the `Syntax`.
 pub struct SyntaxBuilder {
     /// All the interfaces entered so far.
@@ -832,6 +705,13 @@ impl SyntaxBuilder {
         self.names.insert(name.to_string(), shared);
         result
     }
+    pub fn get_node_name(&self, name: &str) -> Option<NodeName> {
+        self.names.get(name)
+            .map(|hit| NodeName(hit.clone()))
+    }
+    pub fn import_node_name(&mut self, node_name: &NodeName) {
+        self.names.insert(node_name.to_string().clone(), node_name.0.clone());
+    }
 
     pub fn field_name(&mut self, name: &str) -> FieldName {
         if let Some(result) = self.names.get(name) {
@@ -841,6 +721,9 @@ impl SyntaxBuilder {
         let result = FieldName(shared.clone());
         self.names.insert(name.to_string(), shared);
         result
+    }
+    pub fn import_field_name(&mut self, field_name: &FieldName) {
+        self.names.insert(field_name.to_string().clone(), field_name.0.clone());
     }
 
     pub fn add_interface(&mut self, name: &NodeName) -> Option<RefMut<InterfaceDeclaration>> {
@@ -877,16 +760,18 @@ impl SyntaxBuilder {
         if self.typedefs_by_name.get(name).is_some() {
             return None;
         }
-        let e = RefCell::new(TypeSpec::Void.close());
+        let e = RefCell::new(TypeSpec::Void.required());
         self.typedefs_by_name.insert(name.clone(), e);
         self.typedefs_by_name.get(name).map(RefCell::borrow_mut)
     }
 
-    /// Generate the graph.
-    pub fn into_syntax<'a>(mut self, options: SyntaxOptions<'a>) -> Syntax {
-        // 0. Generate node names for anonymous types.
-        let deanonymizer = TypeDeanonymizer::new(&mut self);
+    pub fn get_typedef(&self, name: &NodeName) -> Option<Ref<Type>> {
+        self.typedefs_by_name.get(name).
+            map(RefCell::borrow)
+    }
 
+    /// Generate the graph.
+    pub fn into_syntax<'a>(self, options: SyntaxOptions<'a>) -> Syntax {
         // 1. Collect node names.
         let mut interfaces_by_name = self.interfaces_by_name;
         let interfaces_by_name : HashMap<_, _> = interfaces_by_name.drain()
@@ -899,16 +784,9 @@ impl SyntaxBuilder {
             .map(|(k, v)| (k, Rc::new(RefCell::into_inner(v))))
             .collect();
         let mut typedefs_by_name = self.typedefs_by_name;
-        let mut typedefs_by_name : HashMap<_, _> = typedefs_by_name.drain()
+        let typedefs_by_name : HashMap<_, _> = typedefs_by_name.drain()
             .map(|(k, v)| (k, Rc::new(RefCell::into_inner(v))))
             .collect();
-        for (name, definition) in &deanonymizer.types_by_name {
-            let node_name = deanonymizer.nodenames_by_name.get(name)
-                .unwrap()  // We just inserted them above.
-                .clone();
-            typedefs_by_name.insert(node_name, definition.clone());
-        }
-        let typedefs_by_name = typedefs_by_name; // Drop `mut`.
 
         let mut node_names = HashMap::new();
         for name in interfaces_by_name.keys().chain(string_enums_by_name.keys()).chain(typedefs_by_name.keys()) {
@@ -971,7 +849,10 @@ impl SyntaxBuilder {
             #[derive(Clone, Debug)]
             enum TypeClassification {
                 SumOfInterfaces(HashSet<NodeName>),
-                BadForSumOfInterfaces,
+                Array,
+                Primitive,
+                StringEnum,
+                Optional,
             }
 
             // 5. Classify typedefs between
@@ -996,11 +877,11 @@ impl SyntaxBuilder {
                         let _ = classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, contents.spec(), name);
                         // Regardless, the result is bad for a sum of interfaces.
                         debug!(target: "grammar", "classify_type => don't put me in an interface");
-                        TypeClassification::BadForSumOfInterfaces
+                        TypeClassification::Array
                     },
                     TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => {
                         debug!(target: "grammar", "classify_type => don't put me in an interface");
-                        TypeClassification::BadForSumOfInterfaces
+                        TypeClassification::Primitive
                     }
                     TypeSpec::NamedType(ref name) => {
                         if let Some(fetch) = cache.get(name) {
@@ -1018,7 +899,7 @@ impl SyntaxBuilder {
                             names.insert(name.clone());
                             TypeClassification::SumOfInterfaces(names)
                         } else if string_enums_by_name.contains_key(name) {
-                            TypeClassification::BadForSumOfInterfaces
+                            TypeClassification::StringEnum
                         } else {
                             let type_ = typedefs_by_name.get(name)
                                 .unwrap(); // Completeness checked abover in this method.
@@ -1032,11 +913,15 @@ impl SyntaxBuilder {
                         let mut names = HashSet::new();
                         for type_ in sum.types() {
                             match classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_, name) {
-                                TypeClassification::BadForSumOfInterfaces =>
-                                    panic!("In type {}, there is a non-interface type {:?} in a sum", name.to_str(), type_),
                                 TypeClassification::SumOfInterfaces(sum) => {
                                     names.extend(sum);
                                 }
+                                class =>
+                                    panic!("In type {name}, there is a non-interface type {class:?} ({type_:?}) in a sum {sum:?}",
+                                        name = name.to_str(),
+                                        class = class,
+                                        sum = sum,
+                                        type_ = type_),
                             }
                         }
                         debug!(target: "grammar", "classify_type => built sum {:?}", names);
@@ -1047,11 +932,11 @@ impl SyntaxBuilder {
             for (name, type_) in &typedefs_by_name {
                 classification.insert(name.clone(), None);
                 let class = classify_type(&typedefs_by_name, &string_enums_by_name, &interfaces_by_name, &mut classification, type_.spec(), name);
-                if type_.default().is_none() {
+                if !type_.is_optional() {
                     classification.insert(name.clone(), Some(class));
                 } else {
                     // FIXME: That looks weird.
-                    classification.insert(name.clone(), Some(TypeClassification::BadForSumOfInterfaces));
+                    classification.insert(name.clone(), Some(TypeClassification::Optional));
                 }
             }
 
@@ -1074,35 +959,10 @@ impl SyntaxBuilder {
             }
         }
 
-        // 8. Build options_by_name, lists_by_name
-        let options_by_name = deanonymizer.option_types_by_name.iter()
-            .map(|(k, v)| {
-                (node_names.get(k)
-                    .expect("Could not get option parser outer NodeName")
-                    .clone(),
-                 node_names.get(v)
-                    .expect("Coult not get option parser inner NodeName")
-                    .clone()
-            )})
-            .collect();
-        let lists_by_name = deanonymizer.list_types_by_name.iter()
-            .map(|(k, &(ref supports_empty, ref inner_name))| {
-                (node_names.get(k)
-                    .expect("Could not get list parser outer NodeName")
-                    .clone(),
-                 (*supports_empty, node_names.get(inner_name)
-                    .expect("Coult not get list parser inner NodeName")
-                    .clone())
-            )})
-            .collect();
-
-
         let syntax = Syntax {
             interfaces_by_name,
             string_enums_by_name,
             typedefs_by_name,
-            options_by_name,
-            lists_by_name,
             resolved_type_sums_by_name,
             node_names,
             fields,
@@ -1141,7 +1001,7 @@ impl Interface {
     }
 
     pub fn type_(&self) -> Type {
-        self.spec().close()
+        self.spec().required()
     }
 
     pub fn get_field_by_name(&self, name: &FieldName) -> Option<&Field> {
@@ -1214,8 +1074,6 @@ pub struct Syntax {
     typedefs_by_name: HashMap<NodeName, Rc<Type>>,
 
     resolved_type_sums_by_name: HashMap<NodeName, HashSet<NodeName>>,
-    options_by_name: HashMap<NodeName, NodeName>,
-    lists_by_name: HashMap<NodeName, (bool /* supports_empty */, NodeName)>,
 
     node_names: HashMap<String, NodeName>,
     fields: HashMap<String, FieldName>,
@@ -1237,12 +1095,6 @@ impl Syntax {
     }
     pub fn typedefs_by_name(&self) -> &HashMap<NodeName, Rc<Type>> {
         &self.typedefs_by_name
-    }
-    pub fn options_by_name(&self) -> &HashMap<NodeName, NodeName> {
-        &self.options_by_name
-    }
-    pub fn lists_by_name(&self) -> &HashMap<NodeName, (/* supports empty */ bool, NodeName)> {
-        &self.lists_by_name
     }
     pub fn resolved_sums_of_interfaces_by_name(&self) -> &HashMap<NodeName, HashSet<NodeName>> {
         &self.resolved_type_sums_by_name
@@ -1453,7 +1305,7 @@ macro_rules! make_ast_visitor {
             pub fn walk_type(&mut self, value: & $($mutability)* JSON, type_: &Type, name: &NodeName) -> Result<(), ASTError> {
                 self.visitor.enter_type(value, type_, name)?;
                 if let JSON::Null = *value {
-                    if let Some(_) = type_.defaults_to {
+                    if type_.is_optional() {
                         self.visitor.exit_type(value, type_, name)?;
                         return Ok(())
                     }
