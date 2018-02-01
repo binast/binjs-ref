@@ -198,58 +198,10 @@ impl FromShift {
     }
 
     fn convert_object(&self, object: &mut json::object::Object) {
+        // By alphabetical order
         match object["type"].as_str() {
-            Some("Function") | Some("Method") | Some("FunctionDeclaration") | Some("FunctionExpression") => {
-                // `isAsync` is not supported by the parser yet.
-                if let None = object.get("isAsync") {
-                    object["isAsync"] = JSON::Boolean(false)
-                }
-                object.insert("scope", JSON::Null);
-            }
             Some("Block") => {
                 object.insert("scope", JSON::Null);
-            }
-            Some("LiteralRegExpExpression") => {
-                let mut flags = String::new();
-                if let JSON::Boolean(true) = object["global"] {
-                    flags.push('g');
-                }
-                if let JSON::Boolean(true) = object["ignoreCase"] {
-                    flags.push('i');
-                }
-                if let JSON::Boolean(true) = object["multiLine"] {
-                    flags.push('m');
-                }
-                if let JSON::Boolean(true) = object["sticky"] {
-                    flags.push('y');
-                }
-                if let JSON::Boolean(true) = object["unicode"] {
-                    flags.push('u');
-                }
-                object.insert("flags", json::from(flags));
-            }
-            Some("VariableDeclarationStatement") => {
-                // Rewrite
-                //
-                // VariableDeclarationStatement {
-                //    declaration: VariableDeclaration {
-                //       ...foo
-                //    }
-                // }
-                //
-                // into
-                //
-                // VariableDeclaration {
-                //    ...foo
-                // }
-                let mut remove = match object.remove("declaration") {
-                    Some(JSON::Object(remove)) => remove,
-                    _ => panic!("No field `declaration` in a `VariableDeclarationStatement`")
-                };
-                std::mem::swap(object, &mut remove);
-                // At this stage
-                // - `remove` is the `VariableDeclarationStatement`
-                // - `object` is the `VariableDeclaration`
             }
             Some("BlockStatement") => {
                 // Rewrite
@@ -283,6 +235,63 @@ impl FromShift {
                     object["left"]["binding"] = binding;
                     object["left"].remove("declarators");
                 }
+            }
+            Some("Function") | Some("FunctionDeclaration") | Some("FunctionExpression") | Some("Method") => {
+                // `isAsync` is not supported by the parser yet.
+                if let None = object.get("isAsync") {
+                    object["isAsync"] = JSON::Boolean(false)
+                }
+                object.insert("scope", JSON::Null);
+            }
+            Some("LabeledStatement") => {
+                // Rewrite type
+                object["type"] = json::from("LabelledStatement");
+            }
+            Some("LiteralRegExpExpression") => {
+                let mut flags = String::new();
+                if let JSON::Boolean(true) = object["global"] {
+                    flags.push('g');
+                }
+                if let JSON::Boolean(true) = object["ignoreCase"] {
+                    flags.push('i');
+                }
+                if let JSON::Boolean(true) = object["multiLine"] {
+                    flags.push('m');
+                }
+                if let JSON::Boolean(true) = object["sticky"] {
+                    flags.push('y');
+                }
+                if let JSON::Boolean(true) = object["unicode"] {
+                    flags.push('u');
+                }
+                object.insert("flags", json::from(flags));
+            }
+            Some("StaticPropertyName") => {
+                // Change type.
+                object["type"] = json::from("LiteralPropertyName");
+            }
+            Some("VariableDeclarationStatement") => {
+                // Rewrite
+                //
+                // VariableDeclarationStatement {
+                //    declaration: VariableDeclaration {
+                //       ...foo
+                //    }
+                // }
+                //
+                // into
+                //
+                // VariableDeclaration {
+                //    ...foo
+                // }
+                let mut remove = match object.remove("declaration") {
+                    Some(JSON::Object(remove)) => remove,
+                    _ => panic!("No field `declaration` in a `VariableDeclarationStatement`")
+                };
+                std::mem::swap(object, &mut remove);
+                // At this stage
+                // - `remove` is the `VariableDeclarationStatement`
+                // - `object` is the `VariableDeclaration`
             }
             _ => { /* No change */ }
         }
@@ -341,6 +350,14 @@ impl MutASTVisitor for ToShift {
                 // - `object` is `VariableDeclarationStatement`.
                 // - `insert` is `VariableDeclaration`.
                 object["declaration"] = JSON::Object(insert);
+            }
+            (_, "LabelledStatement", &mut JSON::Object(ref mut object)) => {
+                // Change type.
+                object["type"] = json::from("LabeledStatement");
+            }
+            (_, "LiteralPropertyName", &mut JSON::Object(ref mut object)) => {
+                // Change type.
+                object["type"] = json::from("StaticPropertyName");
             }
             (_, "LiteralRegExpExpression", &mut JSON::Object(ref mut object)) => {
                 let mut global = false;

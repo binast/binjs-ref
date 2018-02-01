@@ -80,7 +80,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                 })
             }
             NamedType::Typedef(ref type_) =>
-                return self.encode_from_type(value, type_, node),
+                return self.encode_from_type(value, type_, node, is_optional),
             NamedType::Interface(ref interface) => {
                 debug!(target:"encode", "Attempting to encode value {:?} with interface {:?}", value, interface.name());
                 match *value {
@@ -126,9 +126,9 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             }
         }
     }
-    pub fn encode_from_type(&self, value: &JSON, type_: &Type, node: &NodeName) -> Result<Tree, Error<E>> {
+    pub fn encode_from_type(&self, value: &JSON, type_: &Type, node: &NodeName, is_optional: bool) -> Result<Tree, Error<E>> {
         debug!(target:"encode", "value {:?} within node {:?}, type {:?}", value, node, type_);
-        self.encode_from_type_spec(value, type_.spec(), node, type_.is_optional())
+        self.encode_from_type_spec(value, type_.spec(), node, is_optional || type_.is_optional())
     }
     fn encode_from_type_spec(&self, value: &JSON, spec: &TypeSpec, node: &NodeName, is_optional: bool) -> Result<Tree, Error<E>> {
         use ast::grammar::TypeSpec::*;
@@ -136,7 +136,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             (&Array { contents: ref kind, .. }, &JSON::Array(ref array)) => {
                 let mut encoded = Vec::new();
                 for item in array {
-                    let item = self.encode_from_type(item, kind, node)?;
+                    let item = self.encode_from_type(item, kind, node, false)?;
                     encoded.push(item);
                 }
                 let result = self.builder.borrow_mut().list(encoded)
@@ -150,6 +150,10 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             (&String, _) if value.is_string() => {
                 let string = value.as_str().unwrap(); // Checked just above.
                 return self.builder.borrow_mut().string(Some(string))
+                    .map_err(Error::TokenWriterError)
+            }
+            (&String, &JSON::Null) if is_optional => {
+                return self.builder.borrow_mut().string(None)
                     .map_err(Error::TokenWriterError)
             }
             (&Number, &JSON::Number(x)) =>
@@ -190,7 +194,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
         let mut result = Vec::with_capacity(fields.len());
         'fields: for field in fields {
             if let Some(source) = object.get(field.name().to_string()) {
-                let encoded = self.encode_from_type(source, field.type_(), node)?;
+                let encoded = self.encode_from_type(source, field.type_(), node, false)?;
                 result.push((field, encoded))
             } else {
                 debug!("Error in {:?}", object);

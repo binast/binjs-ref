@@ -59,12 +59,12 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
 
     pub fn decode(&mut self) -> Result<JSON, Error<E::Error>> {
         let start = self.grammar.get_root();
-        self.decode_from_named_type(&start)
+        self.decode_from_named_type(&start, false)
     }
-    fn decode_from_named_type(&mut self, named: &NamedType) -> Result<JSON, Error<E::Error>> {
+    fn decode_from_named_type(&mut self, named: &NamedType, is_optional: bool) -> Result<JSON, Error<E::Error>> {
         match *named {
             NamedType::Typedef(ref type_) =>
-                return self.decode_from_type(type_),
+                return self.decode_from_type(type_, is_optional),
             NamedType::StringEnum(ref enum_) => {
                 let string = self.extractor.string()
                     .map_err(Error::TokenReaderError)?
@@ -118,7 +118,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
         let mut object = Object::new();
         for field in mapped_field_names.as_ref().iter() {
             debug!(target: "decode", "decode_object_contents: Looking at field {:?} ", field.name().to_str());
-            let item = self.decode_from_type(field.type_())?;
+            let item = self.decode_from_type(field.type_(), false)?;
             let name = field.name().to_str();
             if expected.remove(field.name()).is_none() {
                 debug!(target: "decode", "decode_object_contents: I didn't expect field {:?}.", field.name().to_str());
@@ -151,9 +151,10 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
 
         Ok(self.register(JSON::Object(object)))
     }
-    pub fn decode_from_type(&mut self, kind: &Type) -> Result<JSON, Error<E::Error>> {
+    pub fn decode_from_type(&mut self, kind: &Type, is_optional: bool) -> Result<JSON, Error<E::Error>> {
         use ast::grammar::TypeSpec::*;
         debug!("decode: {:?}", kind);
+        let is_optional = kind.is_optional() || is_optional;
         match *kind.spec() {
             Array { contents: ref kind, supports_empty } => {
                 let (len, guard) = self.extractor.list()
@@ -163,7 +164,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 }
                 let mut values = Vec::with_capacity(len as usize);
                 for _ in 0..len {
-                    values.push(self.decode_from_type(kind)?);
+                    values.push(self.decode_from_type(kind, false)?);
                 }
                 guard.done()
                     .map_err(Error::TokenReaderError)?;
@@ -173,7 +174,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 let extracted = self.extractor.string()
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
-                    None if kind.is_optional() =>
+                    None if is_optional =>
                         Ok(self.register(JSON::Null)),
                     None =>
                         Err(self.raise_error(Error::UnexpectedValue("null string".to_owned()))),
@@ -204,9 +205,9 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             NamedType(ref name) => {
                 let named_type = self.grammar.get_type_by_name(name)
                     .ok_or_else(|| self.raise_error(Error::NoSuchType(name.to_string().clone())))?;
-                let result = self.decode_from_named_type(&named_type)?;
+                let result = self.decode_from_named_type(&named_type, is_optional)?;
                 if let JSON::Null = result {
-                    if !kind.is_optional() {
+                    if !is_optional {
                         return Err(self.raise_error(Error::UnexpectedValue("null".to_string())));
                     }
                 }
@@ -222,7 +223,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     .ok_or_else(|| Error::NoSuchInterface(interface_name.to_string().clone()))?;
 
                 if interface_node_name == self.grammar.get_null_name() {
-                    if kind.is_optional() {
+                    if is_optional {
                         guard.done()
                             .map_err(Error::TokenReaderError)?;
                         return Ok(self.register(JSON::Null))

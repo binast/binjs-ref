@@ -53,33 +53,7 @@ fn uses_strict(object: &Object) -> bool {
 }
 
 /// Special nodes used by BINJS. Not visible at source level.
-fn setup_binjs(syntax: &mut SyntaxBuilder) -> Box<Annotator> {
-    let identifier_name = syntax.node_name("IdentifierName");
-    let string = syntax.node_name("string");
-    let null = syntax.node_name("_Null");
-
-    // Field names
-    let field_var_decl_names = syntax.field_name(BINJS_VAR_NAME);
-    let field_lex_declared_names = syntax.field_name(BINJS_LET_NAME);
-    let field_captured_names = syntax.field_name(BINJS_CAPTURED_NAME);
-    let field_has_direct_eval = syntax.field_name(BINJS_DIRECT_EVAL);
-
-    syntax.add_typedef(&string).unwrap()
-        .with_type(Type::string().required());
-    syntax.add_typedef(&identifier_name).unwrap()
-        .with_type(Type::named(&string).required());
-
-    // A scope, used to attach annotations.
-    //
-    // The scope MUST always be parsed (hence stored) BEFORE the body.
-    let binjs_scope = syntax.node_name(SCOPE_NAME);
-    syntax.add_interface(&binjs_scope).unwrap()
-        .with_field_doc(&field_var_decl_names, Type::named(&identifier_name).array(), "Names declared with `var` (or an implicit `var`) in this var-scope. Empty unless this is a function scope.")
-        .with_field_doc(&field_lex_declared_names, Type::named(&identifier_name).array(), "Names declared with `let` (or an implicit `let`) in this lexical scope.")
-        .with_field_doc(&field_captured_names, Type::named(&identifier_name).array(), "Names declared in this scope and captured in an inner function.") .with_field_doc(&field_has_direct_eval, Type::bool().required(), "``true` if either in this scope or in a subscope, we have a call to the built-in function `eval()`.");
-
-    syntax.add_interface(&null).unwrap();
-
+fn setup_binjs(_: &mut SyntaxBuilder) -> Box<Annotator> {
     struct BaseAnnotator;
     impl Annotator for BaseAnnotator {
         fn name(&self) -> String {
