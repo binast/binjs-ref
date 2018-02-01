@@ -239,7 +239,13 @@ AssertedScope:
 AssignmentExpression:
     build: |
         TRY_DECL(result, factory_.newAssignment(ParseNodeKind::Assign, binding, expression));
-                    
+
+AssignmentTargetIdentifier:
+    build: |
+        if (!IsIdentifier(name))
+            return raiseError("Invalid identifier");
+        TRY_DECL(result, factory_.newName(name->asPropertyName(), tokenizer_->pos(start), cx_));
+
 BindingIdentifier:
     build: |
         if (!IsIdentifier(name))
