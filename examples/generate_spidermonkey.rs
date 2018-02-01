@@ -580,11 +580,18 @@ impl CPPExporter {
     AutoList guard(*tokenizer_);
 
     TRY(tokenizer_->enterList(length, guard));{empty_check}
-    MOZ_CRASH(\"UNIMPLEMENTED: Missing result initialization\");
+    MOZ_CRASH(\"FIXME: Not implemented yet ({kind})\");
 }}\n",
                 first_line = first_line,
-                empty_check = if supports_empty { "".to_string() } else { format!("\n    if (length == 0)
-        return raiseEmpty(\"{kind}\");\n", kind = kind) },
+                kind = kind,
+                empty_check =
+                    if supports_empty {
+                        "".to_string()
+                    } else {
+                        format!("\n    if (length == 0)
+        return raiseEmpty(\"{kind}\");\n",
+            kind = kind)
+                    },
             );
             buffer.push_str(&rendered);
         }
@@ -690,7 +697,12 @@ impl CPPExporter {
 ",
                                 first_line = self.get_method_definition_start(name, "ParseNode*", "", ""),
                                 build = build_result,
-                                return_ = if build_result.len() == 0 { "MOZ_CRASH(\"FIXME: Unimplemented\");".to_string() } else { "return result;".to_string() }
+                                return_ = if build_result.len() == 0 {
+                                    format!("MOZ_CRASH(\"FIXME: Not implemented yet ({kind})\");\n",
+                                        kind = name.to_str())
+                                } else {
+                                    "return result;".to_string()
+                                }
                             ));
                             break 'find_definition
                         }
@@ -847,11 +859,12 @@ impl CPPExporter {
         };
 
         if build_result == "" {
-            buffer.push_str(&format!("{first_line}{{
-    MOZ_CRASH(\"FIXME: Implement building the result\");
+            buffer.push_str(&format!("{first_line} {{
+    MOZ_CRASH(\"FIXME: Not implemented yet ({})\");
 }}
 
 ",
+                kind = kind.to_str(),
                 first_line = first_line,
             ));
         } else {
