@@ -236,6 +236,10 @@ AssertedScope:
                 replace:
                     MOZ_TRY(parseAndUpdateScopeNames(parseContext_->varScope(), DeclarationKind::Var));
 
+AssignmentExpression:
+    build: |
+        TRY_DECL(result, factory_.newAssignment(ParseNodeKind::Assign, binding, expression));
+                    
 BindingIdentifier:
     build: |
         if (!IsIdentifier(name))
