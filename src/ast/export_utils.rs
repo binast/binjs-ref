@@ -36,11 +36,11 @@ impl TypeDeanonymizer {
         }
         // Copy and deanonymize typedefs
         for (name, definition) in syntax.typedefs_by_name() {
+            result.builder.import_node_name(name);
             if result.builder.get_typedef(name).is_some() {
                 // Already imported by following links.
                 continue
             }
-            result.builder.import_node_name(name);
             result.import_type(syntax, &definition, Some(name.clone()));
         }
         // Copy and deanonymize string enums
@@ -55,6 +55,8 @@ impl TypeDeanonymizer {
                 declaration.with_string(&string);
             }
         }
+        debug!(target: "export_utils", "Names: {:?}", result.builder.names().keys().format(", "));
+
         result
     }
     pub fn into_syntax(self, options: SyntaxOptions) -> Syntax {
@@ -93,7 +95,7 @@ impl TypeDeanonymizer {
             TypeSpec::Void    => {
                 if let Some(ref my_name) = public_name {
                     if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
-                        debug!(target: "export_utils", "import_typespec: Defining {name}", name = my_name.to_str());
+                        debug!(target: "export_utils", "import_typespec: Defining {name} (primitive)", name = my_name.to_str());
                         typedef.with_type(spec.clone().required());
                     } else {
                         debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
@@ -142,7 +144,7 @@ impl TypeDeanonymizer {
                         debug!(target: "export_utils", "import_typespec aliasing {:?} => {:?}",
                             my_name, deanonymized);
                         if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
-                            debug!(target: "export_utils", "import_typespec: Defining {name}", name = my_name.to_str());
+                            debug!(target: "export_utils", "import_typespec: Defining {name} (name to content)", name = my_name.to_str());
                             typedef.with_type(deanonymized.clone());
                         } else {
                             debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
@@ -151,7 +153,7 @@ impl TypeDeanonymizer {
                     // Also, don't forget to copy the typedef and alias `link`
                     let deanonymized = Type::named(link).required();
                     if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
-                        debug!(target: "export_utils", "import_typespec: Defining {name}", name = my_name.to_str());
+                        debug!(target: "export_utils", "import_typespec: Defining {name} (name to link)", name = my_name.to_str());
                         typedef.with_type(deanonymized.clone());
                     } else {
                         debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
@@ -183,7 +185,8 @@ impl TypeDeanonymizer {
                         Type::named(&contents_name).non_empty_array()
                     };
                 if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
-                    debug!(target: "export_utils", "import_typespec: Defining {name}", name = my_name.to_str());
+                    debug!(target: "export_utils", "import_typespec: Defining {name} (name to list)",
+                        name = my_name.to_str());
                     typedef.with_type(deanonymized.clone());
                 } else {
                     debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
@@ -214,7 +217,7 @@ impl TypeDeanonymizer {
                     .collect();
                 let deanonymized = Type::sum(&sum).required();
                 if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
-                    debug!(target: "export_utils", "import_typespec: Defining {name}", name = my_name.to_str());
+                    debug!(target: "export_utils", "import_typespec: Defining {name} (name to sum)", name = my_name.to_str());
                     typedef.with_type(deanonymized.clone());
                 } else {
                     debug!(target: "export_utils", "import_type: Attempting to redefine typedef {name}", name = my_name.to_str());

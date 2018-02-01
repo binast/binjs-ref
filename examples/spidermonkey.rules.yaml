@@ -205,6 +205,12 @@ hpp:
 
             #endif // frontend_BinToken_h
 
+Arguments:
+    init:
+        TRY_DECL(result, factory_.newList(ParseNodeKind::ParamsBody, tokenizer_->pos(start)));
+    append:
+        factory_.addList(/* list = */ result, /* child = */ item);
+            
 ArrayExpression:
     build:
         auto result = elements;
@@ -529,13 +535,6 @@ IdentifierExpression:
         if (!IsIdentifier(name))
             return raiseError("Invalid identifier");
         TRY_DECL(result, factory_.newName(name->asPropertyName(), tokenizer_->pos(start), cx_));
-
-# typedefed to Arguments
-ListOfAssignmentTargetOrAssignmentTargetWithInitializer:
-    init:
-        TRY_DECL(result, factory_.newList(ParseNodeKind::ParamsBody, tokenizer_->pos(start)));
-    append:
-        factory_.addList(/* list = */ result, /* child = */ item);
 
 ListOfDirective:
     init:

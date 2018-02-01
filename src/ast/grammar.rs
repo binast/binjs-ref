@@ -693,6 +693,10 @@ impl SyntaxBuilder {
         }
     }
 
+    pub fn names(&self) -> &HashMap<String, Rc<String>> {
+        &self.names
+    }
+
     /// Return an `NodeName` for a name. Equality comparison
     /// on `NodeName` can be performed by checking physical
     /// equality.
