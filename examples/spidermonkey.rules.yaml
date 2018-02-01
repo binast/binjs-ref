@@ -735,6 +735,10 @@ SwitchStatement:
         TRY_DECL(scope, factory_.newLexicalScope(nullptr, cases));
         TRY_DECL(result, factory_.newSwitchStatement(start, discriminant, scope));
 
+StaticMemberAssignmentTarget:
+    build: |
+        TRY_DECL(result, factory_.newPropertyAccess(object, property->asPropertyName(), start));
+
 StaticMemberExpression:
     build: |
         TRY_DECL(result, factory_.newPropertyAccess(object, property->asPropertyName(), start));
