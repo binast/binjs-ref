@@ -525,6 +525,12 @@ FunctionExpression:
     build: |
         MOZ_TRY_DECL(result, buildFunction(start, kind, params, body, funbox));
 
+IdentifierExpression:
+    build: |
+        if (!IsIdentifier(name))
+            return raiseError("Invalid identifier");
+        TRY_DECL(result, factory_.newName(name->asPropertyName(), tokenizer_->pos(start), cx_));
+
 ListOfDirective:
     init:
         TRY_DECL(result, factory_.newStatementList(tokenizer_->pos(start)));
@@ -581,6 +587,9 @@ LiteralNullExpression:
 
 LiteralPropertyName:
     build: |
+        if (!IsIdentifier(value))
+            return raiseError("Invalid property name");
+
         ParseNode* result;
         uint32_t index;
         if (value->isIndex(&index))
