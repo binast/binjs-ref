@@ -380,7 +380,7 @@ BreakStatement:
 CallExpression:
     build: |
         auto result = arguments;
-        result->setKind(ParseNodeKind::New);
+        result->setKind(ParseNodeKind::Call);
         result->prepend(callee);
         
 CatchClause:
