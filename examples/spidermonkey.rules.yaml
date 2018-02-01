@@ -524,7 +524,7 @@ ListOfDirective:
     init:
         TRY_DECL(result, factory_.newStatementList(tokenizer_->pos(start)));
     append:
-        factory_.addCaseStatementToList(result, item);
+        factory_.addStatementToList(result, item);
 
 ListOfObjectProperty:
     init:
@@ -539,6 +539,12 @@ ListOfOptionalSpreadElementOrExpression:
         else
             TRY(factory_.addElision(result, tokenizer_->pos(start)));
 
+ListOfStatement:
+    init:
+        TRY_DECL(result, factory_.newStatementList(tokenizer_->pos(start)));
+    append:
+        factory_.addStatementToList(result, item);
+            
 #ListOfSpreadElementOrExpression:
 #    init:
 #        ParseNode* result = new_<ListNode>(ParseNodeKind::ParamsBody, tokenizer_->pos());
@@ -657,6 +663,10 @@ ReturnStatement:
         parseContext_->functionBox()->usesReturn = true;
     build: 
         TRY_DECL(result, factory_.newReturnStatement(expression, tokenizer_->pos(start)));
+
+Script:
+    build:
+        MOZ_TRY_DECL(result, appendDirectivesToBody(/* body = */ statements, /* directives = */ directives));
 
 Setter:
     fields:
