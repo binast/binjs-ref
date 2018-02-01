@@ -212,7 +212,6 @@ impl CPPExporter {
     pub fn new(deanonymizer: TypeDeanonymizer, options: SyntaxOptions) -> Self {
         let syntax = deanonymizer.into_syntax(options);
 
-        eprintln!("Node names: {}", syntax.node_names().keys().format(", "));
         let mut list_parsers_to_generate = vec![];
         let mut option_parsers_to_generate = vec![];
         for (parser_node_name, typedef) in syntax.typedefs_by_name() {

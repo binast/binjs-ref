@@ -632,14 +632,6 @@ Method:
                 MOZ_ASSERT(parseContext_->isFunctionBox());
     build: |
         MOZ_TRY_DECL(result, buildFunction(start, kind, params, body, funbox));
-        
-ObjectExpression:
-    build: |
-        ParseNode* result = properties;
-
-OptionalAssertedScope:
-    type-ok:
-        Ok
 
 NewExpression:
     build: |
@@ -651,6 +643,10 @@ ObjectExpression:
     build:
         auto result = properties;
 
+OptionalAssertedScope:
+    type-ok:
+        Ok
+        
 ReturnStatement:
     init: |
         if (!parseContext_->isFunctionBox()) {
@@ -662,6 +658,29 @@ ReturnStatement:
     build: 
         TRY_DECL(result, factory_.newReturnStatement(expression, tokenizer_->pos(start)));
 
+Setter:
+    fields:
+        param:
+            after:
+                TRY_DECL(params, factory_.newList(ParseNodeKind::ParamsBody, param));
+                
+        body:
+            before: |
+                MOZ_TRY_DECL(funbox, buildFunctionBox(params, name, /* isGenerator = */ false, /* isAsync = */ false));
+
+                // Container scopes.
+                ParseContext::Scope& varScope = parseContext_->varScope();
+                ParseContext::Scope* letScope = parseContext_->innermostScope();
+            
+                // Push a new ParseContext.
+                BinParseContext funpc(cx_, this, funbox, /* newDirectives = */ nullptr);
+                TRY(funpc.init());
+                parseContext_->functionScope().useAsVarScope(parseContext_);
+                MOZ_ASSERT(parseContext_->isFunctionBox());
+    build: |
+        MOZ_TRY_DECL(method, buildFunction(start, kind, params, body, funbox));
+        TRY_DECL(result, factory_.newObjectMethodOrPropertyDefinition(name, method, AccessorType::Setter));
+        
 ShorthandProperty:
     build: |
         if (!factory_.isUsableAsObjectPropertyName(name))
