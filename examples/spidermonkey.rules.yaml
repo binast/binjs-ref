@@ -231,6 +231,11 @@ AssertedScope:
                 replace:
                     MOZ_TRY(parseAndUpdateScopeNames(parseContext_->varScope(), DeclarationKind::Var));
 
+BindingIdentifier:
+    build: |
+        if (!IsIdentifier(name))
+            return raiseError("Invalid identifier");
+        TRY_DECL(result, factory_.newName(name->asPropertyName(), tokenizer_->pos(start), cx_));
 
 BinaryExpression:
     build: |
