@@ -22,7 +22,7 @@ use clap::*;
 
 use itertools::Itertools;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct FieldParsingRules {
     pub declare: Option<String>,
     /// Replace the declaration and assignation.
@@ -33,8 +33,11 @@ pub struct FieldParsingRules {
     pub block_after_field: Option<String>,
 
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct NodeParsingRules {
+    /// This node inherits from another node.
+    pub inherits: Option<NodeName>,
+
     /// Override the result type for the method.
     pub type_ok: Option<String>,
 
@@ -46,6 +49,44 @@ pub struct NodeParsingRules {
     /// Custom per-field treatment. Used only for interfaces.
     pub by_field: HashMap<FieldName, FieldParsingRules>,
     pub build_result: Option<String>,
+}
+impl GenerationRules {
+    fn get(&self, name: &NodeName) -> NodeParsingRules {
+        let mut rules = self.per_node.get(name)
+            .cloned()
+            .unwrap_or_default();
+        let inherits = rules.inherits.clone();
+        if let Some(ref parent) = inherits {
+            let NodeParsingRules {
+                inherits,
+                type_ok,
+                start,
+                append,
+                by_field,
+                build_result,
+            } = self.get(parent);
+            if rules.inherits.is_none() {
+                rules.inherits = inherits;
+            }
+            if rules.type_ok.is_none() {
+                rules.type_ok = type_ok;
+            }
+            if rules.start.is_none() {
+                rules.start = start;
+            }
+            if rules.append.is_none() {
+                rules.append = append;
+            }
+            if rules.build_result.is_none() {
+                rules.build_result = build_result;
+            }
+            for (key, value) in by_field {
+                rules.by_field.entry(key)
+                    .or_insert(value);
+            }
+        }
+        rules
+    }
 }
 #[derive(Default)]
 pub struct GenerationRules {
@@ -248,11 +289,12 @@ impl CPPExporter {
 // ----- Generating the header
 impl CPPExporter {
     fn get_type_ok(&self, name: &NodeName, default: &str) -> String {
-        let rules_for_this_interface = self.rules.per_node.get(name);
-        match rules_for_this_interface {
-            Some(&NodeParsingRules { type_ok: Some(ref override_ok ), .. }) => override_ok.to_string(),
-            _ => default.to_string()
+        let rules_for_this_interface = self.rules.get(name);
+        // If the override is provided, use it.
+        if let Some(ref type_ok) = rules_for_this_interface.type_ok {
+            return type_ok.to_string()
         }
+        default.to_string()
     }
 
     fn get_method_signature(&self, name: &NodeName, default_type_ok: &str, prefix: &str, args: &str) -> String {
@@ -519,35 +561,15 @@ impl CPPExporter {
 
     /// Generate the implementation of a single list parser
     fn generate_implement_list(&self, buffer: &mut String, name: &NodeName, supports_empty: bool, contents: &NodeName) {
-        let rules_for_this_list = self.rules.per_node.get(name);
+        let rules_for_this_list = self.rules.get(name);
 
-        let (init, append) = 
-            if let Some(&NodeParsingRules {
-                ref start,
-                ref append,
-                ..
-            }) = rules_for_this_list
-        {
-            let init = if start.is_some() {
-                Some(start.reindent("    "))
-            } else {
-                None
-            };
-            let append = if append.is_some() {
-                Some(append.reindent("        "))
-            } else {
-                None
-            };
-            (init, append)
-        } else {
-            (None, None)
-        };
+        let init = rules_for_this_list.start.reindent("    ");
+        let append = rules_for_this_list.append.reindent("    ");
 
         let kind = name.to_class_cases();
         let first_line = self.get_method_definition_start(name, "ParseNode*", "", "");
 
-        if let Some(ref init) = init {
-            let append = append.unwrap_or_else(||"        result->appendWithoutOrderAssumption(item);".to_string());
+        if rules_for_this_list.start.is_some() && rules_for_this_list.append.is_some() {
             let rendered = format!("\n{first_line}
 {{
     uint32_t length;
@@ -599,7 +621,7 @@ impl CPPExporter {
     fn generate_implement_option(&self, buffer: &mut String, name: &NodeName, contents: &NodeName) {
         debug!(target: "export_utils", "Implementing optional value {} backed by {}", name.to_str(), contents.to_str());
 
-        let rules_for_this_node = self.rules.per_node.get(name);
+        let rules_for_this_node = self.rules.get(name);
 
         let type_ok = self.get_type_ok(name, "ParseNode*");
         let default_value = 
@@ -678,11 +700,7 @@ impl CPPExporter {
                             continue 'find_definition
                         }
                         &TypeSpec::String => {
-                            let build_result = if let Some(ref rule) = rules_for_this_node {
-                                rule.start.reindent("    ")
-                            } else {
-                                "".to_string()
-                            };
+                            let build_result = rules_for_this_node.start.reindent("    ");
 
                             buffer.push_str(&format!("{first_line}
 {{
@@ -716,7 +734,7 @@ impl CPPExporter {
     }
 
     fn generate_implement_interface(&self, buffer: &mut String, name: &NodeName, interface: &Interface) {
-        let rules_for_this_interface = self.rules.per_node.get(name);
+        let rules_for_this_interface = self.rules.get(name);
 
         // Generate comments
         let comment = format!("\n/*\n{}*/\n", ToWebidl::interface(interface, "", "    "));
@@ -756,10 +774,7 @@ impl CPPExporter {
 
         let mut fields_implem = String::new();
         for field in interface.contents().fields() {
-            let rules_for_this_field = match rules_for_this_interface {
-                None => None,
-                Some(ref rule) => rule.by_field.get(field.name())
-            };
+            let rules_for_this_field = rules_for_this_interface.by_field.get(field.name());
             let needs_block = if let Some(ref rule) = rules_for_this_field {
                 rule.block_before_field.is_some() || rule.block_after_field.is_some()
             } else {
@@ -850,12 +865,9 @@ impl CPPExporter {
             fields_implem.push_str(&rendered);
         }
 
-        let (start, build_result) = if let Some(ref rule) = rules_for_this_interface {
-            (rule.start.reindent("    "),
-                rule.build_result.reindent("    "))
-        } else {
-            ("".to_string(), "".to_string())
-        };
+        let (start, build_result) =
+            (rules_for_this_interface.start.reindent("    "),
+             rules_for_this_interface.build_result.reindent("    "));
 
         if build_result == "" {
             buffer.push_str(&format!("{first_line} {{
@@ -1204,6 +1216,13 @@ fn main() {
                 let as_string = node_item_key.as_str()
                     .unwrap_or_else(|| panic!("Keys for rule {} must be strings", node_key));
                 match as_string {
+                    "inherits" => {
+                        let name = node_item_entry.as_str()
+                            .unwrap_or_else(|| panic!("Rule {}.{} must be a string", node_key, as_string));
+                        let inherits = deanonymizer.get_node_name(name)
+                            .unwrap_or_else(|| panic!("Unknown node name {}", node_key));
+                        node_rule.inherits = Some(inherits);
+                    }
                     "init" => {
                         update_rule(&mut node_rule.start, node_item_entry)
                             .unwrap_or_else(|| panic!("Rule {}.{} must be a string", node_key, as_string));

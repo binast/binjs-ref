@@ -215,7 +215,7 @@ ArrayExpression:
     build:
         auto result = elements;
 
-AssertedScope:
+AssertedBlockScope:
     type-ok:
         Ok
     build:
@@ -227,14 +227,18 @@ AssertedScope:
         hasDirectEval:
             before: |
                 // FIXME: Ignored for the moment.
-        lexicallyDeclaredNames:
-            block:
-                replace:
-                    MOZ_TRY(parseAndUpdateScopeNames(*parseContext_->innermostScope(), DeclarationKind::Let));                
         varDeclaredNames:
             block:
                 replace:
                     MOZ_TRY(parseAndUpdateScopeNames(parseContext_->varScope(), DeclarationKind::Var));
+
+AssertedTopLevelScope:
+    inherits: AssertedBlockScope
+    fields:
+        lexicallyDeclaredNames:
+            block:
+                replace:
+                    MOZ_TRY(parseAndUpdateScopeNames(*parseContext_->innermostScope(), DeclarationKind::Let));                
 
 AssignmentExpression:
     build: |
@@ -679,10 +683,15 @@ ObjectExpression:
     build:
         auto result = properties;
 
-OptionalAssertedScope:
+OptionalAssertedBlockScope:
+    type-ok:
+        Ok
+
+OptionalAssertedTopLevelScope:
     type-ok:
         Ok
         
+
 ReturnStatement:
     init: |
         if (!parseContext_->isFunctionBox()) {
