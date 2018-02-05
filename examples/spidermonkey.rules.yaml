@@ -861,9 +861,19 @@ UpdateExpression:
         TRY_DECL(result, factory_.newUnary(pnk, start, operand));
 
 VariableDeclaration:
+    fields:
+        kind:
+            block:
+                replace:
+                    MOZ_TRY_VAR(variableDeclarationKind, parseVariableDeclarationKind());
+
     build: |
+        // By specification, the list may not be empty.
+        if (declarators->pn_count == 0)
+            return raiseEmpty("VariableDeclaration");
+
         ParseNodeKind pnk;
-        switch (kind_) {
+        switch (variableDeclarationKind) {
           case VariableDeclarationKind::Var:
             pnk = ParseNodeKind::Var;
             break;
@@ -874,7 +884,6 @@ VariableDeclaration:
             pnk = ParseNodeKind::Const;
             break;
         }
-        // FIXME Check that `declarators` is not empty.
         declarators->setKind(pnk);
         auto result = declarators;
 
@@ -887,6 +896,26 @@ VariableDeclarator:
 
             if (init)
                 result->pn_expr = init;
+
+            // Check scope.
+            ParseContext::Scope& scope =
+                variableDeclarationKind == VariableDeclarationKind::Var
+                    ? parseContext_->varScope()
+                    : *parseContext_->innermostScope();
+            auto ptr = scope.lookupDeclaredNameForAdd(binding->pn_atom->asPropertyName());
+            if (!ptr) {
+                /*
+                 FIXME: Is this check sufficient? What does this return if we have the following?
+                 ```js
+                   var foo;
+                   function() {
+                       // Here, bogus AssertedScope that forgets `foo`
+                       var foo;
+                   }
+                 ```
+                */
+                return raiseMissingVariableInAssertedScope(binding->pn_atom);
+            }
         } else {
             // `var pattern = bar`
             if (!init) {
@@ -894,6 +923,7 @@ VariableDeclarator:
                 return raiseMissingField("VariableDeclarator (with non-trivial pattern)", BinField::Init);
             }
 
+            MOZ_CRASH("Unimplemented: AssertedScope check for BindingPattern variable declaration");
             TRY_VAR(result, factory_.newAssignment(ParseNodeKind::Assign, binding, init));
         }
 

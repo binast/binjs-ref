@@ -13,6 +13,8 @@ use std::cell::{ RefCell, Ref };
 use std::collections::HashSet;
 use std::rc::{ Rc, Weak };
 
+use itertools::Itertools;
+
 /// The position currently being examined.
 #[derive(Clone)]
 pub struct Position {
@@ -352,10 +354,17 @@ impl<'a> Context<'a, RefContents> {
         let captured_names : Vec<_> = captured_names.drain(..)
             .map(|name| json::from(&name as &str))
             .collect();
+        debug!(target: "annotation", "RefContext: stored in {} [{captured_names}]",
+            BINJS_CAPTURED_NAME,
+            captured_names = captured_names.iter().format(", "));
 
         let borrow = self.contents.borrow();
         object
             .insert(BINJS_CAPTURED_NAME, json::from(captured_names));
+
+        debug!(target: "annotation", "RefContext: stored in {} {direct_eval}",
+            BINJS_DIRECT_EVAL,
+            direct_eval = borrow.data.has_direct_eval);
 
         object
             .insert(BINJS_DIRECT_EVAL, json::from(borrow.data.has_direct_eval));
@@ -556,11 +565,21 @@ impl<'a> Context<'a, DeclContents> {
 
         let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
         var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
-        let var_decl_names: Vec<_> = var_decl_names.drain(..).map(|name| json::from(name as &str)).collect();
+        let var_decl_names: Vec<_> = var_decl_names.drain(..)
+            .map(|name| json::from(name as &str))
+            .collect();
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
         let_decl_names.sort(); // To simplify testing (and hopefully improve compression)
-        let let_decl_names: Vec<_> = let_decl_names.drain(..).map(|name| json::from(name as &str)).collect();
+        let let_decl_names: Vec<_> = let_decl_names.drain(..)
+            .map(|name| json::from(name as &str))
+            .collect();
+
+        debug!(target: "annotation", "DeclContext: storing\n {var_decl_key} => [{var_decl_names}]\n {let_decl_key} => [{let_decl_names}]",
+            var_decl_key = BINJS_VAR_NAME,
+            var_decl_names = var_decl_names.iter().map(|x| format!("\"{}\"", x)).format(", "),
+            let_decl_key = BINJS_LET_NAME,
+            let_decl_names = let_decl_names.iter().map(|x| format!("\"{}\"", x)).format(", "));
 
         // Ignore overwrites: we may be overwriting an existing "BINJS:Scope" object,
         // in case we are used to re-annotate an existing tree.

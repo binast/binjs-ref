@@ -814,7 +814,7 @@ impl CPPExporter {
 
             let rendered = if let Some(ref rule) = rules_for_this_field {
                 if rule.replace.is_some() {
-                    rule.replace.reindent("   ")
+                    rule.replace.reindent("    ")
                 } else {
                     let before_field = rule.before_field.reindent("    ");
                     let after_field = rule.after_field.reindent("    ");

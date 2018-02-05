@@ -1556,10 +1556,16 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
         }
 
         fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError> {
+            debug!(target: "library", "Visiting {}", ctx.kind_str());
             match ctx.kind_str() {
-                "Identifier" => {
+                "BindingIdentifier" => {
                     // Collect the name of the identifier.
-                    let name = object.get_string("name", "Field `name` of `Identifier`")?;
+                    let name = object.get_string("name", "Field `name` of `BindingIdentifier`")?;
+                    debug!(target: "library", "While visiting {kind}, found name {name} with parent {parent:?}",
+                        parent = ctx.contents().parent().map(|x| x.borrow().kind_str().to_string()),
+                        name = name,
+                        kind = ctx.kind_str()
+                    );
                     let parent = match ctx.contents().parent() {
                         Some(parent) => parent,
                         None => return Ok(()) // If we are at toplevel, we don't really care about all this.
@@ -1567,28 +1573,19 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     let mut parent = parent.borrow_mut();
                     match parent.kind_str() {
                         // FIXME: This would probably be much nicer if we had an iterator of ancestors.
-                        "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
-                            if let Some("id") = parent.field_str() {
+                        "FunctionDeclaration" | "Method" | "Getter" | "Setter" | "FunctionExpression" => {
+                            if let Some("name") = parent.field_str() {
                                 // 1. If the declaration is at the toplevel, this is a `var`.
                                 // 2. If the declaration is in a function's toplevel block, this is a `var`.
                                 // 3. Otherwise, this is a `let`.
                                 if let Some(grand) = parent.parent() {
                                     let mut grand = grand.borrow_mut();
-                                    if let "BlockStatement" = grand.kind_str() {
-                                        if let Some(grandgrand) = grand.parent() {
-                                            let grandgrand = grandgrand.borrow();
-                                            match grandgrand.kind_str() {
-                                                "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
-                                                    // Case 2.
-                                                    grand.add_var_name(name)
-                                                }
-                                                _ => grand.add_let_name(name)
-                                            }
-                                        } else {
-                                            grand.add_let_name(name)
-                                        }
-                                    } else {
+                                    if let "FunctionBody" = grand.kind_str() {
+                                        // Case 2.
                                         grand.add_var_name(name)
+                                    } else {
+                                        // Case 3.
+                                        grand.add_let_name(name)
                                     }
                                 } else {
                                     // Case 1.
@@ -1623,13 +1620,16 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             }
                         }
                         "VariableDeclarator" => {
-                            if let Some("id") = parent.field_str() {
+                            if let Some("binding") = parent.field_str() {
+                                debug!(target: "library", "Inserting binding");
                                 match parent.scope_kind() {
                                     ScopeKind::VarDecl => parent.add_var_name(name),
                                     ScopeKind::LetDecl => parent.add_let_name(name),
                                     ScopeKind::ConstDecl => parent.add_const_name(name),
                                     _ => return Err(ASTError::InvalidScope)
                                 }
+                            } else {
+                                debug!(target: "library", "Skipping binding {:?}", parent.field_str());
                             }
                             // Otherwise, skip. We cannot declare variables in `init`.
                         }
@@ -1670,7 +1670,7 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Then proceed as usual.
                     self.parent.process_declarations(me, ctx, object)?;
                 }
-                "BlockStatement" | "ForStatement" | "ForInStatement" => {
+                "Block" | "FunctionBody" | "ForStatement" | "ForInStatement" => {
                     // Adopt usual behavior.
                     self.parent.process_declarations(me, ctx, object)?;
 
@@ -1680,7 +1680,7 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Drop LexDecl, keep VarDecl
                     ctx.clear_lex_names();
                 }
-                "Program" => {
+                "Script" | "Module" => {
                     // Check directives
                     if uses_strict(object) {
                         ctx.set_uses_strict(true);
@@ -1694,7 +1694,7 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     ctx.promote_unknown_names_to_var();
                     ctx.store(object);
                 }
-                "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression"  => {
+                "FunctionDeclaration" | "Getter"  | "Setter" | "Method" | "FunctionExpression"  => {
                     // Check directives.
                     let uses_strict = ctx.uses_strict() ||
                         if let JSON::Object(ref body) = object["body"] {
@@ -1704,22 +1704,6 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         };
                     if uses_strict {
                         ctx.set_uses_strict(true);
-                        // Babel allows any string to be used as a directive.
-                        // This doesn't seem canonical.
-                        // FIXME: Move this to babel.rs
-                        if let JSON::Object(ref mut body) = object["body"] {
-                            body.insert("directives", array![object!{
-                                "type" => "Directive",
-                                "value" => object!{
-                                    "type" => "DirectiveLiteral",
-                                    "value" => "use strict"
-                                }
-                            }]);
-                        }
-                    } else {
-                        if let JSON::Object(ref mut body) = object["body"] {
-                            body.insert("directives", array![]);
-                        }
                     }
 
                     // Adopt usual behavior.
@@ -1763,9 +1747,9 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     let mut parent = parent.borrow_mut();
 
                     match parent.kind_str() {
-                        "FunctionDeclaration" | "ObjectMethod" | "FunctionExpression" => {
+                        "FunctionDeclaration" | "Method" | "Getter" | "Setter" | "FunctionExpression" => {
                             match parent.field_str() {
-                                Some("id") | Some("params") => {
+                                Some("name") | Some("params") => {
                                     let fun_scope = parent.fun_scope() .expect("Expected a fun scope");
                                     fun_scope.borrow_mut().add_binding(name);
                                 }
@@ -1773,7 +1757,7 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             }
                         }
                         "CatchClause" => {
-                            if let Some("param") = parent.field_str() {
+                            if let Some("binding") = parent.field_str() {
                                 parent.add_binding(name)
                             } else {
                                 return Err(ASTError::InvalidField("<FIXME: specify field>".to_string()))
@@ -1788,11 +1772,11 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 parent.add_free_name(name)
                             }
                         }
-                        "LabeledStatement" | "BreakStatement" | "ContinueStatement" => {
+                        "LabelledStatement" | "BreakStatement" | "ContinueStatement" => {
                             // Ignore identifier, not a variable.
                         }
                         "VariableDeclarator" => {
-                            if let Some("id") = parent.field_str() {
+                            if let Some("binding") = parent.field_str() {
                                 // Variable declaration, already handled.
                                 assert!(parent.is_bound(&name), "Variable {} is declared explicitly, should have been marked as bound in the previous pass. Bound variables: {:?}", name, parent.bindings());
                             } else {
@@ -1831,19 +1815,19 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                     };
                 }
-                "ForStatement" | "ForInStatement" | "BlockStatement" | "Program" | "CatchClause" =>
+                "ForStatement" | "ForInStatement" | "Block" | "Program" | "FunctionBody" | "CatchClause" =>
                 {
                     // Simply load the stored bindings, then handle fields.
                     ctx.load(object);
                     self.parent.process_references(me, ctx, object)?;
                     ctx.store(object)
                 },
-                "FunctionExpression" | "FunctionDeclaration" | "ObjectMethod" => {
+                "FunctionExpression" | "FunctionDeclaration" | "Method" | "Getter" | "Setter" => {
                     ctx.use_as_fun_scope();
 
                     // Make sure that we handle the function id and the params before the body,
                     // as they generally introduce bindings.
-                    for name in &["id", "params", "body"] {
+                    for name in &["name", "params", "body"] {
                         if let Some(field) = object.get_mut(*name) {
                             if let Ok(mut ctx) = ctx.enter_field(name) {
                                 me.process_references_aux(me, &mut ctx, field)?;
