@@ -222,23 +222,24 @@ AssertedBlockScope:
         auto result = Ok();
     fields:
         capturedNames:
-            before: |
-                // FIXME: Ignored for the moment.
+            block:
+                replace: |
+                    MOZ_TRY(parseAndUpdateCapturedNames());
         hasDirectEval:
             before: |
                 // FIXME: Ignored for the moment.
-        varDeclaredNames:
+        lexicallyDeclaredNames:
             block:
                 replace:
-                    MOZ_TRY(parseAndUpdateScopeNames(parseContext_->varScope(), DeclarationKind::Var));
+                    MOZ_TRY(parseAndUpdateScopeNames(*parseContext_->innermostScope(), DeclarationKind::Let));
 
 AssertedTopLevelScope:
     inherits: AssertedBlockScope
     fields:
-        lexicallyDeclaredNames:
+        varDeclaredNames:
             block:
                 replace:
-                    MOZ_TRY(parseAndUpdateScopeNames(*parseContext_->innermostScope(), DeclarationKind::Let));                
+                    MOZ_TRY(parseAndUpdateScopeNames(parseContext_->varScope(), DeclarationKind::Var));
 
 AssignmentExpression:
     build: |
@@ -532,10 +533,6 @@ FunctionExpression:
             after: |
                 MOZ_TRY_DECL(funbox, buildFunctionBox(params, name, isGenerator, isAsync));
 
-                // Container scopes.
-                ParseContext::Scope& varScope = parseContext_->varScope();
-                ParseContext::Scope* letScope = parseContext_->innermostScope();
-            
                 // Push a new ParseContext.
                 BinParseContext funpc(cx_, this, funbox, /* newDirectives = */ nullptr);
                 TRY(funpc.init());
@@ -661,10 +658,6 @@ Method:
             after: |
                 MOZ_TRY_DECL(funbox, buildFunctionBox(params, name, isGenerator, isAsync));
 
-                // Container scopes.
-                ParseContext::Scope& varScope = parseContext_->varScope();
-                ParseContext::Scope* letScope = parseContext_->innermostScope();
-            
                 // Push a new ParseContext.
                 BinParseContext funpc(cx_, this, funbox, /* newDirectives = */ nullptr);
                 TRY(funpc.init());
@@ -717,10 +710,6 @@ Setter:
             before: |
                 MOZ_TRY_DECL(funbox, buildFunctionBox(params, name, /* isGenerator = */ false, /* isAsync = */ false));
 
-                // Container scopes.
-                ParseContext::Scope& varScope = parseContext_->varScope();
-                ParseContext::Scope* letScope = parseContext_->innermostScope();
-            
                 // Push a new ParseContext.
                 BinParseContext funpc(cx_, this, funbox, /* newDirectives = */ nullptr);
                 TRY(funpc.init());
