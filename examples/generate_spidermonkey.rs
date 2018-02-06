@@ -564,12 +564,17 @@ impl CPPExporter {
         let rules_for_this_list = self.rules.get(name);
 
         let init = rules_for_this_list.start.reindent("    ");
-        let append = rules_for_this_list.append.reindent("    ");
+        let append =
+            if rules_for_this_list.append.is_some() {
+                rules_for_this_list.append.reindent("    ")
+            } else {
+                "        result->appendWithoutOrderAssumption(item);".to_string()
+            };
 
         let kind = name.to_class_cases();
         let first_line = self.get_method_definition_start(name, "ParseNode*", "", "");
 
-        if rules_for_this_list.start.is_some() && rules_for_this_list.append.is_some() {
+        if rules_for_this_list.start.is_some() {
             let rendered = format!("\n{first_line}
 {{
     uint32_t length;

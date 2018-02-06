@@ -71,15 +71,26 @@ enum UpdateOperator {
 };
 
 
-// Binary AST delayed assertions
+// deferred assertions
 
-interface AssertedScope {
-  attribute FrozenArray<IdentifierName> varDeclaredNames;
+interface AssertedBlockScope {
+  // checked eagerly during transformation
   attribute FrozenArray<IdentifierName> lexicallyDeclaredNames;
+
+  // checked lazily as inner functions are invoked
   attribute FrozenArray<IdentifierName> capturedNames;
   attribute boolean hasDirectEval;
 };
 
+interface AssertedTopLevelScope {
+  // checked eagerly during transformation
+  attribute FrozenArray<IdentifierName> lexicallyDeclaredNames;
+  attribute FrozenArray<IdentifierName> varDeclaredNames;
+
+  // checked lazily as inner functions are invoked
+  attribute FrozenArray<IdentifierName> capturedNames;
+  attribute boolean hasDirectEval;
+};
 
 // nodes
 
@@ -311,6 +322,7 @@ interface ClassElement : Node {
 // modules
 
 interface Module : Node {
+  attribute AssertedTopLevelScope? scope;
   attribute FrozenArray<Directive> directives;
   attribute FrozenArray<(ImportDeclaration or ExportDeclaration or Statement)> items;
 };
@@ -550,7 +562,7 @@ interface ConditionalExpression : Node {
 interface FunctionExpression : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
-  attribute AssertedScope? scope;
+  attribute AssertedTopLevelScope? scope;
   attribute BindingIdentifier? name;
   attribute FormalParameters params;
   attribute FunctionBody body;
@@ -764,7 +776,7 @@ interface WithStatement : Node {
 // other nodes
 
 interface Block : Node {
-  attribute AssertedScope? scope;
+  attribute AssertedBlockScope? scope;
   attribute FrozenArray<Statement> statements;
 };
 
@@ -795,13 +807,14 @@ interface FunctionBody : Node {
 interface FunctionDeclaration : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
-  attribute AssertedScope? scope;
+  attribute AssertedTopLevelScope? scope;
   attribute BindingIdentifier name;
   attribute FormalParameters params;
   attribute FunctionBody body;
 };
 
 interface Script : Node {
+  attribute AssertedTopLevelScope? scope;
   attribute FrozenArray<Directive> directives;
   attribute FrozenArray<Statement> statements;
 };

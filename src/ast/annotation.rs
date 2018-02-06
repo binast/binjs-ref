@@ -1,7 +1,7 @@
 // FIXME: Too much copy&paste in this file.
 
 use ast::grammar::{ ASTError, FieldName, NodeName, Syntax };
-use ast::library::{ BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME, SCOPE_NAME };
+use ast::library::{ BINJS_LET_NAME, BINJS_VAR_NAME, BINJS_DIRECT_EVAL, BINJS_CAPTURED_NAME, TOPLEVEL_SCOPE_NAME, BLOCK_SCOPE_NAME, SCOPE_FIELD };
 use util::{ Dispose, JSONGetter };
 
 use json;
@@ -340,57 +340,87 @@ impl<'a> Context<'a, RefContents> {
         borrow.is_bound(name)
     }
 
-    pub fn store(&self, parent: &mut Object) {
-        let object = parent.get_object_mut(SCOPE_NAME, "Scope field")
-            .expect("Could not store captured names, etc.");
-        for name in &[BINJS_VAR_NAME, BINJS_LET_NAME] {
-            if object[*name].is_null() {
-                object.insert(name, array![]);
+    pub fn store(&self, parent: &mut Object, _toplevel: bool) {
+        let mut has_content = false;
+        {
+            let object = parent.get_object_mut(SCOPE_FIELD, "Scope field")
+                .expect("Could not store captured names, etc.");
+            debug!(target: "annotation", "Storing additional data in an object with content {}",
+                object.pretty(2));
+            for name in &[BINJS_VAR_NAME, BINJS_LET_NAME] {
+                if object[*name].is_null() {
+                    object.insert(name, array![]);
+                } else {
+                    match object[*name] {
+                        JSON::Array(ref array) => if array.len() > 0 {
+                            has_content = true;
+                        }
+                        ref other => panic!("Malformed {}: expected array, got {}", name, other.dump())
+                    }
+                }
             }
+
+            let mut captured_names = self.captured_names();
+            captured_names.sort();
+            if captured_names.len() > 0 {
+                has_content = true;
+            }
+            let captured_names : Vec<_> = captured_names.drain(..)
+                .map(|name| json::from(&name as &str))
+                .collect();
+            debug!(target: "annotation", "RefContext: stored in {} [{captured_names}]",
+                BINJS_CAPTURED_NAME,
+                captured_names = captured_names.iter().format(", "));
+
+            let borrow = self.contents.borrow();
+            object
+                .insert(BINJS_CAPTURED_NAME, json::from(captured_names));
+
+            debug!(target: "annotation", "RefContext: stored in {} {direct_eval}",
+                BINJS_DIRECT_EVAL,
+                direct_eval = borrow.data.has_direct_eval);
+
+            if borrow.data.has_direct_eval {
+                has_content = true;
+            }
+            object
+                .insert(BINJS_DIRECT_EVAL, json::from(borrow.data.has_direct_eval));
         }
-
-        let mut captured_names = self.captured_names();
-        captured_names.sort();
-        let captured_names : Vec<_> = captured_names.drain(..)
-            .map(|name| json::from(&name as &str))
-            .collect();
-        debug!(target: "annotation", "RefContext: stored in {} [{captured_names}]",
-            BINJS_CAPTURED_NAME,
-            captured_names = captured_names.iter().format(", "));
-
-        let borrow = self.contents.borrow();
-        object
-            .insert(BINJS_CAPTURED_NAME, json::from(captured_names));
-
-        debug!(target: "annotation", "RefContext: stored in {} {direct_eval}",
-            BINJS_DIRECT_EVAL,
-            direct_eval = borrow.data.has_direct_eval);
-
-        object
-            .insert(BINJS_DIRECT_EVAL, json::from(borrow.data.has_direct_eval));
+        if !has_content {
+            // Actually, the object is empty, remove it.
+            debug!(target: "annotation", "Removing empty {} from parent {}",
+                parent[SCOPE_FIELD].pretty(2),
+                parent["type"]);
+            parent.remove(SCOPE_FIELD);
+        } else {
+            debug!(target: "annotation", "Final data: {} or parent {}", parent[SCOPE_FIELD].pretty(2), parent["type"]);
+        }
     }
     pub fn load(&mut self, parent: &Object) {
-        let object = parent.get_object(SCOPE_NAME, "Scope field")
-            .expect("Could not load previous pass.");
+        let ref object = parent[SCOPE_FIELD];
+        if !object.is_object() {
+            // Nothing to load.
+            return;
+        }
 
         let mut borrow = self.contents.borrow_mut();
 
-        let var_decl_names = object.get_array(BINJS_VAR_NAME, "Repository of VarDecl bindings")
-            .expect("Could not fetch VarDecl repository");
-        for item in var_decl_names {
-            let item = item.as_str()
-                .expect("Item should be a string")
-                .to_string();
-            borrow.data.binding.insert(item);
+        if let Ok(var_decl_names) = object.get_array(BINJS_VAR_NAME, "Repository of VarDecl bindings") {
+            for item in var_decl_names {
+                let item = item.as_str()
+                    .expect("Item should be a string")
+                    .to_string();
+                borrow.data.binding.insert(item);
+            }
         }
 
-        let let_names = object.get_array(BINJS_LET_NAME, "Repository of LexDecl bindings")
-            .expect("Could not fetch LexDecl repository");
-        for item in let_names {
-            let item = item.as_str()
-                .expect("Item should be a string")
-                .to_string();
-            borrow.data.binding.insert(item);
+        if let Ok(let_names) = object.get_array(BINJS_LET_NAME, "Repository of LexDecl bindings") {
+            for item in let_names {
+                let item = item.as_str()
+                    .expect("Item should be a string")
+                    .to_string();
+                borrow.data.binding.insert(item);
+            }
         }
     }
 }
@@ -559,15 +589,15 @@ impl<'a> Context<'a, DeclContents> {
     pub fn set_uses_strict(&mut self, value: bool) {
         self.contents.borrow_mut().set_uses_strict(value)
     }
-    /// Store scope information in a field "BINJS:Scope" of the node.
-    pub fn store(&self, parent: &mut Object) {
-        let borrow = self.contents.borrow();
 
-        let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
-        var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
-        let var_decl_names: Vec<_> = var_decl_names.drain(..)
-            .map(|name| json::from(name as &str))
-            .collect();
+    /// Store scope information in a field `scope` of the node.
+    ///
+    /// Information may be an `AssertedTopLevelScope` or an `AssertedBlockScope`,
+    /// depending on argument `toplevel`.
+    ///
+    /// Note that at this stage the `AssertedXXXScope` may be trivial.
+    pub fn store(&self, parent: &mut Object, toplevel: bool) {
+        let borrow = self.contents.borrow();
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
         let_decl_names.sort(); // To simplify testing (and hopefully improve compression)
@@ -575,22 +605,26 @@ impl<'a> Context<'a, DeclContents> {
             .map(|name| json::from(name as &str))
             .collect();
 
-        debug!(target: "annotation", "DeclContext: storing\n {var_decl_key} => [{var_decl_names}]\n {let_decl_key} => [{let_decl_names}]",
-            var_decl_key = BINJS_VAR_NAME,
-            var_decl_names = var_decl_names.iter().map(|x| format!("\"{}\"", x)).format(", "),
-            let_decl_key = BINJS_LET_NAME,
-            let_decl_names = let_decl_names.iter().map(|x| format!("\"{}\"", x)).format(", "));
-
-        // Ignore overwrites: we may be overwriting an existing "BINJS:Scope" object,
-        // in case we are used to re-annotate an existing tree.
-        let object : JSON = object!{
-            "type" => SCOPE_NAME,
-            BINJS_VAR_NAME => json::from(var_decl_names),
+        let mut object : JSON = object!{
+            "type" => if toplevel { TOPLEVEL_SCOPE_NAME } else { BLOCK_SCOPE_NAME },
             BINJS_LET_NAME => json::from(let_decl_names),
             BINJS_CAPTURED_NAME => array![],
             BINJS_DIRECT_EVAL => json::from(false)
         };
-        parent.insert(SCOPE_NAME, object);
+
+        if toplevel {
+            let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
+            var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
+            let var_decl_names: Vec<_> = var_decl_names.drain(..)
+                .map(|name| json::from(name as &str))
+                .collect();
+            object[BINJS_VAR_NAME] = json::from(var_decl_names);
+        }
+
+        debug!(target: "annotation", "Inserting scope {} in {}", object.dump(), parent["type"]);
+        // Ignore overwrites: we may be overwriting an existing scope object,
+        // in case we are used to re-annotate an existing tree.
+        parent.insert(SCOPE_FIELD, object);
     }
 }
 

@@ -196,6 +196,9 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             if let Some(source) = object.get(field.name().to_string()) {
                 let encoded = self.encode_from_type(source, field.type_(), node, false)?;
                 result.push((field, encoded))
+            } else if field.type_().is_optional() {
+                let encoded = self.encode_from_type(&JSON::Null, field.type_(), node, false)?;
+                result.push((field, encoded))                
             } else {
                 debug!("Error in {:?}", object);
                 return Err(Error::missing_field(field.name().to_string(), node));
