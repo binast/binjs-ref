@@ -653,6 +653,10 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
     syntax.add_interface(&catch_clause).unwrap()
         .with_field(
+            &field_scope,
+            Type::named(&asserted_block_scope).optional()
+        )
+        .with_field(
             &field_binding,
             Type::named(&binding).required()
         )
@@ -1636,7 +1640,7 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                         "CatchClause" => {
                             // Handle `catch (e) { ...} ` where `e` is declared implicitly.
-                            if let Some("param") = parent.field_str() {
+                            if let Some("binding") = parent.field_str() {
                                 if !parent.is_lex_bound(&name) {
                                     parent.add_let_name(name);
                                 }
@@ -1693,7 +1697,7 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Then proceed as usual.
                     self.parent.process_declarations(me, ctx, object)?;
                 }
-                "Block" | "FunctionBody" | "ForStatement" | "ForInStatement" => {
+                "Block" | "FunctionBody" | "ForStatement" | "ForInStatement"  => {
                     // Adopt usual behavior.
                     self.parent.process_declarations(me, ctx, object)?;
 

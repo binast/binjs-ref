@@ -782,6 +782,7 @@ interface Block : Node {
 
 // `Catch`
 interface CatchClause : Node {
+  attribute AssertedBlockScope? scope;
   attribute Binding binding;
   attribute Block body;
 };
