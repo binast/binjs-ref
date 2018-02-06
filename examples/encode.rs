@@ -64,7 +64,10 @@ fn main() {
                 .help("Compression format for the tree. Defaults to identity."),
             Arg::with_name("statistics")
                 .long("show-stats")
-                .help("Show statistics.")
+                .help("Show statistics."),
+            Arg::with_name("dump")
+                .long("dump")
+                .help("Dup JSON AST tree"),
         ])
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
@@ -143,6 +146,7 @@ fn main() {
         }
     };
     let show_stats = matches.is_present("statistics");
+    let dump_ast = matches.is_present("dump");
 
     // Setup.
     let parser = Shift::new();
@@ -190,6 +194,10 @@ fn main() {
         println!("Annotating.");
         grammar.annotate(&mut ast)
             .expect("Could not infer annotations");
+
+        if dump_ast {
+            println!("Dumping AST.\n{:2}", ast.pretty(2));
+        }
 
         println!("Encoding.");
         let data: Box<AsRef<[u8]>> = {
