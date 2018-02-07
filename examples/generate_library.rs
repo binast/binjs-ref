@@ -65,7 +65,7 @@ impl<'a> RustExporter<'a> {
                 format!("{prefix}Type::number()",
                     prefix = prefix),
             TypeSpec::NamedType(ref name) =>
-                format!("{prefix}Type::named(&{name})",
+                format!("{prefix}Type::named(&names.{name})",
                     name = name.to_rust_identifier_case(),
                     prefix = prefix),
             TypeSpec::TypeSum(ref types) => {
@@ -85,29 +85,52 @@ impl<'a> RustExporter<'a> {
 
 
     pub fn to_rust_source(&self) -> String {
-        let mut buffer = String::new();
+        let mut struct_buffer = String::new();
+        struct_buffer.push_str("pub struct Library {\n");
 
-        fn print_names<'a, T>(buffer: &mut String, source: T) where T: Iterator<Item = &'a NodeName> {
+        let mut impl_buffer = String::new();
+        impl_buffer.push_str("impl Library {\n    pub fn new(builder: &mut SyntaxBuilder) -> Self {\n        let names = Library {\n");
+
+
+        // Export the name definitions.
+        fn print_struct_names<'a, T>(buffer: &mut String, source: T) where T: Iterator<Item = &'a NodeName> {
             let mut names : Vec<_> = source.map(|x| x.to_string())
                 .collect();
             names.sort();
             for name in names {
-                let source = format!("let {snake} = syntax.node_name(\"{original}\");\n",
+                let source = format!("    {snake}: NodeName,\n",
+                    snake = name.to_rust_identifier_case());
+                buffer.push_str(&source);
+            }
+        }
+        fn print_impl_names<'a, T>(buffer: &mut String, source: T) where T: Iterator<Item = &'a NodeName> {
+            let mut names : Vec<_> = source.map(|x| x.to_string())
+                .collect();
+            names.sort();
+            for name in names {
+                let source = format!("            {snake}: builder.node_name(\"{original}\"),\n",
                     snake = name.to_rust_identifier_case(),
                     original = name);
                 buffer.push_str(&source);
             }
         }
-        buffer.push_str("// String enum names (by lexicographical order)\n");
-        print_names(&mut buffer, self.syntax.string_enums_by_name().keys());
+        struct_buffer.push_str("    // String enum names (by lexicographical order)\n");
+        impl_buffer.push_str("            // String enum names (by lexicographical order)\n");
+        print_struct_names(&mut struct_buffer, self.syntax.string_enums_by_name().keys());
+        print_impl_names(&mut impl_buffer, self.syntax.string_enums_by_name().keys());
 
-        buffer.push_str("\n\n// Typedef names (by lexicographical order)\n");
-        print_names(&mut buffer, self.syntax.typedefs_by_name().keys());
+        struct_buffer.push_str("\n\n    // Typedef names (by lexicographical order)\n");
+        impl_buffer.push_str("\n\n            // Typedef names (by lexicographical order)\n");
+        print_struct_names(&mut struct_buffer, self.syntax.typedefs_by_name().keys());
+        print_impl_names(&mut impl_buffer, self.syntax.typedefs_by_name().keys());
 
-        buffer.push_str("\n\n// Interface names (by lexicographical order)\n");
-        print_names(&mut buffer, self.syntax.interfaces_by_name().keys());
+        struct_buffer.push_str("\n\n    // Interface names (by lexicographical order)\n");
+        impl_buffer.push_str("\n\n            // Interface names (by lexicographical order)\n");
+        print_struct_names(&mut struct_buffer, self.syntax.interfaces_by_name().keys());
+        print_impl_names(&mut impl_buffer, self.syntax.interfaces_by_name().keys());
 
-        buffer.push_str("\n\n\n// Field names (by lexicographical order)\n");
+        struct_buffer.push_str("\n\n\n    // Field names (by lexicographical order)\n");
+        impl_buffer.push_str("\n\n\n            // Field names (by lexicographical order)\n");
         let mut fields = HashSet::new();
         for interface in self.syntax.interfaces_by_name().values() {
             for field in interface.contents().fields() {
@@ -117,47 +140,62 @@ impl<'a> RustExporter<'a> {
         let mut fields : Vec<_> = fields.drain().collect();
         fields.sort();
         for name in fields {
-            let source = format!("let field_{snake} = syntax.field_name(\"{original}\");\n",
-                snake = name.to_rust_identifier_case(),
+            let snake = name.to_rust_identifier_case();
+            let struct_source = format!("    field_{snake}: FieldName,\n",
+                snake = snake);
+            struct_buffer.push_str(&struct_source);
+
+            let impl_source = format!("            field_{snake}: builder.field_name(\"{original}\"),\n",
+                snake = snake,
                 original = name);
-            buffer.push_str(&source);
+            impl_buffer.push_str(&impl_source);
         }
 
-        buffer.push_str("\n\n\n// Enumerations\n");
+
+        impl_buffer.push_str("        };\n");
+        struct_buffer.push_str("}");
+
+
+        impl_buffer.push_str("\n\n\n        // Enumerations\n");
         for (name, def) in self.syntax.string_enums_by_name() {
             let strings = format!("{strings}",
                 strings = def.strings()
                     .iter()
-                    .map(|s| format!("        \"{s}\"", s=s))
+                    .map(|s| format!("                \"{s}\"", s=s))
                     .format(",\n"));
-            let source = format!("syntax.add_string_enum(&{name}).unwrap()
-    .with_strings(&[\n{strings}\n    ]);\n\n",
+            let impl_source = format!("        builder.add_string_enum(&names.{name}).unwrap()
+            .with_strings(&[\n{strings}\n           ]);\n\n",
                 name = name.to_rust_identifier_case(),
                 strings = strings);
-            buffer.push_str(&source);
+            impl_buffer.push_str(&impl_source);
         }
         for (name, def) in self.syntax.typedefs_by_name() {
-            let source = format!("syntax.add_typedef(&{name}).unwrap()
-    .with_type(\n{spec});\n\n",
+            let impl_source = format!("        builder.add_typedef(&names.{name}).unwrap()
+            .with_type(\n{spec});\n\n",
                 name = name.to_rust_identifier_case(),
-                spec = Self::type_(def, "        "));
-            buffer.push_str(&source);
+                spec = Self::type_(def, "                    "));
+            impl_buffer.push_str(&impl_source);
         }
         for (name, def) in self.syntax.interfaces_by_name() {
             let fields = format!("{fields}",
                 fields = def.contents()
                     .fields()
                     .iter()
-                    .map(|field| format!("    .with_field(\n         &field_{name},\n{type_}\n    )",
+                    .map(|field| format!("            .with_field(\n                 &names.field_{name},\n{type_}\n            )",
                         name = field.name().to_rust_identifier_case(),
-                        type_= Self::type_(field.type_(), "         ")))
+                        type_= Self::type_(field.type_(), "                 ")))
                     .format("\n"));
-            let source = format!("syntax.add_interface(&{name}).unwrap()\n{fields};\n\n",
+            let impl_source = format!("        builder.add_interface(&names.{name}).unwrap()\n{fields};\n\n",
                 name = name.to_rust_identifier_case(),
                 fields = fields);
-            buffer.push_str(&source);
+            impl_buffer.push_str(&impl_source);
         }
-        buffer
+
+
+        impl_buffer.push_str("        names    }\n}\n");
+        format!("// This file is autogenerated.\nuse ast::grammar::*;\n\n\n{struct_}\n{impl_}",
+            struct_ = struct_buffer,
+            impl_ = impl_buffer)
     }
 }
 
