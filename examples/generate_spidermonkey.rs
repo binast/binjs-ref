@@ -566,7 +566,7 @@ impl CPPExporter {
         let init = rules_for_this_list.start.reindent("    ");
         let append =
             if rules_for_this_list.append.is_some() {
-                rules_for_this_list.append.reindent("    ")
+                rules_for_this_list.append.reindent("         ")
             } else {
                 "        result->appendWithoutOrderAssumption(item);".to_string()
             };

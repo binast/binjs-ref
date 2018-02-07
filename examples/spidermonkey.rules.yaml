@@ -508,6 +508,13 @@ ForInStatement:
             TRY_VAR(result, factory_.newLexicalScope(*bindings, result));
         }
 
+FormalParameters:
+    build: |
+        auto result = items;
+        if (rest) {
+            TRY_DECL(spread, factory_.newSpread(start, rest));
+            factory_.addList(result, spread);
+        }
 
 ForStatement:
     init: |
@@ -527,19 +534,33 @@ ForStatement:
             TRY_VAR(result, factory_.newLexicalScope(*bindings, result));
         }
 
+FunctionBody:
+    build: |
+        MOZ_TRY_DECL(result, appendDirectivesToBody(/* body = */ statements, /* directives = */ directives));
+
+FunctionDeclaration:
+    inherits: FunctionExpression
+
 FunctionExpression:
     fields:
-        params:
-            after: |
-                MOZ_TRY_DECL(funbox, buildFunctionBox(params, name, isGenerator, isAsync));
+        scope:
+            before: |
+                MOZ_TRY_DECL(funbox, buildFunctionBox(isGenerator, isAsync));
 
-                // Push a new ParseContext.
+                // Push a new ParseContext. It will be used to parse `scope`.
                 BinParseContext funpc(cx_, this, funbox, /* newDirectives = */ nullptr);
                 TRY(funpc.init());
                 parseContext_->functionScope().useAsVarScope(parseContext_);
                 MOZ_ASSERT(parseContext_->isFunctionBox());
+
+                ParseContext::Scope lexicalScope(cx_, parseContext_, usedNames_);
+                TRY(lexicalScope.init(parseContext_));
     build: |
-        MOZ_TRY_DECL(result, buildFunction(start, kind, params, body, funbox));
+        fprintf(stderr, "FunctionExpression: Building Lexical Scope using\n");
+        lexicalScope.dump(parseContext_);
+        TRY_DECL(lexicalScopeData, NewLexicalScopeData(cx_, lexicalScope, alloc_, parseContext_));
+        TRY_VAR(body, factory_.newLexicalScope(*lexicalScopeData, body));
+        MOZ_TRY_DECL(result, buildFunction(start, kind, name, params, body, funbox));
 
 IdentifierExpression:
     build: |
@@ -565,6 +586,12 @@ ListOfOptionalSpreadElementOrExpression:
             factory_.addArrayElement(result, item); // Infallible.
         else
             TRY(factory_.addElision(result, tokenizer_->pos(start)));
+
+ListOfParameter:
+    init:
+        ParseNode* result = new_<ListNode>(ParseNodeKind::ParamsBody, tokenizer_->pos());
+    append:
+        factory_.addList(/* list = */ result, /* item = */ item);
 
 ListOfStatement:
     init:
@@ -653,18 +680,10 @@ LiteralStringExpression:
         TRY_DECL(result, factory_.newStringLiteral(value, tokenizer_->pos(start)));
         
 Method:
-    fields:
-        params:
-            after: |
-                MOZ_TRY_DECL(funbox, buildFunctionBox(params, name, isGenerator, isAsync));
-
-                // Push a new ParseContext.
-                BinParseContext funpc(cx_, this, funbox, /* newDirectives = */ nullptr);
-                TRY(funpc.init());
-                parseContext_->functionScope().useAsVarScope(parseContext_);
-                MOZ_ASSERT(parseContext_->isFunctionBox());
+    inherits: FunctionExpression
     build: |
-        MOZ_TRY_DECL(result, buildFunction(start, kind, params, body, funbox));
+        MOZ_TRY_DECL(method, buildFunction(start, kind, name, params, body, funbox));
+        TRY_DECL(result, factory_.newObjectMethodOrPropertyDefinition(name, method, AccessorType::None));
 
 NewExpression:
     build: |
@@ -701,22 +720,13 @@ Script:
         MOZ_TRY_DECL(result, appendDirectivesToBody(/* body = */ statements, /* directives = */ directives));
 
 Setter:
-    fields:
-        param:
-            after:
-                TRY_DECL(params, factory_.newList(ParseNodeKind::ParamsBody, param));
-                
-        body:
-            before: |
-                MOZ_TRY_DECL(funbox, buildFunctionBox(params, name, /* isGenerator = */ false, /* isAsync = */ false));
-
-                // Push a new ParseContext.
-                BinParseContext funpc(cx_, this, funbox, /* newDirectives = */ nullptr);
-                TRY(funpc.init());
-                parseContext_->functionScope().useAsVarScope(parseContext_);
-                MOZ_ASSERT(parseContext_->isFunctionBox());
+    inherits: Method
+    init: |
+        const auto isAsync = false;
+        const auto isGenerator = false;
     build: |
-        MOZ_TRY_DECL(method, buildFunction(start, kind, params, body, funbox));
+        TRY_DECL(params, factory_.newList(ParseNodeKind::ParamsBody, param));
+        MOZ_TRY_DECL(method, buildFunction(start, kind, name, params, body, funbox));
         TRY_DECL(result, factory_.newObjectMethodOrPropertyDefinition(name, method, AccessorType::Setter));
         
 ShorthandProperty:

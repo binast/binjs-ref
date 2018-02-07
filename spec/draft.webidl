@@ -408,6 +408,7 @@ interface Method : Node {
   attribute boolean isAsync;
   // True for `GeneratorMethod`, false otherwise.
   attribute boolean isGenerator;
+  attribute AssertedTopLevelScope? scope;
   // The `UniqueFormalParameters`.
   attribute PropertyName name;
   attribute FormalParameters params;
@@ -422,6 +423,7 @@ interface Getter : Node {
 
 // `set PropertyName ( PropertySetParameterList ) { FunctionBody }`
 interface Setter : Node {
+  attribute AssertedTopLevelScope? scope;
   attribute PropertyName name;
   // The `PropertySetParameterList`.
   attribute Parameter param;

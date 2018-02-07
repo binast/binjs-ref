@@ -555,6 +555,7 @@ impl<'a> Context<'a, DeclContents> {
         let mut borrow = self.contents.borrow_mut();
         let mut unknown_names = HashSet::new();
         std::mem::swap(&mut borrow.data.unknown_names, &mut unknown_names);
+        debug!(target: "annotation", "promoting unknown variable names to var: {:?}", unknown_names);
         for name in unknown_names.drain() {
             borrow.data.var_names.insert(name);
         }
@@ -565,13 +566,27 @@ impl<'a> Context<'a, DeclContents> {
             borrow.data.unknown_names.remove(*name);
         }
     }
+    pub fn clear_arg_names(&mut self, names: &[&str]) {
+        let mut borrow = self.contents.borrow_mut();
+        debug!(target: "annotation", "clear_arg_names: {names:?}.",
+            names = names);
+        for name in names {
+            borrow.data.unknown_names.remove(*name);
+        }
+        debug!(target: "annotation", "clear_arg_names: remaining unknown names: {unknown:?}.",
+            unknown = borrow.data.unknown_names);        
+    }
     pub fn clear_var_names(&mut self) {
         let mut borrow = self.contents.borrow_mut();
         let mut var_names = HashSet::new();
         std::mem::swap(&mut borrow.data.var_names, &mut var_names);
+        debug!(target: "annotation", "clear_var_names: {var_names:?}.",
+            var_names = var_names,);
         for name in var_names.drain() {
             borrow.data.unknown_names.remove(&name);
         }
+        debug!(target: "annotation", "clear_var_names: remaining unknown names: {unknown:?}.",
+            unknown = borrow.data.unknown_names);
     }
     pub fn clear_lex_names(&mut self) {
         let mut borrow = self.contents.borrow_mut();
@@ -579,9 +594,13 @@ impl<'a> Context<'a, DeclContents> {
         std::mem::swap(&mut borrow.data.let_names, &mut let_names);
         let mut const_names = HashSet::new();
         std::mem::swap(&mut borrow.data.const_names, &mut const_names);
+        debug!(target: "annotation", "clear_lex_names: {lex_names:?}.",
+            lex_names = let_names,);
         for name in let_names.drain().chain(const_names.drain()) {
             borrow.data.unknown_names.remove(&name);
         }
+        debug!(target: "annotation", "clear_lex_names: remaining unknown names: {unknown:?}.",
+            unknown = borrow.data.unknown_names);
     }
     pub fn uses_strict(&self) -> bool {
         self.contents.borrow().uses_strict()

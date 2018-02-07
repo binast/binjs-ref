@@ -1660,6 +1660,11 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             }
                             // Otherwise, skip. We cannot declare variables in `init`.
                         }
+                        // FIXME: We should do something with these names. Either store them seomwhere
+                        // or remove from `unknown_names`.
+                        "FormalParameters" => {
+                            ctx.clear_arg_names(&[name]);
+                        },
                         _ => {
                             // We don't know what this identifier is yet. Could be declared
                             // in some enclosing scope or never, in which case it is implicitly
@@ -1697,7 +1702,7 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     // Then proceed as usual.
                     self.parent.process_declarations(me, ctx, object)?;
                 }
-                "Block" | "FunctionBody" | "ForStatement" | "ForInStatement"  => {
+                "Block" | "ForStatement" | "ForInStatement"  => {
                     // Adopt usual behavior.
                     self.parent.process_declarations(me, ctx, object)?;
 
@@ -1737,11 +1742,24 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                     self.parent.process_declarations(me, ctx, object)?;
 
                     // Store available information.
-                    ctx.store(object, false);
+                    // FIXME: Are we storing the arguments?
+                    ctx.store(object, true);
 
                     // Drop LexDecl and VarDecl
                     ctx.clear_lex_names();
                     ctx.clear_var_names();
+
+/*
+                    let mut arg_names = vec![];
+                    for param in object["params"]["items"].members() {
+                        if let Some("BindingIdentifier") = param["type"].as_str() {
+                            arg_names.push(param["name"].as_str().unwrap())
+                        } else {
+                            unimplemented!()
+                        }
+                    }
+                    ctx.clear_arg_names(&arg_names);
+*/
                 }
                 _ => {
                     // Default to parent implementation.
@@ -1842,12 +1860,12 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                         }
                     };
                 }
-                "ForStatement" | "ForInStatement" | "Block" | "Program" | "FunctionBody" | "CatchClause" =>
+                "ForStatement" | "ForInStatement" | "Block" | "Program" | "CatchClause" =>
                 {
                     // Simply load the stored bindings, then handle fields.
                     ctx.load(object);
                     self.parent.process_references(me, ctx, object)?;
-                    ctx.store(object, ctx.kind_str() == "FunctionBody")
+                    ctx.store(object, false)
                 },
                 "FunctionExpression" | "FunctionDeclaration" | "Method" | "Getter" | "Setter" => {
                     ctx.use_as_fun_scope();
