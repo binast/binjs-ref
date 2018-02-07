@@ -394,6 +394,12 @@ CatchClause:
         ParseContext::Scope currentScope(cx_, parseContext_, usedNames_);
         TRY(currentScope.init(parseContext_));
     build: |
+        // Export implicit variables to the scope.
+        // FIXME: Handle cases other than Name.
+        MOZ_ASSERT(binding->isKind(ParseNodeKind::Name));
+        auto ptr = currentScope.lookupDeclaredNameForAdd(binding->name());
+        TRY(currentScope.addDeclaredName(parseContext_, ptr, binding->name(), DeclarationKind::Let, start));
+
         TRY_DECL(bindings, NewLexicalScopeData(cx_, currentScope, alloc_, parseContext_));
         TRY_DECL(result, factory_.newLexicalScope(*bindings, body));
         TRY(factory_.setupCatchScope(result, binding, body));

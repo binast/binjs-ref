@@ -155,7 +155,15 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                             }
                         }
                         "CatchClause" => {
-                            // Handle `catch (e) { ...} ` where `e` is declared implicitly.
+                            // Now, there is an invisible hack here.
+                            //
+                            // We want to know about any binding that happens here,
+                            // but only to avoid false positives in case of a
+                            // `catch (eval) { ... }`.
+                            //
+                            // On the other hand, the syntax for ES6 does not
+                            // recognize any field named `scope` for `CatchClause`,
+                            // so this information is trimmed away during encoding.
                             if let Some("binding") = parent.field_str() {
                                 if !parent.is_lex_bound(&name) {
                                     parent.add_let_name(name);

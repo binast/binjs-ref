@@ -404,6 +404,39 @@ impl Library {
 
 
         // Enumerations
+        builder.add_string_enum(&names.unary_operator).unwrap()
+            .with_strings(&[
+                "+",
+                "-",
+                "!",
+                "~",
+                "typeof",
+                "void",
+                "delete"
+           ]);
+
+        builder.add_string_enum(&names.update_operator).unwrap()
+            .with_strings(&[
+                "++",
+                "--"
+           ]);
+
+        builder.add_string_enum(&names.compound_assignment_operator).unwrap()
+            .with_strings(&[
+                "+=",
+                "-=",
+                "*=",
+                "/=",
+                "%=",
+                "**=",
+                "<<=",
+                ">>=",
+                ">>>=",
+                "|=",
+                "^=",
+                "&="
+           ]);
+
         builder.add_string_enum(&names.binary_operator).unwrap()
             .with_strings(&[
                 ",",
@@ -433,12 +466,6 @@ impl Library {
                 "**"
            ]);
 
-        builder.add_string_enum(&names.update_operator).unwrap()
-            .with_strings(&[
-                "++",
-                "--"
-           ]);
-
         builder.add_string_enum(&names.variable_declaration_kind).unwrap()
             .with_strings(&[
                 "var",
@@ -446,66 +473,95 @@ impl Library {
                 "const"
            ]);
 
-        builder.add_string_enum(&names.unary_operator).unwrap()
-            .with_strings(&[
-                "+",
-                "-",
-                "!",
-                "~",
-                "typeof",
-                "void",
-                "delete"
-           ]);
-
-        builder.add_string_enum(&names.compound_assignment_operator).unwrap()
-            .with_strings(&[
-                "+=",
-                "-=",
-                "*=",
-                "/=",
-                "%=",
-                "**=",
-                "<<=",
-                ">>=",
-                ">>>=",
-                "|=",
-                "^=",
-                "&="
-           ]);
-
         builder.add_typedef(&names.string).unwrap()
             .with_type(
                     Type::string().required());
 
-        builder.add_typedef(&names.statement).unwrap()
+        builder.add_typedef(&names.arguments).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.block),
-                        Type::named(&names.break_statement),
-                        Type::named(&names.continue_statement),
-                        Type::named(&names.class_declaration),
-                        Type::named(&names.debugger_statement),
-                        Type::named(&names.empty_statement),
-                        Type::named(&names.expression_statement),
-                        Type::named(&names.function_declaration),
-                        Type::named(&names.if_statement),
-                        Type::named(&names.iteration_statement),
-                        Type::named(&names.labelled_statement),
-                        Type::named(&names.return_statement),
-                        Type::named(&names.switch_statement),
-                        Type::named(&names.switch_statement_with_default),
-                        Type::named(&names.throw_statement),
-                        Type::named(&names.try_catch_statement),
-                        Type::named(&names.try_finally_statement),
-                        Type::named(&names.variable_declaration),
-                        Type::named(&names.with_statement)
+                        Type::named(&names.spread_element),
+                        Type::named(&names.expression)
+                    ]).required().array().required());
+
+        builder.add_typedef(&names.object_property).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.method_definition),
+                        Type::named(&names.data_property),
+                        Type::named(&names.shorthand_property)
                     ]).required());
 
-        builder.add_typedef(&names.binding).unwrap()
+        builder.add_typedef(&names.import_declaration).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.binding_pattern),
-                        Type::named(&names.binding_identifier)
+                        Type::named(&names.import_namespace),
+                        Type::named(&names.import)
+                    ]).required());
+
+        builder.add_typedef(&names.identifier_name).unwrap()
+            .with_type(
+                    Type::named(&names.string).required());
+
+        builder.add_typedef(&names.method_definition).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.method),
+                        Type::named(&names.getter),
+                        Type::named(&names.setter)
+                    ]).required());
+
+        builder.add_typedef(&names.assignment_target_pattern).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.object_assignment_target),
+                        Type::named(&names.array_assignment_target)
+                    ]).required());
+
+        builder.add_typedef(&names.simple_assignment_target).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.assignment_target_identifier),
+                        Type::named(&names.computed_member_assignment_target),
+                        Type::named(&names.static_member_assignment_target)
+                    ]).required());
+
+        builder.add_typedef(&names.export_declaration).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.export_all_from),
+                        Type::named(&names.export_from),
+                        Type::named(&names.export_locals),
+                        Type::named(&names.export_default),
+                        Type::named(&names.export)
+                    ]).required());
+
+        builder.add_typedef(&names.binding_property).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.binding_property_identifier),
+                        Type::named(&names.binding_property_property)
+                    ]).required());
+
+        builder.add_typedef(&names.assignment_target).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.assignment_target_pattern),
+                        Type::named(&names.simple_assignment_target)
+                    ]).required());
+
+        builder.add_typedef(&names.assignment_target_property).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.assignment_target_property_identifier),
+                        Type::named(&names.assignment_target_property_property)
+                    ]).required());
+
+        builder.add_typedef(&names.binding_pattern).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.object_binding),
+                        Type::named(&names.array_binding)
                     ]).required());
 
         builder.add_typedef(&names.expression).unwrap()
@@ -537,91 +593,29 @@ impl Library {
                         Type::named(&names.await_expression)
                     ]).required());
 
-        builder.add_typedef(&names.simple_assignment_target).unwrap()
+        builder.add_typedef(&names.property_name).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.assignment_target_identifier),
-                        Type::named(&names.computed_member_assignment_target),
-                        Type::named(&names.static_member_assignment_target)
+                        Type::named(&names.computed_property_name),
+                        Type::named(&names.literal_property_name)
+                    ]).required());
+
+        builder.add_typedef(&names.binding).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.binding_pattern),
+                        Type::named(&names.binding_identifier)
                     ]).required());
 
         builder.add_typedef(&names.label).unwrap()
             .with_type(
                     Type::named(&names.string).required());
 
-        builder.add_typedef(&names.object_property).unwrap()
+        builder.add_typedef(&names.program).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.method_definition),
-                        Type::named(&names.data_property),
-                        Type::named(&names.shorthand_property)
-                    ]).required());
-
-        builder.add_typedef(&names.method_definition).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.method),
-                        Type::named(&names.getter),
-                        Type::named(&names.setter)
-                    ]).required());
-
-        builder.add_typedef(&names.parameter).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.binding),
-                        Type::named(&names.binding_with_initializer)
-                    ]).required());
-
-        builder.add_typedef(&names.assignment_target_pattern).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.object_assignment_target),
-                        Type::named(&names.array_assignment_target)
-                    ]).required());
-
-        builder.add_typedef(&names.assignment_target_property).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.assignment_target_property_identifier),
-                        Type::named(&names.assignment_target_property_property)
-                    ]).required());
-
-        builder.add_typedef(&names.arguments).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.spread_element),
-                        Type::named(&names.expression)
-                    ]).required().array().required());
-
-        builder.add_typedef(&names.export_declaration).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.export_all_from),
-                        Type::named(&names.export_from),
-                        Type::named(&names.export_locals),
-                        Type::named(&names.export_default),
-                        Type::named(&names.export)
-                    ]).required());
-
-        builder.add_typedef(&names.iteration_statement).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.do_while_statement),
-                        Type::named(&names.for_in_statement),
-                        Type::named(&names.for_of_statement),
-                        Type::named(&names.for_statement),
-                        Type::named(&names.while_statement)
-                    ]).required());
-
-        builder.add_typedef(&names.identifier).unwrap()
-            .with_type(
-                    Type::named(&names.string).required());
-
-        builder.add_typedef(&names.binding_property).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.binding_property_identifier),
-                        Type::named(&names.binding_property_property)
+                        Type::named(&names.script),
+                        Type::named(&names.module)
                     ]).required());
 
         builder.add_typedef(&names.literal).unwrap()
@@ -634,49 +628,434 @@ impl Library {
                         Type::named(&names.literal_string_expression)
                     ]).required());
 
-        builder.add_typedef(&names.property_name).unwrap()
+        builder.add_typedef(&names.parameter).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.computed_property_name),
-                        Type::named(&names.literal_property_name)
+                        Type::named(&names.binding),
+                        Type::named(&names.binding_with_initializer)
                     ]).required());
 
-        builder.add_typedef(&names.program).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.script),
-                        Type::named(&names.module)
-                    ]).required());
-
-        builder.add_typedef(&names.identifier_name).unwrap()
+        builder.add_typedef(&names.identifier).unwrap()
             .with_type(
                     Type::named(&names.string).required());
 
-        builder.add_typedef(&names.assignment_target).unwrap()
+        builder.add_typedef(&names.statement).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.assignment_target_pattern),
-                        Type::named(&names.simple_assignment_target)
+                        Type::named(&names.block),
+                        Type::named(&names.break_statement),
+                        Type::named(&names.continue_statement),
+                        Type::named(&names.class_declaration),
+                        Type::named(&names.debugger_statement),
+                        Type::named(&names.empty_statement),
+                        Type::named(&names.expression_statement),
+                        Type::named(&names.function_declaration),
+                        Type::named(&names.if_statement),
+                        Type::named(&names.iteration_statement),
+                        Type::named(&names.labelled_statement),
+                        Type::named(&names.return_statement),
+                        Type::named(&names.switch_statement),
+                        Type::named(&names.switch_statement_with_default),
+                        Type::named(&names.throw_statement),
+                        Type::named(&names.try_catch_statement),
+                        Type::named(&names.try_finally_statement),
+                        Type::named(&names.variable_declaration),
+                        Type::named(&names.with_statement)
                     ]).required());
 
-        builder.add_typedef(&names.binding_pattern).unwrap()
+        builder.add_typedef(&names.iteration_statement).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.object_binding),
-                        Type::named(&names.array_binding)
+                        Type::named(&names.do_while_statement),
+                        Type::named(&names.for_in_statement),
+                        Type::named(&names.for_of_statement),
+                        Type::named(&names.for_statement),
+                        Type::named(&names.while_statement)
                     ]).required());
 
-        builder.add_typedef(&names.import_declaration).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.import_namespace),
-                        Type::named(&names.import)
-                    ]).required());
+        builder.add_interface(&names.assignment_target_with_initializer).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.assignment_target).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).required()
+            );
 
-        builder.add_interface(&names.literal_string_expression).unwrap()
+        builder.add_interface(&names.binary_expression).unwrap()
+            .with_field(
+                 &names.field_operator,
+                 Type::named(&names.binary_operator).required()
+            )
+            .with_field(
+                 &names.field_left,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_right,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.try_catch_statement).unwrap()
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.block).required()
+            )
+            .with_field(
+                 &names.field_catch_clause,
+                 Type::named(&names.catch_clause).required()
+            );
+
+        builder.add_interface(&names.block).unwrap()
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_block_scope).optional()
+            )
+            .with_field(
+                 &names.field_statements,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.computed_member_expression).unwrap()
+            .with_field(
+                 &names.field_object,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.new_expression).unwrap()
+            .with_field(
+                 &names.field_callee,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_arguments,
+                 Type::named(&names.arguments).required()
+            );
+
+        builder.add_interface(&names.export_from_specifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_name).required()
+            )
+            .with_field(
+                 &names.field_exported_name,
+                 Type::named(&names.identifier_name).optional()
+            );
+
+        builder.add_interface(&names.switch_statement_with_default).unwrap()
+            .with_field(
+                 &names.field_discriminant,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_pre_default_cases,
+                 Type::named(&names.switch_case).required().array().required()
+            )
+            .with_field(
+                 &names.field_default_case,
+                 Type::named(&names.switch_default).required()
+            )
+            .with_field(
+                 &names.field_post_default_cases,
+                 Type::named(&names.switch_case).required().array().required()
+            );
+
+        builder.add_interface(&names.identifier_expression).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier).required()
+            );
+
+        builder.add_interface(&names.array_assignment_target).unwrap()
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.assignment_target),
+                     Type::named(&names.assignment_target_with_initializer)
+                 ]).required().array().required()
+            )
+            .with_field(
+                 &names.field_rest,
+                 Type::named(&names.assignment_target).optional()
+            );
+
+        builder.add_interface(&names.null).unwrap()
+;
+
+        builder.add_interface(&names.literal_infinity_expression).unwrap()
+;
+
+        builder.add_interface(&names.function_declaration).unwrap()
+            .with_field(
+                 &names.field_is_async,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_is_generator,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_top_level_scope).optional()
+            )
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.binding_identifier).required()
+            )
+            .with_field(
+                 &names.field_params,
+                 Type::named(&names.formal_parameters).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.function_body).required()
+            );
+
+        builder.add_interface(&names.if_statement).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_consequent,
+                 Type::named(&names.statement).required()
+            )
+            .with_field(
+                 &names.field_alternate,
+                 Type::named(&names.statement).optional()
+            );
+
+        builder.add_interface(&names.literal_property_name).unwrap()
             .with_field(
                  &names.field_value,
                  Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.super_).unwrap()
+;
+
+        builder.add_interface(&names.import).unwrap()
+            .with_field(
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
+            )
+            .with_field(
+                 &names.field_default_binding,
+                 Type::named(&names.binding_identifier).optional()
+            )
+            .with_field(
+                 &names.field_named_imports,
+                 Type::named(&names.import_specifier).required().array().required()
+            );
+
+        builder.add_interface(&names.object_expression).unwrap()
+            .with_field(
+                 &names.field_properties,
+                 Type::named(&names.object_property).required().array().required()
+            );
+
+        builder.add_interface(&names.try_finally_statement).unwrap()
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.block).required()
+            )
+            .with_field(
+                 &names.field_catch_clause,
+                 Type::named(&names.catch_clause).optional()
+            )
+            .with_field(
+                 &names.field_finalizer,
+                 Type::named(&names.block).required()
+            );
+
+        builder.add_interface(&names.assignment_expression).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.assignment_target).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.literal_numeric_expression).unwrap()
+            .with_field(
+                 &names.field_value,
+                 Type::number().required()
+            );
+
+        builder.add_interface(&names.for_of_statement).unwrap()
+            .with_field(
+                 &names.field_left,
+                 Type::sum(&[
+                     Type::named(&names.for_in_of_binding),
+                     Type::named(&names.assignment_target)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_right,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.data_property).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.function_body).unwrap()
+            .with_field(
+                 &names.field_directives,
+                 Type::named(&names.directive).required().array().required()
+            )
+            .with_field(
+                 &names.field_statements,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.assignment_target_property_property).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::sum(&[
+                     Type::named(&names.assignment_target),
+                     Type::named(&names.assignment_target_with_initializer)
+                 ]).required()
+            );
+
+        builder.add_interface(&names.switch_case).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_consequent,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.class_expression).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.binding_identifier).optional()
+            )
+            .with_field(
+                 &names.field_super_,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_elements,
+                 Type::named(&names.class_element).required().array().required()
+            );
+
+        builder.add_interface(&names.formal_parameters).unwrap()
+            .with_field(
+                 &names.field_items,
+                 Type::named(&names.parameter).required().array().required()
+            )
+            .with_field(
+                 &names.field_rest,
+                 Type::named(&names.binding).optional()
+            );
+
+        builder.add_interface(&names.export).unwrap()
+            .with_field(
+                 &names.field_declaration,
+                 Type::sum(&[
+                     Type::named(&names.function_declaration),
+                     Type::named(&names.class_declaration),
+                     Type::named(&names.variable_declaration)
+                 ]).required()
+            );
+
+        builder.add_interface(&names.while_statement).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.binding_with_initializer).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.computed_property_name).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.this_expression).unwrap()
+;
+
+        builder.add_interface(&names.literal_boolean_expression).unwrap()
+            .with_field(
+                 &names.field_value,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.static_member_assignment_target).unwrap()
+            .with_field(
+                 &names.field_object,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_property,
+                 Type::named(&names.identifier_name).required()
+            );
+
+        builder.add_interface(&names.setter).unwrap()
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_top_level_scope).optional()
+            )
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_param,
+                 Type::named(&names.parameter).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.function_body).required()
+            );
+
+        builder.add_interface(&names.shorthand_property).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_expression).required()
             );
 
         builder.add_interface(&names.function_expression).unwrap()
@@ -705,113 +1084,18 @@ impl Library {
                  Type::named(&names.function_body).required()
             );
 
-        builder.add_interface(&names.yield_star_expression).unwrap()
+        builder.add_interface(&names.class_declaration).unwrap()
             .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.export_locals).unwrap()
-            .with_field(
-                 &names.field_named_exports,
-                 Type::named(&names.export_local_specifier).required().array().required()
-            );
-
-        builder.add_interface(&names.literal_property_name).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.static_member_expression).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
+                 &names.field_name,
+                 Type::named(&names.binding_identifier).required()
             )
             .with_field(
-                 &names.field_property,
-                 Type::named(&names.identifier_name).required()
-            );
-
-        builder.add_interface(&names.computed_member_assignment_target).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
+                 &names.field_super_,
+                 Type::named(&names.expression).optional()
             )
             .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.export_default).unwrap()
-            .with_field(
-                 &names.field_body,
-                 Type::sum(&[
-                     Type::named(&names.function_declaration),
-                     Type::named(&names.class_declaration),
-                     Type::named(&names.expression)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.for_of_statement).unwrap()
-            .with_field(
-                 &names.field_left,
-                 Type::sum(&[
-                     Type::named(&names.for_in_of_binding),
-                     Type::named(&names.assignment_target)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_right,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.binary_expression).unwrap()
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.binary_operator).required()
-            )
-            .with_field(
-                 &names.field_left,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_right,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.formal_parameters).unwrap()
-            .with_field(
-                 &names.field_items,
-                 Type::named(&names.parameter).required().array().required()
-            )
-            .with_field(
-                 &names.field_rest,
-                 Type::named(&names.binding).optional()
-            );
-
-        builder.add_interface(&names.asserted_block_scope).unwrap()
-            .with_field(
-                 &names.field_lexically_declared_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_captured_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_has_direct_eval,
-                 Type::bool().required()
+                 &names.field_elements,
+                 Type::named(&names.class_element).required().array().required()
             );
 
         builder.add_interface(&names.assignment_target_property_identifier).unwrap()
@@ -824,126 +1108,17 @@ impl Library {
                  Type::named(&names.expression).optional()
             );
 
-        builder.add_interface(&names.function_declaration).unwrap()
-            .with_field(
-                 &names.field_is_async,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_is_generator,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
-            )
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).required()
-            )
-            .with_field(
-                 &names.field_params,
-                 Type::named(&names.formal_parameters).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.function_body).required()
-            );
-
-        builder.add_interface(&names.literal_null_expression).unwrap()
-;
-
-        builder.add_interface(&names.computed_member_expression).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
-            )
+        builder.add_interface(&names.throw_statement).unwrap()
             .with_field(
                  &names.field_expression,
                  Type::named(&names.expression).required()
             );
 
-        builder.add_interface(&names.switch_case).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.break_statement).unwrap()
-            .with_field(
-                 &names.field_label,
-                 Type::named(&names.label).optional()
-            );
-
-        builder.add_interface(&names.block).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_block_scope).optional()
-            )
-            .with_field(
-                 &names.field_statements,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.conditional_expression).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_alternate,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.this_expression).unwrap()
-;
-
-        builder.add_interface(&names.array_assignment_target).unwrap()
-            .with_field(
-                 &names.field_elements,
-                 Type::sum(&[
-                     Type::named(&names.assignment_target),
-                     Type::named(&names.assignment_target_with_initializer)
-                 ]).required().array().required()
-            )
-            .with_field(
-                 &names.field_rest,
-                 Type::named(&names.assignment_target).optional()
-            );
-
-        builder.add_interface(&names.export_from_specifier).unwrap()
+        builder.add_interface(&names.assignment_target_identifier).unwrap()
             .with_field(
                  &names.field_name,
-                 Type::named(&names.identifier_name).required()
-            )
-            .with_field(
-                 &names.field_exported_name,
-                 Type::named(&names.identifier_name).optional()
+                 Type::named(&names.identifier).required()
             );
-
-        builder.add_interface(&names.function_body).unwrap()
-            .with_field(
-                 &names.field_directives,
-                 Type::named(&names.directive).required().array().required()
-            )
-            .with_field(
-                 &names.field_statements,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.empty_statement).unwrap()
-;
 
         builder.add_interface(&names.binding_property_identifier).unwrap()
             .with_field(
@@ -954,6 +1129,9 @@ impl Library {
                  &names.field_init,
                  Type::named(&names.expression).optional()
             );
+
+        builder.add_interface(&names.empty_statement).unwrap()
+;
 
         builder.add_interface(&names.update_expression).unwrap()
             .with_field(
@@ -969,148 +1147,27 @@ impl Library {
                  Type::named(&names.simple_assignment_target).required()
             );
 
-        builder.add_interface(&names.super_).unwrap()
-;
-
-        builder.add_interface(&names.import).unwrap()
+        builder.add_interface(&names.arrow_expression).unwrap()
             .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
-            )
-            .with_field(
-                 &names.field_default_binding,
-                 Type::named(&names.binding_identifier).optional()
-            )
-            .with_field(
-                 &names.field_named_imports,
-                 Type::named(&names.import_specifier).required().array().required()
-            );
-
-        builder.add_interface(&names.directive).unwrap()
-            .with_field(
-                 &names.field_raw_value,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.switch_statement_with_default).unwrap()
-            .with_field(
-                 &names.field_discriminant,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_pre_default_cases,
-                 Type::named(&names.switch_case).required().array().required()
-            )
-            .with_field(
-                 &names.field_default_case,
-                 Type::named(&names.switch_default).required()
-            )
-            .with_field(
-                 &names.field_post_default_cases,
-                 Type::named(&names.switch_case).required().array().required()
-            );
-
-        builder.add_interface(&names.class_element).unwrap()
-            .with_field(
-                 &names.field_is_static,
+                 &names.field_is_async,
                  Type::bool().required()
             )
             .with_field(
-                 &names.field_method,
-                 Type::named(&names.method_definition).required()
-            );
-
-        builder.add_interface(&names.call_expression).unwrap()
-            .with_field(
-                 &names.field_callee,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_arguments,
-                 Type::named(&names.arguments).required()
-            );
-
-        builder.add_interface(&names.assignment_target_property_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::sum(&[
-                     Type::named(&names.assignment_target),
-                     Type::named(&names.assignment_target_with_initializer)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.shorthand_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier_expression).required()
-            );
-
-        builder.add_interface(&names.assignment_target_identifier).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier).required()
-            );
-
-        builder.add_interface(&names.await_expression).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.array_binding).unwrap()
-            .with_field(
-                 &names.field_elements,
-                 Type::sum(&[
-                     Type::named(&names.binding),
-                     Type::named(&names.binding_with_initializer)
-                 ]).optional().array().required()
-            )
-            .with_field(
-                 &names.field_rest,
-                 Type::named(&names.binding).optional()
-            );
-
-        builder.add_interface(&names.object_binding).unwrap()
-            .with_field(
-                 &names.field_properties,
-                 Type::named(&names.binding_property).required().array().required()
-            );
-
-        builder.add_interface(&names.literal_boolean_expression).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::bool().required()
-            );
-
-        builder.add_interface(&names.class_expression).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).optional()
-            )
-            .with_field(
-                 &names.field_super_,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_elements,
-                 Type::named(&names.class_element).required().array().required()
-            );
-
-        builder.add_interface(&names.while_statement).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
+                 &names.field_params,
+                 Type::named(&names.formal_parameters).required()
             )
             .with_field(
                  &names.field_body,
-                 Type::named(&names.statement).required()
+                 Type::sum(&[
+                     Type::named(&names.function_body),
+                     Type::named(&names.expression)
+                 ]).required()
+            );
+
+        builder.add_interface(&names.break_statement).unwrap()
+            .with_field(
+                 &names.field_label,
+                 Type::named(&names.label).optional()
             );
 
         builder.add_interface(&names.module).unwrap()
@@ -1131,39 +1188,19 @@ impl Library {
                  ]).required().array().required()
             );
 
-        builder.add_interface(&names.computed_property_name).unwrap()
+        builder.add_interface(&names.switch_default).unwrap()
             .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
+                 &names.field_consequent,
+                 Type::named(&names.statement).required().array().required()
             );
 
-        builder.add_interface(&names.try_catch_statement).unwrap()
+        builder.add_interface(&names.continue_statement).unwrap()
             .with_field(
-                 &names.field_body,
-                 Type::named(&names.block).required()
-            )
-            .with_field(
-                 &names.field_catch_clause,
-                 Type::named(&names.catch_clause).required()
+                 &names.field_label,
+                 Type::named(&names.label).optional()
             );
 
-        builder.add_interface(&names.assignment_expression).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.assignment_target).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.literal_numeric_expression).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::number().required()
-            );
-
-        builder.add_interface(&names.static_member_assignment_target).unwrap()
+        builder.add_interface(&names.computed_member_assignment_target).unwrap()
             .with_field(
                  &names.field_object,
                  Type::sum(&[
@@ -1172,59 +1209,14 @@ impl Library {
                  ]).required()
             )
             .with_field(
-                 &names.field_property,
-                 Type::named(&names.identifier_name).required()
-            );
-
-        builder.add_interface(&names.export_from).unwrap()
-            .with_field(
-                 &names.field_named_exports,
-                 Type::named(&names.export_from_specifier).required().array().required()
-            )
-            .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.literal_reg_exp_expression).unwrap()
-            .with_field(
-                 &names.field_pattern,
-                 Type::named(&names.string).required()
-            )
-            .with_field(
-                 &names.field_flags,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.labelled_statement).unwrap()
-            .with_field(
-                 &names.field_label,
-                 Type::named(&names.label).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
             );
 
         builder.add_interface(&names.object_assignment_target).unwrap()
             .with_field(
                  &names.field_properties,
                  Type::named(&names.assignment_target_property).required().array().required()
-            );
-
-        builder.add_interface(&names.literal_infinity_expression).unwrap()
-;
-
-        builder.add_interface(&names.identifier_expression).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier).required()
-            );
-
-        builder.add_interface(&names.switch_default).unwrap()
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.statement).required().array().required()
             );
 
         builder.add_interface(&names.getter).unwrap()
@@ -1237,6 +1229,16 @@ impl Library {
                  Type::named(&names.function_body).required()
             );
 
+        builder.add_interface(&names.catch_clause).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.block).required()
+            );
+
         builder.add_interface(&names.do_while_statement).unwrap()
             .with_field(
                  &names.field_test,
@@ -1247,78 +1249,28 @@ impl Library {
                  Type::named(&names.statement).required()
             );
 
-        builder.add_interface(&names.continue_statement).unwrap()
+        builder.add_interface(&names.conditional_expression).unwrap()
             .with_field(
-                 &names.field_label,
-                 Type::named(&names.label).optional()
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_consequent,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_alternate,
+                 Type::named(&names.expression).required()
             );
 
-        builder.add_interface(&names.arrow_expression).unwrap()
-            .with_field(
-                 &names.field_is_async,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_params,
-                 Type::named(&names.formal_parameters).required()
-            )
+        builder.add_interface(&names.export_default).unwrap()
             .with_field(
                  &names.field_body,
                  Type::sum(&[
-                     Type::named(&names.function_body),
+                     Type::named(&names.function_declaration),
+                     Type::named(&names.class_declaration),
                      Type::named(&names.expression)
                  ]).required()
-            );
-
-        builder.add_interface(&names.new_expression).unwrap()
-            .with_field(
-                 &names.field_callee,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_arguments,
-                 Type::named(&names.arguments).required()
-            );
-
-        builder.add_interface(&names.setter).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
-            )
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
-            .with_field(
-                 &names.field_param,
-                 Type::named(&names.parameter).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.function_body).required()
-            );
-
-        builder.add_interface(&names.binding_property_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::sum(&[
-                     Type::named(&names.binding),
-                     Type::named(&names.binding_with_initializer)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.switch_statement).unwrap()
-            .with_field(
-                 &names.field_discriminant,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_cases,
-                 Type::named(&names.switch_case).required().array().required()
             );
 
         builder.add_interface(&names.with_statement).unwrap()
@@ -1331,137 +1283,8 @@ impl Library {
                  Type::named(&names.statement).required()
             );
 
-        builder.add_interface(&names.catch_clause).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_block_scope).optional()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.block).required()
-            );
-
-        builder.add_interface(&names.variable_declarator).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.import_specifier).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier_name).optional()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding_identifier).required()
-            );
-
-        builder.add_interface(&names.throw_statement).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.new_target_expression).unwrap()
-;
-
-        builder.add_interface(&names.object_expression).unwrap()
-            .with_field(
-                 &names.field_properties,
-                 Type::named(&names.object_property).required().array().required()
-            );
-
-        builder.add_interface(&names.script).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
-            )
-            .with_field(
-                 &names.field_directives,
-                 Type::named(&names.directive).required().array().required()
-            )
-            .with_field(
-                 &names.field_statements,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.spread_element).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.export_local_specifier).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier_expression).required()
-            )
-            .with_field(
-                 &names.field_exported_name,
-                 Type::named(&names.identifier_name).optional()
-            );
-
-        builder.add_interface(&names.template_element).unwrap()
-            .with_field(
-                 &names.field_raw_value,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.yield_expression).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.compound_assignment_expression).unwrap()
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.compound_assignment_operator).required()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.simple_assignment_target).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.try_finally_statement).unwrap()
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.block).required()
-            )
-            .with_field(
-                 &names.field_catch_clause,
-                 Type::named(&names.catch_clause).optional()
-            )
-            .with_field(
-                 &names.field_finalizer,
-                 Type::named(&names.block).required()
-            );
-
         builder.add_interface(&names.debugger_statement).unwrap()
 ;
-
-        builder.add_interface(&names.unary_expression).unwrap()
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.unary_operator).required()
-            )
-            .with_field(
-                 &names.field_operand,
-                 Type::named(&names.expression).required()
-            );
 
         builder.add_interface(&names.import_namespace).unwrap()
             .with_field(
@@ -1477,108 +1300,16 @@ impl Library {
                  Type::named(&names.binding_identifier).required()
             );
 
-        builder.add_interface(&names.variable_declaration).unwrap()
-            .with_field(
-                 &names.field_kind,
-                 Type::named(&names.variable_declaration_kind).required()
-            )
-            .with_field(
-                 &names.field_declarators,
-                 Type::named(&names.variable_declarator).required().array().required()
-            );
-
-        builder.add_interface(&names.if_statement).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.statement).required()
-            )
-            .with_field(
-                 &names.field_alternate,
-                 Type::named(&names.statement).optional()
-            );
-
-        builder.add_interface(&names.binding_with_initializer).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.null).unwrap()
-;
-
-        builder.add_interface(&names.assignment_target_with_initializer).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.assignment_target).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.export_all_from).unwrap()
-            .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.for_statement).unwrap()
-            .with_field(
-                 &names.field_init,
-                 Type::sum(&[
-                     Type::named(&names.variable_declaration),
-                     Type::named(&names.expression)
-                 ]).optional()
-            )
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_update,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.class_declaration).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).required()
-            )
-            .with_field(
-                 &names.field_super_,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_elements,
-                 Type::named(&names.class_element).required().array().required()
-            );
-
-        builder.add_interface(&names.export).unwrap()
-            .with_field(
-                 &names.field_declaration,
-                 Type::sum(&[
-                     Type::named(&names.function_declaration),
-                     Type::named(&names.class_declaration),
-                     Type::named(&names.variable_declaration)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.return_statement).unwrap()
+        builder.add_interface(&names.expression_statement).unwrap()
             .with_field(
                  &names.field_expression,
-                 Type::named(&names.expression).optional()
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.template_element).unwrap()
+            .with_field(
+                 &names.field_raw_value,
+                 Type::named(&names.string).required()
             );
 
         builder.add_interface(&names.template_expression).unwrap()
@@ -1594,68 +1325,74 @@ impl Library {
                  ]).required().array().required()
             );
 
-        builder.add_interface(&names.for_in_of_binding).unwrap()
+        builder.add_interface(&names.new_target_expression).unwrap()
+;
+
+        builder.add_interface(&names.object_binding).unwrap()
             .with_field(
-                 &names.field_kind,
-                 Type::named(&names.variable_declaration_kind).required()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
+                 &names.field_properties,
+                 Type::named(&names.binding_property).required().array().required()
             );
 
-        builder.add_interface(&names.asserted_top_level_scope).unwrap()
+        builder.add_interface(&names.export_from).unwrap()
             .with_field(
-                 &names.field_lexically_declared_names,
-                 Type::named(&names.identifier_name).required().array().required()
+                 &names.field_named_exports,
+                 Type::named(&names.export_from_specifier).required().array().required()
             )
             .with_field(
-                 &names.field_var_declared_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_captured_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_has_direct_eval,
-                 Type::bool().required()
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
             );
 
-        builder.add_interface(&names.data_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
+        builder.add_interface(&names.yield_star_expression).unwrap()
             .with_field(
                  &names.field_expression,
                  Type::named(&names.expression).required()
             );
 
-        builder.add_interface(&names.for_in_statement).unwrap()
+        builder.add_interface(&names.unary_expression).unwrap()
             .with_field(
-                 &names.field_left,
-                 Type::sum(&[
-                     Type::named(&names.for_in_of_binding),
-                     Type::named(&names.assignment_target)
-                 ]).required()
+                 &names.field_operator,
+                 Type::named(&names.unary_operator).required()
             )
             .with_field(
-                 &names.field_right,
+                 &names.field_operand,
                  Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
             );
 
-        builder.add_interface(&names.array_expression).unwrap()
+        builder.add_interface(&names.class_element).unwrap()
             .with_field(
-                 &names.field_elements,
-                 Type::sum(&[
-                     Type::named(&names.spread_element),
-                     Type::named(&names.expression)
-                 ]).optional().array().required()
+                 &names.field_is_static,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_method,
+                 Type::named(&names.method_definition).required()
+            );
+
+        builder.add_interface(&names.literal_null_expression).unwrap()
+;
+
+        builder.add_interface(&names.binding_identifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier).required()
+            );
+
+        builder.add_interface(&names.return_statement).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.variable_declarator).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).optional()
             );
 
         builder.add_interface(&names.method).unwrap()
@@ -1684,16 +1421,275 @@ impl Library {
                  Type::named(&names.function_body).required()
             );
 
-        builder.add_interface(&names.expression_statement).unwrap()
+        builder.add_interface(&names.export_locals).unwrap()
+            .with_field(
+                 &names.field_named_exports,
+                 Type::named(&names.export_local_specifier).required().array().required()
+            );
+
+        builder.add_interface(&names.directive).unwrap()
+            .with_field(
+                 &names.field_raw_value,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.export_local_specifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_expression).required()
+            )
+            .with_field(
+                 &names.field_exported_name,
+                 Type::named(&names.identifier_name).optional()
+            );
+
+        builder.add_interface(&names.for_in_of_binding).unwrap()
+            .with_field(
+                 &names.field_kind,
+                 Type::named(&names.variable_declaration_kind).required()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            );
+
+        builder.add_interface(&names.asserted_block_scope).unwrap()
+            .with_field(
+                 &names.field_lexically_declared_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_captured_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_has_direct_eval,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.static_member_expression).unwrap()
+            .with_field(
+                 &names.field_object,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_property,
+                 Type::named(&names.identifier_name).required()
+            );
+
+        builder.add_interface(&names.call_expression).unwrap()
+            .with_field(
+                 &names.field_callee,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_arguments,
+                 Type::named(&names.arguments).required()
+            );
+
+        builder.add_interface(&names.variable_declaration).unwrap()
+            .with_field(
+                 &names.field_kind,
+                 Type::named(&names.variable_declaration_kind).required()
+            )
+            .with_field(
+                 &names.field_declarators,
+                 Type::named(&names.variable_declarator).required().array().required()
+            );
+
+        builder.add_interface(&names.for_statement).unwrap()
+            .with_field(
+                 &names.field_init,
+                 Type::sum(&[
+                     Type::named(&names.variable_declaration),
+                     Type::named(&names.expression)
+                 ]).optional()
+            )
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_update,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.asserted_top_level_scope).unwrap()
+            .with_field(
+                 &names.field_lexically_declared_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_var_declared_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_captured_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_has_direct_eval,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.yield_expression).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.array_expression).unwrap()
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.spread_element),
+                     Type::named(&names.expression)
+                 ]).optional().array().required()
+            );
+
+        builder.add_interface(&names.switch_statement).unwrap()
+            .with_field(
+                 &names.field_discriminant,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_cases,
+                 Type::named(&names.switch_case).required().array().required()
+            );
+
+        builder.add_interface(&names.export_all_from).unwrap()
+            .with_field(
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.import_specifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_name).optional()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding_identifier).required()
+            );
+
+        builder.add_interface(&names.compound_assignment_expression).unwrap()
+            .with_field(
+                 &names.field_operator,
+                 Type::named(&names.compound_assignment_operator).required()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.simple_assignment_target).required()
+            )
             .with_field(
                  &names.field_expression,
                  Type::named(&names.expression).required()
             );
 
-        builder.add_interface(&names.binding_identifier).unwrap()
+        builder.add_interface(&names.for_in_statement).unwrap()
+            .with_field(
+                 &names.field_left,
+                 Type::sum(&[
+                     Type::named(&names.for_in_of_binding),
+                     Type::named(&names.assignment_target)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_right,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.binding_property_property).unwrap()
             .with_field(
                  &names.field_name,
-                 Type::named(&names.identifier).required()
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::sum(&[
+                     Type::named(&names.binding),
+                     Type::named(&names.binding_with_initializer)
+                 ]).required()
+            );
+
+        builder.add_interface(&names.script).unwrap()
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_top_level_scope).optional()
+            )
+            .with_field(
+                 &names.field_directives,
+                 Type::named(&names.directive).required().array().required()
+            )
+            .with_field(
+                 &names.field_statements,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.await_expression).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.spread_element).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.literal_reg_exp_expression).unwrap()
+            .with_field(
+                 &names.field_pattern,
+                 Type::named(&names.string).required()
+            )
+            .with_field(
+                 &names.field_flags,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.labelled_statement).unwrap()
+            .with_field(
+                 &names.field_label,
+                 Type::named(&names.label).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.literal_string_expression).unwrap()
+            .with_field(
+                 &names.field_value,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.array_binding).unwrap()
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.binding),
+                     Type::named(&names.binding_with_initializer)
+                 ]).optional().array().required()
+            )
+            .with_field(
+                 &names.field_rest,
+                 Type::named(&names.binding).optional()
             );
 
         names    }
