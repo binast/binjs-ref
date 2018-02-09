@@ -89,15 +89,15 @@ fn main() {
             matches.value_of("out")
         };
 
-    let dest_dir = matches.value_of("dir")
-        .or_else(|| {
-            if sources.len() > 1 || dest_path.is_none() {
-                Some(".")
-            } else {
-                None
-            }
-        });
-
+    let dest_dir = match matches.value_of("dir") {
+        None if sources.len() > 1 || dest_path.is_none() => Some("."),
+        None => None,
+        Some(path) => {
+            std::fs::create_dir_all(path)
+                .expect("Could not find or create destination directory");
+            Some(path)
+        }
+    };
 
     let compression = {
         let mut is_compressed = false;
@@ -158,29 +158,43 @@ fn main() {
 
     for source_path in sources {
         println!("Treating {}", source_path);
-        let dest_path = match dest_path {
-            Some(ref x) => Some(x.to_string()),
+        let (dest_txt_path, dest_bin_path) = match dest_path {
+            Some(ref x) => (None, Some(x.to_string())),
             None => match dest_dir {
-                None => None, // Do not write
+                None => (None, None), // Do not write
                 Some(ref d) => {
                     let source = Path::new(source_path);
                     let file_name = source.file_stem()
                         .expect("Could not extract file name");
-                    let mut path = PathBuf::new();
-                    path.push(d);
-                    path.push(file_name);
-                    path.set_extension("binjs");
-                    Some(path.to_str()
-                        .expect("Could not convert path to string")
-                        .to_string())
+
+                    let mut bin_path = PathBuf::new();
+                    bin_path.push(d);
+                    bin_path.push(file_name);
+                    bin_path.set_extension("binjs");
+
+                    let mut txt_path = PathBuf::new();
+                    txt_path.push(d);
+                    txt_path.push(file_name);
+                    txt_path.set_extension("js");
+
+                    let bin_path = bin_path.to_str()
+                        .expect("Could not convert bin path to string")
+                        .to_string();
+                    let txt_path = txt_path.to_str()
+                        .expect("Could not convert txt path to string")
+                        .to_string();
+                    (Some(txt_path), Some(bin_path))
                 }
             }
         };
 
-        if let Some(ref dest) = dest_path {
-            println!("Output: {}", dest);
+        if let Some(ref bin_path) = dest_bin_path {
+            println!("Output: {}", bin_path);
         } else {
             println!("Compressing to memory");
+        }
+        if let Some(ref txt_path) = dest_txt_path {
+            println!("Will copy source to {}", txt_path);
         }
 
         let source_len = std::fs::metadata(source_path)
@@ -231,14 +245,20 @@ fn main() {
 
         let dest_len = data.as_ref().as_ref().len();
 
-        if let Some(ref dest_path) = dest_path {
-            println!("Writing.");
-            let mut dest = File::create(dest_path)
-                .expect("Could not create destination file");
+        if let Some(ref bin_path) = dest_bin_path {
+            println!("Writing binary file.");
+            let mut dest = File::create(bin_path)
+                .unwrap_or_else(|e| panic!("Could not create destination file {}: {:?}", bin_path, e));
             dest.write((*data).as_ref())
                 .expect("Could not write destination file");
         } else {
             println!("Skipping write.");
+        }
+
+        if let Some(ref txt_path) = dest_txt_path {
+            println!("Copying source file.");
+            std::fs::copy(source_path, txt_path)
+                .expect("Could not copy source file");
         }
 
         println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
