@@ -296,19 +296,40 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
 
         fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
             match ctx.kind_str() {
-                "Identifier" => {
-                    // There are three sorts of identifiers:
-                    // 1. declaring a variable;
-                    // 2. referencing a variable;
-                    // 3. misc stuff that are not variables (e.g. fields keys, labels).
-                    //
-                    // With the exception of parameters and recursive functions, we have
-                    // handled 1. in the previous pass, so we're just going to skip all
-                    // declarations other than these two.
-                    //
-                    // We just skip any use of identifiers that is not a variable.
+                "IdentifierExpression" => {
+                    let name = object.get_string("name", "Field `name` of `IdentifierExpression`")?;
+                    let parent = match ctx.contents().parent() {
+                        Some(parent) => parent,
+                        None => return Ok(()) // If we are at toplevel, we don't really care about all this.
+                    };
+                    let mut parent = parent.borrow_mut();
 
-                    let name = object.get_string("name", "Field `name` of `Identifier`")?;
+                    match parent.kind_str() {
+                        "CallExpression" if name == "eval" => {
+                            debug!(target: "library", "Encountered mention of `eval`");
+                            if let Some("callee") = parent.field_str() {
+                                debug!(target: "library", "Encountered CALL to `eval`");
+
+                                if !parent.is_bound("eval") {
+                                    debug!(target: "library", "Encountered DIRECT call to `eval`");
+                                    parent.add_direct_eval()
+                                } else {
+                                    debug!(target: "library", "Actually NOT a direct call to `eval`");
+                                }
+                            } else {
+                                debug!(target: "library", "Oh, my bad, `eval` is not the callee");
+                                parent.add_free_name(name)
+                            }
+                        }
+                        _ => ctx.add_free_name(name)
+                    }
+                }
+                "BindingIdentifier" => {
+                    // With the exception of parameters, recursive functions and catch, we have
+                    // handled all bidnings, so we're going to skip all other forms of
+                    // declarations
+                    // FIXME: Why haven't we handled all this already?
+                    let name = object.get_string("name", "Field `name` of `BindingIdentifier`")?;
                     let parent = match ctx.contents().parent() {
                         Some(parent) => parent,
                         None => return Ok(()) // If we are at toplevel, we don't really care about all this.
@@ -332,59 +353,10 @@ fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotato
                                 return Err(ASTError::InvalidField("<FIXME: specify field>".to_string()))
                             }
                         }
-                        "CallExpression" if name == "eval" => {
-                            if let Some("callee") = parent.field_str() {
-                                if !parent.is_bound("eval") {
-                                    parent.add_direct_eval()
-                                }
-                            } else {
-                                parent.add_free_name(name)
-                            }
-                        }
-                        "LabelledStatement" | "BreakStatement" | "ContinueStatement" => {
-                            // Ignore identifier, not a variable.
-                        }
-                        "VariableDeclarator" => {
-                            if let Some("binding") = parent.field_str() {
-                                // Variable declaration, already handled.
-                                assert!(parent.is_bound(&name), "Variable {} is declared explicitly, should have been marked as bound in the previous pass. Bound variables: {:?}", name, parent.bindings());
-                            } else {
-                                ctx.add_free_name(name)
-                            }
-                        }
-                        "ForStatement" => {
-                            if let Some("init") = parent.field_str() {
-                                // Variable declaration, already handled.
-                                assert!(parent.is_bound(&name), "Variable {} is declared by `for(;;)`, should have been marked as bound in the previous pass", name);
-                            } else {
-                                ctx.add_free_name(name)
-                            }
-                        }
-                        "ForInStatement" => {
-                            if let Some("left") = parent.field_str() {
-                                // Variable declaration, already handled.
-                                assert!(parent.is_bound(&name), "Variable {} is used by `for(in)`, should have been marked as bound in the previous pass", name);
-                            } else {
-                                ctx.add_free_name(name)
-                            }
-                        }
-                        "ExpressionStatement" | "WithStatement" | "ReturnStatement"
-                            | "IfStatement" | "SwitchStatement" | "SwitchCase"
-                            | "ThrowStatement" | "WhileStatement" | "DoWhileStatement"
-                            | "ArrayExpression"
-                            | "ObjectProperty" | "ObjectExpression" | "UnaryExpression" | "UpdateExpression"
-                            | "BinaryExpression" | "AssignmentExpression" | "LogicalExpression"
-                            | "BracketExpression" | "DotExpression"
-                            | "ConditionalExpression" | "CallExpression"
-                            | "NewExpression" | "SequenceExpression" => {
-                            ctx.add_free_name(name);
-                        }
-                        _ => {
-                            panic!("I didn't expect to see a Identifier (namely \"{}\") in {} {:?}", name, parent.kind_str(), parent.field_str())
-                        }
-                    };
+                        _ => { /* Nothing to do */ }
+                    }
                 }
-                "ForStatement" | "ForInStatement" | "Block" | "Program" | "CatchClause" =>
+                "ForStatement" | "ForInStatement" | "Block" | "Script" | "Module" | "CatchClause" =>
                 {
                     // Simply load the stored bindings, then handle fields.
                     ctx.load(object);
