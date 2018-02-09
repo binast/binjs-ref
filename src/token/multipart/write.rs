@@ -831,7 +831,12 @@ pub struct Statistics {
     pub compressed_bytes: usize,
     pub source_bytes: Option<usize>,
 }
-
+impl AddAssign for Statistics {
+    fn add_assign(&mut self, rhs: Self) {
+        let copy = self.clone() + rhs; // We don't attempt to optimize.
+        *self = copy;
+    }
+}
 impl Add for Statistics {
     type Output = Self;
     fn add(mut self, mut rhs: Self) -> Self {

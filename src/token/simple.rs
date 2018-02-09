@@ -395,6 +395,12 @@ impl std::ops::Add for Statistics {
         Statistics
     }
 }
+impl std::ops::AddAssign for Statistics {
+    fn add_assign(&mut self, _: Self) {
+        // Nothing to do.
+    }
+}
+
 
 impl TokenWriter for TreeTokenWriter {
     type Tree = Rc<Vec<u8>>;
