@@ -226,8 +226,11 @@ AssertedBlockScope:
                 replace: |
                     MOZ_TRY(parseAndUpdateCapturedNames());
         hasDirectEval:
-            before: |
-                // FIXME: Ignored for the moment.
+            after: |
+                if (hasDirectEval) {
+                    parseContext_->sc()->setHasDirectEval();
+                    parseContext_->sc()->setBindingsAccessedDynamically();
+                }
         lexicallyDeclaredNames:
             block:
                 replace:
@@ -240,6 +243,13 @@ AssertedTopLevelScope:
             block:
                 replace:
                     MOZ_TRY(parseAndUpdateScopeNames(parseContext_->varScope(), DeclarationKind::Var));
+    build: |
+        if (hasDirectEval && parseContext_->isFunctionBox() && !parseContext_->sc()->strict()) {
+            // In non-strict mode code, direct calls to eval can
+            // add variables to the call object.
+            parseContext_->functionBox()->setHasExtensibleScope();
+        }
+        auto result = Ok();
 
 AssignmentExpression:
     build: |
@@ -363,30 +373,50 @@ Block:
         TRY_DECL(result, factory_.newLexicalScope(*bindings, statements));
 
 BreakStatement:
+    fields:
+        label:
+            block:
+                replace: |
+                    // FIXME: Check validity of the abel.
+                    RootedAtom label(cx_);
+                    MOZ_TRY(readMaybeString(&label));
+
+                    if (label && !IsIdentifier(label))
+                        return raiseError("Invalid identifier");        
     build: |
-        if (label && !label->isKind(ParseNodeKind::Name)) {
-            // The grammar does not differentiate between a label and any other string.
-            return raiseError("BreakStatement - Label MUST be an identifier");
-        }
+        if (label) {
+            auto validity = parseContext_->checkBreakStatement(label->asPropertyName());
 
-        auto validity = parseContext_->checkBreakStatement(label ? label->name() : nullptr);
-
-        if (validity.isErr()) {
-            switch (validity.unwrapErr()) {
-              case ParseContext::BreakStatementError::ToughBreak:
-                 return raiseError(kind, "Not in a loop");
-              case ParseContext::BreakStatementError::LabelNotFound:
-                 return raiseError(kind, "Label not found");
+            if (validity.isErr()) {
+                switch (validity.unwrapErr()) {
+                case ParseContext::BreakStatementError::ToughBreak:
+                    return raiseError(kind, "Not in a loop");
+                case ParseContext::BreakStatementError::LabelNotFound:
+                    return raiseError(kind, "Label not found");
+                }
             }
         }
-
-        TRY_DECL(result, factory_.newBreakStatement(label ? label->name() : nullptr, tokenizer_->pos(start)));
+        TRY_DECL(result, factory_.newBreakStatement(label ? label->asPropertyName() : nullptr, tokenizer_->pos(start)));
 
 CallExpression:
     build: |
+        auto op = JSOP_CALL;
+        // Check for direct calls to `eval`.
+        if (factory_.isEvalName(callee, cx_)) {
+            if (!parseContext_->varScope().lookupDeclaredNameForAdd(callee->name())
+             && !parseContext_->innermostScope()->lookupDeclaredNameForAdd(callee->name())) {
+                // This is a direct call to `eval`.
+                if (!parseContext_->sc()->hasDirectEval())
+                    return raiseMissingDirectEvalInAssertedScope();
+
+                op = parseContext_->sc()->strict() ? JSOP_STRICTEVAL : JSOP_EVAL;
+            }
+        }
         auto result = arguments;
         result->setKind(ParseNodeKind::Call);
         result->prepend(callee);
+        result->setOp(op);
+
         
 CatchClause:
     init: |
@@ -447,6 +477,10 @@ CompoundAssignmentExpression:
         }
         TRY_DECL(result, factory_.newAssignment(pnk, binding, expression));
 
+ComputedMemberAssignmentTarget:
+    build: |
+        TRY_DECL(result, factory_.newPropertyByValue(object, expression, start));
+
 ComputedMemberExpression:
     build: |
         TRY_DECL(result, factory_.newPropertyByValue(object, expression, start));
@@ -456,23 +490,29 @@ ConditionalExpression:
         TRY_DECL(result, factory_.newConditional(test, consequent, alternate));
 
 ContinueStatement:
+    fields:
+        label:
+            block:
+                replace: |
+                    RootedAtom label(cx_);
+                    MOZ_TRY(readMaybeString(&label));
+
+                    if (label && !IsIdentifier(label))
+                        return raiseError("ContinueStatement - Label MUST be an identifier");        
     build: |
-        if (label && !label->isKind(ParseNodeKind::Name)) {
-            // The grammar does not differentiate between a label and any other string.
-            return raiseError("ContinueStatement - Label MUST be an identifier");
+        if (label) {
+            auto validity = parseContext_->checkContinueStatement(label ? label->asPropertyName() : nullptr);
+            if (validity.isErr()) {
+                switch (validity.unwrapErr()) {
+                  case ParseContext::ContinueStatementError::NotInALoop:
+                    return raiseError(kind, "Not in a loop");
+                  case ParseContext::ContinueStatementError::LabelNotFound:
+                    return raiseError(kind, "Label not found");
+                }
+            }    
         }
 
-        auto validity = parseContext_->checkContinueStatement(label ? label->name() : nullptr);
-        if (validity.isErr()) {
-            switch (validity.unwrapErr()) {
-              case ParseContext::ContinueStatementError::NotInALoop:
-                return raiseError(kind, "Not in a loop");
-              case ParseContext::ContinueStatementError::LabelNotFound:
-                return raiseError(kind, "Label not found");
-            }
-        }
-
-        TRY_DECL(result, factory_.newContinueStatement(label ? label->name() : nullptr, tokenizer_->pos(start)));
+        TRY_DECL(result, factory_.newContinueStatement(label ? label->asPropertyName() : nullptr, tokenizer_->pos(start)));
 
 DataProperty:
     build: |
@@ -492,9 +532,26 @@ DoWhileStatement:
     build:
         TRY_DECL(result, factory_.newDoWhileStatement(body, test, tokenizer_->pos(start)));
 
+EmptyStatement:
+    build:
+        TRY_DECL(result, factory_.newEmptyStatement(tokenizer_->pos(start)));
+
 ExpressionStatement:
     build:
         TRY_DECL(result, factory_.newExprStatement(expression, tokenizer_->offset()));
+
+ForInOfBinding:
+    build: |
+        variableDeclarationKind = kind_;
+        MOZ_TRY(checkBinding(binding->pn_atom->asPropertyName()));
+        auto pnk =
+            kind_ == VariableDeclarationKind::Let
+                ? ParseNodeKind::Let
+                : ParseNodeKind::Var;
+        TRY_DECL(result, factory_.newDeclarationList(pnk, tokenizer_->pos(start)));
+        factory_.addList(result, binding);
+
+
 
 ForInStatement:
     init: |
@@ -553,7 +610,7 @@ FunctionExpression:
             before: |
                 MOZ_TRY_DECL(funbox, buildFunctionBox(isGenerator, isAsync));
 
-                // Push a new ParseContext. It will be used to parse `scope`.
+                // Push a new ParseContext. It will be used to parse `scope`, the arguments, the function.
                 BinParseContext funpc(cx_, this, funbox, /* newDirectives = */ nullptr);
                 TRY(funpc.init());
                 parseContext_->functionScope().useAsVarScope(parseContext_);
@@ -573,6 +630,20 @@ IdentifierExpression:
         if (!IsIdentifier(name))
             return raiseError("Invalid identifier");
         TRY_DECL(result, factory_.newName(name->asPropertyName(), tokenizer_->pos(start), cx_));
+
+IfStatement:
+    build: |
+        TRY_DECL(result, factory_.newIfStatement(start, test, consequent, alternate));
+
+LabelledStatement:
+    fields:
+        label:
+            after: |
+                if (!IsIdentifier(label))
+                    return raiseError("Invalid identifier");
+                ParseContext::LabelStatement stmt(parseContext_, label);
+    build:
+        TRY_DECL(result, factory_.newLabeledStatement(label->asPropertyName(), body, start));
 
 ListOfDirective:
     init:
@@ -637,15 +708,15 @@ LiteralNullExpression:
 
 LiteralPropertyName:
     build: |
-        if (!IsIdentifier(value))
-            return raiseError("Invalid property name");
-
         ParseNode* result;
         uint32_t index;
         if (value->isIndex(&index))
             TRY_VAR(result, factory_.newNumber(index, NoDecimal, TokenPos(start, tokenizer_->offset())));
-        else
-            TRY_VAR(result, factory_.newStringLiteral(value, tokenizer_->pos(start)));
+        else {
+            if (!IsIdentifier(value))
+                return raiseError("Invalid property name");
+            TRY_VAR(result, factory_.newObjectLiteralPropertyName(value, tokenizer_->pos(start)));
+        }
         
 LiteralRegExpExpression:
     fields:
@@ -708,7 +779,7 @@ OptionalAssertedBlockScope:
 OptionalAssertedTopLevelScope:
     type-ok:
         Ok
-        
+
 
 ReturnStatement:
     init: |
@@ -755,6 +826,20 @@ SwitchStatement:
         TRY_DECL(scope, factory_.newLexicalScope(nullptr, cases));
         TRY_DECL(result, factory_.newSwitchStatement(start, discriminant, scope));
 
+SwitchStatementWithDefault:
+    build: |
+        // Concatenate `preDefaultCase`, `defaultCase`, `postDefaultCase`
+        auto cases = preDefaultCases;
+        factory_.addList(cases, defaultCase);
+        ParseNode* iter = postDefaultCases->pn_head;
+        while (iter) {
+            ParseNode* next = iter->pn_next;
+            factory_.addList(cases, iter);
+            iter = next;
+        }
+        TRY_DECL(scope, factory_.newLexicalScope(nullptr, cases));
+        TRY_DECL(result, factory_.newSwitchStatement(start, discriminant, scope));
+        
 StaticMemberAssignmentTarget:
     build: |
         TRY_DECL(result, factory_.newPropertyAccess(object, property->asPropertyName(), start));
@@ -877,9 +962,8 @@ UpdateExpression:
 VariableDeclaration:
     fields:
         kind:
-            block:
-                replace:
-                    MOZ_TRY_VAR(variableDeclarationKind, parseVariableDeclarationKind());
+            after:
+                variableDeclarationKind = kind_;
 
     build: |
         // By specification, the list may not be empty.
@@ -887,7 +971,7 @@ VariableDeclaration:
             return raiseEmpty("VariableDeclaration");
 
         ParseNodeKind pnk;
-        switch (variableDeclarationKind) {
+        switch (kind_) {
           case VariableDeclarationKind::Var:
             pnk = ParseNodeKind::Var;
             break;
@@ -906,30 +990,11 @@ VariableDeclarator:
         ParseNode* result;
         if (binding->isKind(ParseNodeKind::Name)) {
             // `var foo [= bar]``
-            TRY_VAR(result, factory_.newName(binding->pn_atom->asPropertyName(), tokenizer_->pos(start), cx_));
+            MOZ_TRY(checkBinding(binding->pn_atom->asPropertyName()));
 
+            TRY_VAR(result, factory_.newName(binding->pn_atom->asPropertyName(), tokenizer_->pos(start), cx_));
             if (init)
                 result->pn_expr = init;
-
-            // Check scope.
-            ParseContext::Scope& scope =
-                variableDeclarationKind == VariableDeclarationKind::Var
-                    ? parseContext_->varScope()
-                    : *parseContext_->innermostScope();
-            auto ptr = scope.lookupDeclaredNameForAdd(binding->pn_atom->asPropertyName());
-            if (!ptr) {
-                /*
-                 FIXME: Is this check sufficient? What does this return if we have the following?
-                 ```js
-                   var foo;
-                   function() {
-                       // Here, bogus AssertedScope that forgets `foo`
-                       var foo;
-                   }
-                 ```
-                */
-                return raiseMissingVariableInAssertedScope(binding->pn_atom);
-            }
         } else {
             // `var pattern = bar`
             if (!init) {
