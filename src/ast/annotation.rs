@@ -15,6 +15,12 @@ use std::rc::{ Rc, Weak };
 
 use itertools::Itertools;
 
+pub enum ScopeKind {
+    Var,
+    Block,
+    Parameter,
+}
+
 /// The position currently being examined.
 #[derive(Clone)]
 pub struct Position {
@@ -340,7 +346,7 @@ impl<'a> Context<'a, RefContents> {
         borrow.is_bound(name)
     }
 
-    pub fn store(&self, parent: &mut Object, _toplevel: bool) {
+    pub fn store(&self, parent: &mut Object, _scope_kind: ScopeKind) {
         let mut has_content = false;
         {
             let object = parent.get_object_mut(SCOPE_FIELD, "Scope field")
@@ -450,6 +456,7 @@ pub struct DeclContents {
     const_names: HashSet<String>,
     let_names: HashSet<String>,
     var_names: HashSet<String>,
+    param_names: HashSet<String>,
     unknown_names: HashSet<String>,
     scope_kind: ScopeNodeName,
     uses_strict: bool,
@@ -507,6 +514,9 @@ impl<'a> ContextContents<'a, DeclContents> {
     pub fn add_let_name(&mut self, name: &str) {
         self.data.let_names.insert(name.to_string());
     }
+    pub fn add_param_name(&mut self, name: &str) {
+        self.data.param_names.insert(name.to_string());
+    }
     pub fn add_const_name(&mut self, name: &str) {
         self.data.const_names.insert(name.to_string());
     }
@@ -536,6 +546,9 @@ impl<'a> Context<'a, DeclContents> {
     }
     pub fn add_let_name(&mut self, name: &str) {
         self.contents.borrow_mut().add_let_name(name);
+    }
+    pub fn add_param_name(&mut self, name: &str) {
+        self.contents.borrow_mut().add_param_name(name);
     }
     pub fn add_const_name(&mut self, name: &str) {
         self.contents.borrow_mut().add_const_name(name);
@@ -615,7 +628,7 @@ impl<'a> Context<'a, DeclContents> {
     /// depending on argument `toplevel`.
     ///
     /// Note that at this stage the `AssertedXXXScope` may be trivial.
-    pub fn store(&self, parent: &mut Object, toplevel: bool) {
+    pub fn store(&self, parent: &mut Object, scope_kind: ScopeKind,) {
         let borrow = self.contents.borrow();
 
         let mut let_decl_names: Vec<_> = borrow.data.let_names.iter().collect();
@@ -625,19 +638,32 @@ impl<'a> Context<'a, DeclContents> {
             .collect();
 
         let mut object : JSON = object!{
-            "type" => if toplevel { TOPLEVEL_SCOPE_NAME } else { BLOCK_SCOPE_NAME },
+            "type" => match scope_kind {
+                ScopeKind::Block => "AssertedBlockScope",
+                ScopeKind::Var => "AssertedVarScope",
+                ScopeKind::Parameter => "AssertedParameterScope",
+            },
             BINJS_LET_NAME => json::from(let_decl_names),
             BINJS_CAPTURED_NAME => array![],
             BINJS_DIRECT_EVAL => json::from(false)
         };
 
-        if toplevel {
-            let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
-            var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
-            let var_decl_names: Vec<_> = var_decl_names.drain(..)
-                .map(|name| json::from(name as &str))
-                .collect();
-            object[BINJS_VAR_NAME] = json::from(var_decl_names);
+        match scope_kind {
+            ScopeKind::Var => {
+                let mut var_decl_names: Vec<_> = borrow.data.var_names.iter().collect();
+                var_decl_names.sort(); // To simplify testing (and hopefully improve compression).
+                let var_decl_names: Vec<_> = var_decl_names.drain(..)
+                    .map(|name| json::from(name as &str))
+                    .collect();
+                object[BINJS_VAR_NAME] = json::from(var_decl_names);
+            }
+            ScopeKind::Parameter => {
+                // FIXME: Insert parameters
+                unimplemented!()
+            }
+            ScopeKind::Block => {
+                // Nothing to do.
+            }
         }
 
         debug!(target: "annotation", "Inserting scope {} in {}", object.dump(), parent["type"]);

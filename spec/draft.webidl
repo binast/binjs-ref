@@ -82,10 +82,19 @@ interface AssertedBlockScope {
   attribute boolean hasDirectEval;
 };
 
-interface AssertedTopLevelScope {
+interface AssertedVarScope {
   // checked eagerly during transformation
   attribute FrozenArray<IdentifierName> lexicallyDeclaredNames;
   attribute FrozenArray<IdentifierName> varDeclaredNames;
+
+  // checked lazily as inner functions are invoked
+  attribute FrozenArray<IdentifierName> capturedNames;
+  attribute boolean hasDirectEval;
+};
+
+interface AssertedParameterScope {
+  // checked eagerly during transformation
+  attribute FrozenArray<IdentifierName> parameterNames;
 
   // checked lazily as inner functions are invoked
   attribute FrozenArray<IdentifierName> capturedNames;
@@ -322,7 +331,7 @@ interface ClassElement : Node {
 // modules
 
 interface Module : Node {
-  attribute AssertedTopLevelScope? scope;
+  attribute AssertedVarScope? scope;
   attribute FrozenArray<Directive> directives;
   attribute FrozenArray<(ImportDeclaration or ExportDeclaration or Statement)> items;
 };
@@ -408,22 +417,25 @@ interface Method : Node {
   attribute boolean isAsync;
   // True for `GeneratorMethod`, false otherwise.
   attribute boolean isGenerator;
-  attribute AssertedTopLevelScope? scope;
-  // The `UniqueFormalParameters`.
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute PropertyName name;
+  // The `UniqueFormalParameters`.
   attribute FormalParameters params;
   attribute FunctionBody body;
 };
 
 // `get PropertyName ( ) { FunctionBody }`
 interface Getter : Node {
+  attribute AssertedVarScope? bodyScope;
   attribute PropertyName name;
   attribute FunctionBody body;
 };
 
 // `set PropertyName ( PropertySetParameterList ) { FunctionBody }`
 interface Setter : Node {
-  attribute AssertedTopLevelScope? scope;
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute PropertyName name;
   // The `PropertySetParameterList`.
   attribute Parameter param;
@@ -496,6 +508,8 @@ interface ArrayExpression : Node {
 interface ArrowExpression : Node {
   // True for `AsyncArrowFunction`, false otherwise.
   attribute boolean isAsync;
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute FormalParameters params;
   attribute (FunctionBody or Expression) body;
 };
@@ -564,7 +578,8 @@ interface ConditionalExpression : Node {
 interface FunctionExpression : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
-  attribute AssertedTopLevelScope? scope;
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute BindingIdentifier? name;
   attribute FormalParameters params;
   attribute FunctionBody body;
@@ -809,14 +824,15 @@ interface FunctionBody : Node {
 interface FunctionDeclaration : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
-  attribute AssertedTopLevelScope? scope;
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute BindingIdentifier name;
   attribute FormalParameters params;
   attribute FunctionBody body;
 };
 
 interface Script : Node {
-  attribute AssertedTopLevelScope? scope;
+  attribute AssertedVarScope? scope;
   attribute FrozenArray<Directive> directives;
   attribute FrozenArray<Statement> statements;
 };

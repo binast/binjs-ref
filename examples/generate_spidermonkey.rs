@@ -785,6 +785,7 @@ impl CPPExporter {
             } else {
                 false
             };
+
             let var_name = field.name().to_cpp_field_case();
             let (decl_var, parse_var) = match field.type_().get_primitive(&self.syntax) {
                 Some(IsNullable { is_nullable: false, content: Primitive::Number }) => {
@@ -812,6 +813,15 @@ impl CPPExporter {
                 Some(IsNullable { is_nullable: false, content: Primitive::String }) => {
                     (Some(format!("RootedAtom {var_name}((cx_));", var_name = var_name)),
                         Some(format!("MOZ_TRY(readString(&{var_name}));", var_name = var_name)))
+                }
+                Some(IsNullable { content: Primitive::Interface(ref interface), ..})
+                    if &self.get_type_ok(interface.name(), "?") == "Ok" =>
+                {
+                    // Special case: `Ok` means that we shouldn't bind the return value.
+                    let typename = TypeName::type_(field.type_());
+                    (None,
+                        Some(format!("MOZ_TRY(parse{typename}());",
+                            typename = typename)))
                 }
                 _else => {
                     let typename = TypeName::type_(field.type_());

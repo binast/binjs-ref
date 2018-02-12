@@ -218,7 +218,12 @@ ArrayExpression:
 AssertedBlockScope:
     type-ok:
         Ok
-    build:
+    build: |
+        if (hasDirectEval && parseContext_->isFunctionBox() && !parseContext_->sc()->strict()) {
+            // In non-strict mode code, direct calls to eval can
+            // add variables to the call object.
+            parseContext_->functionBox()->setHasExtensibleScope();
+        }
         auto result = Ok();
     fields:
         capturedNames:
@@ -235,21 +240,17 @@ AssertedBlockScope:
             block:
                 replace:
                     MOZ_TRY(parseAndUpdateScopeNames(*parseContext_->innermostScope(), DeclarationKind::Let));
-
-AssertedTopLevelScope:
+            
+AssertedParameterScope:
+    inherits: AssertedBlockScope
+    
+AssertedVarScope:
     inherits: AssertedBlockScope
     fields:
         varDeclaredNames:
             block:
                 replace:
                     MOZ_TRY(parseAndUpdateScopeNames(parseContext_->varScope(), DeclarationKind::Var));
-    build: |
-        if (hasDirectEval && parseContext_->isFunctionBox() && !parseContext_->sc()->strict()) {
-            // In non-strict mode code, direct calls to eval can
-            // add variables to the call object.
-            parseContext_->functionBox()->setHasExtensibleScope();
-        }
-        auto result = Ok();
 
 AssignmentExpression:
     build: |
@@ -559,7 +560,7 @@ ForInStatement:
 
         // Implicit scope around the `for`, used to store `for (let x in  ...)`
         // or `for (const x in ...)`-style declarations. Detail on the
-        // declaration is stored as part of `BINJS_Scope`.
+        // declaration is stored as part of `scope`.
         ParseContext::Scope scope(cx_, parseContext_, usedNames_);
         TRY(scope.init(parseContext_));
     build: |
@@ -606,7 +607,7 @@ FunctionDeclaration:
 
 FunctionExpression:
     fields:
-        scope:
+        bodyScope:
             before: |
                 MOZ_TRY_DECL(funbox, buildFunctionBox(isGenerator, isAsync));
 
@@ -619,8 +620,6 @@ FunctionExpression:
                 ParseContext::Scope lexicalScope(cx_, parseContext_, usedNames_);
                 TRY(lexicalScope.init(parseContext_));
     build: |
-        fprintf(stderr, "FunctionExpression: Building Lexical Scope using\n");
-        lexicalScope.dump(parseContext_);
         TRY_DECL(lexicalScopeData, NewLexicalScopeData(cx_, lexicalScope, alloc_, parseContext_));
         TRY_VAR(body, factory_.newLexicalScope(*lexicalScopeData, body));
         MOZ_TRY_DECL(result, buildFunction(start, kind, name, params, body, funbox));
@@ -712,11 +711,8 @@ LiteralPropertyName:
         uint32_t index;
         if (value->isIndex(&index))
             TRY_VAR(result, factory_.newNumber(index, NoDecimal, TokenPos(start, tokenizer_->offset())));
-        else {
-            if (!IsIdentifier(value))
-                return raiseError("Invalid property name");
+        else
             TRY_VAR(result, factory_.newObjectLiteralPropertyName(value, tokenizer_->pos(start)));
-        }
         
 LiteralRegExpExpression:
     fields:
@@ -776,10 +772,13 @@ OptionalAssertedBlockScope:
     type-ok:
         Ok
 
-OptionalAssertedTopLevelScope:
+OptionalAssertedVarScope:
     type-ok:
         Ok
 
+OptionalAssertedParameterScope:
+    type-ok:
+        Ok
 
 ReturnStatement:
     init: |

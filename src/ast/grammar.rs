@@ -1223,7 +1223,13 @@ pub struct SyntaxOptions<'a> {
 }
 
 /// Define immutable and mutable visitors.
+pub enum WalkPathItem {
+    Array { index: usize },
+    Field { name: FieldName },
+    Node { name: NodeName },
+}
 macro_rules! make_ast_visitor {
+    // $mutability is either `mut` or nothing.
     ($visitor_name:ident, $walker_name:ident, $($mutability: ident)*) => {
         pub trait $visitor_name {
             fn enter_type(&mut self, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
@@ -1265,7 +1271,6 @@ macro_rules! make_ast_visitor {
             visitor: V,
         }
 
-        // Indirection is either &JSON or &mut JSON
         impl<'a, V> $walker_name<'a, V> where V: $visitor_name {
             pub fn new(syntax: &'a Syntax, visitor: V) -> Self {
                 $walker_name {
