@@ -104,7 +104,7 @@ impl<'a> RustExporter<'a> {
             });
 
         let mut ast_buffer = String::new();
-        ast_buffer.push_str("pub mod ast {\nuse ::util::{ FromJSON, ToJSON };\n    use std;\n    use json;\n    use json::JsonValue as JSON;");
+        ast_buffer.push_str("pub mod ast {\nuse ::util::{ FromJSON, FromJSONError, ToJSON };\n    use std;\n    use json;\n    use json::JsonValue as JSON;");
 
         let mut struct_buffer = String::new();
         struct_buffer.push_str("pub struct Library {\n");
@@ -142,7 +142,7 @@ impl<'a> RustExporter<'a> {
             for name in names.drain(..) {
                 let string_enum = source.get(&name).unwrap();
                 let name = name.to_class_cases();
-                let definition = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub enum {name} {{\n{values}\n    }}\n",
+                let definition = format!("    #[derive(PartialEq, Debug, Clone)]\n    pub enum {name} {{\n{values}\n    }}\n",
                     name = name,
                     values = string_enum.strings()
                         .iter()
@@ -168,16 +168,19 @@ impl<'a> RustExporter<'a> {
 
                 let from_json = format!("
     impl FromJSON for {name} {{
-        fn import(source: &JSON) -> Result<Self, ()> {{
+        fn import(source: &JSON) -> Result<Self, FromJSONError > {{
             match source.as_str() {{
 {cases},
-                _ => Err(())
+                _ => Err(FromJSONError {{
+                    expected: \"Instance of {name}\".to_string(),
+                    got: source.dump(),
+                }})
             }}
         }}
     }}\n\n",
                     cases = string_enum.strings()
                         .iter()
-                        .map(|s| format!("               Some(\"{string}\") => Ok({name}::{typed})",
+                        .map(|s| format!("              Some(\"{string}\") => Ok({name}::{typed})",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s,
@@ -214,9 +217,10 @@ impl<'a> RustExporter<'a> {
             buffer.push_str("\n\n    // Type sums (by lexicographical order)\n");
             for name in enums.drain(..) {
                 let typedef = source.get(name).unwrap();
+                let name = name.to_class_cases();
                 if let TypeSpec::TypeSum(ref sum) = *typedef.spec() {
-                    let source = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub enum {name} {{\n{contents}\n    }}\n\n",
-                        name = name.to_class_cases(),
+                    let definition = format!("    #[derive(PartialEq, Debug, Clone)]\n    pub enum {name} {{\n{contents}\n    }}\n",
+                        name = name,
                         contents = sum.types()
                             .iter()
                             .map(|t| {
@@ -228,7 +232,37 @@ impl<'a> RustExporter<'a> {
                                 }
                             })
                             .format(",\n"));
-                    buffer.push_str(&source);
+
+                            let from_json = format!("
+    impl FromJSON for {name} {{
+        fn import(value: &JSON) -> Result<Self, FromJSONError> {{
+            match value[\"type\"].as_str() {{
+{cases},
+                _ => Err(FromJSONError {{
+                    expected: \"Instance of {kind}\".to_string(),
+                    got: value.dump()
+                }})
+            }}
+        }}
+    }}\n\n\n",
+                                name = name,
+                                kind = name,
+                                cases = sum.types()
+                                    .iter()
+                                    .map(|t| {
+                                        if let TypeSpec::NamedType(ref case) = *t {
+                                            format!("               Some(\"{case}\") => Ok({name}::{constructor}(Box::new(FromJSON::import(value)?)))",
+                                                name = name,
+                                                case = case,
+                                                constructor = case.to_class_cases())
+                                        } else {
+                                            panic!();
+                                        }
+                                    })
+                                    .format(",\n")
+                                );
+                    buffer.push_str(&definition);
+                    buffer.push_str(&from_json);
                 } else {
                     panic!()
                 }
@@ -242,7 +276,7 @@ impl<'a> RustExporter<'a> {
                     name = name.to_class_cases(),
                     contents = match *typedef.spec() {
                         TypeSpec::Boolean => "bool",
-                        TypeSpec::Number => "u32",
+                        TypeSpec::Number => "f64",
                         TypeSpec::String => "std::string::String",
                         TypeSpec::Void => "()",
                         _ => panic!("Unexpected type in alias to a primitive type: {name}",
@@ -288,7 +322,8 @@ impl<'a> RustExporter<'a> {
             names.sort();
             for name in names.drain(..) {
                 let interface = source.get(name).unwrap();
-                let definition = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub struct {name} {{\n{fields}\n    }}\n\n",
+                let name = name.to_class_cases();
+                let definition = format!("    #[derive(PartialEq, Debug, Clone)]\n    pub struct {name} {{\n{fields}\n    }}\n",
                     fields = interface.contents().fields()
                         .iter()
                         .map(|field| {
@@ -299,7 +334,7 @@ impl<'a> RustExporter<'a> {
                                     match *field.type_().spec() {
                                         TypeSpec::NamedType(ref contents) => contents.to_class_cases(),
                                         TypeSpec::Boolean => "bool".to_string(),
-                                        TypeSpec::Number => "u32".to_string(),
+                                        TypeSpec::Number => "f64".to_string(),
                                         TypeSpec::String => "String".to_string(),
                                         TypeSpec::Void => "()".to_string(),
                                         _ => TypeName::type_(field.type_())
@@ -310,8 +345,32 @@ impl<'a> RustExporter<'a> {
                                 contents = spec)
                         })
                         .format(",\n"),
-                    name = name.to_class_cases());
+                    name = name);
+                let from_json = format!("
+    impl FromJSON for {name} {{
+        fn import(value: &JSON) -> Result<Self, FromJSONError> {{
+            match value[\"type\"].as_str() {{
+                Some(\"{kind}\") => {{ /* Good */ }},
+                _ => return Err(FromJSONError {{
+                    expected: \"Instance of {kind}\".to_string(),
+                    got: value.dump()
+                }})
+            }}
+            Ok({name} {{ {fields} }})
+        }}
+    }}\n\n\n",
+                    kind = name,
+                    name = name,
+                    fields = interface.contents()
+                        .fields()
+                        .iter()
+                        .map(|field| format!("{name}: FromJSON::import(&value[\"{key}\"])?",
+                            key = field.name().to_str(),
+                            name = field.name().to_rust_identifier_case()))
+                        .format(", ")
+                    );
                 buffer.push_str(&definition);
+                buffer.push_str(&from_json);
             }
         }
         struct_buffer.push_str("    // String enum names (by lexicographical order)\n");
@@ -397,7 +456,7 @@ impl<'a> RustExporter<'a> {
             impl_buffer.push_str(&impl_source);
         }
 
-        impl_buffer.push_str("        names    }\n}\n");
+        impl_buffer.push_str("        names\n    }\n}\n");
         format!("// This file is autogenerated.\nuse ast::grammar::*;\n\n\n{ast_}\n{struct_}\n{impl_}",
             ast_ = ast_buffer,
             struct_ = struct_buffer,

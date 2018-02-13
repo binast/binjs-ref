@@ -468,19 +468,49 @@ impl Reindentable for Option<String> {
     }
 }
 
+pub struct FromJSONError {
+    pub expected: String,
+    pub got: String,
+}
+
 pub trait FromJSON: Sized {
-    fn import(json: &JSON) -> Result<Self, ()>; // FIXME: Having error messages would be nicer.
+    fn import(json: &JSON) -> Result<Self, FromJSONError>; // FIXME: Having error messages would be nicer.
+}
+impl FromJSON for bool {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_bool() {
+            None => Err(FromJSONError {
+                expected: "Boolean".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(*s)
+        }
+    }
+}
+impl FromJSON for f64 {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_f64() {
+            None => Err(FromJSONError {
+                expected: "Number".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(*s)
+        }
+    }
 }
 impl FromJSON for String {
-    fn import(value: &JSON) -> Result<Self, ()> {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
         match value.as_str() {
-            None => Err(()),
+            None => Err(FromJSONError {
+                expected: "String".to_string(),
+                got: value.dump()
+            }),
             Some(ref s) => Ok(s.to_string())
         }
     }
 }
 impl<T> FromJSON for Vec<T> where T: FromJSON {
-    fn import(value: &JSON) -> Result<Self, ()> {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
         match *value {
             JSON::Array(ref array) => {
                 let mut result = Vec::with_capacity(array.len());
@@ -490,12 +520,15 @@ impl<T> FromJSON for Vec<T> where T: FromJSON {
                 }
                 Ok(result)
             },
-            _ => Err(())
+            _ => Err(FromJSONError {
+                expected: "Array".to_string(),
+                got: value.dump(),
+            })
         }
     }
 }
 impl<T> FromJSON for Option<T> where T: FromJSON {
-    fn import(value: &JSON) -> Result<Self, ()> {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
         if value.is_null() {
             return Ok(None)
         }
@@ -504,7 +537,7 @@ impl<T> FromJSON for Option<T> where T: FromJSON {
     }
 }
 impl<T> FromJSON for Box<T> where T: FromJSON {
-    fn import(value: &JSON) -> Result<Self, ()> {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
         T::import(value)
             .map(Box::new)
     }
@@ -514,6 +547,16 @@ pub trait ToJSON {
     fn export(&self) -> JSON;
 }
 impl ToJSON for String {
+    fn export(&self) -> JSON {
+        json::from(self.clone())
+    }
+}
+impl ToJSON for bool {
+    fn export(&self) -> JSON {
+        json::from(self.clone())
+    }
+}
+impl ToJSON for u32 {
     fn export(&self) -> JSON {
         json::from(self.clone())
     }
