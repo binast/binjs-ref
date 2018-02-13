@@ -2,6 +2,7 @@ use ast::grammar::ASTError;
 
 use inflector;
 use rand;
+use json;
 use json::JsonValue as JSON;
 use json::object::Object as Object;
 
@@ -470,6 +471,71 @@ impl Reindentable for Option<String> {
 pub trait FromJSON: Sized {
     fn import(json: &JSON) -> Result<Self, ()>; // FIXME: Having error messages would be nicer.
 }
+impl FromJSON for String {
+    fn import(value: &JSON) -> Result<Self, ()> {
+        match value.as_str() {
+            None => Err(()),
+            Some(ref s) => Ok(s.to_string())
+        }
+    }
+}
+impl<T> FromJSON for Vec<T> where T: FromJSON {
+    fn import(value: &JSON) -> Result<Self, ()> {
+        match *value {
+            JSON::Array(ref array) => {
+                let mut result = Vec::with_capacity(array.len());
+                for item in array {
+                    let imported = FromJSON::import(item)?;
+                    result.push(imported);
+                }
+                Ok(result)
+            },
+            _ => Err(())
+        }
+    }
+}
+impl<T> FromJSON for Option<T> where T: FromJSON {
+    fn import(value: &JSON) -> Result<Self, ()> {
+        if value.is_null() {
+            return Ok(None)
+        }
+        T::import(value)
+            .map(Some)
+    }
+}
+impl<T> FromJSON for Box<T> where T: FromJSON {
+    fn import(value: &JSON) -> Result<Self, ()> {
+        T::import(value)
+            .map(Box::new)
+    }
+}
+
 pub trait ToJSON {
     fn export(&self) -> JSON;
+}
+impl ToJSON for String {
+    fn export(&self) -> JSON {
+        json::from(self.clone())
+    }
+}
+impl<T> ToJSON for Vec<T> where T: ToJSON {
+    fn export(&self) -> JSON {
+        let vec = self.iter()
+            .map(ToJSON::export)
+            .collect();
+        JSON::Array(vec)
+    }    
+}
+impl<T> ToJSON for Option<T> where T: ToJSON {
+    fn export(&self) -> JSON {
+        match *self {
+            None => JSON::Null,
+            Some(ref x) => x.export()
+        }
+    }
+}
+impl<T> ToJSON for Box<T> where T: ToJSON {
+    fn export(&self) -> JSON {
+        (**self).export()
+    }
 }

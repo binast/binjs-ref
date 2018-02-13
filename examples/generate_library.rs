@@ -233,7 +233,9 @@ impl<'a> RustExporter<'a> {
                     panic!()
                 }
             }
+
             buffer.push_str("\n\n    // Aliases to primitive types (by lexicographical order)\n");
+            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in primitives.drain(..) {
                 let typedef = source.get(name).unwrap();
                 let source = format!("     pub type {name} = {contents};\n",
@@ -249,11 +251,13 @@ impl<'a> RustExporter<'a> {
                 buffer.push_str(&source);
             }
             buffer.push_str("\n\n    // Aliases to list types (by lexicographical order)\n");
+            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in lists.drain(..) {
                 let typedef = source.get(name).unwrap();
-                if let TypeSpec::Array { ref contents, .. } = *typedef.spec() {
+                if let TypeSpec::Array { ref contents, ref supports_empty } = *typedef.spec() {
                     if let TypeSpec::NamedType(ref contents) = *contents.spec() {
-                        let source = format!("    pub type {name} = Vec<{contents}>;\n",
+                        let source = format!("{empty_check}    pub type {name} = Vec<{contents}>;\n",
+                            empty_check = if *supports_empty { "" } else { "    // FIXME: Should discard empty vectors.\n" },
                             name = name.to_class_cases(),
                             contents = contents.to_class_cases());
                         buffer.push_str(&source);
@@ -265,6 +269,7 @@ impl<'a> RustExporter<'a> {
                     name = name);
             }
             buffer.push_str("\n\n    // Aliases to optional types (by lexicographical order)\n");
+            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in options.drain(..) {
                 let typedef = source.get(name).unwrap();
                 if let TypeSpec::NamedType(ref contents) = *typedef.spec() {
@@ -283,7 +288,7 @@ impl<'a> RustExporter<'a> {
             names.sort();
             for name in names.drain(..) {
                 let interface = source.get(name).unwrap();
-                let source = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub struct {name} {{\n{fields}\n    }}\n\n",
+                let definition = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub struct {name} {{\n{fields}\n    }}\n\n",
                     fields = interface.contents().fields()
                         .iter()
                         .map(|field| {
@@ -306,7 +311,7 @@ impl<'a> RustExporter<'a> {
                         })
                         .format(",\n"),
                     name = name.to_class_cases());
-                buffer.push_str(&source);
+                buffer.push_str(&definition);
             }
         }
         struct_buffer.push_str("    // String enum names (by lexicographical order)\n");
