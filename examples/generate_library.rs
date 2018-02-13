@@ -3,7 +3,8 @@ extern crate clap;
 extern crate env_logger;
 extern crate itertools;
 extern crate json;
-#[macro_use] extern crate log;
+extern crate log;
+extern crate yaml_rust;
 extern crate webidl;
 
 use binjs::ast::annotation::Annotator;
@@ -104,7 +105,7 @@ impl<'a> RustExporter<'a> {
             });
 
         let mut ast_buffer = String::new();
-        ast_buffer.push_str("pub mod ast {\n    #![feature(box_patterns)]\n    use ::util::{ FromJSON, FromJSONError, ToJSON };\n    use std;\n    use json;\n    use json::JsonValue as JSON;");
+        ast_buffer.push_str("pub mod ast {\n    use ::util::{ FromJSON, FromJSONError, ToJSON };\n    use std;\n    use json;\n    use json::JsonValue as JSON;\n\n\n");
 
         let mut struct_buffer = String::new();
         struct_buffer.push_str("pub struct Library {\n");
@@ -180,16 +181,27 @@ impl<'a> RustExporter<'a> {
     }}\n\n",
                     cases = string_enum.strings()
                         .iter()
-                        .map(|s| format!("              Some(\"{string}\") => Ok({name}::{typed})",
+                        .map(|s| format!("                Some(\"{string}\") => Ok({name}::{typed})",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s,
                         ))
                         .format(",\n"),
                     name = name);
+
+                let walker = format!("
+    impl Walker for {name} {{
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &V) -> Result<(), E> where V: Visitor<E> {{
+            Ok(())
+        }}
+    }}\n",
+                    name = name);
+
                 buffer.push_str(&definition);
                 buffer.push_str(&from_json);
                 buffer.push_str(&to_json);
+                buffer.push_str(&walker);
+                buffer.push_str("\n\n\n");
             }
         }
         fn print_ast_typedefs(buffer: &mut String, source: &HashMap<NodeName, Rc<Type>>) {
@@ -287,9 +299,34 @@ impl<'a> RustExporter<'a> {
                                     .format(",\n")
                                 );
 
+                    let walk = format!("
+    impl Walker for {name} {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E> {{
+            match *self {{
+{cases}
+            }}
+        }}
+    }}
+",
+                        name = name,
+                        cases = sum.types()
+                            .iter()
+                            .map(|t| {
+                                if let TypeSpec::NamedType(ref case) = *t {
+                                    format!("               {name}::{constructor}(box ref mut value) => value.walk(path, visitor)",
+                                        name = name,
+                                        constructor = case.to_class_cases())
+                                } else {
+                                    panic!();
+                                }
+                            })
+                            .format(",\n")
+                        );
+
                     buffer.push_str(&definition);
                     buffer.push_str(&from_json);
                     buffer.push_str(&to_json);
+                    buffer.push_str(&walk);
                     buffer.push_str("\n\n");
                 } else {
                     panic!()
@@ -348,7 +385,7 @@ impl<'a> RustExporter<'a> {
             let mut names : Vec<_> = source.keys()
                 .collect();
             names.sort();
-            for name in names.drain(..) {
+            for name in &names {
                 let interface = source.get(name).unwrap();
                 let name = name.to_class_cases();
                 let definition = format!("    #[derive(PartialEq, Debug, Clone)]\n    pub struct {name} {{\n{fields}\n    }}\n",
@@ -419,11 +456,161 @@ impl<'a> RustExporter<'a> {
                         .format(",\n")
                     );
 
+                let walk = format!("
+    impl Walker for {name} {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E> {{
+            path.enter_interface(ASTNode::{name});
+            if let Some(replacement) = visitor.enter_{snake}(path, self)? {{
+                *self = replacement;
+            }}
+{fields}
+            if let Some(replacement) = visitor.exit_{snake}(path, self)? {{
+                *self = replacement;
+            }}
+            path.exit_interface(ASTNode::{name});
+            Ok(())
+        }}
+    }}
+",
+                    name = name,
+                    snake = name.to_rust_identifier_case(),
+                    fields = interface.contents()
+                        .fields()
+                        .iter()
+                        .map(|field| {
+                            format!("            path.enter_field(ASTField::{variant});
+            self.{name}.walk(path, visitor)?;
+            path.exit_field(ASTField::{variant});",
+                                name = field.name().to_rust_identifier_case(),
+                                variant = field.name().to_class_cases())
+                        })
+                        .format("\n")
+                    );
                 buffer.push_str(&definition);
                 buffer.push_str(&from_json);
                 buffer.push_str(&to_json);
+                buffer.push_str(&walk);
                 buffer.push_str("\n\n\n");
             }
+
+            let interfaces_enum = format!("    #[derive(Clone, Copy, Debug, PartialEq, Eq)]\n     pub enum ASTNode {{
+{interfaces}
+    }}\n\n\n",
+                interfaces = names.iter()
+                    .map(|name| format!("        {}", name.to_class_cases()))
+                    .format(",\n")
+            );
+            // Now generate the interface visitors
+            let path = "
+    pub struct ASTPathItem {
+        pub interface: ASTNode,
+        pub field: ASTField,
+    }
+    pub struct ASTPath {
+        /// Some(foo) if we have entered interface foo but no field yet.
+        /// Otherwise, None.
+        interface: Option<ASTNode>,
+        items: Vec<ASTPathItem>,
+    }
+    impl ASTPath {
+        fn enter_interface(&mut self, node: ASTNode) {
+            debug_assert!(self.interface.is_none());
+            self.interface = Some(node);
+        }
+        fn exit_interface(&mut self, node: ASTNode) {
+            let interface = self.interface.take()
+                .expect(\"Could not exit_interface if we're not in an interface\");
+            debug_assert!(node == interface);
+        }
+        fn enter_field(&mut self, field: ASTField) {
+            let interface = self.interface.take()
+                .unwrap();
+            self.items.push(ASTPathItem {
+                interface,
+                field,
+            });
+        }
+        fn exit_field(&mut self, field: ASTField) {
+            debug_assert!(self.interface.is_none());
+            let ASTPathItem {
+                interface,
+                field: prev
+            } = self.items.pop()
+                .expect(\"Could not exit_field from an empty ASTath\");
+            debug_assert!(prev == field);
+            self.interface = Some(interface);
+        }
+        fn len(&self) -> usize {
+            self.items.len()
+        }
+
+        pub fn get(&self, index: usize) -> Option<&ASTPathItem> {
+            if index >= self.len() {
+                return None;
+            }
+            Some(&self.items[self.len() - index - 1])
+        }
+    }
+";
+            let visitor = format!("
+    pub trait Visitor<E> {{
+{interfaces}
+    }}\n
+    pub trait Walker {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E>;
+    }}\n
+    impl Walker for String {{
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &V) -> Result<(), E> where V: Visitor<E> {{
+            Ok(())
+        }}
+    }}
+    impl Walker for bool {{
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &V) -> Result<(), E> where V: Visitor<E> {{
+            Ok(())
+        }}
+    }}
+    impl Walker for f64 {{
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &V) -> Result<(), E> where V: Visitor<E> {{
+            Ok(())
+        }}
+    }}
+    impl<T> Walker for Option<T> where T: Walker {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E> {{
+            if let Some(ref mut contents) = *self {{
+                contents.walk(path, visitor)?;
+            }}
+            Ok(())
+        }}        
+    }}
+    impl<T> Walker for Vec<T> where T: Walker {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E> {{
+            for iter in self.iter_mut() {{
+                iter.walk(path, visitor)?;
+            }}
+            Ok(())
+        }}
+    }}
+    \n\n\n",
+                interfaces = names.iter()
+                    .map(|name| {
+                        let interface = source.get(name).unwrap();
+                        let name = name.to_rust_identifier_case();
+                        format!("
+        fn enter_{name}(&self, _path: &ASTPath, _node: &{node_name}) -> Result<Option<{node_name}>, E> {{
+            Ok(None)
+        }}
+        fn exit_{name}(&self, _path: &ASTPath, _node: &{node_name}) -> Result<Option<{node_name}>, E> {{
+            Ok(None)
+        }}
+",
+                            name = name,
+                            node_name = interface.name().to_class_cases())
+                    })
+                    .format("\n")
+                );
+            buffer.push_str(&interfaces_enum);
+            buffer.push_str(&path);
+            buffer.push_str(&visitor);
         }
         struct_buffer.push_str("    // String enum names (by lexicographical order)\n");
         impl_buffer.push_str("            // String enum names (by lexicographical order)\n");
@@ -440,13 +627,14 @@ impl<'a> RustExporter<'a> {
 
         struct_buffer.push_str("\n\n    // Interface names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n            // Interface names (by lexicographical order)\n");
-        ast_buffer.push_str("\n\n     // Interfaces (by lexicographical order)\n");
+        ast_buffer.push_str("\n\n     // Interfaces and interface names (by lexicographical order)\n");
         print_struct_names(&mut struct_buffer, self.syntax.interfaces_by_name().keys());
         print_impl_names(&mut impl_buffer, self.syntax.interfaces_by_name().keys());
         print_ast_interfaces(&mut ast_buffer, deanonymized.interfaces_by_name());
 
         struct_buffer.push_str("\n\n\n    // Field names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n\n            // Field names (by lexicographical order)\n");
+        ast_buffer.push_str("\n\n\n     // Field names (by lexicographical order)\n     #[derive(Clone, Copy, PartialEq, Eq, Debug)]\n    pub enum ASTField {\n");
         let mut fields = HashSet::new();
         for interface in self.syntax.interfaces_by_name().values() {
             for field in interface.contents().fields() {
@@ -465,12 +653,16 @@ impl<'a> RustExporter<'a> {
                 snake = snake,
                 original = name);
             impl_buffer.push_str(&impl_source);
+
+            let ast_source = format!("        {variant},\n",
+                variant = name.to_class_cases());
+            ast_buffer.push_str(&ast_source);
         }
 
 
         impl_buffer.push_str("        };\n");
         struct_buffer.push_str("}");
-        ast_buffer.push_str("}");
+        ast_buffer.push_str("    }\n}\n");
 
 
         impl_buffer.push_str("\n\n\n        // Enumerations\n");
