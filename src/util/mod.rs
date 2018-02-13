@@ -556,7 +556,7 @@ impl ToJSON for bool {
         json::from(self.clone())
     }
 }
-impl ToJSON for u32 {
+impl ToJSON for f64 {
     fn export(&self) -> JSON {
         json::from(self.clone())
     }

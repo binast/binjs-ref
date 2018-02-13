@@ -2,203 +2,1477 @@
 use ast::grammar::*;
 
 
+pub mod ast {
+use ::util::{ FromJSON, FromJSONError, ToJSON };
+    use std;
+    use json;
+    use json::JsonValue as JSON;     // String enums (by lexicographical order)
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum BinaryOperator {
+         Comma,
+         LogicalOr,
+         LogicalAnd,
+         BitOr,
+         BitXor,
+         BitAnd,
+         Eq,
+         Neq,
+         StrictEq,
+         StrictNeq,
+         LessThan,
+         LeqThan,
+         GreaterThan,
+         GeqThan,
+         In,
+         Instanceof,
+         Lsh,
+         Rsh,
+         Ursh,
+         Plus,
+         Minus,
+         Mul,
+         Div,
+         Mod,
+         Pow
+    }
+
+    impl FromJSON for BinaryOperator {
+        fn import(source: &JSON) -> Result<Self, FromJSONError > {
+            match source.as_str() {
+               Some(",") => Ok(BinaryOperator::Comma),
+               Some("||") => Ok(BinaryOperator::LogicalOr),
+               Some("&&") => Ok(BinaryOperator::LogicalAnd),
+               Some("|") => Ok(BinaryOperator::BitOr),
+               Some("^") => Ok(BinaryOperator::BitXor),
+               Some("&") => Ok(BinaryOperator::BitAnd),
+               Some("==") => Ok(BinaryOperator::Eq),
+               Some("!=") => Ok(BinaryOperator::Neq),
+               Some("===") => Ok(BinaryOperator::StrictEq),
+               Some("!==") => Ok(BinaryOperator::StrictNeq),
+               Some("<") => Ok(BinaryOperator::LessThan),
+               Some("<=") => Ok(BinaryOperator::LeqThan),
+               Some(">") => Ok(BinaryOperator::GreaterThan),
+               Some(">=") => Ok(BinaryOperator::GeqThan),
+               Some("in") => Ok(BinaryOperator::In),
+               Some("instanceof") => Ok(BinaryOperator::Instanceof),
+               Some("<<") => Ok(BinaryOperator::Lsh),
+               Some(">>") => Ok(BinaryOperator::Rsh),
+               Some(">>>") => Ok(BinaryOperator::Ursh),
+               Some("+") => Ok(BinaryOperator::Plus),
+               Some("-") => Ok(BinaryOperator::Minus),
+               Some("*") => Ok(BinaryOperator::Mul),
+               Some("/") => Ok(BinaryOperator::Div),
+               Some("%") => Ok(BinaryOperator::Mod),
+               Some("**") => Ok(BinaryOperator::Pow),
+                _ => Err(FromJSONError {
+                    expected: "Instance of BinaryOperator".to_string(),
+                    got: source.dump(),
+                })
+            }
+        }
+    }
+
+
+    impl ToJSON for BinaryOperator {
+        fn export(&self) -> JSON {
+            json::from(match *self {
+               BinaryOperator::Comma => ",",
+               BinaryOperator::LogicalOr => "||",
+               BinaryOperator::LogicalAnd => "&&",
+               BinaryOperator::BitOr => "|",
+               BinaryOperator::BitXor => "^",
+               BinaryOperator::BitAnd => "&",
+               BinaryOperator::Eq => "==",
+               BinaryOperator::Neq => "!=",
+               BinaryOperator::StrictEq => "===",
+               BinaryOperator::StrictNeq => "!==",
+               BinaryOperator::LessThan => "<",
+               BinaryOperator::LeqThan => "<=",
+               BinaryOperator::GreaterThan => ">",
+               BinaryOperator::GeqThan => ">=",
+               BinaryOperator::In => "in",
+               BinaryOperator::Instanceof => "instanceof",
+               BinaryOperator::Lsh => "<<",
+               BinaryOperator::Rsh => ">>",
+               BinaryOperator::Ursh => ">>>",
+               BinaryOperator::Plus => "+",
+               BinaryOperator::Minus => "-",
+               BinaryOperator::Mul => "*",
+               BinaryOperator::Div => "/",
+               BinaryOperator::Mod => "%",
+               BinaryOperator::Pow => "**"
+            })
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum CompoundAssignmentOperator {
+         PlusAssign,
+         MinusAssign,
+         MulAssign,
+         DivAssign,
+         ModAssign,
+         PowAssign,
+         LshAssign,
+         RshAssign,
+         UrshAssign,
+         BitOrAssign,
+         BitXorAssign,
+         BitAndAssign
+    }
+
+    impl FromJSON for CompoundAssignmentOperator {
+        fn import(source: &JSON) -> Result<Self, FromJSONError > {
+            match source.as_str() {
+               Some("+=") => Ok(CompoundAssignmentOperator::PlusAssign),
+               Some("-=") => Ok(CompoundAssignmentOperator::MinusAssign),
+               Some("*=") => Ok(CompoundAssignmentOperator::MulAssign),
+               Some("/=") => Ok(CompoundAssignmentOperator::DivAssign),
+               Some("%=") => Ok(CompoundAssignmentOperator::ModAssign),
+               Some("**=") => Ok(CompoundAssignmentOperator::PowAssign),
+               Some("<<=") => Ok(CompoundAssignmentOperator::LshAssign),
+               Some(">>=") => Ok(CompoundAssignmentOperator::RshAssign),
+               Some(">>>=") => Ok(CompoundAssignmentOperator::UrshAssign),
+               Some("|=") => Ok(CompoundAssignmentOperator::BitOrAssign),
+               Some("^=") => Ok(CompoundAssignmentOperator::BitXorAssign),
+               Some("&=") => Ok(CompoundAssignmentOperator::BitAndAssign),
+                _ => Err(FromJSONError {
+                    expected: "Instance of CompoundAssignmentOperator".to_string(),
+                    got: source.dump(),
+                })
+            }
+        }
+    }
+
+
+    impl ToJSON for CompoundAssignmentOperator {
+        fn export(&self) -> JSON {
+            json::from(match *self {
+               CompoundAssignmentOperator::PlusAssign => "+=",
+               CompoundAssignmentOperator::MinusAssign => "-=",
+               CompoundAssignmentOperator::MulAssign => "*=",
+               CompoundAssignmentOperator::DivAssign => "/=",
+               CompoundAssignmentOperator::ModAssign => "%=",
+               CompoundAssignmentOperator::PowAssign => "**=",
+               CompoundAssignmentOperator::LshAssign => "<<=",
+               CompoundAssignmentOperator::RshAssign => ">>=",
+               CompoundAssignmentOperator::UrshAssign => ">>>=",
+               CompoundAssignmentOperator::BitOrAssign => "|=",
+               CompoundAssignmentOperator::BitXorAssign => "^=",
+               CompoundAssignmentOperator::BitAndAssign => "&="
+            })
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum UnaryOperator {
+         Plus,
+         Minus,
+         Not,
+         BitNot,
+         Typeof,
+         Void,
+         Delete
+    }
+
+    impl FromJSON for UnaryOperator {
+        fn import(source: &JSON) -> Result<Self, FromJSONError > {
+            match source.as_str() {
+               Some("+") => Ok(UnaryOperator::Plus),
+               Some("-") => Ok(UnaryOperator::Minus),
+               Some("!") => Ok(UnaryOperator::Not),
+               Some("~") => Ok(UnaryOperator::BitNot),
+               Some("typeof") => Ok(UnaryOperator::Typeof),
+               Some("void") => Ok(UnaryOperator::Void),
+               Some("delete") => Ok(UnaryOperator::Delete),
+                _ => Err(FromJSONError {
+                    expected: "Instance of UnaryOperator".to_string(),
+                    got: source.dump(),
+                })
+            }
+        }
+    }
+
+
+    impl ToJSON for UnaryOperator {
+        fn export(&self) -> JSON {
+            json::from(match *self {
+               UnaryOperator::Plus => "+",
+               UnaryOperator::Minus => "-",
+               UnaryOperator::Not => "!",
+               UnaryOperator::BitNot => "~",
+               UnaryOperator::Typeof => "typeof",
+               UnaryOperator::Void => "void",
+               UnaryOperator::Delete => "delete"
+            })
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum UpdateOperator {
+         Incr,
+         Decr
+    }
+
+    impl FromJSON for UpdateOperator {
+        fn import(source: &JSON) -> Result<Self, FromJSONError > {
+            match source.as_str() {
+               Some("++") => Ok(UpdateOperator::Incr),
+               Some("--") => Ok(UpdateOperator::Decr),
+                _ => Err(FromJSONError {
+                    expected: "Instance of UpdateOperator".to_string(),
+                    got: source.dump(),
+                })
+            }
+        }
+    }
+
+
+    impl ToJSON for UpdateOperator {
+        fn export(&self) -> JSON {
+            json::from(match *self {
+               UpdateOperator::Incr => "++",
+               UpdateOperator::Decr => "--"
+            })
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum VariableDeclarationKind {
+         Var,
+         Let,
+         Const
+    }
+
+    impl FromJSON for VariableDeclarationKind {
+        fn import(source: &JSON) -> Result<Self, FromJSONError > {
+            match source.as_str() {
+               Some("var") => Ok(VariableDeclarationKind::Var),
+               Some("let") => Ok(VariableDeclarationKind::Let),
+               Some("const") => Ok(VariableDeclarationKind::Const),
+                _ => Err(FromJSONError {
+                    expected: "Instance of VariableDeclarationKind".to_string(),
+                    got: source.dump(),
+                })
+            }
+        }
+    }
+
+
+    impl ToJSON for VariableDeclarationKind {
+        fn export(&self) -> JSON {
+            json::from(match *self {
+               VariableDeclarationKind::Var => "var",
+               VariableDeclarationKind::Let => "let",
+               VariableDeclarationKind::Const => "const"
+            })
+        }
+    }
+
+
+
+    // Type sums (by lexicographical order)
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum AssignmentTarget {
+        ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>),
+        ObjectAssignmentTarget(Box<ObjectAssignmentTarget>),
+        StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>),
+        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
+        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum AssignmentTargetOrAssignmentTargetWithInitializer {
+        ObjectAssignmentTarget(Box<ObjectAssignmentTarget>),
+        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
+        AssignmentTargetWithInitializer(Box<AssignmentTargetWithInitializer>),
+        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>),
+        ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>),
+        StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum AssignmentTargetPattern {
+        ObjectAssignmentTarget(Box<ObjectAssignmentTarget>),
+        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum AssignmentTargetProperty {
+        AssignmentTargetPropertyProperty(Box<AssignmentTargetPropertyProperty>),
+        AssignmentTargetPropertyIdentifier(Box<AssignmentTargetPropertyIdentifier>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum Binding {
+        ArrayBinding(Box<ArrayBinding>),
+        BindingIdentifier(Box<BindingIdentifier>),
+        ObjectBinding(Box<ObjectBinding>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum BindingOrBindingWithInitializer {
+        BindingWithInitializer(Box<BindingWithInitializer>),
+        BindingIdentifier(Box<BindingIdentifier>),
+        ObjectBinding(Box<ObjectBinding>),
+        ArrayBinding(Box<ArrayBinding>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum BindingPattern {
+        ObjectBinding(Box<ObjectBinding>),
+        ArrayBinding(Box<ArrayBinding>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum BindingProperty {
+        BindingPropertyIdentifier(Box<BindingPropertyIdentifier>),
+        BindingPropertyProperty(Box<BindingPropertyProperty>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum ExportDeclaration {
+        ExportAllFrom(Box<ExportAllFrom>),
+        ExportFrom(Box<ExportFrom>),
+        Export(Box<Export>),
+        ExportDefault(Box<ExportDefault>),
+        ExportLocals(Box<ExportLocals>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum Expression {
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        CallExpression(Box<CallExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        YieldExpression(Box<YieldExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        ClassExpression(Box<ClassExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        NewExpression(Box<NewExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        ThisExpression(Box<ThisExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        ArrowExpression(Box<ArrowExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum ExpressionOrSuper {
+        ArrowExpression(Box<ArrowExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        NewExpression(Box<NewExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        CallExpression(Box<CallExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        Super(Box<Super>),
+        BinaryExpression(Box<BinaryExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        ThisExpression(Box<ThisExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        YieldExpression(Box<YieldExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        ClassExpression(Box<ClassExpression>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum ExpressionOrTemplateElement {
+        NewExpression(Box<NewExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        ClassExpression(Box<ClassExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        YieldExpression(Box<YieldExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        ThisExpression(Box<ThisExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        ArrowExpression(Box<ArrowExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        TemplateElement(Box<TemplateElement>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        CallExpression(Box<CallExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        NewTargetExpression(Box<NewTargetExpression>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum ForInOfBindingOrAssignmentTarget {
+        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>),
+        ForInOfBinding(Box<ForInOfBinding>),
+        ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>),
+        StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>),
+        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
+        ObjectAssignmentTarget(Box<ObjectAssignmentTarget>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum FunctionBodyOrExpression {
+        ArrowExpression(Box<ArrowExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        YieldExpression(Box<YieldExpression>),
+        FunctionBody(Box<FunctionBody>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        ThisExpression(Box<ThisExpression>),
+        CallExpression(Box<CallExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        NewExpression(Box<NewExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        ClassExpression(Box<ClassExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum FunctionDeclarationOrClassDeclarationOrExpression {
+        UnaryExpression(Box<UnaryExpression>),
+        CallExpression(Box<CallExpression>),
+        FunctionDeclaration(Box<FunctionDeclaration>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        ArrowExpression(Box<ArrowExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
+        NewExpression(Box<NewExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        ThisExpression(Box<ThisExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        ClassDeclaration(Box<ClassDeclaration>),
+        AwaitExpression(Box<AwaitExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        YieldExpression(Box<YieldExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        ClassExpression(Box<ClassExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        UpdateExpression(Box<UpdateExpression>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum FunctionDeclarationOrClassDeclarationOrVariableDeclaration {
+        FunctionDeclaration(Box<FunctionDeclaration>),
+        ClassDeclaration(Box<ClassDeclaration>),
+        VariableDeclaration(Box<VariableDeclaration>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum ImportDeclaration {
+        ImportNamespace(Box<ImportNamespace>),
+        Import(Box<Import>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum ImportDeclarationOrExportDeclarationOrStatement {
+        DoWhileStatement(Box<DoWhileStatement>),
+        ExportFrom(Box<ExportFrom>),
+        VariableDeclaration(Box<VariableDeclaration>),
+        BreakStatement(Box<BreakStatement>),
+        WithStatement(Box<WithStatement>),
+        TryFinallyStatement(Box<TryFinallyStatement>),
+        ExportAllFrom(Box<ExportAllFrom>),
+        TryCatchStatement(Box<TryCatchStatement>),
+        SwitchStatementWithDefault(Box<SwitchStatementWithDefault>),
+        ForOfStatement(Box<ForOfStatement>),
+        WhileStatement(Box<WhileStatement>),
+        ImportNamespace(Box<ImportNamespace>),
+        ExportDefault(Box<ExportDefault>),
+        FunctionDeclaration(Box<FunctionDeclaration>),
+        LabelledStatement(Box<LabelledStatement>),
+        ClassDeclaration(Box<ClassDeclaration>),
+        ThrowStatement(Box<ThrowStatement>),
+        ForInStatement(Box<ForInStatement>),
+        ExpressionStatement(Box<ExpressionStatement>),
+        DebuggerStatement(Box<DebuggerStatement>),
+        Export(Box<Export>),
+        EmptyStatement(Box<EmptyStatement>),
+        IfStatement(Box<IfStatement>),
+        Block(Box<Block>),
+        ContinueStatement(Box<ContinueStatement>),
+        ReturnStatement(Box<ReturnStatement>),
+        ForStatement(Box<ForStatement>),
+        SwitchStatement(Box<SwitchStatement>),
+        ExportLocals(Box<ExportLocals>),
+        Import(Box<Import>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum IterationStatement {
+        ForInStatement(Box<ForInStatement>),
+        DoWhileStatement(Box<DoWhileStatement>),
+        ForStatement(Box<ForStatement>),
+        ForOfStatement(Box<ForOfStatement>),
+        WhileStatement(Box<WhileStatement>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum Literal {
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum MethodDefinition {
+        Setter(Box<Setter>),
+        Getter(Box<Getter>),
+        Method(Box<Method>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum ObjectProperty {
+        Setter(Box<Setter>),
+        Method(Box<Method>),
+        ShorthandProperty(Box<ShorthandProperty>),
+        Getter(Box<Getter>),
+        DataProperty(Box<DataProperty>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum Parameter {
+        BindingIdentifier(Box<BindingIdentifier>),
+        BindingWithInitializer(Box<BindingWithInitializer>),
+        ArrayBinding(Box<ArrayBinding>),
+        ObjectBinding(Box<ObjectBinding>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum Program {
+        Script(Box<Script>),
+        Module(Box<Module>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum PropertyName {
+        ComputedPropertyName(Box<ComputedPropertyName>),
+        LiteralPropertyName(Box<LiteralPropertyName>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum SimpleAssignmentTarget {
+        StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>),
+        ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>),
+        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum SpreadElementOrExpression {
+        AwaitExpression(Box<AwaitExpression>),
+        ClassExpression(Box<ClassExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        YieldExpression(Box<YieldExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        CallExpression(Box<CallExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        NewExpression(Box<NewExpression>),
+        ArrowExpression(Box<ArrowExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        ThisExpression(Box<ThisExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        SpreadElement(Box<SpreadElement>),
+        IdentifierExpression(Box<IdentifierExpression>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum Statement {
+        EmptyStatement(Box<EmptyStatement>),
+        BreakStatement(Box<BreakStatement>),
+        WithStatement(Box<WithStatement>),
+        LabelledStatement(Box<LabelledStatement>),
+        ClassDeclaration(Box<ClassDeclaration>),
+        IfStatement(Box<IfStatement>),
+        ForStatement(Box<ForStatement>),
+        TryCatchStatement(Box<TryCatchStatement>),
+        WhileStatement(Box<WhileStatement>),
+        SwitchStatement(Box<SwitchStatement>),
+        ContinueStatement(Box<ContinueStatement>),
+        FunctionDeclaration(Box<FunctionDeclaration>),
+        DoWhileStatement(Box<DoWhileStatement>),
+        DebuggerStatement(Box<DebuggerStatement>),
+        SwitchStatementWithDefault(Box<SwitchStatementWithDefault>),
+        ExpressionStatement(Box<ExpressionStatement>),
+        ForInStatement(Box<ForInStatement>),
+        Block(Box<Block>),
+        ReturnStatement(Box<ReturnStatement>),
+        ThrowStatement(Box<ThrowStatement>),
+        TryFinallyStatement(Box<TryFinallyStatement>),
+        VariableDeclaration(Box<VariableDeclaration>),
+        ForOfStatement(Box<ForOfStatement>)
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub enum VariableDeclarationOrExpression {
+        FunctionExpression(Box<FunctionExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        CallExpression(Box<CallExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        ThisExpression(Box<ThisExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        NewExpression(Box<NewExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        YieldExpression(Box<YieldExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
+        ClassExpression(Box<ClassExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        VariableDeclaration(Box<VariableDeclaration>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        ArrowExpression(Box<ArrowExpression>)
+    }
+
+
+
+    // Aliases to primitive types (by lexicographical order)
+     pub type Identifier = std::string::String;
+     pub type IdentifierName = std::string::String;
+     pub type Label = std::string::String;
+     pub type String = std::string::String;
+
+
+    // Aliases to list types (by lexicographical order)
+    pub type Arguments = Vec<SpreadElementOrExpression>;
+    pub type ListOfAssignmentTargetOrAssignmentTargetWithInitializer = Vec<AssignmentTargetOrAssignmentTargetWithInitializer>;
+    pub type ListOfAssignmentTargetProperty = Vec<AssignmentTargetProperty>;
+    pub type ListOfBindingProperty = Vec<BindingProperty>;
+    pub type ListOfClassElement = Vec<ClassElement>;
+    pub type ListOfDirective = Vec<Directive>;
+    pub type ListOfExportFromSpecifier = Vec<ExportFromSpecifier>;
+    pub type ListOfExportLocalSpecifier = Vec<ExportLocalSpecifier>;
+    pub type ListOfExpressionOrTemplateElement = Vec<ExpressionOrTemplateElement>;
+    pub type ListOfIdentifierName = Vec<IdentifierName>;
+    pub type ListOfImportDeclarationOrExportDeclarationOrStatement = Vec<ImportDeclarationOrExportDeclarationOrStatement>;
+    pub type ListOfImportSpecifier = Vec<ImportSpecifier>;
+    pub type ListOfObjectProperty = Vec<ObjectProperty>;
+    pub type ListOfOptionalBindingOrBindingWithInitializer = Vec<OptionalBindingOrBindingWithInitializer>;
+    pub type ListOfOptionalSpreadElementOrExpression = Vec<OptionalSpreadElementOrExpression>;
+    pub type ListOfParameter = Vec<Parameter>;
+    pub type ListOfStatement = Vec<Statement>;
+    pub type ListOfSwitchCase = Vec<SwitchCase>;
+    pub type ListOfVariableDeclarator = Vec<VariableDeclarator>;
+
+
+    // Aliases to optional types (by lexicographical order)
+    pub type OptionalAssertedBlockScope = Option<AssertedBlockScope>;
+    pub type OptionalAssertedParameterScope = Option<AssertedParameterScope>;
+    pub type OptionalAssertedVarScope = Option<AssertedVarScope>;
+    pub type OptionalAssignmentTarget = Option<AssignmentTarget>;
+    pub type OptionalBinding = Option<Binding>;
+    pub type OptionalBindingIdentifier = Option<BindingIdentifier>;
+    pub type OptionalBindingOrBindingWithInitializer = Option<BindingOrBindingWithInitializer>;
+    pub type OptionalCatchClause = Option<CatchClause>;
+    pub type OptionalExpression = Option<Expression>;
+    pub type OptionalIdentifierName = Option<IdentifierName>;
+    pub type OptionalLabel = Option<Label>;
+    pub type OptionalSpreadElementOrExpression = Option<SpreadElementOrExpression>;
+    pub type OptionalStatement = Option<Statement>;
+    pub type OptionalVariableDeclarationOrExpression = Option<VariableDeclarationOrExpression>;
+
+
+     // Interfaces (by lexicographical order)
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ArrayAssignmentTarget {
+        elements: ListOfAssignmentTargetOrAssignmentTargetWithInitializer,
+        rest: OptionalAssignmentTarget
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ArrayBinding {
+        elements: ListOfOptionalBindingOrBindingWithInitializer,
+        rest: OptionalBinding
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ArrayExpression {
+        elements: ListOfOptionalSpreadElementOrExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ArrowExpression {
+        is_async: bool,
+        parameter_scope: OptionalAssertedParameterScope,
+        body_scope: OptionalAssertedVarScope,
+        params: FormalParameters,
+        body: FunctionBodyOrExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AssertedBlockScope {
+        lexically_declared_names: ListOfIdentifierName,
+        captured_names: ListOfIdentifierName,
+        has_direct_eval: bool
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AssertedParameterScope {
+        parameter_names: ListOfIdentifierName,
+        captured_names: ListOfIdentifierName,
+        has_direct_eval: bool
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AssertedVarScope {
+        lexically_declared_names: ListOfIdentifierName,
+        var_declared_names: ListOfIdentifierName,
+        captured_names: ListOfIdentifierName,
+        has_direct_eval: bool
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AssignmentExpression {
+        binding: AssignmentTarget,
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AssignmentTargetIdentifier {
+        name: Identifier
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AssignmentTargetPropertyIdentifier {
+        binding: AssignmentTargetIdentifier,
+        init: OptionalExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AssignmentTargetPropertyProperty {
+        name: PropertyName,
+        binding: AssignmentTargetOrAssignmentTargetWithInitializer
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AssignmentTargetWithInitializer {
+        binding: AssignmentTarget,
+        init: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct AwaitExpression {
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct BinaryExpression {
+        operator: BinaryOperator,
+        left: Expression,
+        right: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct BindingIdentifier {
+        name: Identifier
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct BindingPropertyIdentifier {
+        binding: BindingIdentifier,
+        init: OptionalExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct BindingPropertyProperty {
+        name: PropertyName,
+        binding: BindingOrBindingWithInitializer
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct BindingWithInitializer {
+        binding: Binding,
+        init: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Block {
+        scope: OptionalAssertedBlockScope,
+        statements: ListOfStatement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct BreakStatement {
+        label: OptionalLabel
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct CallExpression {
+        callee: ExpressionOrSuper,
+        arguments: Arguments
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct CatchClause {
+        binding: Binding,
+        body: Block
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ClassDeclaration {
+        name: BindingIdentifier,
+        super_: OptionalExpression,
+        elements: ListOfClassElement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ClassElement {
+        is_static: bool,
+        method: MethodDefinition
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ClassExpression {
+        name: OptionalBindingIdentifier,
+        super_: OptionalExpression,
+        elements: ListOfClassElement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct CompoundAssignmentExpression {
+        operator: CompoundAssignmentOperator,
+        binding: SimpleAssignmentTarget,
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ComputedMemberAssignmentTarget {
+        object: ExpressionOrSuper,
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ComputedMemberExpression {
+        object: ExpressionOrSuper,
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ComputedPropertyName {
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ConditionalExpression {
+        test: Expression,
+        consequent: Expression,
+        alternate: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ContinueStatement {
+        label: OptionalLabel
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct DataProperty {
+        name: PropertyName,
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct DebuggerStatement {
+
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Directive {
+        raw_value: String
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct DoWhileStatement {
+        test: Expression,
+        body: Statement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct EmptyStatement {
+
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Export {
+        declaration: FunctionDeclarationOrClassDeclarationOrVariableDeclaration
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ExportAllFrom {
+        module_specifier: String
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ExportDefault {
+        body: FunctionDeclarationOrClassDeclarationOrExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ExportFrom {
+        named_exports: ListOfExportFromSpecifier,
+        module_specifier: String
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ExportFromSpecifier {
+        name: IdentifierName,
+        exported_name: OptionalIdentifierName
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ExportLocalSpecifier {
+        name: IdentifierExpression,
+        exported_name: OptionalIdentifierName
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ExportLocals {
+        named_exports: ListOfExportLocalSpecifier
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ExpressionStatement {
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ForInOfBinding {
+        kind: VariableDeclarationKind,
+        binding: Binding
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ForInStatement {
+        left: ForInOfBindingOrAssignmentTarget,
+        right: Expression,
+        body: Statement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ForOfStatement {
+        left: ForInOfBindingOrAssignmentTarget,
+        right: Expression,
+        body: Statement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ForStatement {
+        init: OptionalVariableDeclarationOrExpression,
+        test: OptionalExpression,
+        update: OptionalExpression,
+        body: Statement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct FormalParameters {
+        items: ListOfParameter,
+        rest: OptionalBinding
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct FunctionBody {
+        directives: ListOfDirective,
+        statements: ListOfStatement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct FunctionDeclaration {
+        is_async: bool,
+        is_generator: bool,
+        parameter_scope: OptionalAssertedParameterScope,
+        body_scope: OptionalAssertedVarScope,
+        name: BindingIdentifier,
+        params: FormalParameters,
+        body: FunctionBody
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct FunctionExpression {
+        is_async: bool,
+        is_generator: bool,
+        parameter_scope: OptionalAssertedParameterScope,
+        body_scope: OptionalAssertedVarScope,
+        name: OptionalBindingIdentifier,
+        params: FormalParameters,
+        body: FunctionBody
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Getter {
+        body_scope: OptionalAssertedVarScope,
+        name: PropertyName,
+        body: FunctionBody
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct IdentifierExpression {
+        name: Identifier
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct IfStatement {
+        test: Expression,
+        consequent: Statement,
+        alternate: OptionalStatement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Import {
+        module_specifier: String,
+        default_binding: OptionalBindingIdentifier,
+        named_imports: ListOfImportSpecifier
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ImportNamespace {
+        module_specifier: String,
+        default_binding: OptionalBindingIdentifier,
+        namespace_binding: BindingIdentifier
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ImportSpecifier {
+        name: OptionalIdentifierName,
+        binding: BindingIdentifier
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct LabelledStatement {
+        label: Label,
+        body: Statement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct LiteralBooleanExpression {
+        value: bool
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct LiteralInfinityExpression {
+
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct LiteralNullExpression {
+
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct LiteralNumericExpression {
+        value: u32
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct LiteralPropertyName {
+        value: String
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct LiteralRegExpExpression {
+        pattern: String,
+        flags: String
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct LiteralStringExpression {
+        value: String
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Method {
+        is_async: bool,
+        is_generator: bool,
+        parameter_scope: OptionalAssertedParameterScope,
+        body_scope: OptionalAssertedVarScope,
+        name: PropertyName,
+        params: FormalParameters,
+        body: FunctionBody
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Module {
+        scope: OptionalAssertedVarScope,
+        directives: ListOfDirective,
+        items: ListOfImportDeclarationOrExportDeclarationOrStatement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct NewExpression {
+        callee: Expression,
+        arguments: Arguments
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct NewTargetExpression {
+
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ObjectAssignmentTarget {
+        properties: ListOfAssignmentTargetProperty
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ObjectBinding {
+        properties: ListOfBindingProperty
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ObjectExpression {
+        properties: ListOfObjectProperty
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ReturnStatement {
+        expression: OptionalExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Script {
+        scope: OptionalAssertedVarScope,
+        directives: ListOfDirective,
+        statements: ListOfStatement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Setter {
+        parameter_scope: OptionalAssertedParameterScope,
+        body_scope: OptionalAssertedVarScope,
+        name: PropertyName,
+        param: Parameter,
+        body: FunctionBody
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ShorthandProperty {
+        name: IdentifierExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct SpreadElement {
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct StaticMemberAssignmentTarget {
+        object: ExpressionOrSuper,
+        property: IdentifierName
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct StaticMemberExpression {
+        object: ExpressionOrSuper,
+        property: IdentifierName
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Super {
+
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct SwitchCase {
+        test: Expression,
+        consequent: ListOfStatement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct SwitchDefault {
+        consequent: ListOfStatement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct SwitchStatement {
+        discriminant: Expression,
+        cases: ListOfSwitchCase
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct SwitchStatementWithDefault {
+        discriminant: Expression,
+        pre_default_cases: ListOfSwitchCase,
+        default_case: SwitchDefault,
+        post_default_cases: ListOfSwitchCase
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct TemplateElement {
+        raw_value: String
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct TemplateExpression {
+        tag: OptionalExpression,
+        elements: ListOfExpressionOrTemplateElement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ThisExpression {
+
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct ThrowStatement {
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct TryCatchStatement {
+        body: Block,
+        catch_clause: CatchClause
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct TryFinallyStatement {
+        body: Block,
+        catch_clause: OptionalCatchClause,
+        finalizer: Block
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct UnaryExpression {
+        operator: UnaryOperator,
+        operand: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct UpdateExpression {
+        is_prefix: bool,
+        operator: UpdateOperator,
+        operand: SimpleAssignmentTarget
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct VariableDeclaration {
+        kind: VariableDeclarationKind,
+        declarators: ListOfVariableDeclarator
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct VariableDeclarator {
+        binding: Binding,
+        init: OptionalExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct WhileStatement {
+        test: Expression,
+        body: Statement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct WithStatement {
+        object: Expression,
+        body: Statement
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct YieldExpression {
+        expression: OptionalExpression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct YieldStarExpression {
+        expression: Expression
+    }
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Null {
+
+    }
+}
 pub struct Library {
     // String enum names (by lexicographical order)
-    binary_operator: NodeName,
-    compound_assignment_operator: NodeName,
-    unary_operator: NodeName,
-    update_operator: NodeName,
-    variable_declaration_kind: NodeName,
+    pub binary_operator: NodeName,
+    pub compound_assignment_operator: NodeName,
+    pub unary_operator: NodeName,
+    pub update_operator: NodeName,
+    pub variable_declaration_kind: NodeName,
 
 
     // Typedef names (by lexicographical order)
-    arguments: NodeName,
-    assignment_target: NodeName,
-    assignment_target_pattern: NodeName,
-    assignment_target_property: NodeName,
-    binding: NodeName,
-    binding_pattern: NodeName,
-    binding_property: NodeName,
-    export_declaration: NodeName,
-    expression: NodeName,
-    identifier: NodeName,
-    identifier_name: NodeName,
-    import_declaration: NodeName,
-    iteration_statement: NodeName,
-    label: NodeName,
-    literal: NodeName,
-    method_definition: NodeName,
-    object_property: NodeName,
-    parameter: NodeName,
-    program: NodeName,
-    property_name: NodeName,
-    simple_assignment_target: NodeName,
-    statement: NodeName,
-    string: NodeName,
+    pub arguments: NodeName,
+    pub assignment_target: NodeName,
+    pub assignment_target_pattern: NodeName,
+    pub assignment_target_property: NodeName,
+    pub binding: NodeName,
+    pub binding_pattern: NodeName,
+    pub binding_property: NodeName,
+    pub export_declaration: NodeName,
+    pub expression: NodeName,
+    pub identifier: NodeName,
+    pub identifier_name: NodeName,
+    pub import_declaration: NodeName,
+    pub iteration_statement: NodeName,
+    pub label: NodeName,
+    pub literal: NodeName,
+    pub method_definition: NodeName,
+    pub object_property: NodeName,
+    pub parameter: NodeName,
+    pub program: NodeName,
+    pub property_name: NodeName,
+    pub simple_assignment_target: NodeName,
+    pub statement: NodeName,
+    pub string: NodeName,
 
 
     // Interface names (by lexicographical order)
-    array_assignment_target: NodeName,
-    array_binding: NodeName,
-    array_expression: NodeName,
-    arrow_expression: NodeName,
-    asserted_block_scope: NodeName,
-    asserted_top_level_scope: NodeName,
-    assignment_expression: NodeName,
-    assignment_target_identifier: NodeName,
-    assignment_target_property_identifier: NodeName,
-    assignment_target_property_property: NodeName,
-    assignment_target_with_initializer: NodeName,
-    await_expression: NodeName,
-    binary_expression: NodeName,
-    binding_identifier: NodeName,
-    binding_property_identifier: NodeName,
-    binding_property_property: NodeName,
-    binding_with_initializer: NodeName,
-    block: NodeName,
-    break_statement: NodeName,
-    call_expression: NodeName,
-    catch_clause: NodeName,
-    class_declaration: NodeName,
-    class_element: NodeName,
-    class_expression: NodeName,
-    compound_assignment_expression: NodeName,
-    computed_member_assignment_target: NodeName,
-    computed_member_expression: NodeName,
-    computed_property_name: NodeName,
-    conditional_expression: NodeName,
-    continue_statement: NodeName,
-    data_property: NodeName,
-    debugger_statement: NodeName,
-    directive: NodeName,
-    do_while_statement: NodeName,
-    empty_statement: NodeName,
-    export: NodeName,
-    export_all_from: NodeName,
-    export_default: NodeName,
-    export_from: NodeName,
-    export_from_specifier: NodeName,
-    export_local_specifier: NodeName,
-    export_locals: NodeName,
-    expression_statement: NodeName,
-    for_in_of_binding: NodeName,
-    for_in_statement: NodeName,
-    for_of_statement: NodeName,
-    for_statement: NodeName,
-    formal_parameters: NodeName,
-    function_body: NodeName,
-    function_declaration: NodeName,
-    function_expression: NodeName,
-    getter: NodeName,
-    identifier_expression: NodeName,
-    if_statement: NodeName,
-    import: NodeName,
-    import_namespace: NodeName,
-    import_specifier: NodeName,
-    labelled_statement: NodeName,
-    literal_boolean_expression: NodeName,
-    literal_infinity_expression: NodeName,
-    literal_null_expression: NodeName,
-    literal_numeric_expression: NodeName,
-    literal_property_name: NodeName,
-    literal_reg_exp_expression: NodeName,
-    literal_string_expression: NodeName,
-    method: NodeName,
-    module: NodeName,
-    new_expression: NodeName,
-    new_target_expression: NodeName,
-    object_assignment_target: NodeName,
-    object_binding: NodeName,
-    object_expression: NodeName,
-    return_statement: NodeName,
-    script: NodeName,
-    setter: NodeName,
-    shorthand_property: NodeName,
-    spread_element: NodeName,
-    static_member_assignment_target: NodeName,
-    static_member_expression: NodeName,
-    super_: NodeName,
-    switch_case: NodeName,
-    switch_default: NodeName,
-    switch_statement: NodeName,
-    switch_statement_with_default: NodeName,
-    template_element: NodeName,
-    template_expression: NodeName,
-    this_expression: NodeName,
-    throw_statement: NodeName,
-    try_catch_statement: NodeName,
-    try_finally_statement: NodeName,
-    unary_expression: NodeName,
-    update_expression: NodeName,
-    variable_declaration: NodeName,
-    variable_declarator: NodeName,
-    while_statement: NodeName,
-    with_statement: NodeName,
-    yield_expression: NodeName,
-    yield_star_expression: NodeName,
-    null: NodeName,
+    pub array_assignment_target: NodeName,
+    pub array_binding: NodeName,
+    pub array_expression: NodeName,
+    pub arrow_expression: NodeName,
+    pub asserted_block_scope: NodeName,
+    pub asserted_parameter_scope: NodeName,
+    pub asserted_var_scope: NodeName,
+    pub assignment_expression: NodeName,
+    pub assignment_target_identifier: NodeName,
+    pub assignment_target_property_identifier: NodeName,
+    pub assignment_target_property_property: NodeName,
+    pub assignment_target_with_initializer: NodeName,
+    pub await_expression: NodeName,
+    pub binary_expression: NodeName,
+    pub binding_identifier: NodeName,
+    pub binding_property_identifier: NodeName,
+    pub binding_property_property: NodeName,
+    pub binding_with_initializer: NodeName,
+    pub block: NodeName,
+    pub break_statement: NodeName,
+    pub call_expression: NodeName,
+    pub catch_clause: NodeName,
+    pub class_declaration: NodeName,
+    pub class_element: NodeName,
+    pub class_expression: NodeName,
+    pub compound_assignment_expression: NodeName,
+    pub computed_member_assignment_target: NodeName,
+    pub computed_member_expression: NodeName,
+    pub computed_property_name: NodeName,
+    pub conditional_expression: NodeName,
+    pub continue_statement: NodeName,
+    pub data_property: NodeName,
+    pub debugger_statement: NodeName,
+    pub directive: NodeName,
+    pub do_while_statement: NodeName,
+    pub empty_statement: NodeName,
+    pub export: NodeName,
+    pub export_all_from: NodeName,
+    pub export_default: NodeName,
+    pub export_from: NodeName,
+    pub export_from_specifier: NodeName,
+    pub export_local_specifier: NodeName,
+    pub export_locals: NodeName,
+    pub expression_statement: NodeName,
+    pub for_in_of_binding: NodeName,
+    pub for_in_statement: NodeName,
+    pub for_of_statement: NodeName,
+    pub for_statement: NodeName,
+    pub formal_parameters: NodeName,
+    pub function_body: NodeName,
+    pub function_declaration: NodeName,
+    pub function_expression: NodeName,
+    pub getter: NodeName,
+    pub identifier_expression: NodeName,
+    pub if_statement: NodeName,
+    pub import: NodeName,
+    pub import_namespace: NodeName,
+    pub import_specifier: NodeName,
+    pub labelled_statement: NodeName,
+    pub literal_boolean_expression: NodeName,
+    pub literal_infinity_expression: NodeName,
+    pub literal_null_expression: NodeName,
+    pub literal_numeric_expression: NodeName,
+    pub literal_property_name: NodeName,
+    pub literal_reg_exp_expression: NodeName,
+    pub literal_string_expression: NodeName,
+    pub method: NodeName,
+    pub module: NodeName,
+    pub new_expression: NodeName,
+    pub new_target_expression: NodeName,
+    pub object_assignment_target: NodeName,
+    pub object_binding: NodeName,
+    pub object_expression: NodeName,
+    pub return_statement: NodeName,
+    pub script: NodeName,
+    pub setter: NodeName,
+    pub shorthand_property: NodeName,
+    pub spread_element: NodeName,
+    pub static_member_assignment_target: NodeName,
+    pub static_member_expression: NodeName,
+    pub super_: NodeName,
+    pub switch_case: NodeName,
+    pub switch_default: NodeName,
+    pub switch_statement: NodeName,
+    pub switch_statement_with_default: NodeName,
+    pub template_element: NodeName,
+    pub template_expression: NodeName,
+    pub this_expression: NodeName,
+    pub throw_statement: NodeName,
+    pub try_catch_statement: NodeName,
+    pub try_finally_statement: NodeName,
+    pub unary_expression: NodeName,
+    pub update_expression: NodeName,
+    pub variable_declaration: NodeName,
+    pub variable_declarator: NodeName,
+    pub while_statement: NodeName,
+    pub with_statement: NodeName,
+    pub yield_expression: NodeName,
+    pub yield_star_expression: NodeName,
+    pub null: NodeName,
 
 
 
     // Field names (by lexicographical order)
-    field_alternate: FieldName,
-    field_arguments: FieldName,
-    field_binding: FieldName,
-    field_body: FieldName,
-    field_callee: FieldName,
-    field_captured_names: FieldName,
-    field_cases: FieldName,
-    field_catch_clause: FieldName,
-    field_consequent: FieldName,
-    field_declaration: FieldName,
-    field_declarators: FieldName,
-    field_default_binding: FieldName,
-    field_default_case: FieldName,
-    field_directives: FieldName,
-    field_discriminant: FieldName,
-    field_elements: FieldName,
-    field_exported_name: FieldName,
-    field_expression: FieldName,
-    field_finalizer: FieldName,
-    field_flags: FieldName,
-    field_has_direct_eval: FieldName,
-    field_init: FieldName,
-    field_is_async: FieldName,
-    field_is_generator: FieldName,
-    field_is_prefix: FieldName,
-    field_is_static: FieldName,
-    field_items: FieldName,
-    field_kind: FieldName,
-    field_label: FieldName,
-    field_left: FieldName,
-    field_lexically_declared_names: FieldName,
-    field_method: FieldName,
-    field_module_specifier: FieldName,
-    field_name: FieldName,
-    field_named_exports: FieldName,
-    field_named_imports: FieldName,
-    field_namespace_binding: FieldName,
-    field_object: FieldName,
-    field_operand: FieldName,
-    field_operator: FieldName,
-    field_param: FieldName,
-    field_params: FieldName,
-    field_pattern: FieldName,
-    field_post_default_cases: FieldName,
-    field_pre_default_cases: FieldName,
-    field_properties: FieldName,
-    field_property: FieldName,
-    field_raw_value: FieldName,
-    field_rest: FieldName,
-    field_right: FieldName,
-    field_scope: FieldName,
-    field_statements: FieldName,
-    field_super_: FieldName,
-    field_tag: FieldName,
-    field_test: FieldName,
-    field_update: FieldName,
-    field_value: FieldName,
-    field_var_declared_names: FieldName,
+    pub field_alternate: FieldName,
+    pub field_arguments: FieldName,
+    pub field_binding: FieldName,
+    pub field_body: FieldName,
+    pub field_body_scope: FieldName,
+    pub field_callee: FieldName,
+    pub field_captured_names: FieldName,
+    pub field_cases: FieldName,
+    pub field_catch_clause: FieldName,
+    pub field_consequent: FieldName,
+    pub field_declaration: FieldName,
+    pub field_declarators: FieldName,
+    pub field_default_binding: FieldName,
+    pub field_default_case: FieldName,
+    pub field_directives: FieldName,
+    pub field_discriminant: FieldName,
+    pub field_elements: FieldName,
+    pub field_exported_name: FieldName,
+    pub field_expression: FieldName,
+    pub field_finalizer: FieldName,
+    pub field_flags: FieldName,
+    pub field_has_direct_eval: FieldName,
+    pub field_init: FieldName,
+    pub field_is_async: FieldName,
+    pub field_is_generator: FieldName,
+    pub field_is_prefix: FieldName,
+    pub field_is_static: FieldName,
+    pub field_items: FieldName,
+    pub field_kind: FieldName,
+    pub field_label: FieldName,
+    pub field_left: FieldName,
+    pub field_lexically_declared_names: FieldName,
+    pub field_method: FieldName,
+    pub field_module_specifier: FieldName,
+    pub field_name: FieldName,
+    pub field_named_exports: FieldName,
+    pub field_named_imports: FieldName,
+    pub field_namespace_binding: FieldName,
+    pub field_object: FieldName,
+    pub field_operand: FieldName,
+    pub field_operator: FieldName,
+    pub field_param: FieldName,
+    pub field_parameter_names: FieldName,
+    pub field_parameter_scope: FieldName,
+    pub field_params: FieldName,
+    pub field_pattern: FieldName,
+    pub field_post_default_cases: FieldName,
+    pub field_pre_default_cases: FieldName,
+    pub field_properties: FieldName,
+    pub field_property: FieldName,
+    pub field_raw_value: FieldName,
+    pub field_rest: FieldName,
+    pub field_right: FieldName,
+    pub field_scope: FieldName,
+    pub field_statements: FieldName,
+    pub field_super_: FieldName,
+    pub field_tag: FieldName,
+    pub field_test: FieldName,
+    pub field_update: FieldName,
+    pub field_value: FieldName,
+    pub field_var_declared_names: FieldName,
 }
 impl Library {
     pub fn new(builder: &mut SyntaxBuilder) -> Self {
@@ -243,7 +1517,8 @@ impl Library {
             array_expression: builder.node_name("ArrayExpression"),
             arrow_expression: builder.node_name("ArrowExpression"),
             asserted_block_scope: builder.node_name("AssertedBlockScope"),
-            asserted_top_level_scope: builder.node_name("AssertedTopLevelScope"),
+            asserted_parameter_scope: builder.node_name("AssertedParameterScope"),
+            asserted_var_scope: builder.node_name("AssertedVarScope"),
             assignment_expression: builder.node_name("AssignmentExpression"),
             assignment_target_identifier: builder.node_name("AssignmentTargetIdentifier"),
             assignment_target_property_identifier: builder.node_name("AssignmentTargetPropertyIdentifier"),
@@ -345,6 +1620,7 @@ impl Library {
             field_arguments: builder.field_name("arguments"),
             field_binding: builder.field_name("binding"),
             field_body: builder.field_name("body"),
+            field_body_scope: builder.field_name("bodyScope"),
             field_callee: builder.field_name("callee"),
             field_captured_names: builder.field_name("capturedNames"),
             field_cases: builder.field_name("cases"),
@@ -382,6 +1658,8 @@ impl Library {
             field_operand: builder.field_name("operand"),
             field_operator: builder.field_name("operator"),
             field_param: builder.field_name("param"),
+            field_parameter_names: builder.field_name("parameterNames"),
+            field_parameter_scope: builder.field_name("parameterScope"),
             field_params: builder.field_name("params"),
             field_pattern: builder.field_name("pattern"),
             field_post_default_cases: builder.field_name("postDefaultCases"),
@@ -404,37 +1682,11 @@ impl Library {
 
 
         // Enumerations
-        builder.add_string_enum(&names.unary_operator).unwrap()
+        builder.add_string_enum(&names.variable_declaration_kind).unwrap()
             .with_strings(&[
-                "+",
-                "-",
-                "!",
-                "~",
-                "typeof",
-                "void",
-                "delete"
-           ]);
-
-        builder.add_string_enum(&names.update_operator).unwrap()
-            .with_strings(&[
-                "++",
-                "--"
-           ]);
-
-        builder.add_string_enum(&names.compound_assignment_operator).unwrap()
-            .with_strings(&[
-                "+=",
-                "-=",
-                "*=",
-                "/=",
-                "%=",
-                "**=",
-                "<<=",
-                ">>=",
-                ">>>=",
-                "|=",
-                "^=",
-                "&="
+                "var",
+                "let",
+                "const"
            ]);
 
         builder.add_string_enum(&names.binary_operator).unwrap()
@@ -466,16 +1718,45 @@ impl Library {
                 "**"
            ]);
 
-        builder.add_string_enum(&names.variable_declaration_kind).unwrap()
+        builder.add_string_enum(&names.update_operator).unwrap()
             .with_strings(&[
-                "var",
-                "let",
-                "const"
+                "++",
+                "--"
            ]);
 
-        builder.add_typedef(&names.string).unwrap()
+        builder.add_string_enum(&names.unary_operator).unwrap()
+            .with_strings(&[
+                "+",
+                "-",
+                "!",
+                "~",
+                "typeof",
+                "void",
+                "delete"
+           ]);
+
+        builder.add_string_enum(&names.compound_assignment_operator).unwrap()
+            .with_strings(&[
+                "+=",
+                "-=",
+                "*=",
+                "/=",
+                "%=",
+                "**=",
+                "<<=",
+                ">>=",
+                ">>>=",
+                "|=",
+                "^=",
+                "&="
+           ]);
+
+        builder.add_typedef(&names.binding_pattern).unwrap()
             .with_type(
-                    Type::string().required());
+                    Type::sum(&[
+                        Type::named(&names.object_binding),
+                        Type::named(&names.array_binding)
+                    ]).required());
 
         builder.add_typedef(&names.arguments).unwrap()
             .with_type(
@@ -484,22 +1765,21 @@ impl Library {
                         Type::named(&names.expression)
                     ]).required().array().required());
 
-        builder.add_typedef(&names.object_property).unwrap()
+        builder.add_typedef(&names.iteration_statement).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.method_definition),
-                        Type::named(&names.data_property),
-                        Type::named(&names.shorthand_property)
+                        Type::named(&names.do_while_statement),
+                        Type::named(&names.for_in_statement),
+                        Type::named(&names.for_of_statement),
+                        Type::named(&names.for_statement),
+                        Type::named(&names.while_statement)
                     ]).required());
 
-        builder.add_typedef(&names.import_declaration).unwrap()
+        builder.add_typedef(&names.identifier).unwrap()
             .with_type(
-                    Type::sum(&[
-                        Type::named(&names.import_namespace),
-                        Type::named(&names.import)
-                    ]).required());
+                    Type::named(&names.string).required());
 
-        builder.add_typedef(&names.identifier_name).unwrap()
+        builder.add_typedef(&names.label).unwrap()
             .with_type(
                     Type::named(&names.string).required());
 
@@ -511,20 +1791,30 @@ impl Library {
                         Type::named(&names.setter)
                     ]).required());
 
-        builder.add_typedef(&names.assignment_target_pattern).unwrap()
+        builder.add_typedef(&names.binding_property).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.object_assignment_target),
-                        Type::named(&names.array_assignment_target)
+                        Type::named(&names.binding_property_identifier),
+                        Type::named(&names.binding_property_property)
                     ]).required());
 
-        builder.add_typedef(&names.simple_assignment_target).unwrap()
+        builder.add_typedef(&names.assignment_target_property).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.assignment_target_identifier),
-                        Type::named(&names.computed_member_assignment_target),
-                        Type::named(&names.static_member_assignment_target)
+                        Type::named(&names.assignment_target_property_identifier),
+                        Type::named(&names.assignment_target_property_property)
                     ]).required());
+
+        builder.add_typedef(&names.binding).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.binding_pattern),
+                        Type::named(&names.binding_identifier)
+                    ]).required());
+
+        builder.add_typedef(&names.identifier_name).unwrap()
+            .with_type(
+                    Type::named(&names.string).required());
 
         builder.add_typedef(&names.export_declaration).unwrap()
             .with_type(
@@ -536,11 +1826,86 @@ impl Library {
                         Type::named(&names.export)
                     ]).required());
 
-        builder.add_typedef(&names.binding_property).unwrap()
+        builder.add_typedef(&names.simple_assignment_target).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.binding_property_identifier),
-                        Type::named(&names.binding_property_property)
+                        Type::named(&names.assignment_target_identifier),
+                        Type::named(&names.computed_member_assignment_target),
+                        Type::named(&names.static_member_assignment_target)
+                    ]).required());
+
+        builder.add_typedef(&names.literal).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.literal_boolean_expression),
+                        Type::named(&names.literal_infinity_expression),
+                        Type::named(&names.literal_null_expression),
+                        Type::named(&names.literal_numeric_expression),
+                        Type::named(&names.literal_string_expression)
+                    ]).required());
+
+        builder.add_typedef(&names.program).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.script),
+                        Type::named(&names.module)
+                    ]).required());
+
+        builder.add_typedef(&names.parameter).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.binding),
+                        Type::named(&names.binding_with_initializer)
+                    ]).required());
+
+        builder.add_typedef(&names.assignment_target_pattern).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.object_assignment_target),
+                        Type::named(&names.array_assignment_target)
+                    ]).required());
+
+        builder.add_typedef(&names.object_property).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.method_definition),
+                        Type::named(&names.data_property),
+                        Type::named(&names.shorthand_property)
+                    ]).required());
+
+        builder.add_typedef(&names.string).unwrap()
+            .with_type(
+                    Type::string().required());
+
+        builder.add_typedef(&names.statement).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.block),
+                        Type::named(&names.break_statement),
+                        Type::named(&names.continue_statement),
+                        Type::named(&names.class_declaration),
+                        Type::named(&names.debugger_statement),
+                        Type::named(&names.empty_statement),
+                        Type::named(&names.expression_statement),
+                        Type::named(&names.function_declaration),
+                        Type::named(&names.if_statement),
+                        Type::named(&names.iteration_statement),
+                        Type::named(&names.labelled_statement),
+                        Type::named(&names.return_statement),
+                        Type::named(&names.switch_statement),
+                        Type::named(&names.switch_statement_with_default),
+                        Type::named(&names.throw_statement),
+                        Type::named(&names.try_catch_statement),
+                        Type::named(&names.try_finally_statement),
+                        Type::named(&names.variable_declaration),
+                        Type::named(&names.with_statement)
+                    ]).required());
+
+        builder.add_typedef(&names.property_name).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.computed_property_name),
+                        Type::named(&names.literal_property_name)
                     ]).required());
 
         builder.add_typedef(&names.assignment_target).unwrap()
@@ -548,20 +1913,6 @@ impl Library {
                     Type::sum(&[
                         Type::named(&names.assignment_target_pattern),
                         Type::named(&names.simple_assignment_target)
-                    ]).required());
-
-        builder.add_typedef(&names.assignment_target_property).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.assignment_target_property_identifier),
-                        Type::named(&names.assignment_target_property_property)
-                    ]).required());
-
-        builder.add_typedef(&names.binding_pattern).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.object_binding),
-                        Type::named(&names.array_binding)
                     ]).required());
 
         builder.add_typedef(&names.expression).unwrap()
@@ -593,151 +1944,69 @@ impl Library {
                         Type::named(&names.await_expression)
                     ]).required());
 
-        builder.add_typedef(&names.property_name).unwrap()
+        builder.add_typedef(&names.import_declaration).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.computed_property_name),
-                        Type::named(&names.literal_property_name)
+                        Type::named(&names.import_namespace),
+                        Type::named(&names.import)
                     ]).required());
 
-        builder.add_typedef(&names.binding).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.binding_pattern),
-                        Type::named(&names.binding_identifier)
-                    ]).required());
-
-        builder.add_typedef(&names.label).unwrap()
-            .with_type(
-                    Type::named(&names.string).required());
-
-        builder.add_typedef(&names.program).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.script),
-                        Type::named(&names.module)
-                    ]).required());
-
-        builder.add_typedef(&names.literal).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.literal_boolean_expression),
-                        Type::named(&names.literal_infinity_expression),
-                        Type::named(&names.literal_null_expression),
-                        Type::named(&names.literal_numeric_expression),
-                        Type::named(&names.literal_string_expression)
-                    ]).required());
-
-        builder.add_typedef(&names.parameter).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.binding),
-                        Type::named(&names.binding_with_initializer)
-                    ]).required());
-
-        builder.add_typedef(&names.identifier).unwrap()
-            .with_type(
-                    Type::named(&names.string).required());
-
-        builder.add_typedef(&names.statement).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.block),
-                        Type::named(&names.break_statement),
-                        Type::named(&names.continue_statement),
-                        Type::named(&names.class_declaration),
-                        Type::named(&names.debugger_statement),
-                        Type::named(&names.empty_statement),
-                        Type::named(&names.expression_statement),
-                        Type::named(&names.function_declaration),
-                        Type::named(&names.if_statement),
-                        Type::named(&names.iteration_statement),
-                        Type::named(&names.labelled_statement),
-                        Type::named(&names.return_statement),
-                        Type::named(&names.switch_statement),
-                        Type::named(&names.switch_statement_with_default),
-                        Type::named(&names.throw_statement),
-                        Type::named(&names.try_catch_statement),
-                        Type::named(&names.try_finally_statement),
-                        Type::named(&names.variable_declaration),
-                        Type::named(&names.with_statement)
-                    ]).required());
-
-        builder.add_typedef(&names.iteration_statement).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.do_while_statement),
-                        Type::named(&names.for_in_statement),
-                        Type::named(&names.for_of_statement),
-                        Type::named(&names.for_statement),
-                        Type::named(&names.while_statement)
-                    ]).required());
-
-        builder.add_interface(&names.assignment_target_with_initializer).unwrap()
+        builder.add_interface(&names.binding_property_identifier).unwrap()
             .with_field(
                  &names.field_binding,
-                 Type::named(&names.assignment_target).required()
+                 Type::named(&names.binding_identifier).required()
             )
             .with_field(
                  &names.field_init,
-                 Type::named(&names.expression).required()
+                 Type::named(&names.expression).optional()
             );
 
-        builder.add_interface(&names.binary_expression).unwrap()
+        builder.add_interface(&names.setter).unwrap()
             .with_field(
-                 &names.field_operator,
-                 Type::named(&names.binary_operator).required()
+                 &names.field_parameter_scope,
+                 Type::named(&names.asserted_parameter_scope).optional()
             )
             .with_field(
-                 &names.field_left,
-                 Type::named(&names.expression).required()
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
             )
             .with_field(
-                 &names.field_right,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.try_catch_statement).unwrap()
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_param,
+                 Type::named(&names.parameter).required()
+            )
             .with_field(
                  &names.field_body,
-                 Type::named(&names.block).required()
-            )
-            .with_field(
-                 &names.field_catch_clause,
-                 Type::named(&names.catch_clause).required()
+                 Type::named(&names.function_body).required()
             );
 
-        builder.add_interface(&names.block).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_block_scope).optional()
-            )
-            .with_field(
-                 &names.field_statements,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.computed_member_expression).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
-            )
+        builder.add_interface(&names.computed_property_name).unwrap()
             .with_field(
                  &names.field_expression,
                  Type::named(&names.expression).required()
             );
 
-        builder.add_interface(&names.new_expression).unwrap()
+        builder.add_interface(&names.class_element).unwrap()
             .with_field(
-                 &names.field_callee,
-                 Type::named(&names.expression).required()
+                 &names.field_is_static,
+                 Type::bool().required()
             )
             .with_field(
-                 &names.field_arguments,
-                 Type::named(&names.arguments).required()
+                 &names.field_method,
+                 Type::named(&names.method_definition).required()
+            );
+
+        builder.add_interface(&names.assignment_target_property_identifier).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.assignment_target_identifier).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).optional()
             );
 
         builder.add_interface(&names.export_from_specifier).unwrap()
@@ -749,6 +2018,29 @@ impl Library {
                  &names.field_exported_name,
                  Type::named(&names.identifier_name).optional()
             );
+
+        builder.add_interface(&names.import).unwrap()
+            .with_field(
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
+            )
+            .with_field(
+                 &names.field_default_binding,
+                 Type::named(&names.binding_identifier).optional()
+            )
+            .with_field(
+                 &names.field_named_imports,
+                 Type::named(&names.import_specifier).required().array().required()
+            );
+
+        builder.add_interface(&names.spread_element).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.empty_statement).unwrap()
+;
 
         builder.add_interface(&names.switch_statement_with_default).unwrap()
             .with_field(
@@ -768,128 +2060,55 @@ impl Library {
                  Type::named(&names.switch_case).required().array().required()
             );
 
-        builder.add_interface(&names.identifier_expression).unwrap()
+        builder.add_interface(&names.await_expression).unwrap()
             .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier).required()
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
             );
 
-        builder.add_interface(&names.array_assignment_target).unwrap()
+        builder.add_interface(&names.static_member_expression).unwrap()
             .with_field(
-                 &names.field_elements,
+                 &names.field_object,
                  Type::sum(&[
-                     Type::named(&names.assignment_target),
-                     Type::named(&names.assignment_target_with_initializer)
-                 ]).required().array().required()
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
             )
             .with_field(
-                 &names.field_rest,
-                 Type::named(&names.assignment_target).optional()
+                 &names.field_property,
+                 Type::named(&names.identifier_name).required()
             );
 
-        builder.add_interface(&names.null).unwrap()
-;
-
-        builder.add_interface(&names.literal_infinity_expression).unwrap()
-;
-
-        builder.add_interface(&names.function_declaration).unwrap()
+        builder.add_interface(&names.literal_string_expression).unwrap()
             .with_field(
-                 &names.field_is_async,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_is_generator,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
-            )
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).required()
-            )
-            .with_field(
-                 &names.field_params,
-                 Type::named(&names.formal_parameters).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.function_body).required()
+                 &names.field_value,
+                 Type::named(&names.string).required()
             );
 
-        builder.add_interface(&names.if_statement).unwrap()
+        builder.add_interface(&names.unary_expression).unwrap()
+            .with_field(
+                 &names.field_operator,
+                 Type::named(&names.unary_operator).required()
+            )
+            .with_field(
+                 &names.field_operand,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.switch_case).unwrap()
             .with_field(
                  &names.field_test,
                  Type::named(&names.expression).required()
             )
             .with_field(
                  &names.field_consequent,
-                 Type::named(&names.statement).required()
-            )
-            .with_field(
-                 &names.field_alternate,
-                 Type::named(&names.statement).optional()
+                 Type::named(&names.statement).required().array().required()
             );
 
-        builder.add_interface(&names.literal_property_name).unwrap()
+        builder.add_interface(&names.template_element).unwrap()
             .with_field(
-                 &names.field_value,
+                 &names.field_raw_value,
                  Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.super_).unwrap()
-;
-
-        builder.add_interface(&names.import).unwrap()
-            .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
-            )
-            .with_field(
-                 &names.field_default_binding,
-                 Type::named(&names.binding_identifier).optional()
-            )
-            .with_field(
-                 &names.field_named_imports,
-                 Type::named(&names.import_specifier).required().array().required()
-            );
-
-        builder.add_interface(&names.object_expression).unwrap()
-            .with_field(
-                 &names.field_properties,
-                 Type::named(&names.object_property).required().array().required()
-            );
-
-        builder.add_interface(&names.try_finally_statement).unwrap()
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.block).required()
-            )
-            .with_field(
-                 &names.field_catch_clause,
-                 Type::named(&names.catch_clause).optional()
-            )
-            .with_field(
-                 &names.field_finalizer,
-                 Type::named(&names.block).required()
-            );
-
-        builder.add_interface(&names.assignment_expression).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.assignment_target).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.literal_numeric_expression).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::number().required()
             );
 
         builder.add_interface(&names.for_of_statement).unwrap()
@@ -909,179 +2128,24 @@ impl Library {
                  Type::named(&names.statement).required()
             );
 
-        builder.add_interface(&names.data_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.function_body).unwrap()
-            .with_field(
-                 &names.field_directives,
-                 Type::named(&names.directive).required().array().required()
-            )
-            .with_field(
-                 &names.field_statements,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.assignment_target_property_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::sum(&[
-                     Type::named(&names.assignment_target),
-                     Type::named(&names.assignment_target_with_initializer)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.switch_case).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.class_expression).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).optional()
-            )
-            .with_field(
-                 &names.field_super_,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_elements,
-                 Type::named(&names.class_element).required().array().required()
-            );
-
-        builder.add_interface(&names.formal_parameters).unwrap()
-            .with_field(
-                 &names.field_items,
-                 Type::named(&names.parameter).required().array().required()
-            )
-            .with_field(
-                 &names.field_rest,
-                 Type::named(&names.binding).optional()
-            );
-
-        builder.add_interface(&names.export).unwrap()
-            .with_field(
-                 &names.field_declaration,
-                 Type::sum(&[
-                     Type::named(&names.function_declaration),
-                     Type::named(&names.class_declaration),
-                     Type::named(&names.variable_declaration)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.while_statement).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
+        builder.add_interface(&names.try_catch_statement).unwrap()
             .with_field(
                  &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.binding_with_initializer).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
+                 Type::named(&names.block).required()
             )
             .with_field(
-                 &names.field_init,
+                 &names.field_catch_clause,
+                 Type::named(&names.catch_clause).required()
+            );
+
+        builder.add_interface(&names.switch_statement).unwrap()
+            .with_field(
+                 &names.field_discriminant,
                  Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.computed_property_name).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.this_expression).unwrap()
-;
-
-        builder.add_interface(&names.literal_boolean_expression).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::bool().required()
-            );
-
-        builder.add_interface(&names.static_member_assignment_target).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
             )
             .with_field(
-                 &names.field_property,
-                 Type::named(&names.identifier_name).required()
-            );
-
-        builder.add_interface(&names.setter).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
-            )
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
-            .with_field(
-                 &names.field_param,
-                 Type::named(&names.parameter).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.function_body).required()
-            );
-
-        builder.add_interface(&names.shorthand_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier_expression).required()
-            );
-
-        builder.add_interface(&names.function_expression).unwrap()
-            .with_field(
-                 &names.field_is_async,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_is_generator,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
-            )
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).optional()
-            )
-            .with_field(
-                 &names.field_params,
-                 Type::named(&names.formal_parameters).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.function_body).required()
+                 &names.field_cases,
+                 Type::named(&names.switch_case).required().array().required()
             );
 
         builder.add_interface(&names.class_declaration).unwrap()
@@ -1098,157 +2162,6 @@ impl Library {
                  Type::named(&names.class_element).required().array().required()
             );
 
-        builder.add_interface(&names.assignment_target_property_identifier).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.assignment_target_identifier).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.throw_statement).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.assignment_target_identifier).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier).required()
-            );
-
-        builder.add_interface(&names.binding_property_identifier).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding_identifier).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.empty_statement).unwrap()
-;
-
-        builder.add_interface(&names.update_expression).unwrap()
-            .with_field(
-                 &names.field_is_prefix,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.update_operator).required()
-            )
-            .with_field(
-                 &names.field_operand,
-                 Type::named(&names.simple_assignment_target).required()
-            );
-
-        builder.add_interface(&names.arrow_expression).unwrap()
-            .with_field(
-                 &names.field_is_async,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_params,
-                 Type::named(&names.formal_parameters).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::sum(&[
-                     Type::named(&names.function_body),
-                     Type::named(&names.expression)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.break_statement).unwrap()
-            .with_field(
-                 &names.field_label,
-                 Type::named(&names.label).optional()
-            );
-
-        builder.add_interface(&names.module).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
-            )
-            .with_field(
-                 &names.field_directives,
-                 Type::named(&names.directive).required().array().required()
-            )
-            .with_field(
-                 &names.field_items,
-                 Type::sum(&[
-                     Type::named(&names.import_declaration),
-                     Type::named(&names.export_declaration),
-                     Type::named(&names.statement)
-                 ]).required().array().required()
-            );
-
-        builder.add_interface(&names.switch_default).unwrap()
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.continue_statement).unwrap()
-            .with_field(
-                 &names.field_label,
-                 Type::named(&names.label).optional()
-            );
-
-        builder.add_interface(&names.computed_member_assignment_target).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.object_assignment_target).unwrap()
-            .with_field(
-                 &names.field_properties,
-                 Type::named(&names.assignment_target_property).required().array().required()
-            );
-
-        builder.add_interface(&names.getter).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.function_body).required()
-            );
-
-        builder.add_interface(&names.catch_clause).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.block).required()
-            );
-
-        builder.add_interface(&names.do_while_statement).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
         builder.add_interface(&names.conditional_expression).unwrap()
             .with_field(
                  &names.field_test,
@@ -1263,19 +2176,108 @@ impl Library {
                  Type::named(&names.expression).required()
             );
 
-        builder.add_interface(&names.export_default).unwrap()
+        builder.add_interface(&names.function_declaration).unwrap()
+            .with_field(
+                 &names.field_is_async,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_is_generator,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_parameter_scope,
+                 Type::named(&names.asserted_parameter_scope).optional()
+            )
+            .with_field(
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.binding_identifier).required()
+            )
+            .with_field(
+                 &names.field_params,
+                 Type::named(&names.formal_parameters).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.function_body).required()
+            );
+
+        builder.add_interface(&names.object_assignment_target).unwrap()
+            .with_field(
+                 &names.field_properties,
+                 Type::named(&names.assignment_target_property).required().array().required()
+            );
+
+        builder.add_interface(&names.arrow_expression).unwrap()
+            .with_field(
+                 &names.field_is_async,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_parameter_scope,
+                 Type::named(&names.asserted_parameter_scope).optional()
+            )
+            .with_field(
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_params,
+                 Type::named(&names.formal_parameters).required()
+            )
             .with_field(
                  &names.field_body,
                  Type::sum(&[
-                     Type::named(&names.function_declaration),
-                     Type::named(&names.class_declaration),
+                     Type::named(&names.function_body),
                      Type::named(&names.expression)
                  ]).required()
             );
 
-        builder.add_interface(&names.with_statement).unwrap()
+        builder.add_interface(&names.static_member_assignment_target).unwrap()
             .with_field(
                  &names.field_object,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_property,
+                 Type::named(&names.identifier_name).required()
+            );
+
+        builder.add_interface(&names.this_expression).unwrap()
+;
+
+        builder.add_interface(&names.literal_numeric_expression).unwrap()
+            .with_field(
+                 &names.field_value,
+                 Type::number().required()
+            );
+
+        builder.add_interface(&names.export_local_specifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_expression).required()
+            )
+            .with_field(
+                 &names.field_exported_name,
+                 Type::named(&names.identifier_name).optional()
+            );
+
+        builder.add_interface(&names.object_binding).unwrap()
+            .with_field(
+                 &names.field_properties,
+                 Type::named(&names.binding_property).required().array().required()
+            );
+
+        builder.add_interface(&names.while_statement).unwrap()
+            .with_field(
+                 &names.field_test,
                  Type::named(&names.expression).required()
             )
             .with_field(
@@ -1283,8 +2285,48 @@ impl Library {
                  Type::named(&names.statement).required()
             );
 
+        builder.add_interface(&names.binary_expression).unwrap()
+            .with_field(
+                 &names.field_operator,
+                 Type::named(&names.binary_operator).required()
+            )
+            .with_field(
+                 &names.field_left,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_right,
+                 Type::named(&names.expression).required()
+            );
+
         builder.add_interface(&names.debugger_statement).unwrap()
 ;
+
+        builder.add_interface(&names.export_all_from).unwrap()
+            .with_field(
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.getter).unwrap()
+            .with_field(
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.function_body).required()
+            );
+
+        builder.add_interface(&names.shorthand_property).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_expression).required()
+            );
 
         builder.add_interface(&names.import_namespace).unwrap()
             .with_field(
@@ -1300,102 +2342,13 @@ impl Library {
                  Type::named(&names.binding_identifier).required()
             );
 
-        builder.add_interface(&names.expression_statement).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.template_element).unwrap()
+        builder.add_interface(&names.directive).unwrap()
             .with_field(
                  &names.field_raw_value,
                  Type::named(&names.string).required()
             );
 
-        builder.add_interface(&names.template_expression).unwrap()
-            .with_field(
-                 &names.field_tag,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_elements,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.template_element)
-                 ]).required().array().required()
-            );
-
-        builder.add_interface(&names.new_target_expression).unwrap()
-;
-
-        builder.add_interface(&names.object_binding).unwrap()
-            .with_field(
-                 &names.field_properties,
-                 Type::named(&names.binding_property).required().array().required()
-            );
-
-        builder.add_interface(&names.export_from).unwrap()
-            .with_field(
-                 &names.field_named_exports,
-                 Type::named(&names.export_from_specifier).required().array().required()
-            )
-            .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.yield_star_expression).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.unary_expression).unwrap()
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.unary_operator).required()
-            )
-            .with_field(
-                 &names.field_operand,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.class_element).unwrap()
-            .with_field(
-                 &names.field_is_static,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_method,
-                 Type::named(&names.method_definition).required()
-            );
-
-        builder.add_interface(&names.literal_null_expression).unwrap()
-;
-
-        builder.add_interface(&names.binding_identifier).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier).required()
-            );
-
-        builder.add_interface(&names.return_statement).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.variable_declarator).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.method).unwrap()
+        builder.add_interface(&names.function_expression).unwrap()
             .with_field(
                  &names.field_is_async,
                  Type::bool().required()
@@ -1405,12 +2358,16 @@ impl Library {
                  Type::bool().required()
             )
             .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
+                 &names.field_parameter_scope,
+                 Type::named(&names.asserted_parameter_scope).optional()
+            )
+            .with_field(
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
             )
             .with_field(
                  &names.field_name,
-                 Type::named(&names.property_name).required()
+                 Type::named(&names.binding_identifier).optional()
             )
             .with_field(
                  &names.field_params,
@@ -1421,53 +2378,50 @@ impl Library {
                  Type::named(&names.function_body).required()
             );
 
-        builder.add_interface(&names.export_locals).unwrap()
+        builder.add_interface(&names.update_expression).unwrap()
             .with_field(
-                 &names.field_named_exports,
-                 Type::named(&names.export_local_specifier).required().array().required()
+                 &names.field_is_prefix,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_operator,
+                 Type::named(&names.update_operator).required()
+            )
+            .with_field(
+                 &names.field_operand,
+                 Type::named(&names.simple_assignment_target).required()
             );
 
-        builder.add_interface(&names.directive).unwrap()
+        builder.add_interface(&names.literal_property_name).unwrap()
             .with_field(
-                 &names.field_raw_value,
+                 &names.field_value,
                  Type::named(&names.string).required()
             );
 
-        builder.add_interface(&names.export_local_specifier).unwrap()
+        builder.add_interface(&names.import_specifier).unwrap()
             .with_field(
                  &names.field_name,
-                 Type::named(&names.identifier_expression).required()
-            )
-            .with_field(
-                 &names.field_exported_name,
                  Type::named(&names.identifier_name).optional()
-            );
-
-        builder.add_interface(&names.for_in_of_binding).unwrap()
-            .with_field(
-                 &names.field_kind,
-                 Type::named(&names.variable_declaration_kind).required()
             )
             .with_field(
                  &names.field_binding,
-                 Type::named(&names.binding).required()
+                 Type::named(&names.binding_identifier).required()
             );
 
-        builder.add_interface(&names.asserted_block_scope).unwrap()
+        builder.add_interface(&names.array_assignment_target).unwrap()
             .with_field(
-                 &names.field_lexically_declared_names,
-                 Type::named(&names.identifier_name).required().array().required()
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.assignment_target),
+                     Type::named(&names.assignment_target_with_initializer)
+                 ]).required().array().required()
             )
             .with_field(
-                 &names.field_captured_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_has_direct_eval,
-                 Type::bool().required()
+                 &names.field_rest,
+                 Type::named(&names.assignment_target).optional()
             );
 
-        builder.add_interface(&names.static_member_expression).unwrap()
+        builder.add_interface(&names.computed_member_expression).unwrap()
             .with_field(
                  &names.field_object,
                  Type::sum(&[
@@ -1476,8 +2430,50 @@ impl Library {
                  ]).required()
             )
             .with_field(
-                 &names.field_property,
-                 Type::named(&names.identifier_name).required()
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.block).unwrap()
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_block_scope).optional()
+            )
+            .with_field(
+                 &names.field_statements,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.object_expression).unwrap()
+            .with_field(
+                 &names.field_properties,
+                 Type::named(&names.object_property).required().array().required()
+            );
+
+        builder.add_interface(&names.with_statement).unwrap()
+            .with_field(
+                 &names.field_object,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.binding_identifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier).required()
+            );
+
+        builder.add_interface(&names.new_expression).unwrap()
+            .with_field(
+                 &names.field_callee,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_arguments,
+                 Type::named(&names.arguments).required()
             );
 
         builder.add_interface(&names.call_expression).unwrap()
@@ -1493,14 +2489,349 @@ impl Library {
                  Type::named(&names.arguments).required()
             );
 
-        builder.add_interface(&names.variable_declaration).unwrap()
+        builder.add_interface(&names.export_default).unwrap()
+            .with_field(
+                 &names.field_body,
+                 Type::sum(&[
+                     Type::named(&names.function_declaration),
+                     Type::named(&names.class_declaration),
+                     Type::named(&names.expression)
+                 ]).required()
+            );
+
+        builder.add_interface(&names.return_statement).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.script).unwrap()
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_directives,
+                 Type::named(&names.directive).required().array().required()
+            )
+            .with_field(
+                 &names.field_statements,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.break_statement).unwrap()
+            .with_field(
+                 &names.field_label,
+                 Type::named(&names.label).optional()
+            );
+
+        builder.add_interface(&names.expression_statement).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.literal_null_expression).unwrap()
+;
+
+        builder.add_interface(&names.function_body).unwrap()
+            .with_field(
+                 &names.field_directives,
+                 Type::named(&names.directive).required().array().required()
+            )
+            .with_field(
+                 &names.field_statements,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.if_statement).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_consequent,
+                 Type::named(&names.statement).required()
+            )
+            .with_field(
+                 &names.field_alternate,
+                 Type::named(&names.statement).optional()
+            );
+
+        builder.add_interface(&names.literal_reg_exp_expression).unwrap()
+            .with_field(
+                 &names.field_pattern,
+                 Type::named(&names.string).required()
+            )
+            .with_field(
+                 &names.field_flags,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.compound_assignment_expression).unwrap()
+            .with_field(
+                 &names.field_operator,
+                 Type::named(&names.compound_assignment_operator).required()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.simple_assignment_target).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.method).unwrap()
+            .with_field(
+                 &names.field_is_async,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_is_generator,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_parameter_scope,
+                 Type::named(&names.asserted_parameter_scope).optional()
+            )
+            .with_field(
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_params,
+                 Type::named(&names.formal_parameters).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.function_body).required()
+            );
+
+        builder.add_interface(&names.do_while_statement).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.asserted_parameter_scope).unwrap()
+            .with_field(
+                 &names.field_parameter_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_captured_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_has_direct_eval,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.try_finally_statement).unwrap()
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.block).required()
+            )
+            .with_field(
+                 &names.field_catch_clause,
+                 Type::named(&names.catch_clause).optional()
+            )
+            .with_field(
+                 &names.field_finalizer,
+                 Type::named(&names.block).required()
+            );
+
+        builder.add_interface(&names.catch_clause).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.block).required()
+            );
+
+        builder.add_interface(&names.module).unwrap()
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_directives,
+                 Type::named(&names.directive).required().array().required()
+            )
+            .with_field(
+                 &names.field_items,
+                 Type::sum(&[
+                     Type::named(&names.import_declaration),
+                     Type::named(&names.export_declaration),
+                     Type::named(&names.statement)
+                 ]).required().array().required()
+            );
+
+        builder.add_interface(&names.asserted_var_scope).unwrap()
+            .with_field(
+                 &names.field_lexically_declared_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_var_declared_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_captured_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_has_direct_eval,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.labelled_statement).unwrap()
+            .with_field(
+                 &names.field_label,
+                 Type::named(&names.label).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.template_expression).unwrap()
+            .with_field(
+                 &names.field_tag,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.template_element)
+                 ]).required().array().required()
+            );
+
+        builder.add_interface(&names.literal_infinity_expression).unwrap()
+;
+
+        builder.add_interface(&names.export_from).unwrap()
+            .with_field(
+                 &names.field_named_exports,
+                 Type::named(&names.export_from_specifier).required().array().required()
+            )
+            .with_field(
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.new_target_expression).unwrap()
+;
+
+        builder.add_interface(&names.assignment_target_property_property).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::sum(&[
+                     Type::named(&names.assignment_target),
+                     Type::named(&names.assignment_target_with_initializer)
+                 ]).required()
+            );
+
+        builder.add_interface(&names.array_expression).unwrap()
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.spread_element),
+                     Type::named(&names.expression)
+                 ]).optional().array().required()
+            );
+
+        builder.add_interface(&names.array_binding).unwrap()
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.binding),
+                     Type::named(&names.binding_with_initializer)
+                 ]).optional().array().required()
+            )
+            .with_field(
+                 &names.field_rest,
+                 Type::named(&names.binding).optional()
+            );
+
+        builder.add_interface(&names.literal_boolean_expression).unwrap()
+            .with_field(
+                 &names.field_value,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.throw_statement).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.for_in_statement).unwrap()
+            .with_field(
+                 &names.field_left,
+                 Type::sum(&[
+                     Type::named(&names.for_in_of_binding),
+                     Type::named(&names.assignment_target)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_right,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.identifier_expression).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier).required()
+            );
+
+        builder.add_interface(&names.yield_expression).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.super_).unwrap()
+;
+
+        builder.add_interface(&names.data_property).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.for_in_of_binding).unwrap()
             .with_field(
                  &names.field_kind,
                  Type::named(&names.variable_declaration_kind).required()
             )
             .with_field(
-                 &names.field_declarators,
-                 Type::named(&names.variable_declarator).required().array().required()
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
             );
 
         builder.add_interface(&names.for_statement).unwrap()
@@ -1524,13 +2855,12 @@ impl Library {
                  Type::named(&names.statement).required()
             );
 
-        builder.add_interface(&names.asserted_top_level_scope).unwrap()
+        builder.add_interface(&names.null).unwrap()
+;
+
+        builder.add_interface(&names.asserted_block_scope).unwrap()
             .with_field(
                  &names.field_lexically_declared_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_var_declared_names,
                  Type::named(&names.identifier_name).required().array().required()
             )
             .with_field(
@@ -1542,76 +2872,46 @@ impl Library {
                  Type::bool().required()
             );
 
-        builder.add_interface(&names.yield_expression).unwrap()
+        builder.add_interface(&names.variable_declarator).unwrap()
             .with_field(
-                 &names.field_expression,
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_init,
                  Type::named(&names.expression).optional()
             );
 
-        builder.add_interface(&names.array_expression).unwrap()
+        builder.add_interface(&names.export).unwrap()
             .with_field(
-                 &names.field_elements,
+                 &names.field_declaration,
                  Type::sum(&[
-                     Type::named(&names.spread_element),
-                     Type::named(&names.expression)
-                 ]).optional().array().required()
+                     Type::named(&names.function_declaration),
+                     Type::named(&names.class_declaration),
+                     Type::named(&names.variable_declaration)
+                 ]).required()
             );
 
-        builder.add_interface(&names.switch_statement).unwrap()
+        builder.add_interface(&names.variable_declaration).unwrap()
             .with_field(
-                 &names.field_discriminant,
-                 Type::named(&names.expression).required()
+                 &names.field_kind,
+                 Type::named(&names.variable_declaration_kind).required()
             )
             .with_field(
-                 &names.field_cases,
-                 Type::named(&names.switch_case).required().array().required()
+                 &names.field_declarators,
+                 Type::named(&names.variable_declarator).required().array().required()
             );
 
-        builder.add_interface(&names.export_all_from).unwrap()
+        builder.add_interface(&names.continue_statement).unwrap()
             .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
+                 &names.field_label,
+                 Type::named(&names.label).optional()
             );
 
-        builder.add_interface(&names.import_specifier).unwrap()
+        builder.add_interface(&names.assignment_target_identifier).unwrap()
             .with_field(
                  &names.field_name,
-                 Type::named(&names.identifier_name).optional()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding_identifier).required()
-            );
-
-        builder.add_interface(&names.compound_assignment_expression).unwrap()
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.compound_assignment_operator).required()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.simple_assignment_target).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.for_in_statement).unwrap()
-            .with_field(
-                 &names.field_left,
-                 Type::sum(&[
-                     Type::named(&names.for_in_of_binding),
-                     Type::named(&names.assignment_target)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_right,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
+                 Type::named(&names.identifier).required()
             );
 
         builder.add_interface(&names.binding_property_property).unwrap()
@@ -1627,69 +2927,89 @@ impl Library {
                  ]).required()
             );
 
-        builder.add_interface(&names.script).unwrap()
+        builder.add_interface(&names.switch_default).unwrap()
             .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_top_level_scope).optional()
-            )
-            .with_field(
-                 &names.field_directives,
-                 Type::named(&names.directive).required().array().required()
-            )
-            .with_field(
-                 &names.field_statements,
+                 &names.field_consequent,
                  Type::named(&names.statement).required().array().required()
             );
 
-        builder.add_interface(&names.await_expression).unwrap()
+        builder.add_interface(&names.computed_member_assignment_target).unwrap()
             .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.spread_element).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.literal_reg_exp_expression).unwrap()
-            .with_field(
-                 &names.field_pattern,
-                 Type::named(&names.string).required()
-            )
-            .with_field(
-                 &names.field_flags,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.labelled_statement).unwrap()
-            .with_field(
-                 &names.field_label,
-                 Type::named(&names.label).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.literal_string_expression).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.array_binding).unwrap()
-            .with_field(
-                 &names.field_elements,
+                 &names.field_object,
                  Type::sum(&[
-                     Type::named(&names.binding),
-                     Type::named(&names.binding_with_initializer)
-                 ]).optional().array().required()
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.yield_star_expression).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.assignment_target_with_initializer).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.assignment_target).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.assignment_expression).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.assignment_target).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.binding_with_initializer).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.export_locals).unwrap()
+            .with_field(
+                 &names.field_named_exports,
+                 Type::named(&names.export_local_specifier).required().array().required()
+            );
+
+        builder.add_interface(&names.formal_parameters).unwrap()
+            .with_field(
+                 &names.field_items,
+                 Type::named(&names.parameter).required().array().required()
             )
             .with_field(
                  &names.field_rest,
                  Type::named(&names.binding).optional()
+            );
+
+        builder.add_interface(&names.class_expression).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.binding_identifier).optional()
+            )
+            .with_field(
+                 &names.field_super_,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_elements,
+                 Type::named(&names.class_element).required().array().required()
             );
 
         names    }

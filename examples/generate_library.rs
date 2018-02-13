@@ -104,7 +104,7 @@ impl<'a> RustExporter<'a> {
             });
 
         let mut ast_buffer = String::new();
-        ast_buffer.push_str("pub mod ast {\nuse ::util::{ FromJSON, FromJSONError, ToJSON };\n    use std;\n    use json;\n    use json::JsonValue as JSON;");
+        ast_buffer.push_str("pub mod ast {\n    #![feature(box_patterns)]\n    use ::util::{ FromJSON, FromJSONError, ToJSON };\n    use std;\n    use json;\n    use json::JsonValue as JSON;");
 
         let mut struct_buffer = String::new();
         struct_buffer.push_str("pub struct Library {\n");
@@ -244,7 +244,7 @@ impl<'a> RustExporter<'a> {
                 }})
             }}
         }}
-    }}\n\n\n",
+    }}\n\n",
                                 name = name,
                                 kind = name,
                                 cases = sum.types()
@@ -261,8 +261,36 @@ impl<'a> RustExporter<'a> {
                                     })
                                     .format(",\n")
                                 );
+
+
+
+                            let to_json = format!("
+    impl ToJSON for {name} {{
+        fn export(&self) -> JSON {{
+            match *self {{
+{cases}
+            }}
+        }}
+    }}\n\n",
+                                name = name,
+                                cases = sum.types()
+                                    .iter()
+                                    .map(|t| {
+                                        if let TypeSpec::NamedType(ref case) = *t {
+                                            format!("               {name}::{constructor}(box ref value) => value.export()",
+                                                name = name,
+                                                constructor = case.to_class_cases())
+                                        } else {
+                                            panic!();
+                                        }
+                                    })
+                                    .format(",\n")
+                                );
+
                     buffer.push_str(&definition);
                     buffer.push_str(&from_json);
+                    buffer.push_str(&to_json);
+                    buffer.push_str("\n\n");
                 } else {
                     panic!()
                 }
@@ -346,6 +374,7 @@ impl<'a> RustExporter<'a> {
                         })
                         .format(",\n"),
                     name = name);
+
                 let from_json = format!("
     impl FromJSON for {name} {{
         fn import(value: &JSON) -> Result<Self, FromJSONError> {{
@@ -358,7 +387,7 @@ impl<'a> RustExporter<'a> {
             }}
             Ok({name} {{ {fields} }})
         }}
-    }}\n\n\n",
+    }}\n\n",
                     kind = name,
                     name = name,
                     fields = interface.contents()
@@ -369,8 +398,31 @@ impl<'a> RustExporter<'a> {
                             name = field.name().to_rust_identifier_case()))
                         .format(", ")
                     );
+
+                let to_json = format!("
+    impl ToJSON for {name} {{
+        fn export(&self) -> JSON {{
+            object!{{
+                \"type\" => json::from(\"{kind}\"),
+{fields}
+            }}
+        }}
+    }}\n\n",
+                    kind = name,
+                    name = name,
+                    fields = interface.contents()
+                        .fields()
+                        .iter()
+                        .map(|field| format!("                 \"{key}\" => self.{name}.export()",
+                            key = field.name().to_str(),
+                            name = field.name().to_rust_identifier_case()))
+                        .format(",\n")
+                    );
+
                 buffer.push_str(&definition);
                 buffer.push_str(&from_json);
+                buffer.push_str(&to_json);
+                buffer.push_str("\n\n\n");
             }
         }
         struct_buffer.push_str("    // String enum names (by lexicographical order)\n");
