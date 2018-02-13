@@ -466,3 +466,10 @@ impl Reindentable for Option<String> {
         }
     }
 }
+
+pub trait FromJSON: Sized {
+    fn import(json: &JSON) -> Result<Self, ()>; // FIXME: Having error messages would be nicer.
+}
+pub trait ToJSON {
+    fn export(&self) -> JSON;
+}

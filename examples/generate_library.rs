@@ -104,7 +104,7 @@ impl<'a> RustExporter<'a> {
             });
 
         let mut ast_buffer = String::new();
-        ast_buffer.push_str("pub mod ast {\n    use std;\n");
+        ast_buffer.push_str("pub mod ast {\nuse ::util::{ FromJSON, ToJSON };\n    use std;\n    use json;\n    use json::JsonValue as JSON;");
 
         let mut struct_buffer = String::new();
         struct_buffer.push_str("pub struct Library {\n");
@@ -141,13 +141,52 @@ impl<'a> RustExporter<'a> {
             names.sort();
             for name in names.drain(..) {
                 let string_enum = source.get(&name).unwrap();
-                let source = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub enum {name} {{\n{values}\n    }}\n\n",
-                    name = name.to_class_cases(),
+                let name = name.to_class_cases();
+                let definition = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub enum {name} {{\n{values}\n    }}\n",
+                    name = name,
                     values = string_enum.strings()
                         .iter()
                         .map(|s| format!("         {}", ToCases::to_cpp_enum_case(s)))
                         .format(",\n"));
-                buffer.push_str(&source);
+                let to_json = format!("
+    impl ToJSON for {name} {{
+        fn export(&self) -> JSON {{
+            json::from(match *self {{
+{cases}
+            }})
+        }}
+    }}\n\n",
+                    cases = string_enum.strings()
+                        .iter()
+                        .map(|s| format!("               {name}::{typed} => \"{string}\"",
+                            name = name,
+                            typed = s.to_cpp_enum_case(),
+                            string = s,
+                        ))
+                        .format(",\n"),
+                    name = name);
+
+                let from_json = format!("
+    impl FromJSON for {name} {{
+        fn import(source: &JSON) -> Result<Self, ()> {{
+            match source.as_str() {{
+{cases},
+                _ => Err(())
+            }}
+        }}
+    }}\n\n",
+                    cases = string_enum.strings()
+                        .iter()
+                        .map(|s| format!("               Some(\"{string}\") => Ok({name}::{typed})",
+                            name = name,
+                            typed = s.to_cpp_enum_case(),
+                            string = s,
+                        ))
+                        .format(",\n"),
+                    name = name);
+                buffer.push_str(&definition);
+                buffer.push_str(&from_json);
+                buffer.push_str(&to_json);
             }
         }
         fn print_ast_typedefs(buffer: &mut String, source: &HashMap<NodeName, Rc<Type>>) {
@@ -242,10 +281,6 @@ impl<'a> RustExporter<'a> {
             let mut names : Vec<_> = source.keys()
                 .collect();
             names.sort();
-            eprintln!("print_ast_interfaces:\n {}\n",
-                names.iter()
-                    .map(|s| s.to_string())
-                    .format(",\n "));
             for name in names.drain(..) {
                 let interface = source.get(name).unwrap();
                 let source = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub struct {name} {{\n{fields}\n    }}\n\n",
