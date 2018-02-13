@@ -229,3 +229,40 @@ impl TypeDeanonymizer {
 }
 
 
+
+pub struct TypeName;
+impl TypeName {
+    pub fn type_(type_: &Type) -> String {
+        let spec_name = Self::type_spec(type_.spec());
+        if type_.is_optional() {
+            format!("Optional{}", spec_name)
+        } else {
+            spec_name
+        }
+    }
+
+    pub fn type_spec(spec: &TypeSpec) -> String {
+        match *spec {
+            TypeSpec::Array { ref contents, supports_empty: false } =>
+                format!("NonEmptyListOf{}", Self::type_(contents)),
+            TypeSpec::Array { ref contents, supports_empty: true } =>
+                format!("ListOf{}", Self::type_(contents)),
+            TypeSpec::NamedType(ref name) =>
+                name.to_string().clone(),
+            TypeSpec::Boolean =>
+                "_Bool".to_string(),
+            TypeSpec::Number =>
+                "_Number".to_string(),
+            TypeSpec::String =>
+                "_String".to_string(),
+            TypeSpec::Void =>
+                "_Void".to_string(),
+            TypeSpec::TypeSum(ref sum) => {
+                format!("{}", sum.types()
+                    .iter()
+                    .map(Self::type_spec)
+                    .format("Or"))
+            }
+        }
+    }
+}

@@ -7,16 +7,25 @@ extern crate json;
 extern crate webidl;
 
 use binjs::ast::annotation::Annotator;
+use binjs::ast::export_utils::{ TypeDeanonymizer, TypeName };
 use binjs::ast::grammar::*;
 use binjs::ast::webidl::Importer;
 use binjs::util::{ ToCases };
 
-use std::collections::{ HashSet };
+use std::collections::{ HashMap, HashSet };
+use std::rc::Rc;
 use std::fs::*;
 use std::io::*;
 
 use clap::*;
 use itertools::Itertools;
+
+struct FakeAnnotator;
+impl Annotator for FakeAnnotator {
+    fn name(&self) -> String {
+        "FakeAnnotator".to_string()
+    }
+}
 
 /// Generate Rust source
 struct RustExporter<'a> {
@@ -43,6 +52,7 @@ impl<'a> RustExporter<'a> {
                 }
             )
     }
+
     pub fn type_spec(spec: &TypeSpec, prefix: &str) -> String {
         match *spec {
             TypeSpec::Array { ref contents, supports_empty: false } => {
@@ -85,6 +95,17 @@ impl<'a> RustExporter<'a> {
 
 
     pub fn to_rust_source(&self) -> String {
+        let fake_annotator = Box::new(FakeAnnotator);
+        let deanonymized = TypeDeanonymizer::new(&self.syntax)
+            .into_syntax(SyntaxOptions {
+                root: self.syntax.get_root_name(),
+                null: self.syntax.get_null_name(),
+                annotator: fake_annotator
+            });
+
+        let mut ast_buffer = String::new();
+        ast_buffer.push_str("pub mod ast {\n    use std;\n");
+
         let mut struct_buffer = String::new();
         struct_buffer.push_str("pub struct Library {\n");
 
@@ -98,7 +119,7 @@ impl<'a> RustExporter<'a> {
                 .collect();
             names.sort();
             for name in names {
-                let source = format!("    {snake}: NodeName,\n",
+                let source = format!("    pub {snake}: NodeName,\n",
                     snake = name.to_rust_identifier_case());
                 buffer.push_str(&source);
             }
@@ -114,20 +135,164 @@ impl<'a> RustExporter<'a> {
                 buffer.push_str(&source);
             }
         }
+        fn print_ast_string_enums(buffer: &mut String, source: &HashMap<NodeName, Rc<StringEnum>>) {
+            let mut names : Vec<_> = source.keys()
+                .collect();
+            names.sort();
+            for name in names.drain(..) {
+                let string_enum = source.get(&name).unwrap();
+                let source = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub enum {name} {{\n{values}\n    }}\n\n",
+                    name = name.to_class_cases(),
+                    values = string_enum.strings()
+                        .iter()
+                        .map(|s| format!("         {}", ToCases::to_cpp_enum_case(s)))
+                        .format(",\n"));
+                buffer.push_str(&source);
+            }
+        }
+        fn print_ast_typedefs(buffer: &mut String, source: &HashMap<NodeName, Rc<Type>>) {
+            let mut enums = vec![];
+            let mut options = vec![];
+            let mut lists = vec![];
+            let mut primitives = vec![];
+            let mut names : Vec<_> = source.keys()
+                .collect();
+            names.sort();
+            for name in names.drain(..) {
+                // Since the source is deanonymized, all type definitions are just one layer deep.
+                let typedef = source.get(name).unwrap();
+                if typedef.is_optional() {
+                    options.push(name);
+                } else {
+                    match *typedef.spec() {
+                        TypeSpec::TypeSum(_) => { enums.push(name); }
+                        TypeSpec::Array{ .. } => { lists.push(name); }
+                        TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => { primitives.push(name); }
+                        _ => { buffer.push_str(&format!("    // UNIMPLEMENTED: {}\n", name)); }
+                    }
+                }
+            }
+            buffer.push_str("\n\n    // Type sums (by lexicographical order)\n");
+            for name in enums.drain(..) {
+                let typedef = source.get(name).unwrap();
+                if let TypeSpec::TypeSum(ref sum) = *typedef.spec() {
+                    let source = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub enum {name} {{\n{contents}\n    }}\n\n",
+                        name = name.to_class_cases(),
+                        contents = sum.types()
+                            .iter()
+                            .map(|t| {
+                                if let TypeSpec::NamedType(ref case) = *t {
+                                    format!("        {name}(Box<{name}>)",
+                                        name = case.to_class_cases())
+                                } else {
+                                    panic!();
+                                }
+                            })
+                            .format(",\n"));
+                    buffer.push_str(&source);
+                } else {
+                    panic!()
+                }
+            }
+            buffer.push_str("\n\n    // Aliases to primitive types (by lexicographical order)\n");
+            for name in primitives.drain(..) {
+                let typedef = source.get(name).unwrap();
+                let source = format!("     pub type {name} = {contents};\n",
+                    name = name.to_class_cases(),
+                    contents = match *typedef.spec() {
+                        TypeSpec::Boolean => "bool",
+                        TypeSpec::Number => "u32",
+                        TypeSpec::String => "std::string::String",
+                        TypeSpec::Void => "()",
+                        _ => panic!("Unexpected type in alias to a primitive type: {name}",
+                            name = name)
+                    });
+                buffer.push_str(&source);
+            }
+            buffer.push_str("\n\n    // Aliases to list types (by lexicographical order)\n");
+            for name in lists.drain(..) {
+                let typedef = source.get(name).unwrap();
+                if let TypeSpec::Array { ref contents, .. } = *typedef.spec() {
+                    if let TypeSpec::NamedType(ref contents) = *contents.spec() {
+                        let source = format!("    pub type {name} = Vec<{contents}>;\n",
+                            name = name.to_class_cases(),
+                            contents = contents.to_class_cases());
+                        buffer.push_str(&source);
+                        continue;
+                    }
+                }
+                panic!("Could not implement alias to list type {name}: {contents:?}",
+                    contents = typedef.spec(),
+                    name = name);
+            }
+            buffer.push_str("\n\n    // Aliases to optional types (by lexicographical order)\n");
+            for name in options.drain(..) {
+                let typedef = source.get(name).unwrap();
+                if let TypeSpec::NamedType(ref contents) = *typedef.spec() {
+                    let source = format!("    pub type {name} = Option<{contents}>;\n",
+                        name = name.to_class_cases(),
+                        contents = contents.to_class_cases());
+                    buffer.push_str(&source);
+                } else {
+                    panic!();
+                }
+            }
+        }
+        fn print_ast_interfaces(buffer: &mut String, source: &HashMap<NodeName, Rc<Interface>>) {
+            let mut names : Vec<_> = source.keys()
+                .collect();
+            names.sort();
+            eprintln!("print_ast_interfaces:\n {}\n",
+                names.iter()
+                    .map(|s| s.to_string())
+                    .format(",\n "));
+            for name in names.drain(..) {
+                let interface = source.get(name).unwrap();
+                let source = format!("    #[derive(PartialEq, Eq, Debug, Clone)]\n    pub struct {name} {{\n{fields}\n    }}\n\n",
+                    fields = interface.contents().fields()
+                        .iter()
+                        .map(|field| {
+                            let spec =
+                                if field.type_().is_optional() {
+                                    TypeName::type_(field.type_())
+                                } else {
+                                    match *field.type_().spec() {
+                                        TypeSpec::NamedType(ref contents) => contents.to_class_cases(),
+                                        TypeSpec::Boolean => "bool".to_string(),
+                                        TypeSpec::Number => "u32".to_string(),
+                                        TypeSpec::String => "String".to_string(),
+                                        TypeSpec::Void => "()".to_string(),
+                                        _ => TypeName::type_(field.type_())
+                                    }
+                                };
+                            format!("        {name}: {contents}",
+                                name = field.name().to_rust_identifier_case(),
+                                contents = spec)
+                        })
+                        .format(",\n"),
+                    name = name.to_class_cases());
+                buffer.push_str(&source);
+            }
+        }
         struct_buffer.push_str("    // String enum names (by lexicographical order)\n");
         impl_buffer.push_str("            // String enum names (by lexicographical order)\n");
+        ast_buffer.push_str("     // String enums (by lexicographical order)\n");
         print_struct_names(&mut struct_buffer, self.syntax.string_enums_by_name().keys());
         print_impl_names(&mut impl_buffer, self.syntax.string_enums_by_name().keys());
+        print_ast_string_enums(&mut ast_buffer, deanonymized.string_enums_by_name());
 
         struct_buffer.push_str("\n\n    // Typedef names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n            // Typedef names (by lexicographical order)\n");
         print_struct_names(&mut struct_buffer, self.syntax.typedefs_by_name().keys());
         print_impl_names(&mut impl_buffer, self.syntax.typedefs_by_name().keys());
+        print_ast_typedefs(&mut ast_buffer, deanonymized.typedefs_by_name());
 
         struct_buffer.push_str("\n\n    // Interface names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n            // Interface names (by lexicographical order)\n");
+        ast_buffer.push_str("\n\n     // Interfaces (by lexicographical order)\n");
         print_struct_names(&mut struct_buffer, self.syntax.interfaces_by_name().keys());
         print_impl_names(&mut impl_buffer, self.syntax.interfaces_by_name().keys());
+        print_ast_interfaces(&mut ast_buffer, deanonymized.interfaces_by_name());
 
         struct_buffer.push_str("\n\n\n    // Field names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n\n            // Field names (by lexicographical order)\n");
@@ -141,7 +306,7 @@ impl<'a> RustExporter<'a> {
         fields.sort();
         for name in fields {
             let snake = name.to_rust_identifier_case();
-            let struct_source = format!("    field_{snake}: FieldName,\n",
+            let struct_source = format!("    pub field_{snake}: FieldName,\n",
                 snake = snake);
             struct_buffer.push_str(&struct_source);
 
@@ -154,6 +319,7 @@ impl<'a> RustExporter<'a> {
 
         impl_buffer.push_str("        };\n");
         struct_buffer.push_str("}");
+        ast_buffer.push_str("}");
 
 
         impl_buffer.push_str("\n\n\n        // Enumerations\n");
@@ -191,9 +357,9 @@ impl<'a> RustExporter<'a> {
             impl_buffer.push_str(&impl_source);
         }
 
-
         impl_buffer.push_str("        names    }\n}\n");
-        format!("// This file is autogenerated.\nuse ast::grammar::*;\n\n\n{struct_}\n{impl_}",
+        format!("// This file is autogenerated.\nuse ast::grammar::*;\n\n\n{ast_}\n{struct_}\n{impl_}",
+            ast_ = ast_buffer,
             struct_ = struct_buffer,
             impl_ = impl_buffer)
     }
@@ -238,12 +404,6 @@ fn main() {
     let null = builder.node_name("_Null");
     builder.add_interface(&null)
         .unwrap();
-    struct FakeAnnotator;
-    impl Annotator for FakeAnnotator {
-        fn name(&self) -> String {
-            "FakeAnnotator".to_string()
-        }
-    }
     let fake_annotator = Box::new(FakeAnnotator);
     let syntax = builder.into_syntax(SyntaxOptions {
             root: &fake_root,

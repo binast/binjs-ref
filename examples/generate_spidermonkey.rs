@@ -11,7 +11,7 @@ extern crate yaml_rust;
 use binjs::ast::annotation::Annotator;
 use binjs::ast::grammar::*;
 use binjs::ast::webidl::Importer;
-use binjs::ast::export_utils::TypeDeanonymizer;
+use binjs::ast::export_utils::{ TypeDeanonymizer, TypeName };
 use binjs::util::{ Reindentable, ToCases };
 
 use std::collections::{ HashMap, HashSet };
@@ -99,91 +99,6 @@ pub struct GenerationRules {
     hpp_tokens_field_doc: Option<String>,
     per_node: HashMap<NodeName, NodeParsingRules>,
 }
-
-struct TypeName;
-impl TypeName {
-    pub fn type_(type_: &Type) -> String {
-        let spec_name = Self::type_spec(type_.spec());
-        if type_.is_optional() {
-            format!("Optional{}", spec_name)
-        } else {
-            spec_name
-        }
-    }
-
-    pub fn type_spec(spec: &TypeSpec) -> String {
-        match *spec {
-            TypeSpec::Array { ref contents, supports_empty: false } =>
-                format!("NonEmptyListOf{}", Self::type_(contents)),
-            TypeSpec::Array { ref contents, supports_empty: true } =>
-                format!("ListOf{}", Self::type_(contents)),
-            TypeSpec::NamedType(ref name) =>
-                name.to_string().clone(),
-            TypeSpec::Boolean =>
-                "_Bool".to_string(),
-            TypeSpec::Number =>
-                "_Number".to_string(),
-            TypeSpec::String =>
-                "_String".to_string(),
-            TypeSpec::Void =>
-                "_Void".to_string(),
-            TypeSpec::TypeSum(ref sum) => {
-                format!("{}", sum.types()
-                    .iter()
-                    .map(Self::type_spec)
-                    .format("Or"))
-            }
-        }
-    }
-}
-
-/*
-/// Generate Rust source
-struct ToRust;
-impl ToRust {
-    pub fn type_(type_: &Type) -> String {
-        let pretty_type = Self::type_spec(type_.spec);
-        match self.defaults_to {
-            None => format!("{}.close()", pretty_type),
-            Some(JSON::Null) => {
-                format!("{}.defaults_to(JSON::Null)",
-                    pretty_type)
-            }
-            _ => unimplemented!()
-        }
-    }
-    pub fn type_spec(spec: &TypeSpec) -> String {
-        match *spec {
-            TypeSpec::Array { ref contents, supports_empty: false } => {
-                format!("{}.non_empty_array()", Self::type_spec(contents))
-            }
-            TypeSpec::Array { ref contents, supports_empty: true } => {
-                format!("{}.array()", Self::type_spec(contents))
-            }
-            TypeSpec::Boolean => "Type::bool()".to_string(),
-            TypeSpec::String => "Type::string()".to_string(),
-            TypeSpec::Number => "Type::number()".to_string(),
-            TypeSpec::NamedType(ref name) => format!("Type::named(&{})", to_rust_case(name.to_str())),
-            TypeSpec::TypeSum(ref types) => {
-                let mut source = String::new();
-                let mut first = true;
-                for type_ in types.types() {
-                    if first {
-                        first = false;
-                    } else {
-                        source.push_str(",");
-                    }
-                    source.push_str("\n\t");
-                    source.push_str(&Self::type_(type_))
-                }
-                format!("Type::sum(&[{}\n])", source)
-            }
-            TypeSpec::Void => "void".to_string()
-        }
-    }
-}
-
-*/
 
 struct ToWebidl;
 impl ToWebidl {
