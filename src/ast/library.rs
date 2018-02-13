@@ -8,14 +8,12 @@
 //!
 
 use ast::grammar::*;
-use ast::annotation::*;
-use ast::annotation::ScopeNodeName;
-use util::JSONGetter;
+use util::{ FromJSON, ToJSON };
+use json::JsonValue as JSON;
 
 use std;
-
-use json::JsonValue as JSON;
-use json::object::Object as Object;
+use std::cell::RefCell;
+use std::collections::{  HashSet };
 
 pub static TOPLEVEL_SCOPE_NAME: &'static str = "AssertedTopLevelScope";
 pub static BLOCK_SCOPE_NAME: &'static str = "AssertedBlockScope";
@@ -45,377 +43,410 @@ impl std::fmt::Display for Level {
     }
 }
 
-fn uses_strict(object: &Object) -> bool {
-    for member in object["directives"].members() {
-        if let Some("use strict") = member["value"]["value"].as_str() {
-            return true;
-        }
-    }
-    false
-}
 
 /// Special nodes used by BINJS. Not visible at source level.
-fn setup_binjs(_: &mut SyntaxBuilder) -> Box<Annotator> {
+fn setup_binjs(_: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
     struct BaseAnnotator;
     impl Annotator for BaseAnnotator {
-        fn name(&self) -> String {
-            "BaseAnnotator".to_string()
-        }
-
-        fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
-            // Default case: no free variable here, just process.
-            for (name, field) in object.iter_mut() {
-                if let Ok(mut ctx) = ctx.enter_field(name) {
-                    me.process_references_aux(me, &mut ctx, field)?;
-                }
-            }
-            // Dropping `ctx` will propagate everything to the parent.
-            Ok(())
-        }
-        fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError> {
-            // Default case: no declaration here, just process.
-            for (name, field) in object.iter_mut() {
-                if let Ok(mut ctx) = ctx.enter_field(name) {
-                    me.process_declarations_aux(me, &mut ctx, field)?;
-                }
-            }
-            Ok(())
+        fn annotate(&mut self, _: &mut JSON) {
+            // Nothing to do.
         }
     }
 
-    Box::new(BaseAnnotator)
+    Box::new(RefCell::new(BaseAnnotator))
 }
 
-fn setup_es6(syntax: &mut SyntaxBuilder, parent: Box<Annotator>) -> Box<Annotator> {
+fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
     use ast::library_es6_generated;
+    use ast::library_es6_generated::ast::*;
     let _names = library_es6_generated::Library::new(syntax) ;
 
-    struct ES6Annotator {
-        parent: Box<Annotator>,
+    #[derive(Debug, PartialEq, Eq)]
+    enum BindingKind {
+        Var,
+        Lex,
+        Param,
+        Implicit,
     }
-    impl Annotator for ES6Annotator {
-        fn name(&self) -> String {
-            "ES6Annotator".to_string()
+    // FIXME: Perform `hasDirectEval` cleanup if we realize that `eval` is bound.
+    struct AnnotationVisitor {
+        var_names: HashSet<String>,
+        lex_names: HashSet<String>,
+        param_names: HashSet<String>,
+        free_names_in_current_function: HashSet<String>,
+        free_names_in_nested_function: HashSet<String>,
+        binding_kind_stack: Vec<BindingKind>,
+    }
+    impl AnnotationVisitor {
+        fn new() -> Self {
+            Self {
+                var_names: HashSet::new(),
+                lex_names: HashSet::new(),
+                param_names: HashSet::new(),
+                free_names_in_current_function: HashSet::new(),
+                free_names_in_nested_function: HashSet::new(),
+                binding_kind_stack: vec![],
+            }
+        }
+        fn pop_captured_names(&mut self, bindings: &[&HashSet<String>]) -> Vec<String> {
+            // FIXME: It might be possible to optimize this by reverting the lookup,
+            // i.e. lookup in `bindings` first and in `free_names_in_nested_function` later.
+            let mut captured_names = vec![];
+            for name in &self.free_names_in_nested_function {
+                for binding in bindings {
+                    if binding.contains(name) {
+                        captured_names.push(name.to_string());
+                    }
+                }
+            }
+            for name in &captured_names {
+                self.free_names_in_nested_function.remove(name);
+            }
+            captured_names.sort();
+            captured_names
         }
 
-        fn process_declarations(&self, me: &Annotator, ctx: &mut Context<DeclContents>, object: &mut Object) -> Result<(), ASTError> {
-            debug!(target: "library", "Visiting {}", ctx.kind_str());
-            match ctx.kind_str() {
-                "BindingIdentifier" => {
-                    // Collect the name of the identifier.
-                    let name = object.get_string("name", "Field `name` of `BindingIdentifier`")?;
-                    let parent = match ctx.contents().parent() {
-                        Some(parent) => parent,
-                        None => return Ok(()) // If we are at toplevel, we don't really care about all this.
-                    };
-                    debug!(target: "library", "While visiting {kind}, found name {name} with parent {parent:?}[{field:?}]",
-                        parent = ctx.contents().parent().map(|x| x.borrow().kind_str().to_string()),
-                        name = name,
-                        kind = ctx.kind_str(),
-                        field = parent.borrow().field_str(),
-                    );
-                    let mut parent = parent.borrow_mut();
-                    match parent.kind_str() {
-                        // FIXME: This would probably be much nicer if we had an iterator of ancestors.
-                        "FunctionDeclaration" if parent.field_str().unwrap_or("?") == "name" => {
-                            // Ok, this is the name of the function.
-                            //
-                            // Since we are declaring the function, it is either a `var` or a `let`.
-                            //
-                            // 1. If the declaration is at the toplevel, this is a `var`.
-                            // 2. If the declaration is in a function's toplevel block, this is a `var`.
-                            // 3. Otherwise, this is a `let`.
-                            if let Some(grand) = parent.parent() {
-                                let mut grand = grand.borrow_mut();
-                                if let "FunctionBody" = grand.kind_str() {
-                                    // Case 2.
-                                    grand.add_var_name(name)
-                                } else {
-                                    // Case 3.
-                                    grand.add_let_name(name)
-                                }
-                            } else {
-                                // Case 1.
-                                ctx.add_var_name(name);
-                            }
-                        },
-                        "FunctionDeclaration" | "Method" | "Setter" | "FunctionExpression"
-                            if ["param", "params"].iter().find(|s| **s == parent.field_str().unwrap_or("?")).is_some() =>
-                        {
-                            // Declaring an argument.
-                            ctx.add_param_name(name);
-                        }
-                        "ForStatement" => {
-                            // Handle `for (c = 0; ...; ...)` where `c` is declared implicitly.
-                            if let Some("init") = parent.field_str() {
-                                if !parent.is_lex_bound(&name) {
-                                    parent.add_var_name(name);
-                                }
-                            }
-                        }
-                        "ForInStatement" => {
-                            // Handle `for (c in ...)` where `c` is declared implicitly.
-                            if let Some("left") = parent.field_str() {
-                                if !parent.is_lex_bound(&name) {
-                                    parent.add_var_name(name);
-                                }
-                            }
-                        }
-                        "CatchClause" => {
-                            // Now, there is an invisible hack here.
-                            //
-                            // We want to know about any binding that happens here,
-                            // but only to avoid false positives in case of a
-                            // `catch (eval) { ... }`.
-                            //
-                            // On the other hand, the syntax for ES6 does not
-                            // recognize any field named `scope` for `CatchClause`,
-                            // so this information is trimmed away during encoding.
-                            if let Some("binding") = parent.field_str() {
-                                if !parent.is_lex_bound(&name) {
-                                    parent.add_let_name(name);
-                                }
-                            }
-                        }
-                        "VariableDeclarator" | "ForInOfBinding" => {
-                            if let Some("binding") = parent.field_str() {
-                                debug!(target: "library", "Inserting binding");
-                                match parent.scope_kind() {
-                                    ScopeNodeName::VarDecl => parent.add_var_name(name),
-                                    ScopeNodeName::LetDecl => parent.add_let_name(name),
-                                    ScopeNodeName::ConstDecl => parent.add_const_name(name),
-                                    _ => return Err(ASTError::InvalidScope)
-                                }
-                            } else {
-                                debug!(target: "library", "Skipping binding {:?}", parent.field_str());
-                            }
-                            // Otherwise, skip. We cannot declare variables in `init`.
-                        }
-                        // FIXME: We should do something with these names. Either store them seomwhere
-                        // or remove from `unknown_names`.
-                        "FormalParameters" => {
-                            ctx.clear_arg_names(&[name]);
-                        },
-                        _ => {
-                            // We don't know what this identifier is yet. Could be declared
-                            // in some enclosing scope or never, in which case it is implicitly
-                            // a global variable.
-                            parent.add_unknown_name(name)
-                        }
-                    }
-                }
-                "CatchClause" => {
-                    ctx.set_scope_kind(ScopeNodeName::LetDecl);
-                    self.parent.process_declarations(me, ctx, object)?;
+        fn pop_block_scope(&mut self) -> Option<AssertedBlockScope> {
+            let mut lex_names = HashSet::new();
+            std::mem::swap(&mut self.lex_names, &mut lex_names);
 
-                    // Store available information.
-                    ctx.store(object, ScopeKind::Block);
+            let captured_names = self.pop_captured_names(&[&lex_names]);
+            let mut lex_names : Vec<_> = lex_names.drain().collect();
+            lex_names.sort();
 
-                    // Drop LexDecl, keep VarDecl
-                    ctx.clear_lex_names();
-                }
-                "VariableDeclaration" | "ForInOfBinding" => {
-                    // Configure the scope kind.
-                    let scope_kind = {
-                        let variable_kind = object.get_string("kind", "Field `kind` of `VariableDeclaration`")?;
-                        match variable_kind {
-                            "let" => ScopeNodeName::LetDecl,
-                            "const" => ScopeNodeName::ConstDecl,
-                            "var" => ScopeNodeName::VarDecl,
-                            _ => return Err(ASTError::invalid_value(
-                                object.get("kind").unwrap(), // Checked just above.
-                                "let | var | const"
-                            ))
-                        }
-                    };
-                    ctx.set_scope_kind(scope_kind);
+            let has_direct_eval = self.free_names_in_current_function.contains("eval")
+                                || self.free_names_in_nested_function.contains("eval");
+            if lex_names.len() > 0 || has_direct_eval /* implied || captured_var_names.len() > 0 */ {
+                Some(AssertedBlockScope {
+                    lexically_declared_names: lex_names,
+                    captured_names,
+                    has_direct_eval
+                })
+            } else {
+                None
+            }
+        }
 
-                    // Then proceed as usual.
-                    self.parent.process_declarations(me, ctx, object)?;
-                }
-                "Block" | "ForStatement" | "ForInStatement"  => {
-                    // Adopt usual behavior.
-                    self.parent.process_declarations(me, ctx, object)?;
+        /// Return the current AssertedVarScope, cleaning up `var_names`, `lex_names` and `free_names_in_nested_function`.
+        ///
+        /// Invariant: `var_names` and `lex_names` are empty at the end.
+        fn pop_var_scope(&mut self) -> Option<AssertedVarScope> {
+            let mut var_names = HashSet::new();
+            std::mem::swap(&mut self.var_names, &mut var_names);
 
-                    // Store available information.
-                    ctx.store(object, ScopeKind::Block);
+            let mut lex_names = HashSet::new();
+            std::mem::swap(&mut self.lex_names, &mut lex_names);
 
-                    // Drop LexDecl, keep VarDecl
-                    ctx.clear_lex_names();
-                }
-                "Script" | "Module" => {
-                    // Check directives
-                    if uses_strict(object) {
-                        ctx.set_uses_strict(true);
-                    }
+            let captured_names = self.pop_captured_names(&[&var_names, &lex_names]);
 
-                    // Adopt usual behavior.
-                    self.parent.process_declarations(me, ctx, object)?;
+            let mut var_names : Vec<_> = var_names.drain().collect();
+            var_names.sort();
+            let mut lex_names : Vec<_> = lex_names.drain().collect();
+            lex_names.sort();
 
-                    // Store available information.
-                    ctx.clear_special_unknown_names(&["eval"]);
-                    ctx.promote_unknown_names_to_var();
-                    ctx.store(object, ScopeKind::Var);
-                }
-                "FunctionDeclaration" | "Getter"  | "Setter" | "Method" | "FunctionExpression"  => {
-                    // Check directives.
-                    let uses_strict = ctx.uses_strict() ||
-                        if let JSON::Object(ref body) = object["body"] {
-                            uses_strict(body)
-                        } else {
-                            false
-                        };
-                    if uses_strict {
-                        ctx.set_uses_strict(true);
-                    }
+            let has_direct_eval = self.free_names_in_current_function.contains("eval")
+                                || self.free_names_in_nested_function.contains("eval");
+            if var_names.len() > 0 || lex_names.len() > 0 || has_direct_eval /* implied || captured_var_names.len() > 0 */ {
+                Some(AssertedVarScope {
+                    lexically_declared_names: lex_names,
+                    var_declared_names: var_names,
+                    captured_names,
+                    has_direct_eval
+                })
+            } else {
+                None
+            }
+        }
+        /// Return the current param scope, cleaning up `param_names` and `free_names_in_nested_function`.
+        ///
+        /// Invariant: `param_names` is empty at the end.
+        fn pop_param_scope(&mut self) -> Option<AssertedParameterScope> {
+            if self.param_names.len() == 0 {
+                return None;
+            }
+            let mut param_names = HashSet::new();
+            std::mem::swap(&mut self.param_names, &mut param_names);
+            let captured_names = self.pop_captured_names(&[&param_names]);
 
-                    // Adopt usual behavior.
-                    // FIXME: That's not what we want.
-                    self.parent.process_declarations(me, ctx, object)?;
+            let has_direct_eval = self.free_names_in_current_function.contains("eval")
+                                || self.free_names_in_nested_function.contains("eval");
+            if self.param_names.len() > 0 || has_direct_eval /* implied || captured_names.len() > 0 */ {
+                let mut param_names : Vec<_> = self.param_names.drain().collect();
+                param_names.sort();
+                Some(AssertedParameterScope {
+                    parameter_names: param_names,
+                    captured_names,
+                    has_direct_eval
+                })
+            } else {
+                None
+            }
+        }
+    }
 
-                    // Store available information.
-                    // FIXME: Are we storing the arguments?
-                    ctx.store(object, ScopeKind::Var);
+    impl Visitor<()> for AnnotationVisitor {
+        // Identifiers
 
-                    // Drop LexDecl and VarDecl
-                    ctx.clear_lex_names();
-                    ctx.clear_var_names();
+        fn exit_identifier_expression(&mut self, _path: &ASTPath, node: &mut IdentifierExpression) -> Result<(), ()> {
+            self.free_names_in_current_function.insert(node.name.clone());
+            Ok(())
+        }
+        
 
-/*
-                    let mut arg_names = vec![];
-                    for param in object["params"]["items"].members() {
-                        if let Some("BindingIdentifier") = param["type"].as_str() {
-                            arg_names.push(param["name"].as_str().unwrap())
-                        } else {
-                            unimplemented!()
-                        }
-                    }
-                    ctx.clear_arg_names(&arg_names);
-*/
-                }
-                _ => {
-                    // Default to parent implementation.
-                    // Note that we still pass `me` to ensure dynamic dispatch.
-                    self.parent.process_declarations(me, ctx, object)?
-                }
+        fn exit_binding_identifier(&mut self, _path: &ASTPath, node: &mut BindingIdentifier) -> Result<(), ()> {
+            debug!(target: "annotating", "exit_binding identifier – marking {name} at {path:?}",
+                name = node.name,
+                path = _path);
+            let scope = match *self.binding_kind_stack.last().unwrap() {
+                BindingKind::Var => Some(&mut self.var_names),
+                BindingKind::Lex => Some(&mut self.lex_names),
+                BindingKind::Param => Some(&mut self.param_names),
+                BindingKind::Implicit => None,
+            };
+            if let Some(scope) = scope {
+                scope.insert(node.name.clone());
             }
             Ok(())
         }
 
-        fn process_references(&self, me: &Annotator, ctx: &mut Context<RefContents>, object: &mut Object) -> Result<(), ASTError> {
-            match ctx.kind_str() {
-                "IdentifierExpression" => {
-                    let name = object.get_string("name", "Field `name` of `IdentifierExpression`")?;
-                    let parent = match ctx.contents().parent() {
-                        Some(parent) => parent,
-                        None => return Ok(()) // If we are at toplevel, we don't really care about all this.
-                    };
-                    let mut parent = parent.borrow_mut();
 
-                    match parent.kind_str() {
-                        "CallExpression" if name == "eval" => {
-                            debug!(target: "library", "Encountered mention of `eval`");
-                            if let Some("callee") = parent.field_str() {
-                                debug!(target: "library", "Encountered CALL to `eval`");
+        // Blocks
 
-                                if !parent.is_bound("eval") {
-                                    debug!(target: "library", "Encountered DIRECT call to `eval`");
-                                    parent.add_direct_eval()
-                                } else {
-                                    debug!(target: "library", "Actually NOT a direct call to `eval`");
-                                }
-                            } else {
-                                debug!(target: "library", "Oh, my bad, `eval` is not the callee");
-                                parent.add_free_name(name)
-                            }
-                        }
-                        _ => ctx.add_free_name(name)
-                    }
+        fn exit_block(&mut self, _path: &ASTPath, node: &mut Block) -> Result<(), ()> {
+            node.scope = self.pop_block_scope();
+            Ok(())
+        }
+
+        fn exit_script(&mut self, _path: &ASTPath, node: &mut Script) -> Result<(), ()> {
+            node.scope = self.pop_var_scope();
+            // FIXME: We may need to promote free names to `var` names.
+            Ok(())
+        }
+
+        fn exit_module(&mut self, _path: &ASTPath, node: &mut Module) -> Result<(), ()> {
+            node.scope = self.pop_var_scope();
+            // FIXME: We may need to promote free names to `var` names.
+            Ok(())
+        }
+
+        // Try/Catch
+        fn enter_catch_clause(&mut self, _path: &ASTPath, _node: &mut CatchClause) -> Result<(), ()> {
+            self.binding_kind_stack.push(BindingKind::Implicit);
+            Ok(())
+        }
+        fn exit_catch_clause(&mut self, _path: &ASTPath, _node: &mut CatchClause) -> Result<(), ()> {
+            assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Implicit));
+            Ok(())
+        }
+
+        // Explicit variable declarations
+
+        fn enter_for_in_of_binding(&mut self, _path: &ASTPath, node: &mut ForInOfBinding) -> Result<(), ()> {
+            let kind = match node.kind {
+                VariableDeclarationKind::Let | VariableDeclarationKind::Const => BindingKind::Lex,
+                VariableDeclarationKind::Var => BindingKind::Var,
+            };
+            self.binding_kind_stack.push(kind);
+            Ok(())
+        }
+        fn exit_for_in_of_binding(&mut self, _path: &ASTPath, node: &mut ForInOfBinding) -> Result<(), ()> {
+            let kind = match node.kind {
+                VariableDeclarationKind::Let | VariableDeclarationKind::Const => BindingKind::Lex,
+                VariableDeclarationKind::Var => BindingKind::Var,
+            };
+            assert_eq!(self.binding_kind_stack.pop().unwrap(), kind);
+            Ok(())
+        }
+
+        fn enter_variable_declaration(&mut self, _path: &ASTPath, node: &mut VariableDeclaration) -> Result<(), ()> {
+            let kind = match node.kind {
+                VariableDeclarationKind::Let | VariableDeclarationKind::Const => BindingKind::Lex,
+                VariableDeclarationKind::Var => BindingKind::Var,
+            };
+            self.binding_kind_stack.push(kind);
+            Ok(())
+        }
+        fn exit_variable_declaration(&mut self, _path: &ASTPath, node: &mut VariableDeclaration) -> Result<(), ()> {
+            let kind = match node.kind {
+                VariableDeclarationKind::Let | VariableDeclarationKind::Const => BindingKind::Lex,
+                VariableDeclarationKind::Var => BindingKind::Var,
+            };
+            assert_eq!(self.binding_kind_stack.pop().unwrap(), kind);
+            Ok(())
+        }
+
+        // Functions, methods, arguments.
+        fn enter_setter(&mut self, _path: &ASTPath, _node: &mut Setter) -> Result<(), ()> {
+            self.binding_kind_stack.push(BindingKind::Param);
+            Ok(())
+        }
+        fn exit_setter(&mut self, _path: &ASTPath, node: &mut Setter) -> Result<(), ()> {
+            assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+            // If a name declaration was specified, remove it from `unknown`.
+            if let PropertyName::LiteralPropertyName(ref name) = node.name {
+                self.free_names_in_current_function.remove(&name.value);
+                self.free_names_in_nested_function.remove(&name.value);
+            }
+
+            // Commit parameter scope and var scope.
+            node.body_scope = self.pop_var_scope();
+            node.parameter_scope = self.pop_param_scope();
+            // Anything we do from this point affects the scope outside the function.
+
+            // Empty free_names_in_current_function in free_names_in_nested_function.
+            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+
+            Ok(())
+        }
+
+        fn exit_getter(&mut self, _path: &ASTPath, node: &mut Getter) -> Result<(), ()> {
+            // If a name declaration was specified, remove it from `unknown`.
+            if let PropertyName::LiteralPropertyName(ref name) = node.name {
+                self.free_names_in_current_function.remove(&name.value);
+                self.free_names_in_nested_function.remove(&name.value);
+            }
+
+            // Commit parameter scope and var scope.
+            node.body_scope = self.pop_var_scope();
+            // Anything we do from this point affects the scope outside the function.
+
+            // Empty free_names_in_current_function in free_names_in_nested_function.
+            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+
+            Ok(())
+        }
+
+        fn enter_method(&mut self, _path: &ASTPath, _node: &mut Method) -> Result<(), ()> {
+            self.binding_kind_stack.push(BindingKind::Param);
+            Ok(())
+        }
+        fn exit_method(&mut self, _path: &ASTPath, node: &mut Method) -> Result<(), ()> {
+            assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+
+            // If a name declaration was specified, remove it from `unknown`.
+            if let PropertyName::LiteralPropertyName(ref name) = node.name {
+                self.free_names_in_current_function.remove(&name.value);
+                self.free_names_in_nested_function.remove(&name.value);
+            }
+
+            // Commit parameter scope and var scope.
+            node.parameter_scope = self.pop_param_scope();
+            node.body_scope = self.pop_var_scope();
+            // Anything we do from this point affects the scope outside the function.
+
+            // Empty free_names_in_current_function in free_names_in_nested_function.
+            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+
+            Ok(())
+        }
+
+        fn enter_arrow_expression(&mut self, _path: &ASTPath, _node: &mut ArrowExpression) -> Result<(), ()> {
+            self.binding_kind_stack.push(BindingKind::Param);
+            Ok(())
+        }
+        fn exit_arrow_expression(&mut self, _path: &ASTPath, node: &mut ArrowExpression) -> Result<(), ()> {
+            assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+
+            // Commit parameter scope and var scope.
+            node.parameter_scope = self.pop_param_scope();
+            node.body_scope = self.pop_var_scope();
+            // Anything we do from this point affects the scope outside the function.
+
+            // Empty free_names_in_current_function in free_names_in_nested_function.
+            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+
+            Ok(())
+        }
+
+        fn enter_function_expression(&mut self, _path: &ASTPath, _node: &mut FunctionExpression) -> Result<(), ()> {
+            self.binding_kind_stack.push(BindingKind::Param);
+            Ok(())
+        }
+        fn exit_function_expression(&mut self, _path: &ASTPath, node: &mut FunctionExpression) -> Result<(), ()> {
+            assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+
+            // If a name declaration was specified, remove it from `unknown`.
+            if let Some(ref name) = node.name {
+                self.free_names_in_current_function.remove(&name.name);
+                self.free_names_in_nested_function.remove(&name.name);
+            }
+
+            // Commit parameter scope and var scope.
+            node.parameter_scope = self.pop_param_scope();
+            node.body_scope = self.pop_var_scope();
+            // Anything we do from this point affects the scope outside the function.
+
+            // Empty free_names_in_current_function in free_names_in_nested_function.
+            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+
+            Ok(())
+        }
+
+        fn enter_function_declaration(&mut self, _path: &ASTPath, _node: &mut FunctionDeclaration) -> Result<(), ()> {
+            self.binding_kind_stack.push(BindingKind::Param);
+            Ok(())
+        }
+        fn exit_function_declaration(&mut self, path: &ASTPath, node: &mut FunctionDeclaration) -> Result<(), ()> {
+            assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+
+            // If a name declaration was specified, remove it from `unknown`.
+            let mut id_was_captured = false;
+            let ref id = node.name.name;
+
+            if self.free_names_in_current_function.remove(id) {
+                id_was_captured = true;
+            }
+            if self.free_names_in_nested_function.remove(id) {
+                id_was_captured = true;
+            }
+
+            // Commit parameter scope and var scope.
+            node.parameter_scope = self.pop_param_scope();
+            node.body_scope = self.pop_var_scope();
+            // Anything we do from this point affects the scope outside the function.
+
+            // Empty free_names_in_current_function in free_names_in_nested_function.
+            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+
+            // If the id was captured, reintroduce it as captured in a subfunction.
+            if id_was_captured {
+                self.free_names_in_nested_function.insert(id.clone());
+            }
+
+            // 1. If the declaration is at the toplevel, the name is declared as a `var`.
+            // 2. If the declaration is in a function's toplevel block, the name is declared as a `var`.
+            // 3. Otherwise, the name is declared as a `let`.
+            let id = id.to_string();
+            match path.get(1) {
+                None => {
+                    // Case 1.
+                    self.var_names.insert(id);
                 }
-                "BindingIdentifier" => {
-                    // With the exception of parameters, recursive functions and catch, we have
-                    // handled all bidnings, so we're going to skip all other forms of
-                    // declarations
-                    // FIXME: Why haven't we handled all this already?
-                    let name = object.get_string("name", "Field `name` of `BindingIdentifier`")?;
-                    let parent = match ctx.contents().parent() {
-                        Some(parent) => parent,
-                        None => return Ok(()) // If we are at toplevel, we don't really care about all this.
-                    };
-                    let mut parent = parent.borrow_mut();
-
-                    match parent.kind_str() {
-                        "FunctionDeclaration" | "Method" | "Getter" | "Setter" | "FunctionExpression" => {
-                            match parent.field_str() {
-                                Some("name") | Some("params") => {
-                                    let fun_scope = parent.fun_scope()
-                                        .expect("Expected a fun scope");
-                                    fun_scope.borrow_mut().add_binding(name);
-                                }
-                                _ => return Err(ASTError::InvalidField("<FIXME: specify field>".to_string())),
-                            }
-                        }
-                        "CatchClause" => {
-                            if let Some("binding") = parent.field_str() {
-                                parent.add_binding(name)
-                            } else {
-                                return Err(ASTError::InvalidField("<FIXME: specify field>".to_string()))
-                            }
-                        }
-                        _ => { /* Nothing to do */ }
-                    }
-                }
-                "ForStatement" | "ForInStatement" | "Block" | "Script" | "Module" | "CatchClause" =>
+                Some(&ASTPathItem { field: ASTField::Statements, interface: ASTNode::FunctionBody }) =>
                 {
-                    // Simply load the stored bindings, then handle fields.
-                    ctx.load(object);
-                    self.parent.process_references(me, ctx, object)?;
-                    ctx.store(object, ScopeKind::Block)
-                },
-                "FunctionExpression" | "FunctionDeclaration" | "Method" | "Getter" | "Setter" => {
-                    ctx.use_as_fun_scope();
-
-                    // Make sure that we handle the function id and the params before the body,
-                    // as they generally introduce bindings.
-                    for name in &["name", "params", "body"] {
-                        if let Some(field) = object.get_mut(*name) {
-                            if let Ok(mut ctx) = ctx.enter_field(name) {
-                                me.process_references_aux(me, &mut ctx, field)?;
-                            }
-                        }
-                    }
-                    // FIXME: `name` may be bound inside the function (for recursive calls)
-                    // FIXME: `name` may also be bound outside the function, but only in
-                    // a `FunctionDeclaration`.
-
-                    // Store information on the function itself.
-                    ctx.store(object, ScopeKind::Block);
-                    // Dropping `ctx` will convert free variables into
-                    // free-in-nested-function variables.
+                    // Case 2.
+                    self.var_names.insert(id);
                 }
-                "ObjectProperty" => {
-                    // Simply ignore field `key`.
-                    // It is specified as an `Expression`, which doesn't really make sense, as it
-                    // must be either a literal or an identifier that is not a variable.
-                    me.process_references_field(me, ctx, object, "value")?
-                }
-                "DotExpression" => {
-                    me.process_references_field(me, ctx, object, "object")?;
-                    // Field `property` contains an identifier, skip it.
-                }
-                _ => {
-                    // Default to parent implementation.
-                    // Note that we still pass `me` to ensure dynamic dispatch.
-                    self.parent.process_references(me, ctx, object)?
+                Some(_) => {
+                    // Case 3.
+                    self.lex_names.insert(id);
                 }
             }
             Ok(())
         }
     }
 
-    Box::new(ES6Annotator {
-        parent
-    })
+    impl Annotator for AnnotationVisitor {
+        fn annotate(&mut self, ast: &mut JSON) {
+            let mut script = Script::import(ast)
+                .expect("Invalid script"); // FIXME: Error values would be nicer.
+            script.walk(&mut ASTPath::new(), self)
+                .expect("Could not walk script");
+            *ast = script.export();
+        }
+    }
+
+    Box::new(RefCell::new(AnnotationVisitor::new()))
 }
 
 
@@ -435,7 +466,7 @@ pub fn syntax(level: Level) -> Syntax {
         }
         Level::ES6
         | Level::Latest => {
-            setup_es6(&mut builder, base_annotator)
+            setup_es6(&mut builder)
         }
     };
     builder.into_syntax(SyntaxOptions {

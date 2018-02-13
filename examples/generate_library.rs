@@ -7,12 +7,12 @@ extern crate log;
 extern crate yaml_rust;
 extern crate webidl;
 
-use binjs::ast::annotation::Annotator;
 use binjs::ast::export_utils::{ TypeDeanonymizer, TypeName };
 use binjs::ast::grammar::*;
 use binjs::ast::webidl::Importer;
 use binjs::util::{ ToCases };
 
+use std::cell::RefCell;
 use std::collections::{ HashMap, HashSet };
 use std::rc::Rc;
 use std::fs::*;
@@ -22,11 +22,7 @@ use clap::*;
 use itertools::Itertools;
 
 struct FakeAnnotator;
-impl Annotator for FakeAnnotator {
-    fn name(&self) -> String {
-        "FakeAnnotator".to_string()
-    }
-}
+impl Annotator for FakeAnnotator { }
 
 /// Generate Rust source
 struct RustExporter<'a> {
@@ -96,7 +92,7 @@ impl<'a> RustExporter<'a> {
 
 
     pub fn to_rust_source(&self) -> String {
-        let fake_annotator = Box::new(FakeAnnotator);
+        let fake_annotator = Box::new(RefCell::new(FakeAnnotator));
         let deanonymized = TypeDeanonymizer::new(&self.syntax)
             .into_syntax(SyntaxOptions {
                 root: self.syntax.get_root_name(),
@@ -191,7 +187,7 @@ impl<'a> RustExporter<'a> {
 
                 let walker = format!("
     impl Walker for {name} {{
-        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &V) -> Result<(), E> where V: Visitor<E> {{
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {{
             Ok(())
         }}
     }}\n",
@@ -301,7 +297,7 @@ impl<'a> RustExporter<'a> {
 
                     let walk = format!("
     impl Walker for {name} {{
-        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E> {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {{
             match *self {{
 {cases}
             }}
@@ -405,7 +401,7 @@ impl<'a> RustExporter<'a> {
                                         _ => TypeName::type_(field.type_())
                                     }
                                 };
-                            format!("        {name}: {contents}",
+                            format!("        pub {name}: {contents}",
                                 name = field.name().to_rust_identifier_case(),
                                 contents = spec)
                         })
@@ -458,15 +454,11 @@ impl<'a> RustExporter<'a> {
 
                 let walk = format!("
     impl Walker for {name} {{
-        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E> {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {{
             path.enter_interface(ASTNode::{name});
-            if let Some(replacement) = visitor.enter_{snake}(path, self)? {{
-                *self = replacement;
-            }}
+            visitor.enter_{snake}(path, self)?;
 {fields}
-            if let Some(replacement) = visitor.exit_{snake}(path, self)? {{
-                *self = replacement;
-            }}
+            visitor.exit_{snake}(path, self)?;
             path.exit_interface(ASTNode::{name});
             Ok(())
         }}
@@ -502,10 +494,12 @@ impl<'a> RustExporter<'a> {
             );
             // Now generate the interface visitors
             let path = "
+    #[derive(Debug)]
     pub struct ASTPathItem {
         pub interface: ASTNode,
         pub field: ASTField,
     }
+    #[derive(Debug)]
     pub struct ASTPath {
         /// Some(foo) if we have entered interface foo but no field yet.
         /// Otherwise, None.
@@ -513,6 +507,12 @@ impl<'a> RustExporter<'a> {
         items: Vec<ASTPathItem>,
     }
     impl ASTPath {
+        pub fn new() -> Self {
+            Self {
+                interface: None,
+                items: vec![],
+            }
+        }
         fn enter_interface(&mut self, node: ASTNode) {
             debug_assert!(self.interface.is_none());
             self.interface = Some(node);
@@ -540,7 +540,7 @@ impl<'a> RustExporter<'a> {
             debug_assert!(prev == field);
             self.interface = Some(interface);
         }
-        fn len(&self) -> usize {
+        pub fn len(&self) -> usize {
             self.items.len()
         }
 
@@ -557,25 +557,25 @@ impl<'a> RustExporter<'a> {
 {interfaces}
     }}\n
     pub trait Walker {{
-        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E>;
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E>;
     }}\n
     impl Walker for String {{
-        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &V) -> Result<(), E> where V: Visitor<E> {{
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {{
             Ok(())
         }}
     }}
     impl Walker for bool {{
-        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &V) -> Result<(), E> where V: Visitor<E> {{
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {{
             Ok(())
         }}
     }}
     impl Walker for f64 {{
-        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &V) -> Result<(), E> where V: Visitor<E> {{
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {{
             Ok(())
         }}
     }}
     impl<T> Walker for Option<T> where T: Walker {{
-        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E> {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {{
             if let Some(ref mut contents) = *self {{
                 contents.walk(path, visitor)?;
             }}
@@ -583,7 +583,7 @@ impl<'a> RustExporter<'a> {
         }}        
     }}
     impl<T> Walker for Vec<T> where T: Walker {{
-        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &V) -> Result<(), E> where V: Visitor<E> {{
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {{
             for iter in self.iter_mut() {{
                 iter.walk(path, visitor)?;
             }}
@@ -596,11 +596,11 @@ impl<'a> RustExporter<'a> {
                         let interface = source.get(name).unwrap();
                         let name = name.to_rust_identifier_case();
                         format!("
-        fn enter_{name}(&self, _path: &ASTPath, _node: &{node_name}) -> Result<Option<{node_name}>, E> {{
-            Ok(None)
+        fn enter_{name}(&mut self, _path: &ASTPath, _node: &mut {node_name}) -> Result<(), E> {{
+            Ok(())
         }}
-        fn exit_{name}(&self, _path: &ASTPath, _node: &{node_name}) -> Result<Option<{node_name}>, E> {{
-            Ok(None)
+        fn exit_{name}(&mut self, _path: &ASTPath, _node: &mut {node_name}) -> Result<(), E> {{
+            Ok(())
         }}
 ",
                             name = name,
@@ -747,7 +747,7 @@ fn main() {
     let null = builder.node_name("_Null");
     builder.add_interface(&null)
         .unwrap();
-    let fake_annotator = Box::new(FakeAnnotator);
+    let fake_annotator = Box::new(RefCell::new(FakeAnnotator));
     let syntax = builder.into_syntax(SyntaxOptions {
             root: &fake_root,
             null: &null,

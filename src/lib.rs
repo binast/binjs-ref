@@ -27,7 +27,9 @@
 //! - the Token Streams (see module `token`);
 //! - the Byte Streams (see module `bytes`).
 
+#![feature(box_patterns)]
 #![feature(conservative_impl_trait, universal_impl_trait)]
+#![feature(iter_rfind)]
 
 #[allow(unused_imports)]
 #[macro_use]

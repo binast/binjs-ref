@@ -53,7 +53,7 @@ fn test_roundtrip() {
         println!("Parsing {:?}.", entry);
         let mut ast    = parser.parse_file(entry.clone())
             .expect("Could not parse source");
-        debug!(target: "test_roundtrip", "Source: {}", ast.dump());
+        debug!(target: "test_roundtrip", "Source: {}", ast.pretty(2));
         println!("Annotating {:?}.", entry);
         grammar.annotate(&mut ast)
             .expect("Could not infer annotations");

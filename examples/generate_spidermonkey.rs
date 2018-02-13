@@ -8,12 +8,12 @@ extern crate json;
 extern crate webidl;
 extern crate yaml_rust;
 
-use binjs::ast::annotation::Annotator;
 use binjs::ast::grammar::*;
 use binjs::ast::webidl::Importer;
 use binjs::ast::export_utils::{ TypeDeanonymizer, TypeName };
 use binjs::util::{ Reindentable, ToCases };
 
+use std::cell::RefCell;
 use std::collections::{ HashMap, HashSet };
 use std::fs::*;
 use std::io::*;
@@ -1072,21 +1072,17 @@ fn main() {
     builder.add_interface(&null)
         .unwrap();
     struct FakeAnnotator;
-    impl Annotator for FakeAnnotator {
-        fn name(&self) -> String {
-            "FakeAnnotator".to_string()
-        }
-    }
+    impl Annotator for FakeAnnotator { }
     let syntax = builder.into_syntax(SyntaxOptions {
         root: &fake_root,
         null: &null,
-        annotator: Box::new(FakeAnnotator),
+        annotator: Box::new(RefCell::new(FakeAnnotator)),
     });
 
     let syntax_options = SyntaxOptions {
         root: &fake_root,
         null: &null,
-        annotator: Box::new(FakeAnnotator),
+        annotator: Box::new(RefCell::new(FakeAnnotator)),
     };
 
     let deanonymizer = TypeDeanonymizer::new(&syntax);

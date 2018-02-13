@@ -148,14 +148,11 @@ pub use self::write::{ TreeTokenWriter, Statistics, WriteOptions };
 #[test]
 fn test_multipart_io() {
     println!("Multipart (de)tokenizer test starting");
-    use ast::annotation::*;
     use ast::grammar::*;
     use token::io::*;
 
+    use std::cell::RefCell;
     use std::fs::*;
-
-    use json::object::Object;
-
     use std::io::{ Cursor, Write };
 
     // All combinations of options for compression.
@@ -190,22 +187,12 @@ fn test_multipart_io() {
         .with_full_field(field_number.clone());
 
     struct FakeAnnotator;
-    impl Annotator for FakeAnnotator {
-        fn name(&self) -> String {
-            unimplemented!()
-        }
-        fn process_references(&self, _: &Annotator, _: &mut Context<RefContents>, _: &mut Object) -> Result<(), ASTError> {
-            unimplemented!()
-        }
-        fn process_declarations(&self, _: &Annotator, _: &mut Context<DeclContents>, _: &mut Object) -> Result<(), ASTError> {
-            unimplemented!()
-        }
-    }
+    impl Annotator for FakeAnnotator {}
 
     let syntax = builder.into_syntax(SyntaxOptions {
         root: &kinded,
         null: &null,
-        annotator: Box::new(FakeAnnotator)
+        annotator: Box::new(RefCell::new(FakeAnnotator))
     });
 
     for options in all_options {

@@ -8,7 +8,6 @@
 //! To ensure this, we define not only the AST of EcmaScript as the language is today, but
 //! the mechanism to define and evolve this AST, without incurring breaking changes in BinJS.
 
-use ast;
 use util::{ pick, type_of, ToCases };
 
 use json;
@@ -21,6 +20,12 @@ use std::collections::{ HashMap, HashSet };
 use std::fmt::{ Debug, Display };
 use std::hash::*;
 use std::rc::*;
+
+pub trait Annotator {
+    fn annotate(&mut self, _ast: &mut JSON) {
+        // By default, do nothing.
+    }
+}
 
 /// The name of an interface or enum.
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -1045,32 +1050,6 @@ impl Interface {
     }
 }
 
-/*
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub enum Name {
-    Generated(String),
-    Public(NodeName),
-}
-impl PartialOrd for Name {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for Name {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.to_str().cmp(other.to_str())
-    }
-}
-impl Name {
-    pub fn to_str(&self) -> &str {
-        match *self {
-            Name::Generated(ref string) => &*string,
-            Name::Public(ref node_name) => node_name.to_str()
-        }
-    }
-}
-*/
-
 /// Immutable representation of the syntax.
 pub struct Syntax {
     interfaces_by_name: HashMap<NodeName, Rc<Interface>>,
@@ -1083,7 +1062,7 @@ pub struct Syntax {
     fields: HashMap<String, FieldName>,
     root: NodeName,
     null: NodeName,
-    annotator: Box<ast::annotation::Annotator>,
+    annotator: Box<RefCell<Annotator>>,
 }
 
 impl Syntax {
@@ -1157,9 +1136,8 @@ impl Syntax {
     }
 
     pub fn annotate(&self, tree: &mut JSON) -> Result<(), ASTError> {
-        use ast::annotation::*;
-        self.annotator.process_declarations_aux(self.annotator.as_ref(), &mut Context::new(self), tree)?;
-        self.annotator.process_references_aux(self.annotator.as_ref(),   &mut Context::new(self), tree)?;
+        self.annotator.borrow_mut()
+            .annotate(tree);
         Ok(())
     }
 
@@ -1219,48 +1197,93 @@ pub struct SyntaxOptions<'a> {
     pub root: &'a NodeName,
     pub null: &'a NodeName,
 
-    pub annotator: Box<ast::annotation::Annotator>,
+    pub annotator: Box<RefCell<Annotator>>,
 }
 
 /// Define immutable and mutable visitors.
-pub enum WalkPathItem {
-    Array { index: usize },
-    Field { name: FieldName },
-    Node { name: NodeName },
+#[derive(Debug)]
+pub struct WalkPathItem {
+    pub interface: NodeName,
+    pub field: FieldName,
+}
+pub struct WalkPath {
+    /// Some(foo) if we have entered interface foo but no field yet.
+    /// Otherwise, None.
+    interface: Option<NodeName>,
+    items: Vec<WalkPathItem>,
+}
+impl WalkPath {
+    fn enter_interface(&mut self, name: &NodeName) {
+        debug_assert!(self.interface.is_none());
+        self.interface = Some(name.clone());
+    }
+    fn exit_interface(&mut self, name: &NodeName) {
+        let interface = self.interface.take()
+            .expect("Could not exit_interface if we're not in an interface");
+        debug_assert!(*name == interface);
+    }
+    fn enter_field(&mut self, name: &FieldName) {
+        let interface = self.interface.take()
+            .unwrap();
+        self.items.push(WalkPathItem {
+            interface,
+            field: name.clone()
+        });
+    }
+    fn exit_field(&mut self, name: &FieldName) {
+        debug_assert!(self.interface.is_none());
+        let WalkPathItem {
+            interface,
+            field
+        } = self.items.pop()
+            .expect("Could not exit_field from an empty WalkPath");
+        debug_assert!(*name == field);
+        self.interface = Some(interface);
+    }
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn get(&self, index: usize) -> Option<&WalkPathItem> {
+        if index >= self.len() {
+            return None;
+        }
+        Some(&self.items[self.len() - index - 1])
+    }
 }
 macro_rules! make_ast_visitor {
     // $mutability is either `mut` or nothing.
     ($visitor_name:ident, $walker_name:ident, $($mutability: ident)*) => {
         pub trait $visitor_name {
-            fn enter_type(&mut self, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_type(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_type(&mut self, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_type(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn enter_typespec(&mut self, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_typespec(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_typespec(&mut self, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_typespec(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn enter_string_enum(&mut self, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_string_enum(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_string_enum(&mut self, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_string_enum(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn enter_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_interface(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_interface(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
@@ -1269,6 +1292,7 @@ macro_rules! make_ast_visitor {
         pub struct $walker_name<'a, V> where V: $visitor_name {
             syntax: &'a Syntax,
             visitor: V,
+            path: WalkPath,
         }
 
         impl<'a, V> $walker_name<'a, V> where V: $visitor_name {
@@ -1276,22 +1300,30 @@ macro_rules! make_ast_visitor {
                 $walker_name {
                     syntax,
                     visitor,
+                    path: WalkPath {
+                        interface: None,
+                        items: vec![],
+                    },
                 }
             }
             pub fn walk(&mut self, value: & $($mutability)* JSON) -> Result<(), ASTError> {
                 let root = self.syntax.get_root();
                 let name = self.syntax.get_root_name();
-                self.walk_named_type(value, &root, name)
+                assert_eq!(self.path.len(), 0);
+                self.walk_named_type(value, &root, name)?;
+                assert_eq!(self.path.len(), 0);
+                Ok(())
             }
             pub fn walk_named_type(&mut self, value: & $($mutability)* JSON, named: &NamedType, name: &NodeName) -> Result<(), ASTError> {
                 match *named {
-                    NamedType::StringEnum(ref enum_) => self.walk_string_enum(value, enum_, name),
-                    NamedType::Interface(ref interface_) => self.walk_interface(value, interface_, name),
-                    NamedType::Typedef(ref typedef_) => self.walk_type(value, typedef_, name),
+                    NamedType::StringEnum(ref enum_) => self.walk_string_enum(value, enum_, name)?,
+                    NamedType::Interface(ref interface_) => self.walk_interface(value, interface_, name)?,
+                    NamedType::Typedef(ref typedef_) => self.walk_type(value, typedef_, name)?,
                 }
+                Ok(())
             }
             pub fn walk_string_enum(&mut self, value: & $($mutability)* JSON, enum_: &StringEnum, name: &NodeName) -> Result<(), ASTError> {
-                self.visitor.enter_string_enum(value, enum_, name)?;
+                self.visitor.enter_string_enum(&self.path, value, enum_, name)?;
                 if let Some(ref s) = value.as_str() {
                     if enum_.values.iter()
                         .find(|x| x == s)
@@ -1308,31 +1340,32 @@ macro_rules! make_ast_visitor {
                         got: format!("{:?}", *value)
                     })
                 }
-                self.visitor.exit_string_enum(value, enum_, name)?;
+                self.visitor.exit_string_enum(&self.path, value, enum_, name)?;
                 Ok(())
             }
             pub fn walk_type(&mut self, value: & $($mutability)* JSON, type_: &Type, name: &NodeName) -> Result<(), ASTError> {
-                self.visitor.enter_type(value, type_, name)?;
+                self.visitor.enter_type(&self.path, value, type_, name)?;
                 if let JSON::Null = *value {
+                    // Value was omitted.
                     if type_.is_optional() {
-                        self.visitor.exit_type(value, type_, name)?;
+                        self.visitor.exit_type(&self.path, value, type_, name)?;
                         return Ok(())
                     }
                 }
                 self.walk_type_spec(value, type_.spec(), name)?;
-                self.visitor.exit_type(value, type_, name)?;
+                self.visitor.exit_type(&self.path, value, type_, name)?;
                 Ok(())
             }
             pub fn walk_type_spec(&mut self, value: & $($mutability)* JSON, spec: &TypeSpec, name: &NodeName) -> Result<(), ASTError> {
-                self.visitor.enter_typespec(value, spec, name)?;
+                self.visitor.enter_typespec(&self.path, value, spec, name)?;
                 self.walk_type_spec_aux(value, spec, name)?;
-                self.visitor.exit_typespec(value, spec, name)?;
+                self.visitor.exit_typespec(&self.path, value, spec, name)?;
                 Ok(())
             }
 
             pub fn walk_interface(&mut self, value: & $($mutability)* JSON, interface: &Interface, name: &NodeName) -> Result<(), ASTError> {
                 // Let the visitor rewrite the object if necessary.
-                self.visitor.enter_interface(value, interface, name)?;
+                self.visitor.enter_interface(&self.path, value, interface, name)?;
                 // Check type.
                 let is_ok =
                     if let Some(name) = value["type"].as_str() {
@@ -1344,18 +1377,22 @@ macro_rules! make_ast_visitor {
                     return Err(ASTError::invalid_value(value, &format!("Instance of {:?}", interface.name())))                    
                 }
                 if value.is_object() {
+                    self.path.enter_interface(name);
                     // Visit fields, ignoring excess fields and, if necessary, optional fields.
                     for field in &interface.declaration.contents.fields {
+                        self.path.enter_field(field.name());
                         let ref $($mutability)* value = value[field.name().to_str()];
                         self.walk_type(value, field.type_(), interface.name())?;
+                        self.path.exit_field(field.name());
                     }
+                    self.path.exit_interface(name);
                 } else {
                     return Err(ASTError::InvalidValue {
                         expected: "object".to_string(),
                         got: type_of(&*value)
                     })
                 }
-                self.visitor.exit_interface(value, interface, name)?;
+                self.visitor.exit_interface(&self.path, value, interface, name)?;
                 Ok(())
             }
             fn walk_type_spec_aux(&mut self, value: & $($mutability)* JSON, spec: &TypeSpec, name: &NodeName) -> Result<(), ASTError> {

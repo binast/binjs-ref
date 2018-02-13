@@ -108,6 +108,15 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for BinaryOperator {
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {
+            Ok(())
+        }
+    }
+
+
+
     #[derive(PartialEq, Debug, Clone)]
     pub enum CompoundAssignmentOperator {
          PlusAssign,
@@ -167,6 +176,15 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for CompoundAssignmentOperator {
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {
+            Ok(())
+        }
+    }
+
+
+
     #[derive(PartialEq, Debug, Clone)]
     pub enum UnaryOperator {
          Plus,
@@ -211,6 +229,15 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for UnaryOperator {
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {
+            Ok(())
+        }
+    }
+
+
+
     #[derive(PartialEq, Debug, Clone)]
     pub enum UpdateOperator {
          Incr,
@@ -239,6 +266,15 @@ pub mod ast {
             })
         }
     }
+
+
+    impl Walker for UpdateOperator {
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {
+            Ok(())
+        }
+    }
+
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum VariableDeclarationKind {
@@ -273,25 +309,34 @@ pub mod ast {
     }
 
 
+    impl Walker for VariableDeclarationKind {
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {
+            Ok(())
+        }
+    }
+
+
+
+
 
     // Type sums (by lexicographical order)
     #[derive(PartialEq, Debug, Clone)]
     pub enum AssignmentTarget {
-        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>),
-        ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>),
         ObjectAssignmentTarget(Box<ObjectAssignmentTarget>),
+        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>),
+        StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>),
         AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
-        StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>)
+        ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>)
     }
 
     impl FromJSON for AssignmentTarget {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("ArrayAssignmentTarget") => Ok(AssignmentTarget::ArrayAssignmentTarget(Box::new(FromJSON::import(value)?))),
-               Some("ComputedMemberAssignmentTarget") => Ok(AssignmentTarget::ComputedMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
                Some("ObjectAssignmentTarget") => Ok(AssignmentTarget::ObjectAssignmentTarget(Box::new(FromJSON::import(value)?))),
-               Some("AssignmentTargetIdentifier") => Ok(AssignmentTarget::AssignmentTargetIdentifier(Box::new(FromJSON::import(value)?))),
+               Some("ArrayAssignmentTarget") => Ok(AssignmentTarget::ArrayAssignmentTarget(Box::new(FromJSON::import(value)?))),
                Some("StaticMemberAssignmentTarget") => Ok(AssignmentTarget::StaticMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentTargetIdentifier") => Ok(AssignmentTarget::AssignmentTargetIdentifier(Box::new(FromJSON::import(value)?))),
+               Some("ComputedMemberAssignmentTarget") => Ok(AssignmentTarget::ComputedMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of AssignmentTarget".to_string(),
                     got: value.dump()
@@ -304,36 +349,48 @@ pub mod ast {
     impl ToJSON for AssignmentTarget {
         fn export(&self) -> JSON {
             match *self {
-               AssignmentTarget::ArrayAssignmentTarget(box ref value) => value.export(),
-               AssignmentTarget::ComputedMemberAssignmentTarget(box ref value) => value.export(),
                AssignmentTarget::ObjectAssignmentTarget(box ref value) => value.export(),
+               AssignmentTarget::ArrayAssignmentTarget(box ref value) => value.export(),
+               AssignmentTarget::StaticMemberAssignmentTarget(box ref value) => value.export(),
                AssignmentTarget::AssignmentTargetIdentifier(box ref value) => value.export(),
-               AssignmentTarget::StaticMemberAssignmentTarget(box ref value) => value.export()
+               AssignmentTarget::ComputedMemberAssignmentTarget(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for AssignmentTarget {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               AssignmentTarget::ObjectAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               AssignmentTarget::ArrayAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               AssignmentTarget::StaticMemberAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               AssignmentTarget::AssignmentTargetIdentifier(box ref mut value) => value.walk(path, visitor),
+               AssignmentTarget::ComputedMemberAssignmentTarget(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum AssignmentTargetOrAssignmentTargetWithInitializer {
         AssignmentTargetWithInitializer(Box<AssignmentTargetWithInitializer>),
-        ObjectAssignmentTarget(Box<ObjectAssignmentTarget>),
+        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>),
         ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>),
-        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
         StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>),
-        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>)
+        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
+        ObjectAssignmentTarget(Box<ObjectAssignmentTarget>)
     }
 
     impl FromJSON for AssignmentTargetOrAssignmentTargetWithInitializer {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
                Some("AssignmentTargetWithInitializer") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::AssignmentTargetWithInitializer(Box::new(FromJSON::import(value)?))),
-               Some("ObjectAssignmentTarget") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::ObjectAssignmentTarget(Box::new(FromJSON::import(value)?))),
-               Some("ComputedMemberAssignmentTarget") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::ComputedMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
-               Some("AssignmentTargetIdentifier") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::AssignmentTargetIdentifier(Box::new(FromJSON::import(value)?))),
-               Some("StaticMemberAssignmentTarget") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::StaticMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
                Some("ArrayAssignmentTarget") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::ArrayAssignmentTarget(Box::new(FromJSON::import(value)?))),
+               Some("ComputedMemberAssignmentTarget") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::ComputedMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
+               Some("StaticMemberAssignmentTarget") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::StaticMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentTargetIdentifier") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::AssignmentTargetIdentifier(Box::new(FromJSON::import(value)?))),
+               Some("ObjectAssignmentTarget") => Ok(AssignmentTargetOrAssignmentTargetWithInitializer::ObjectAssignmentTarget(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of AssignmentTargetOrAssignmentTargetWithInitializer".to_string(),
                     got: value.dump()
@@ -347,15 +404,28 @@ pub mod ast {
         fn export(&self) -> JSON {
             match *self {
                AssignmentTargetOrAssignmentTargetWithInitializer::AssignmentTargetWithInitializer(box ref value) => value.export(),
-               AssignmentTargetOrAssignmentTargetWithInitializer::ObjectAssignmentTarget(box ref value) => value.export(),
+               AssignmentTargetOrAssignmentTargetWithInitializer::ArrayAssignmentTarget(box ref value) => value.export(),
                AssignmentTargetOrAssignmentTargetWithInitializer::ComputedMemberAssignmentTarget(box ref value) => value.export(),
-               AssignmentTargetOrAssignmentTargetWithInitializer::AssignmentTargetIdentifier(box ref value) => value.export(),
                AssignmentTargetOrAssignmentTargetWithInitializer::StaticMemberAssignmentTarget(box ref value) => value.export(),
-               AssignmentTargetOrAssignmentTargetWithInitializer::ArrayAssignmentTarget(box ref value) => value.export()
+               AssignmentTargetOrAssignmentTargetWithInitializer::AssignmentTargetIdentifier(box ref value) => value.export(),
+               AssignmentTargetOrAssignmentTargetWithInitializer::ObjectAssignmentTarget(box ref value) => value.export()
             }
         }
     }
 
+
+    impl Walker for AssignmentTargetOrAssignmentTargetWithInitializer {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               AssignmentTargetOrAssignmentTargetWithInitializer::AssignmentTargetWithInitializer(box ref mut value) => value.walk(path, visitor),
+               AssignmentTargetOrAssignmentTargetWithInitializer::ArrayAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               AssignmentTargetOrAssignmentTargetWithInitializer::ComputedMemberAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               AssignmentTargetOrAssignmentTargetWithInitializer::StaticMemberAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               AssignmentTargetOrAssignmentTargetWithInitializer::AssignmentTargetIdentifier(box ref mut value) => value.walk(path, visitor),
+               AssignmentTargetOrAssignmentTargetWithInitializer::ObjectAssignmentTarget(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
 
 
     #[derive(PartialEq, Debug, Clone)]
@@ -388,6 +458,15 @@ pub mod ast {
     }
 
 
+    impl Walker for AssignmentTargetPattern {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               AssignmentTargetPattern::ArrayAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               AssignmentTargetPattern::ObjectAssignmentTarget(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum AssignmentTargetProperty {
@@ -419,20 +498,29 @@ pub mod ast {
     }
 
 
+    impl Walker for AssignmentTargetProperty {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(box ref mut value) => value.walk(path, visitor),
+               AssignmentTargetProperty::AssignmentTargetPropertyProperty(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum Binding {
-        ArrayBinding(Box<ArrayBinding>),
+        ObjectBinding(Box<ObjectBinding>),
         BindingIdentifier(Box<BindingIdentifier>),
-        ObjectBinding(Box<ObjectBinding>)
+        ArrayBinding(Box<ArrayBinding>)
     }
 
     impl FromJSON for Binding {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("ArrayBinding") => Ok(Binding::ArrayBinding(Box::new(FromJSON::import(value)?))),
-               Some("BindingIdentifier") => Ok(Binding::BindingIdentifier(Box::new(FromJSON::import(value)?))),
                Some("ObjectBinding") => Ok(Binding::ObjectBinding(Box::new(FromJSON::import(value)?))),
+               Some("BindingIdentifier") => Ok(Binding::BindingIdentifier(Box::new(FromJSON::import(value)?))),
+               Some("ArrayBinding") => Ok(Binding::ArrayBinding(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of Binding".to_string(),
                     got: value.dump()
@@ -445,30 +533,40 @@ pub mod ast {
     impl ToJSON for Binding {
         fn export(&self) -> JSON {
             match *self {
-               Binding::ArrayBinding(box ref value) => value.export(),
+               Binding::ObjectBinding(box ref value) => value.export(),
                Binding::BindingIdentifier(box ref value) => value.export(),
-               Binding::ObjectBinding(box ref value) => value.export()
+               Binding::ArrayBinding(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for Binding {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               Binding::ObjectBinding(box ref mut value) => value.walk(path, visitor),
+               Binding::BindingIdentifier(box ref mut value) => value.walk(path, visitor),
+               Binding::ArrayBinding(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum BindingOrBindingWithInitializer {
-        BindingWithInitializer(Box<BindingWithInitializer>),
         ObjectBinding(Box<ObjectBinding>),
         BindingIdentifier(Box<BindingIdentifier>),
-        ArrayBinding(Box<ArrayBinding>)
+        ArrayBinding(Box<ArrayBinding>),
+        BindingWithInitializer(Box<BindingWithInitializer>)
     }
 
     impl FromJSON for BindingOrBindingWithInitializer {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("BindingWithInitializer") => Ok(BindingOrBindingWithInitializer::BindingWithInitializer(Box::new(FromJSON::import(value)?))),
                Some("ObjectBinding") => Ok(BindingOrBindingWithInitializer::ObjectBinding(Box::new(FromJSON::import(value)?))),
                Some("BindingIdentifier") => Ok(BindingOrBindingWithInitializer::BindingIdentifier(Box::new(FromJSON::import(value)?))),
                Some("ArrayBinding") => Ok(BindingOrBindingWithInitializer::ArrayBinding(Box::new(FromJSON::import(value)?))),
+               Some("BindingWithInitializer") => Ok(BindingOrBindingWithInitializer::BindingWithInitializer(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of BindingOrBindingWithInitializer".to_string(),
                     got: value.dump()
@@ -481,14 +579,25 @@ pub mod ast {
     impl ToJSON for BindingOrBindingWithInitializer {
         fn export(&self) -> JSON {
             match *self {
-               BindingOrBindingWithInitializer::BindingWithInitializer(box ref value) => value.export(),
                BindingOrBindingWithInitializer::ObjectBinding(box ref value) => value.export(),
                BindingOrBindingWithInitializer::BindingIdentifier(box ref value) => value.export(),
-               BindingOrBindingWithInitializer::ArrayBinding(box ref value) => value.export()
+               BindingOrBindingWithInitializer::ArrayBinding(box ref value) => value.export(),
+               BindingOrBindingWithInitializer::BindingWithInitializer(box ref value) => value.export()
             }
         }
     }
 
+
+    impl Walker for BindingOrBindingWithInitializer {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               BindingOrBindingWithInitializer::ObjectBinding(box ref mut value) => value.walk(path, visitor),
+               BindingOrBindingWithInitializer::BindingIdentifier(box ref mut value) => value.walk(path, visitor),
+               BindingOrBindingWithInitializer::ArrayBinding(box ref mut value) => value.walk(path, visitor),
+               BindingOrBindingWithInitializer::BindingWithInitializer(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
 
 
     #[derive(PartialEq, Debug, Clone)]
@@ -521,18 +630,27 @@ pub mod ast {
     }
 
 
+    impl Walker for BindingPattern {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               BindingPattern::ArrayBinding(box ref mut value) => value.walk(path, visitor),
+               BindingPattern::ObjectBinding(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum BindingProperty {
-        BindingPropertyIdentifier(Box<BindingPropertyIdentifier>),
-        BindingPropertyProperty(Box<BindingPropertyProperty>)
+        BindingPropertyProperty(Box<BindingPropertyProperty>),
+        BindingPropertyIdentifier(Box<BindingPropertyIdentifier>)
     }
 
     impl FromJSON for BindingProperty {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("BindingPropertyIdentifier") => Ok(BindingProperty::BindingPropertyIdentifier(Box::new(FromJSON::import(value)?))),
                Some("BindingPropertyProperty") => Ok(BindingProperty::BindingPropertyProperty(Box::new(FromJSON::import(value)?))),
+               Some("BindingPropertyIdentifier") => Ok(BindingProperty::BindingPropertyIdentifier(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of BindingProperty".to_string(),
                     got: value.dump()
@@ -545,31 +663,40 @@ pub mod ast {
     impl ToJSON for BindingProperty {
         fn export(&self) -> JSON {
             match *self {
-               BindingProperty::BindingPropertyIdentifier(box ref value) => value.export(),
-               BindingProperty::BindingPropertyProperty(box ref value) => value.export()
+               BindingProperty::BindingPropertyProperty(box ref value) => value.export(),
+               BindingProperty::BindingPropertyIdentifier(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for BindingProperty {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               BindingProperty::BindingPropertyProperty(box ref mut value) => value.walk(path, visitor),
+               BindingProperty::BindingPropertyIdentifier(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum ExportDeclaration {
         ExportFrom(Box<ExportFrom>),
-        ExportDefault(Box<ExportDefault>),
         ExportAllFrom(Box<ExportAllFrom>),
-        Export(Box<Export>),
-        ExportLocals(Box<ExportLocals>)
+        ExportDefault(Box<ExportDefault>),
+        ExportLocals(Box<ExportLocals>),
+        Export(Box<Export>)
     }
 
     impl FromJSON for ExportDeclaration {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
                Some("ExportFrom") => Ok(ExportDeclaration::ExportFrom(Box::new(FromJSON::import(value)?))),
-               Some("ExportDefault") => Ok(ExportDeclaration::ExportDefault(Box::new(FromJSON::import(value)?))),
                Some("ExportAllFrom") => Ok(ExportDeclaration::ExportAllFrom(Box::new(FromJSON::import(value)?))),
-               Some("Export") => Ok(ExportDeclaration::Export(Box::new(FromJSON::import(value)?))),
+               Some("ExportDefault") => Ok(ExportDeclaration::ExportDefault(Box::new(FromJSON::import(value)?))),
                Some("ExportLocals") => Ok(ExportDeclaration::ExportLocals(Box::new(FromJSON::import(value)?))),
+               Some("Export") => Ok(ExportDeclaration::Export(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of ExportDeclaration".to_string(),
                     got: value.dump()
@@ -583,79 +710,91 @@ pub mod ast {
         fn export(&self) -> JSON {
             match *self {
                ExportDeclaration::ExportFrom(box ref value) => value.export(),
-               ExportDeclaration::ExportDefault(box ref value) => value.export(),
                ExportDeclaration::ExportAllFrom(box ref value) => value.export(),
-               ExportDeclaration::Export(box ref value) => value.export(),
-               ExportDeclaration::ExportLocals(box ref value) => value.export()
+               ExportDeclaration::ExportDefault(box ref value) => value.export(),
+               ExportDeclaration::ExportLocals(box ref value) => value.export(),
+               ExportDeclaration::Export(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for ExportDeclaration {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               ExportDeclaration::ExportFrom(box ref mut value) => value.walk(path, visitor),
+               ExportDeclaration::ExportAllFrom(box ref mut value) => value.walk(path, visitor),
+               ExportDeclaration::ExportDefault(box ref mut value) => value.walk(path, visitor),
+               ExportDeclaration::ExportLocals(box ref mut value) => value.walk(path, visitor),
+               ExportDeclaration::Export(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum Expression {
-        YieldStarExpression(Box<YieldStarExpression>),
-        AssignmentExpression(Box<AssignmentExpression>),
-        FunctionExpression(Box<FunctionExpression>),
-        NewExpression(Box<NewExpression>),
-        NewTargetExpression(Box<NewTargetExpression>),
-        UnaryExpression(Box<UnaryExpression>),
-        ArrayExpression(Box<ArrayExpression>),
-        CallExpression(Box<CallExpression>),
-        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
-        LiteralNumericExpression(Box<LiteralNumericExpression>),
-        BinaryExpression(Box<BinaryExpression>),
-        ConditionalExpression(Box<ConditionalExpression>),
-        TemplateExpression(Box<TemplateExpression>),
-        AwaitExpression(Box<AwaitExpression>),
-        ClassExpression(Box<ClassExpression>),
-        ArrowExpression(Box<ArrowExpression>),
-        IdentifierExpression(Box<IdentifierExpression>),
-        ThisExpression(Box<ThisExpression>),
-        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
-        UpdateExpression(Box<UpdateExpression>),
-        YieldExpression(Box<YieldExpression>),
-        ObjectExpression(Box<ObjectExpression>),
-        LiteralNullExpression(Box<LiteralNullExpression>),
-        StaticMemberExpression(Box<StaticMemberExpression>),
-        ComputedMemberExpression(Box<ComputedMemberExpression>),
-        LiteralStringExpression(Box<LiteralStringExpression>),
         LiteralBooleanExpression(Box<LiteralBooleanExpression>),
-        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>)
+        TemplateExpression(Box<TemplateExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        CallExpression(Box<CallExpression>),
+        NewExpression(Box<NewExpression>),
+        YieldExpression(Box<YieldExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        ArrowExpression(Box<ArrowExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        ThisExpression(Box<ThisExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        ClassExpression(Box<ClassExpression>),
+        NewTargetExpression(Box<NewTargetExpression>)
     }
 
     impl FromJSON for Expression {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("YieldStarExpression") => Ok(Expression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
-               Some("AssignmentExpression") => Ok(Expression::AssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("FunctionExpression") => Ok(Expression::FunctionExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewExpression") => Ok(Expression::NewExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewTargetExpression") => Ok(Expression::NewTargetExpression(Box::new(FromJSON::import(value)?))),
-               Some("UnaryExpression") => Ok(Expression::UnaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("ArrayExpression") => Ok(Expression::ArrayExpression(Box::new(FromJSON::import(value)?))),
-               Some("CallExpression") => Ok(Expression::CallExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralInfinityExpression") => Ok(Expression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNumericExpression") => Ok(Expression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
-               Some("BinaryExpression") => Ok(Expression::BinaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("ConditionalExpression") => Ok(Expression::ConditionalExpression(Box::new(FromJSON::import(value)?))),
-               Some("TemplateExpression") => Ok(Expression::TemplateExpression(Box::new(FromJSON::import(value)?))),
-               Some("AwaitExpression") => Ok(Expression::AwaitExpression(Box::new(FromJSON::import(value)?))),
-               Some("ClassExpression") => Ok(Expression::ClassExpression(Box::new(FromJSON::import(value)?))),
-               Some("ArrowExpression") => Ok(Expression::ArrowExpression(Box::new(FromJSON::import(value)?))),
-               Some("IdentifierExpression") => Ok(Expression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
-               Some("ThisExpression") => Ok(Expression::ThisExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralRegExpExpression") => Ok(Expression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
-               Some("UpdateExpression") => Ok(Expression::UpdateExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldExpression") => Ok(Expression::YieldExpression(Box::new(FromJSON::import(value)?))),
-               Some("ObjectExpression") => Ok(Expression::ObjectExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNullExpression") => Ok(Expression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
-               Some("StaticMemberExpression") => Ok(Expression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("ComputedMemberExpression") => Ok(Expression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralStringExpression") => Ok(Expression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralBooleanExpression") => Ok(Expression::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
+               Some("TemplateExpression") => Ok(Expression::TemplateExpression(Box::new(FromJSON::import(value)?))),
+               Some("UnaryExpression") => Ok(Expression::UnaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNumericExpression") => Ok(Expression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
+               Some("CallExpression") => Ok(Expression::CallExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewExpression") => Ok(Expression::NewExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldExpression") => Ok(Expression::YieldExpression(Box::new(FromJSON::import(value)?))),
+               Some("AwaitExpression") => Ok(Expression::AwaitExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrowExpression") => Ok(Expression::ArrowExpression(Box::new(FromJSON::import(value)?))),
+               Some("FunctionExpression") => Ok(Expression::FunctionExpression(Box::new(FromJSON::import(value)?))),
+               Some("ComputedMemberExpression") => Ok(Expression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("ObjectExpression") => Ok(Expression::ObjectExpression(Box::new(FromJSON::import(value)?))),
+               Some("BinaryExpression") => Ok(Expression::BinaryExpression(Box::new(FromJSON::import(value)?))),
                Some("CompoundAssignmentExpression") => Ok(Expression::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("IdentifierExpression") => Ok(Expression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
+               Some("StaticMemberExpression") => Ok(Expression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("UpdateExpression") => Ok(Expression::UpdateExpression(Box::new(FromJSON::import(value)?))),
+               Some("ThisExpression") => Ok(Expression::ThisExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralInfinityExpression") => Ok(Expression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralRegExpExpression") => Ok(Expression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
+               Some("ConditionalExpression") => Ok(Expression::ConditionalExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNullExpression") => Ok(Expression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldStarExpression") => Ok(Expression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralStringExpression") => Ok(Expression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrayExpression") => Ok(Expression::ArrayExpression(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentExpression") => Ok(Expression::AssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("ClassExpression") => Ok(Expression::ClassExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewTargetExpression") => Ok(Expression::NewTargetExpression(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of Expression".to_string(),
                     got: value.dump()
@@ -668,105 +807,140 @@ pub mod ast {
     impl ToJSON for Expression {
         fn export(&self) -> JSON {
             match *self {
-               Expression::YieldStarExpression(box ref value) => value.export(),
-               Expression::AssignmentExpression(box ref value) => value.export(),
-               Expression::FunctionExpression(box ref value) => value.export(),
-               Expression::NewExpression(box ref value) => value.export(),
-               Expression::NewTargetExpression(box ref value) => value.export(),
-               Expression::UnaryExpression(box ref value) => value.export(),
-               Expression::ArrayExpression(box ref value) => value.export(),
-               Expression::CallExpression(box ref value) => value.export(),
-               Expression::LiteralInfinityExpression(box ref value) => value.export(),
-               Expression::LiteralNumericExpression(box ref value) => value.export(),
-               Expression::BinaryExpression(box ref value) => value.export(),
-               Expression::ConditionalExpression(box ref value) => value.export(),
-               Expression::TemplateExpression(box ref value) => value.export(),
-               Expression::AwaitExpression(box ref value) => value.export(),
-               Expression::ClassExpression(box ref value) => value.export(),
-               Expression::ArrowExpression(box ref value) => value.export(),
-               Expression::IdentifierExpression(box ref value) => value.export(),
-               Expression::ThisExpression(box ref value) => value.export(),
-               Expression::LiteralRegExpExpression(box ref value) => value.export(),
-               Expression::UpdateExpression(box ref value) => value.export(),
-               Expression::YieldExpression(box ref value) => value.export(),
-               Expression::ObjectExpression(box ref value) => value.export(),
-               Expression::LiteralNullExpression(box ref value) => value.export(),
-               Expression::StaticMemberExpression(box ref value) => value.export(),
-               Expression::ComputedMemberExpression(box ref value) => value.export(),
-               Expression::LiteralStringExpression(box ref value) => value.export(),
                Expression::LiteralBooleanExpression(box ref value) => value.export(),
-               Expression::CompoundAssignmentExpression(box ref value) => value.export()
+               Expression::TemplateExpression(box ref value) => value.export(),
+               Expression::UnaryExpression(box ref value) => value.export(),
+               Expression::LiteralNumericExpression(box ref value) => value.export(),
+               Expression::CallExpression(box ref value) => value.export(),
+               Expression::NewExpression(box ref value) => value.export(),
+               Expression::YieldExpression(box ref value) => value.export(),
+               Expression::AwaitExpression(box ref value) => value.export(),
+               Expression::ArrowExpression(box ref value) => value.export(),
+               Expression::FunctionExpression(box ref value) => value.export(),
+               Expression::ComputedMemberExpression(box ref value) => value.export(),
+               Expression::ObjectExpression(box ref value) => value.export(),
+               Expression::BinaryExpression(box ref value) => value.export(),
+               Expression::CompoundAssignmentExpression(box ref value) => value.export(),
+               Expression::IdentifierExpression(box ref value) => value.export(),
+               Expression::StaticMemberExpression(box ref value) => value.export(),
+               Expression::UpdateExpression(box ref value) => value.export(),
+               Expression::ThisExpression(box ref value) => value.export(),
+               Expression::LiteralInfinityExpression(box ref value) => value.export(),
+               Expression::LiteralRegExpExpression(box ref value) => value.export(),
+               Expression::ConditionalExpression(box ref value) => value.export(),
+               Expression::LiteralNullExpression(box ref value) => value.export(),
+               Expression::YieldStarExpression(box ref value) => value.export(),
+               Expression::LiteralStringExpression(box ref value) => value.export(),
+               Expression::ArrayExpression(box ref value) => value.export(),
+               Expression::AssignmentExpression(box ref value) => value.export(),
+               Expression::ClassExpression(box ref value) => value.export(),
+               Expression::NewTargetExpression(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for Expression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               Expression::LiteralBooleanExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::TemplateExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::UnaryExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::LiteralNumericExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::CallExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::NewExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::YieldExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::AwaitExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::ArrowExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::FunctionExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::ComputedMemberExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::ObjectExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::BinaryExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::CompoundAssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::IdentifierExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::StaticMemberExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::UpdateExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::ThisExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::LiteralInfinityExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::LiteralRegExpExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::ConditionalExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::LiteralNullExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::YieldStarExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::LiteralStringExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::ArrayExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::AssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::ClassExpression(box ref mut value) => value.walk(path, visitor),
+               Expression::NewTargetExpression(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum ExpressionOrSuper {
-        YieldStarExpression(Box<YieldStarExpression>),
-        LiteralStringExpression(Box<LiteralStringExpression>),
-        NewTargetExpression(Box<NewTargetExpression>),
-        UnaryExpression(Box<UnaryExpression>),
-        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
-        ComputedMemberExpression(Box<ComputedMemberExpression>),
-        AssignmentExpression(Box<AssignmentExpression>),
-        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
-        YieldExpression(Box<YieldExpression>),
-        ConditionalExpression(Box<ConditionalExpression>),
-        NewExpression(Box<NewExpression>),
         IdentifierExpression(Box<IdentifierExpression>),
-        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
-        ClassExpression(Box<ClassExpression>),
-        LiteralNullExpression(Box<LiteralNullExpression>),
-        CallExpression(Box<CallExpression>),
-        TemplateExpression(Box<TemplateExpression>),
-        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
         ObjectExpression(Box<ObjectExpression>),
-        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        YieldExpression(Box<YieldExpression>),
         ArrowExpression(Box<ArrowExpression>),
-        Super(Box<Super>),
-        ThisExpression(Box<ThisExpression>),
-        FunctionExpression(Box<FunctionExpression>),
-        StaticMemberExpression(Box<StaticMemberExpression>),
-        AwaitExpression(Box<AwaitExpression>),
-        UpdateExpression(Box<UpdateExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
         BinaryExpression(Box<BinaryExpression>),
-        ArrayExpression(Box<ArrayExpression>)
+        FunctionExpression(Box<FunctionExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        ClassExpression(Box<ClassExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        NewExpression(Box<NewExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        CallExpression(Box<CallExpression>),
+        ThisExpression(Box<ThisExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        Super(Box<Super>),
+        NewTargetExpression(Box<NewTargetExpression>),
+        AwaitExpression(Box<AwaitExpression>)
     }
 
     impl FromJSON for ExpressionOrSuper {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("YieldStarExpression") => Ok(ExpressionOrSuper::YieldStarExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralStringExpression") => Ok(ExpressionOrSuper::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewTargetExpression") => Ok(ExpressionOrSuper::NewTargetExpression(Box::new(FromJSON::import(value)?))),
-               Some("UnaryExpression") => Ok(ExpressionOrSuper::UnaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("CompoundAssignmentExpression") => Ok(ExpressionOrSuper::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("ComputedMemberExpression") => Ok(ExpressionOrSuper::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("AssignmentExpression") => Ok(ExpressionOrSuper::AssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralRegExpExpression") => Ok(ExpressionOrSuper::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldExpression") => Ok(ExpressionOrSuper::YieldExpression(Box::new(FromJSON::import(value)?))),
-               Some("ConditionalExpression") => Ok(ExpressionOrSuper::ConditionalExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewExpression") => Ok(ExpressionOrSuper::NewExpression(Box::new(FromJSON::import(value)?))),
                Some("IdentifierExpression") => Ok(ExpressionOrSuper::IdentifierExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralInfinityExpression") => Ok(ExpressionOrSuper::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
-               Some("ClassExpression") => Ok(ExpressionOrSuper::ClassExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNullExpression") => Ok(ExpressionOrSuper::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
-               Some("CallExpression") => Ok(ExpressionOrSuper::CallExpression(Box::new(FromJSON::import(value)?))),
-               Some("TemplateExpression") => Ok(ExpressionOrSuper::TemplateExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNumericExpression") => Ok(ExpressionOrSuper::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldStarExpression") => Ok(ExpressionOrSuper::YieldStarExpression(Box::new(FromJSON::import(value)?))),
                Some("ObjectExpression") => Ok(ExpressionOrSuper::ObjectExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralBooleanExpression") => Ok(ExpressionOrSuper::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
+               Some("ConditionalExpression") => Ok(ExpressionOrSuper::ConditionalExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldExpression") => Ok(ExpressionOrSuper::YieldExpression(Box::new(FromJSON::import(value)?))),
                Some("ArrowExpression") => Ok(ExpressionOrSuper::ArrowExpression(Box::new(FromJSON::import(value)?))),
-               Some("Super") => Ok(ExpressionOrSuper::Super(Box::new(FromJSON::import(value)?))),
-               Some("ThisExpression") => Ok(ExpressionOrSuper::ThisExpression(Box::new(FromJSON::import(value)?))),
-               Some("FunctionExpression") => Ok(ExpressionOrSuper::FunctionExpression(Box::new(FromJSON::import(value)?))),
-               Some("StaticMemberExpression") => Ok(ExpressionOrSuper::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("AwaitExpression") => Ok(ExpressionOrSuper::AwaitExpression(Box::new(FromJSON::import(value)?))),
-               Some("UpdateExpression") => Ok(ExpressionOrSuper::UpdateExpression(Box::new(FromJSON::import(value)?))),
+               Some("ComputedMemberExpression") => Ok(ExpressionOrSuper::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
                Some("BinaryExpression") => Ok(ExpressionOrSuper::BinaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("FunctionExpression") => Ok(ExpressionOrSuper::FunctionExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralRegExpExpression") => Ok(ExpressionOrSuper::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNullExpression") => Ok(ExpressionOrSuper::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
                Some("ArrayExpression") => Ok(ExpressionOrSuper::ArrayExpression(Box::new(FromJSON::import(value)?))),
+               Some("CompoundAssignmentExpression") => Ok(ExpressionOrSuper::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralStringExpression") => Ok(ExpressionOrSuper::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
+               Some("ClassExpression") => Ok(ExpressionOrSuper::ClassExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralInfinityExpression") => Ok(ExpressionOrSuper::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralBooleanExpression") => Ok(ExpressionOrSuper::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
+               Some("StaticMemberExpression") => Ok(ExpressionOrSuper::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("TemplateExpression") => Ok(ExpressionOrSuper::TemplateExpression(Box::new(FromJSON::import(value)?))),
+               Some("UnaryExpression") => Ok(ExpressionOrSuper::UnaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewExpression") => Ok(ExpressionOrSuper::NewExpression(Box::new(FromJSON::import(value)?))),
+               Some("UpdateExpression") => Ok(ExpressionOrSuper::UpdateExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNumericExpression") => Ok(ExpressionOrSuper::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
+               Some("CallExpression") => Ok(ExpressionOrSuper::CallExpression(Box::new(FromJSON::import(value)?))),
+               Some("ThisExpression") => Ok(ExpressionOrSuper::ThisExpression(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentExpression") => Ok(ExpressionOrSuper::AssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("Super") => Ok(ExpressionOrSuper::Super(Box::new(FromJSON::import(value)?))),
+               Some("NewTargetExpression") => Ok(ExpressionOrSuper::NewTargetExpression(Box::new(FromJSON::import(value)?))),
+               Some("AwaitExpression") => Ok(ExpressionOrSuper::AwaitExpression(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of ExpressionOrSuper".to_string(),
                     got: value.dump()
@@ -779,106 +953,142 @@ pub mod ast {
     impl ToJSON for ExpressionOrSuper {
         fn export(&self) -> JSON {
             match *self {
-               ExpressionOrSuper::YieldStarExpression(box ref value) => value.export(),
-               ExpressionOrSuper::LiteralStringExpression(box ref value) => value.export(),
-               ExpressionOrSuper::NewTargetExpression(box ref value) => value.export(),
-               ExpressionOrSuper::UnaryExpression(box ref value) => value.export(),
-               ExpressionOrSuper::CompoundAssignmentExpression(box ref value) => value.export(),
-               ExpressionOrSuper::ComputedMemberExpression(box ref value) => value.export(),
-               ExpressionOrSuper::AssignmentExpression(box ref value) => value.export(),
-               ExpressionOrSuper::LiteralRegExpExpression(box ref value) => value.export(),
-               ExpressionOrSuper::YieldExpression(box ref value) => value.export(),
-               ExpressionOrSuper::ConditionalExpression(box ref value) => value.export(),
-               ExpressionOrSuper::NewExpression(box ref value) => value.export(),
                ExpressionOrSuper::IdentifierExpression(box ref value) => value.export(),
-               ExpressionOrSuper::LiteralInfinityExpression(box ref value) => value.export(),
-               ExpressionOrSuper::ClassExpression(box ref value) => value.export(),
-               ExpressionOrSuper::LiteralNullExpression(box ref value) => value.export(),
-               ExpressionOrSuper::CallExpression(box ref value) => value.export(),
-               ExpressionOrSuper::TemplateExpression(box ref value) => value.export(),
-               ExpressionOrSuper::LiteralNumericExpression(box ref value) => value.export(),
+               ExpressionOrSuper::YieldStarExpression(box ref value) => value.export(),
                ExpressionOrSuper::ObjectExpression(box ref value) => value.export(),
-               ExpressionOrSuper::LiteralBooleanExpression(box ref value) => value.export(),
+               ExpressionOrSuper::ConditionalExpression(box ref value) => value.export(),
+               ExpressionOrSuper::YieldExpression(box ref value) => value.export(),
                ExpressionOrSuper::ArrowExpression(box ref value) => value.export(),
-               ExpressionOrSuper::Super(box ref value) => value.export(),
-               ExpressionOrSuper::ThisExpression(box ref value) => value.export(),
-               ExpressionOrSuper::FunctionExpression(box ref value) => value.export(),
-               ExpressionOrSuper::StaticMemberExpression(box ref value) => value.export(),
-               ExpressionOrSuper::AwaitExpression(box ref value) => value.export(),
-               ExpressionOrSuper::UpdateExpression(box ref value) => value.export(),
+               ExpressionOrSuper::ComputedMemberExpression(box ref value) => value.export(),
                ExpressionOrSuper::BinaryExpression(box ref value) => value.export(),
-               ExpressionOrSuper::ArrayExpression(box ref value) => value.export()
+               ExpressionOrSuper::FunctionExpression(box ref value) => value.export(),
+               ExpressionOrSuper::LiteralRegExpExpression(box ref value) => value.export(),
+               ExpressionOrSuper::LiteralNullExpression(box ref value) => value.export(),
+               ExpressionOrSuper::ArrayExpression(box ref value) => value.export(),
+               ExpressionOrSuper::CompoundAssignmentExpression(box ref value) => value.export(),
+               ExpressionOrSuper::LiteralStringExpression(box ref value) => value.export(),
+               ExpressionOrSuper::ClassExpression(box ref value) => value.export(),
+               ExpressionOrSuper::LiteralInfinityExpression(box ref value) => value.export(),
+               ExpressionOrSuper::LiteralBooleanExpression(box ref value) => value.export(),
+               ExpressionOrSuper::StaticMemberExpression(box ref value) => value.export(),
+               ExpressionOrSuper::TemplateExpression(box ref value) => value.export(),
+               ExpressionOrSuper::UnaryExpression(box ref value) => value.export(),
+               ExpressionOrSuper::NewExpression(box ref value) => value.export(),
+               ExpressionOrSuper::UpdateExpression(box ref value) => value.export(),
+               ExpressionOrSuper::LiteralNumericExpression(box ref value) => value.export(),
+               ExpressionOrSuper::CallExpression(box ref value) => value.export(),
+               ExpressionOrSuper::ThisExpression(box ref value) => value.export(),
+               ExpressionOrSuper::AssignmentExpression(box ref value) => value.export(),
+               ExpressionOrSuper::Super(box ref value) => value.export(),
+               ExpressionOrSuper::NewTargetExpression(box ref value) => value.export(),
+               ExpressionOrSuper::AwaitExpression(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for ExpressionOrSuper {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               ExpressionOrSuper::IdentifierExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::YieldStarExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::ObjectExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::ConditionalExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::YieldExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::ArrowExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::ComputedMemberExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::BinaryExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::FunctionExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::LiteralRegExpExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::LiteralNullExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::ArrayExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::CompoundAssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::LiteralStringExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::ClassExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::LiteralInfinityExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::LiteralBooleanExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::StaticMemberExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::TemplateExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::UnaryExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::NewExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::UpdateExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::LiteralNumericExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::CallExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::ThisExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::AssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::Super(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::NewTargetExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrSuper::AwaitExpression(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum ExpressionOrTemplateElement {
-        ComputedMemberExpression(Box<ComputedMemberExpression>),
-        ThisExpression(Box<ThisExpression>),
-        CallExpression(Box<CallExpression>),
-        LiteralStringExpression(Box<LiteralStringExpression>),
-        ConditionalExpression(Box<ConditionalExpression>),
-        FunctionExpression(Box<FunctionExpression>),
-        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
-        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
-        YieldExpression(Box<YieldExpression>),
-        TemplateElement(Box<TemplateElement>),
-        ArrayExpression(Box<ArrayExpression>),
-        TemplateExpression(Box<TemplateExpression>),
-        NewTargetExpression(Box<NewTargetExpression>),
-        YieldStarExpression(Box<YieldStarExpression>),
-        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
-        IdentifierExpression(Box<IdentifierExpression>),
-        LiteralNullExpression(Box<LiteralNullExpression>),
-        UnaryExpression(Box<UnaryExpression>),
-        NewExpression(Box<NewExpression>),
         UpdateExpression(Box<UpdateExpression>),
-        AssignmentExpression(Box<AssignmentExpression>),
         LiteralRegExpExpression(Box<LiteralRegExpExpression>),
-        ArrowExpression(Box<ArrowExpression>),
-        AwaitExpression(Box<AwaitExpression>),
-        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        ThisExpression(Box<ThisExpression>),
+        NewExpression(Box<NewExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
         ClassExpression(Box<ClassExpression>),
-        BinaryExpression(Box<BinaryExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        ArrowExpression(Box<ArrowExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        CallExpression(Box<CallExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
         StaticMemberExpression(Box<StaticMemberExpression>),
-        ObjectExpression(Box<ObjectExpression>)
+        AssignmentExpression(Box<AssignmentExpression>),
+        TemplateElement(Box<TemplateElement>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        YieldExpression(Box<YieldExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        YieldStarExpression(Box<YieldStarExpression>)
     }
 
     impl FromJSON for ExpressionOrTemplateElement {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("ComputedMemberExpression") => Ok(ExpressionOrTemplateElement::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("ThisExpression") => Ok(ExpressionOrTemplateElement::ThisExpression(Box::new(FromJSON::import(value)?))),
-               Some("CallExpression") => Ok(ExpressionOrTemplateElement::CallExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralStringExpression") => Ok(ExpressionOrTemplateElement::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
-               Some("ConditionalExpression") => Ok(ExpressionOrTemplateElement::ConditionalExpression(Box::new(FromJSON::import(value)?))),
-               Some("FunctionExpression") => Ok(ExpressionOrTemplateElement::FunctionExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralBooleanExpression") => Ok(ExpressionOrTemplateElement::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralInfinityExpression") => Ok(ExpressionOrTemplateElement::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldExpression") => Ok(ExpressionOrTemplateElement::YieldExpression(Box::new(FromJSON::import(value)?))),
-               Some("TemplateElement") => Ok(ExpressionOrTemplateElement::TemplateElement(Box::new(FromJSON::import(value)?))),
-               Some("ArrayExpression") => Ok(ExpressionOrTemplateElement::ArrayExpression(Box::new(FromJSON::import(value)?))),
-               Some("TemplateExpression") => Ok(ExpressionOrTemplateElement::TemplateExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewTargetExpression") => Ok(ExpressionOrTemplateElement::NewTargetExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldStarExpression") => Ok(ExpressionOrTemplateElement::YieldStarExpression(Box::new(FromJSON::import(value)?))),
-               Some("CompoundAssignmentExpression") => Ok(ExpressionOrTemplateElement::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("IdentifierExpression") => Ok(ExpressionOrTemplateElement::IdentifierExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNullExpression") => Ok(ExpressionOrTemplateElement::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
-               Some("UnaryExpression") => Ok(ExpressionOrTemplateElement::UnaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewExpression") => Ok(ExpressionOrTemplateElement::NewExpression(Box::new(FromJSON::import(value)?))),
                Some("UpdateExpression") => Ok(ExpressionOrTemplateElement::UpdateExpression(Box::new(FromJSON::import(value)?))),
-               Some("AssignmentExpression") => Ok(ExpressionOrTemplateElement::AssignmentExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralRegExpExpression") => Ok(ExpressionOrTemplateElement::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
-               Some("ArrowExpression") => Ok(ExpressionOrTemplateElement::ArrowExpression(Box::new(FromJSON::import(value)?))),
-               Some("AwaitExpression") => Ok(ExpressionOrTemplateElement::AwaitExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNumericExpression") => Ok(ExpressionOrTemplateElement::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
+               Some("TemplateExpression") => Ok(ExpressionOrTemplateElement::TemplateExpression(Box::new(FromJSON::import(value)?))),
+               Some("IdentifierExpression") => Ok(ExpressionOrTemplateElement::IdentifierExpression(Box::new(FromJSON::import(value)?))),
+               Some("ThisExpression") => Ok(ExpressionOrTemplateElement::ThisExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewExpression") => Ok(ExpressionOrTemplateElement::NewExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralBooleanExpression") => Ok(ExpressionOrTemplateElement::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
                Some("ClassExpression") => Ok(ExpressionOrTemplateElement::ClassExpression(Box::new(FromJSON::import(value)?))),
-               Some("BinaryExpression") => Ok(ExpressionOrTemplateElement::BinaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("StaticMemberExpression") => Ok(ExpressionOrTemplateElement::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNumericExpression") => Ok(ExpressionOrTemplateElement::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewTargetExpression") => Ok(ExpressionOrTemplateElement::NewTargetExpression(Box::new(FromJSON::import(value)?))),
+               Some("AwaitExpression") => Ok(ExpressionOrTemplateElement::AwaitExpression(Box::new(FromJSON::import(value)?))),
+               Some("ConditionalExpression") => Ok(ExpressionOrTemplateElement::ConditionalExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrowExpression") => Ok(ExpressionOrTemplateElement::ArrowExpression(Box::new(FromJSON::import(value)?))),
                Some("ObjectExpression") => Ok(ExpressionOrTemplateElement::ObjectExpression(Box::new(FromJSON::import(value)?))),
+               Some("CallExpression") => Ok(ExpressionOrTemplateElement::CallExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralInfinityExpression") => Ok(ExpressionOrTemplateElement::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("StaticMemberExpression") => Ok(ExpressionOrTemplateElement::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentExpression") => Ok(ExpressionOrTemplateElement::AssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("TemplateElement") => Ok(ExpressionOrTemplateElement::TemplateElement(Box::new(FromJSON::import(value)?))),
+               Some("LiteralStringExpression") => Ok(ExpressionOrTemplateElement::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNullExpression") => Ok(ExpressionOrTemplateElement::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
+               Some("FunctionExpression") => Ok(ExpressionOrTemplateElement::FunctionExpression(Box::new(FromJSON::import(value)?))),
+               Some("UnaryExpression") => Ok(ExpressionOrTemplateElement::UnaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldExpression") => Ok(ExpressionOrTemplateElement::YieldExpression(Box::new(FromJSON::import(value)?))),
+               Some("BinaryExpression") => Ok(ExpressionOrTemplateElement::BinaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("CompoundAssignmentExpression") => Ok(ExpressionOrTemplateElement::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("ComputedMemberExpression") => Ok(ExpressionOrTemplateElement::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrayExpression") => Ok(ExpressionOrTemplateElement::ArrayExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldStarExpression") => Ok(ExpressionOrTemplateElement::YieldStarExpression(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of ExpressionOrTemplateElement".to_string(),
                     got: value.dump()
@@ -891,60 +1101,96 @@ pub mod ast {
     impl ToJSON for ExpressionOrTemplateElement {
         fn export(&self) -> JSON {
             match *self {
-               ExpressionOrTemplateElement::ComputedMemberExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::ThisExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::CallExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::LiteralStringExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::ConditionalExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::FunctionExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::LiteralBooleanExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::LiteralInfinityExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::YieldExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::TemplateElement(box ref value) => value.export(),
-               ExpressionOrTemplateElement::ArrayExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::TemplateExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::NewTargetExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::YieldStarExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::CompoundAssignmentExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::IdentifierExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::LiteralNullExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::UnaryExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::NewExpression(box ref value) => value.export(),
                ExpressionOrTemplateElement::UpdateExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::AssignmentExpression(box ref value) => value.export(),
                ExpressionOrTemplateElement::LiteralRegExpExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::ArrowExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::AwaitExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::LiteralNumericExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::TemplateExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::IdentifierExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::ThisExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::NewExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::LiteralBooleanExpression(box ref value) => value.export(),
                ExpressionOrTemplateElement::ClassExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::BinaryExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::LiteralNumericExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::NewTargetExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::AwaitExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::ConditionalExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::ArrowExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::ObjectExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::CallExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::LiteralInfinityExpression(box ref value) => value.export(),
                ExpressionOrTemplateElement::StaticMemberExpression(box ref value) => value.export(),
-               ExpressionOrTemplateElement::ObjectExpression(box ref value) => value.export()
+               ExpressionOrTemplateElement::AssignmentExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::TemplateElement(box ref value) => value.export(),
+               ExpressionOrTemplateElement::LiteralStringExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::LiteralNullExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::FunctionExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::UnaryExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::YieldExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::BinaryExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::CompoundAssignmentExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::ComputedMemberExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::ArrayExpression(box ref value) => value.export(),
+               ExpressionOrTemplateElement::YieldStarExpression(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for ExpressionOrTemplateElement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               ExpressionOrTemplateElement::UpdateExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::LiteralRegExpExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::TemplateExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::IdentifierExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::ThisExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::NewExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::LiteralBooleanExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::ClassExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::LiteralNumericExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::NewTargetExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::AwaitExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::ConditionalExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::ArrowExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::ObjectExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::CallExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::LiteralInfinityExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::StaticMemberExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::AssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::TemplateElement(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::LiteralStringExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::LiteralNullExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::FunctionExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::UnaryExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::YieldExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::BinaryExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::CompoundAssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::ComputedMemberExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::ArrayExpression(box ref mut value) => value.walk(path, visitor),
+               ExpressionOrTemplateElement::YieldStarExpression(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum ForInOfBindingOrAssignmentTarget {
         ObjectAssignmentTarget(Box<ObjectAssignmentTarget>),
-        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
+        StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>),
         ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>),
         ForInOfBinding(Box<ForInOfBinding>),
-        StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>),
-        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>)
+        ArrayAssignmentTarget(Box<ArrayAssignmentTarget>),
+        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>)
     }
 
     impl FromJSON for ForInOfBindingOrAssignmentTarget {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
                Some("ObjectAssignmentTarget") => Ok(ForInOfBindingOrAssignmentTarget::ObjectAssignmentTarget(Box::new(FromJSON::import(value)?))),
-               Some("AssignmentTargetIdentifier") => Ok(ForInOfBindingOrAssignmentTarget::AssignmentTargetIdentifier(Box::new(FromJSON::import(value)?))),
+               Some("StaticMemberAssignmentTarget") => Ok(ForInOfBindingOrAssignmentTarget::StaticMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
                Some("ComputedMemberAssignmentTarget") => Ok(ForInOfBindingOrAssignmentTarget::ComputedMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
                Some("ForInOfBinding") => Ok(ForInOfBindingOrAssignmentTarget::ForInOfBinding(Box::new(FromJSON::import(value)?))),
-               Some("StaticMemberAssignmentTarget") => Ok(ForInOfBindingOrAssignmentTarget::StaticMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
                Some("ArrayAssignmentTarget") => Ok(ForInOfBindingOrAssignmentTarget::ArrayAssignmentTarget(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentTargetIdentifier") => Ok(ForInOfBindingOrAssignmentTarget::AssignmentTargetIdentifier(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of ForInOfBindingOrAssignmentTarget".to_string(),
                     got: value.dump()
@@ -958,82 +1204,95 @@ pub mod ast {
         fn export(&self) -> JSON {
             match *self {
                ForInOfBindingOrAssignmentTarget::ObjectAssignmentTarget(box ref value) => value.export(),
-               ForInOfBindingOrAssignmentTarget::AssignmentTargetIdentifier(box ref value) => value.export(),
+               ForInOfBindingOrAssignmentTarget::StaticMemberAssignmentTarget(box ref value) => value.export(),
                ForInOfBindingOrAssignmentTarget::ComputedMemberAssignmentTarget(box ref value) => value.export(),
                ForInOfBindingOrAssignmentTarget::ForInOfBinding(box ref value) => value.export(),
-               ForInOfBindingOrAssignmentTarget::StaticMemberAssignmentTarget(box ref value) => value.export(),
-               ForInOfBindingOrAssignmentTarget::ArrayAssignmentTarget(box ref value) => value.export()
+               ForInOfBindingOrAssignmentTarget::ArrayAssignmentTarget(box ref value) => value.export(),
+               ForInOfBindingOrAssignmentTarget::AssignmentTargetIdentifier(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for ForInOfBindingOrAssignmentTarget {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               ForInOfBindingOrAssignmentTarget::ObjectAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               ForInOfBindingOrAssignmentTarget::StaticMemberAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               ForInOfBindingOrAssignmentTarget::ComputedMemberAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               ForInOfBindingOrAssignmentTarget::ForInOfBinding(box ref mut value) => value.walk(path, visitor),
+               ForInOfBindingOrAssignmentTarget::ArrayAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               ForInOfBindingOrAssignmentTarget::AssignmentTargetIdentifier(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum FunctionBodyOrExpression {
-        YieldExpression(Box<YieldExpression>),
-        ThisExpression(Box<ThisExpression>),
-        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
-        ConditionalExpression(Box<ConditionalExpression>),
-        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
-        BinaryExpression(Box<BinaryExpression>),
-        LiteralNumericExpression(Box<LiteralNumericExpression>),
-        FunctionExpression(Box<FunctionExpression>),
-        TemplateExpression(Box<TemplateExpression>),
-        LiteralNullExpression(Box<LiteralNullExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
         StaticMemberExpression(Box<StaticMemberExpression>),
-        UpdateExpression(Box<UpdateExpression>),
-        CallExpression(Box<CallExpression>),
-        UnaryExpression(Box<UnaryExpression>),
-        NewExpression(Box<NewExpression>),
-        AwaitExpression(Box<AwaitExpression>),
-        ClassExpression(Box<ClassExpression>),
-        IdentifierExpression(Box<IdentifierExpression>),
-        ComputedMemberExpression(Box<ComputedMemberExpression>),
-        ArrowExpression(Box<ArrowExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
         LiteralRegExpExpression(Box<LiteralRegExpExpression>),
         LiteralStringExpression(Box<LiteralStringExpression>),
-        ObjectExpression(Box<ObjectExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        ArrowExpression(Box<ArrowExpression>),
         AssignmentExpression(Box<AssignmentExpression>),
-        YieldStarExpression(Box<YieldStarExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
         ArrayExpression(Box<ArrayExpression>),
-        FunctionBody(Box<FunctionBody>),
+        ObjectExpression(Box<ObjectExpression>),
+        NewExpression(Box<NewExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        CallExpression(Box<CallExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        YieldExpression(Box<YieldExpression>),
+        ClassExpression(Box<ClassExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
         NewTargetExpression(Box<NewTargetExpression>),
-        LiteralBooleanExpression(Box<LiteralBooleanExpression>)
+        BinaryExpression(Box<BinaryExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        FunctionBody(Box<FunctionBody>),
+        ThisExpression(Box<ThisExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>)
     }
 
     impl FromJSON for FunctionBodyOrExpression {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("YieldExpression") => Ok(FunctionBodyOrExpression::YieldExpression(Box::new(FromJSON::import(value)?))),
-               Some("ThisExpression") => Ok(FunctionBodyOrExpression::ThisExpression(Box::new(FromJSON::import(value)?))),
-               Some("CompoundAssignmentExpression") => Ok(FunctionBodyOrExpression::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("ConditionalExpression") => Ok(FunctionBodyOrExpression::ConditionalExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralInfinityExpression") => Ok(FunctionBodyOrExpression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
-               Some("BinaryExpression") => Ok(FunctionBodyOrExpression::BinaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNumericExpression") => Ok(FunctionBodyOrExpression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
-               Some("FunctionExpression") => Ok(FunctionBodyOrExpression::FunctionExpression(Box::new(FromJSON::import(value)?))),
-               Some("TemplateExpression") => Ok(FunctionBodyOrExpression::TemplateExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNullExpression") => Ok(FunctionBodyOrExpression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralBooleanExpression") => Ok(FunctionBodyOrExpression::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
                Some("StaticMemberExpression") => Ok(FunctionBodyOrExpression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("UpdateExpression") => Ok(FunctionBodyOrExpression::UpdateExpression(Box::new(FromJSON::import(value)?))),
-               Some("CallExpression") => Ok(FunctionBodyOrExpression::CallExpression(Box::new(FromJSON::import(value)?))),
-               Some("UnaryExpression") => Ok(FunctionBodyOrExpression::UnaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewExpression") => Ok(FunctionBodyOrExpression::NewExpression(Box::new(FromJSON::import(value)?))),
-               Some("AwaitExpression") => Ok(FunctionBodyOrExpression::AwaitExpression(Box::new(FromJSON::import(value)?))),
-               Some("ClassExpression") => Ok(FunctionBodyOrExpression::ClassExpression(Box::new(FromJSON::import(value)?))),
-               Some("IdentifierExpression") => Ok(FunctionBodyOrExpression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
-               Some("ComputedMemberExpression") => Ok(FunctionBodyOrExpression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("ArrowExpression") => Ok(FunctionBodyOrExpression::ArrowExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNumericExpression") => Ok(FunctionBodyOrExpression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralRegExpExpression") => Ok(FunctionBodyOrExpression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralStringExpression") => Ok(FunctionBodyOrExpression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
-               Some("ObjectExpression") => Ok(FunctionBodyOrExpression::ObjectExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralInfinityExpression") => Ok(FunctionBodyOrExpression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrowExpression") => Ok(FunctionBodyOrExpression::ArrowExpression(Box::new(FromJSON::import(value)?))),
                Some("AssignmentExpression") => Ok(FunctionBodyOrExpression::AssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldStarExpression") => Ok(FunctionBodyOrExpression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
+               Some("UnaryExpression") => Ok(FunctionBodyOrExpression::UnaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("UpdateExpression") => Ok(FunctionBodyOrExpression::UpdateExpression(Box::new(FromJSON::import(value)?))),
+               Some("ComputedMemberExpression") => Ok(FunctionBodyOrExpression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
                Some("ArrayExpression") => Ok(FunctionBodyOrExpression::ArrayExpression(Box::new(FromJSON::import(value)?))),
-               Some("FunctionBody") => Ok(FunctionBodyOrExpression::FunctionBody(Box::new(FromJSON::import(value)?))),
+               Some("ObjectExpression") => Ok(FunctionBodyOrExpression::ObjectExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewExpression") => Ok(FunctionBodyOrExpression::NewExpression(Box::new(FromJSON::import(value)?))),
+               Some("TemplateExpression") => Ok(FunctionBodyOrExpression::TemplateExpression(Box::new(FromJSON::import(value)?))),
+               Some("CallExpression") => Ok(FunctionBodyOrExpression::CallExpression(Box::new(FromJSON::import(value)?))),
+               Some("FunctionExpression") => Ok(FunctionBodyOrExpression::FunctionExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldExpression") => Ok(FunctionBodyOrExpression::YieldExpression(Box::new(FromJSON::import(value)?))),
+               Some("ClassExpression") => Ok(FunctionBodyOrExpression::ClassExpression(Box::new(FromJSON::import(value)?))),
+               Some("ConditionalExpression") => Ok(FunctionBodyOrExpression::ConditionalExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldStarExpression") => Ok(FunctionBodyOrExpression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNullExpression") => Ok(FunctionBodyOrExpression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
                Some("NewTargetExpression") => Ok(FunctionBodyOrExpression::NewTargetExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralBooleanExpression") => Ok(FunctionBodyOrExpression::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
+               Some("BinaryExpression") => Ok(FunctionBodyOrExpression::BinaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("AwaitExpression") => Ok(FunctionBodyOrExpression::AwaitExpression(Box::new(FromJSON::import(value)?))),
+               Some("IdentifierExpression") => Ok(FunctionBodyOrExpression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
+               Some("FunctionBody") => Ok(FunctionBodyOrExpression::FunctionBody(Box::new(FromJSON::import(value)?))),
+               Some("ThisExpression") => Ok(FunctionBodyOrExpression::ThisExpression(Box::new(FromJSON::import(value)?))),
+               Some("CompoundAssignmentExpression") => Ok(FunctionBodyOrExpression::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of FunctionBodyOrExpression".to_string(),
                     got: value.dump()
@@ -1046,108 +1305,144 @@ pub mod ast {
     impl ToJSON for FunctionBodyOrExpression {
         fn export(&self) -> JSON {
             match *self {
-               FunctionBodyOrExpression::YieldExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::ThisExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::CompoundAssignmentExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::ConditionalExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::LiteralInfinityExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::BinaryExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::LiteralNumericExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::FunctionExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::TemplateExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::LiteralNullExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::LiteralBooleanExpression(box ref value) => value.export(),
                FunctionBodyOrExpression::StaticMemberExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::UpdateExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::CallExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::UnaryExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::NewExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::AwaitExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::ClassExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::IdentifierExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::ComputedMemberExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::ArrowExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::LiteralNumericExpression(box ref value) => value.export(),
                FunctionBodyOrExpression::LiteralRegExpExpression(box ref value) => value.export(),
                FunctionBodyOrExpression::LiteralStringExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::ObjectExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::LiteralInfinityExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::ArrowExpression(box ref value) => value.export(),
                FunctionBodyOrExpression::AssignmentExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::YieldStarExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::UnaryExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::UpdateExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::ComputedMemberExpression(box ref value) => value.export(),
                FunctionBodyOrExpression::ArrayExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::FunctionBody(box ref value) => value.export(),
+               FunctionBodyOrExpression::ObjectExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::NewExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::TemplateExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::CallExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::FunctionExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::YieldExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::ClassExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::ConditionalExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::YieldStarExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::LiteralNullExpression(box ref value) => value.export(),
                FunctionBodyOrExpression::NewTargetExpression(box ref value) => value.export(),
-               FunctionBodyOrExpression::LiteralBooleanExpression(box ref value) => value.export()
+               FunctionBodyOrExpression::BinaryExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::AwaitExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::IdentifierExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::FunctionBody(box ref value) => value.export(),
+               FunctionBodyOrExpression::ThisExpression(box ref value) => value.export(),
+               FunctionBodyOrExpression::CompoundAssignmentExpression(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for FunctionBodyOrExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               FunctionBodyOrExpression::LiteralBooleanExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::StaticMemberExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::LiteralNumericExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::LiteralRegExpExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::LiteralStringExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::LiteralInfinityExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::ArrowExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::AssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::UnaryExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::UpdateExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::ComputedMemberExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::ArrayExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::ObjectExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::NewExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::TemplateExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::CallExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::FunctionExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::YieldExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::ClassExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::ConditionalExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::YieldStarExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::LiteralNullExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::NewTargetExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::BinaryExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::AwaitExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::IdentifierExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::FunctionBody(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::ThisExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionBodyOrExpression::CompoundAssignmentExpression(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum FunctionDeclarationOrClassDeclarationOrExpression {
-        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
-        ThisExpression(Box<ThisExpression>),
-        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
-        TemplateExpression(Box<TemplateExpression>),
-        ArrowExpression(Box<ArrowExpression>),
-        IdentifierExpression(Box<IdentifierExpression>),
         UnaryExpression(Box<UnaryExpression>),
+        ConditionalExpression(Box<ConditionalExpression>),
+        UpdateExpression(Box<UpdateExpression>),
+        ComputedMemberExpression(Box<ComputedMemberExpression>),
+        CallExpression(Box<CallExpression>),
         NewTargetExpression(Box<NewTargetExpression>),
-        ClassExpression(Box<ClassExpression>),
-        LiteralNullExpression(Box<LiteralNullExpression>),
-        LiteralNumericExpression(Box<LiteralNumericExpression>),
-        FunctionDeclaration(Box<FunctionDeclaration>),
-        LiteralStringExpression(Box<LiteralStringExpression>),
-        ObjectExpression(Box<ObjectExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
         FunctionExpression(Box<FunctionExpression>),
         CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
-        UpdateExpression(Box<UpdateExpression>),
-        StaticMemberExpression(Box<StaticMemberExpression>),
-        YieldStarExpression(Box<YieldStarExpression>),
-        ClassDeclaration(Box<ClassDeclaration>),
-        AwaitExpression(Box<AwaitExpression>),
-        NewExpression(Box<NewExpression>),
-        ConditionalExpression(Box<ConditionalExpression>),
-        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        ClassExpression(Box<ClassExpression>),
+        ThisExpression(Box<ThisExpression>),
         AssignmentExpression(Box<AssignmentExpression>),
-        CallExpression(Box<CallExpression>),
+        ArrowExpression(Box<ArrowExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
         YieldExpression(Box<YieldExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        AwaitExpression(Box<AwaitExpression>),
         BinaryExpression(Box<BinaryExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
         ArrayExpression(Box<ArrayExpression>),
-        ComputedMemberExpression(Box<ComputedMemberExpression>)
+        YieldStarExpression(Box<YieldStarExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        FunctionDeclaration(Box<FunctionDeclaration>),
+        ClassDeclaration(Box<ClassDeclaration>),
+        NewExpression(Box<NewExpression>)
     }
 
     impl FromJSON for FunctionDeclarationOrClassDeclarationOrExpression {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("LiteralBooleanExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
-               Some("ThisExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ThisExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralInfinityExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
-               Some("TemplateExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::TemplateExpression(Box::new(FromJSON::import(value)?))),
-               Some("ArrowExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ArrowExpression(Box::new(FromJSON::import(value)?))),
-               Some("IdentifierExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
                Some("UnaryExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::UnaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("ConditionalExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ConditionalExpression(Box::new(FromJSON::import(value)?))),
+               Some("UpdateExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::UpdateExpression(Box::new(FromJSON::import(value)?))),
+               Some("ComputedMemberExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("CallExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::CallExpression(Box::new(FromJSON::import(value)?))),
                Some("NewTargetExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::NewTargetExpression(Box::new(FromJSON::import(value)?))),
-               Some("ClassExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ClassExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNullExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNumericExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
-               Some("FunctionDeclaration") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::FunctionDeclaration(Box::new(FromJSON::import(value)?))),
-               Some("LiteralStringExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
-               Some("ObjectExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ObjectExpression(Box::new(FromJSON::import(value)?))),
+               Some("StaticMemberExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("IdentifierExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
                Some("FunctionExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::FunctionExpression(Box::new(FromJSON::import(value)?))),
                Some("CompoundAssignmentExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("UpdateExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::UpdateExpression(Box::new(FromJSON::import(value)?))),
-               Some("StaticMemberExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldStarExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
-               Some("ClassDeclaration") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ClassDeclaration(Box::new(FromJSON::import(value)?))),
-               Some("AwaitExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::AwaitExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::NewExpression(Box::new(FromJSON::import(value)?))),
-               Some("ConditionalExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ConditionalExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralRegExpExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
+               Some("ClassExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ClassExpression(Box::new(FromJSON::import(value)?))),
+               Some("ThisExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ThisExpression(Box::new(FromJSON::import(value)?))),
                Some("AssignmentExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::AssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("CallExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::CallExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrowExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ArrowExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralInfinityExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
                Some("YieldExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::YieldExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNullExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
+               Some("TemplateExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::TemplateExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralBooleanExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
+               Some("AwaitExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::AwaitExpression(Box::new(FromJSON::import(value)?))),
                Some("BinaryExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::BinaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralStringExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralRegExpExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
                Some("ArrayExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ArrayExpression(Box::new(FromJSON::import(value)?))),
-               Some("ComputedMemberExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldStarExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
+               Some("ObjectExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ObjectExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNumericExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
+               Some("FunctionDeclaration") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::FunctionDeclaration(Box::new(FromJSON::import(value)?))),
+               Some("ClassDeclaration") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::ClassDeclaration(Box::new(FromJSON::import(value)?))),
+               Some("NewExpression") => Ok(FunctionDeclarationOrClassDeclarationOrExpression::NewExpression(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of FunctionDeclarationOrClassDeclarationOrExpression".to_string(),
                     got: value.dump()
@@ -1160,55 +1455,92 @@ pub mod ast {
     impl ToJSON for FunctionDeclarationOrClassDeclarationOrExpression {
         fn export(&self) -> JSON {
             match *self {
-               FunctionDeclarationOrClassDeclarationOrExpression::LiteralBooleanExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::ThisExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::LiteralInfinityExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::TemplateExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::ArrowExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::IdentifierExpression(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrExpression::UnaryExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::ConditionalExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::UpdateExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::ComputedMemberExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::CallExpression(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrExpression::NewTargetExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::ClassExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::LiteralNullExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::LiteralNumericExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::FunctionDeclaration(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::LiteralStringExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::ObjectExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::StaticMemberExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::IdentifierExpression(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrExpression::FunctionExpression(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrExpression::CompoundAssignmentExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::UpdateExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::StaticMemberExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::YieldStarExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::ClassDeclaration(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::AwaitExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::NewExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::ConditionalExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::LiteralRegExpExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::ClassExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::ThisExpression(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrExpression::AssignmentExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::CallExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::ArrowExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralInfinityExpression(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrExpression::YieldExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralNullExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::TemplateExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralBooleanExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::AwaitExpression(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrExpression::BinaryExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralStringExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralRegExpExpression(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrExpression::ArrayExpression(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrExpression::ComputedMemberExpression(box ref value) => value.export()
+               FunctionDeclarationOrClassDeclarationOrExpression::YieldStarExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::ObjectExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralNumericExpression(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::FunctionDeclaration(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::ClassDeclaration(box ref value) => value.export(),
+               FunctionDeclarationOrClassDeclarationOrExpression::NewExpression(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for FunctionDeclarationOrClassDeclarationOrExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               FunctionDeclarationOrClassDeclarationOrExpression::UnaryExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::ConditionalExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::UpdateExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::ComputedMemberExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::CallExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::NewTargetExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::StaticMemberExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::IdentifierExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::FunctionExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::CompoundAssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::ClassExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::ThisExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::AssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::ArrowExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralInfinityExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::YieldExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralNullExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::TemplateExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralBooleanExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::AwaitExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::BinaryExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralStringExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralRegExpExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::ArrayExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::YieldStarExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::ObjectExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::LiteralNumericExpression(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::FunctionDeclaration(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::ClassDeclaration(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrExpression::NewExpression(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum FunctionDeclarationOrClassDeclarationOrVariableDeclaration {
+        VariableDeclaration(Box<VariableDeclaration>),
         FunctionDeclaration(Box<FunctionDeclaration>),
-        ClassDeclaration(Box<ClassDeclaration>),
-        VariableDeclaration(Box<VariableDeclaration>)
+        ClassDeclaration(Box<ClassDeclaration>)
     }
 
     impl FromJSON for FunctionDeclarationOrClassDeclarationOrVariableDeclaration {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
+               Some("VariableDeclaration") => Ok(FunctionDeclarationOrClassDeclarationOrVariableDeclaration::VariableDeclaration(Box::new(FromJSON::import(value)?))),
                Some("FunctionDeclaration") => Ok(FunctionDeclarationOrClassDeclarationOrVariableDeclaration::FunctionDeclaration(Box::new(FromJSON::import(value)?))),
                Some("ClassDeclaration") => Ok(FunctionDeclarationOrClassDeclarationOrVariableDeclaration::ClassDeclaration(Box::new(FromJSON::import(value)?))),
-               Some("VariableDeclaration") => Ok(FunctionDeclarationOrClassDeclarationOrVariableDeclaration::VariableDeclaration(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of FunctionDeclarationOrClassDeclarationOrVariableDeclaration".to_string(),
                     got: value.dump()
@@ -1221,13 +1553,23 @@ pub mod ast {
     impl ToJSON for FunctionDeclarationOrClassDeclarationOrVariableDeclaration {
         fn export(&self) -> JSON {
             match *self {
+               FunctionDeclarationOrClassDeclarationOrVariableDeclaration::VariableDeclaration(box ref value) => value.export(),
                FunctionDeclarationOrClassDeclarationOrVariableDeclaration::FunctionDeclaration(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrVariableDeclaration::ClassDeclaration(box ref value) => value.export(),
-               FunctionDeclarationOrClassDeclarationOrVariableDeclaration::VariableDeclaration(box ref value) => value.export()
+               FunctionDeclarationOrClassDeclarationOrVariableDeclaration::ClassDeclaration(box ref value) => value.export()
             }
         }
     }
 
+
+    impl Walker for FunctionDeclarationOrClassDeclarationOrVariableDeclaration {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               FunctionDeclarationOrClassDeclarationOrVariableDeclaration::VariableDeclaration(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrVariableDeclaration::FunctionDeclaration(box ref mut value) => value.walk(path, visitor),
+               FunctionDeclarationOrClassDeclarationOrVariableDeclaration::ClassDeclaration(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
 
 
     #[derive(PartialEq, Debug, Clone)]
@@ -1260,74 +1602,83 @@ pub mod ast {
     }
 
 
+    impl Walker for ImportDeclaration {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               ImportDeclaration::ImportNamespace(box ref mut value) => value.walk(path, visitor),
+               ImportDeclaration::Import(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum ImportDeclarationOrExportDeclarationOrStatement {
-        ImportNamespace(Box<ImportNamespace>),
-        EmptyStatement(Box<EmptyStatement>),
+        BreakStatement(Box<BreakStatement>),
+        ExportFrom(Box<ExportFrom>),
+        SwitchStatement(Box<SwitchStatement>),
+        VariableDeclaration(Box<VariableDeclaration>),
+        ExportLocals(Box<ExportLocals>),
         ReturnStatement(Box<ReturnStatement>),
-        FunctionDeclaration(Box<FunctionDeclaration>),
-        ExportDefault(Box<ExportDefault>),
-        ExpressionStatement(Box<ExpressionStatement>),
+        ContinueStatement(Box<ContinueStatement>),
         TryFinallyStatement(Box<TryFinallyStatement>),
-        Export(Box<Export>),
-        ForStatement(Box<ForStatement>),
+        ImportNamespace(Box<ImportNamespace>),
         DoWhileStatement(Box<DoWhileStatement>),
         ForInStatement(Box<ForInStatement>),
-        SwitchStatement(Box<SwitchStatement>),
-        WithStatement(Box<WithStatement>),
-        VariableDeclaration(Box<VariableDeclaration>),
-        ExportAllFrom(Box<ExportAllFrom>),
+        ClassDeclaration(Box<ClassDeclaration>),
         ForOfStatement(Box<ForOfStatement>),
-        ExportFrom(Box<ExportFrom>),
+        SwitchStatementWithDefault(Box<SwitchStatementWithDefault>),
+        Import(Box<Import>),
         IfStatement(Box<IfStatement>),
         DebuggerStatement(Box<DebuggerStatement>),
+        EmptyStatement(Box<EmptyStatement>),
+        ExportDefault(Box<ExportDefault>),
         WhileStatement(Box<WhileStatement>),
-        TryCatchStatement(Box<TryCatchStatement>),
-        BreakStatement(Box<BreakStatement>),
-        ContinueStatement(Box<ContinueStatement>),
-        Import(Box<Import>),
-        ExportLocals(Box<ExportLocals>),
-        Block(Box<Block>),
+        FunctionDeclaration(Box<FunctionDeclaration>),
+        WithStatement(Box<WithStatement>),
         ThrowStatement(Box<ThrowStatement>),
-        SwitchStatementWithDefault(Box<SwitchStatementWithDefault>),
+        ForStatement(Box<ForStatement>),
+        Block(Box<Block>),
+        ExportAllFrom(Box<ExportAllFrom>),
         LabelledStatement(Box<LabelledStatement>),
-        ClassDeclaration(Box<ClassDeclaration>)
+        TryCatchStatement(Box<TryCatchStatement>),
+        Export(Box<Export>),
+        ExpressionStatement(Box<ExpressionStatement>)
     }
 
     impl FromJSON for ImportDeclarationOrExportDeclarationOrStatement {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("ImportNamespace") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ImportNamespace(Box::new(FromJSON::import(value)?))),
-               Some("EmptyStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::EmptyStatement(Box::new(FromJSON::import(value)?))),
+               Some("BreakStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::BreakStatement(Box::new(FromJSON::import(value)?))),
+               Some("ExportFrom") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExportFrom(Box::new(FromJSON::import(value)?))),
+               Some("SwitchStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::SwitchStatement(Box::new(FromJSON::import(value)?))),
+               Some("VariableDeclaration") => Ok(ImportDeclarationOrExportDeclarationOrStatement::VariableDeclaration(Box::new(FromJSON::import(value)?))),
+               Some("ExportLocals") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExportLocals(Box::new(FromJSON::import(value)?))),
                Some("ReturnStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ReturnStatement(Box::new(FromJSON::import(value)?))),
-               Some("FunctionDeclaration") => Ok(ImportDeclarationOrExportDeclarationOrStatement::FunctionDeclaration(Box::new(FromJSON::import(value)?))),
-               Some("ExportDefault") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExportDefault(Box::new(FromJSON::import(value)?))),
-               Some("ExpressionStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExpressionStatement(Box::new(FromJSON::import(value)?))),
+               Some("ContinueStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ContinueStatement(Box::new(FromJSON::import(value)?))),
                Some("TryFinallyStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::TryFinallyStatement(Box::new(FromJSON::import(value)?))),
-               Some("Export") => Ok(ImportDeclarationOrExportDeclarationOrStatement::Export(Box::new(FromJSON::import(value)?))),
-               Some("ForStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ForStatement(Box::new(FromJSON::import(value)?))),
+               Some("ImportNamespace") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ImportNamespace(Box::new(FromJSON::import(value)?))),
                Some("DoWhileStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::DoWhileStatement(Box::new(FromJSON::import(value)?))),
                Some("ForInStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ForInStatement(Box::new(FromJSON::import(value)?))),
-               Some("SwitchStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::SwitchStatement(Box::new(FromJSON::import(value)?))),
-               Some("WithStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::WithStatement(Box::new(FromJSON::import(value)?))),
-               Some("VariableDeclaration") => Ok(ImportDeclarationOrExportDeclarationOrStatement::VariableDeclaration(Box::new(FromJSON::import(value)?))),
-               Some("ExportAllFrom") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExportAllFrom(Box::new(FromJSON::import(value)?))),
+               Some("ClassDeclaration") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ClassDeclaration(Box::new(FromJSON::import(value)?))),
                Some("ForOfStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ForOfStatement(Box::new(FromJSON::import(value)?))),
-               Some("ExportFrom") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExportFrom(Box::new(FromJSON::import(value)?))),
+               Some("SwitchStatementWithDefault") => Ok(ImportDeclarationOrExportDeclarationOrStatement::SwitchStatementWithDefault(Box::new(FromJSON::import(value)?))),
+               Some("Import") => Ok(ImportDeclarationOrExportDeclarationOrStatement::Import(Box::new(FromJSON::import(value)?))),
                Some("IfStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::IfStatement(Box::new(FromJSON::import(value)?))),
                Some("DebuggerStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::DebuggerStatement(Box::new(FromJSON::import(value)?))),
+               Some("EmptyStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::EmptyStatement(Box::new(FromJSON::import(value)?))),
+               Some("ExportDefault") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExportDefault(Box::new(FromJSON::import(value)?))),
                Some("WhileStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::WhileStatement(Box::new(FromJSON::import(value)?))),
-               Some("TryCatchStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::TryCatchStatement(Box::new(FromJSON::import(value)?))),
-               Some("BreakStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::BreakStatement(Box::new(FromJSON::import(value)?))),
-               Some("ContinueStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ContinueStatement(Box::new(FromJSON::import(value)?))),
-               Some("Import") => Ok(ImportDeclarationOrExportDeclarationOrStatement::Import(Box::new(FromJSON::import(value)?))),
-               Some("ExportLocals") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExportLocals(Box::new(FromJSON::import(value)?))),
-               Some("Block") => Ok(ImportDeclarationOrExportDeclarationOrStatement::Block(Box::new(FromJSON::import(value)?))),
+               Some("FunctionDeclaration") => Ok(ImportDeclarationOrExportDeclarationOrStatement::FunctionDeclaration(Box::new(FromJSON::import(value)?))),
+               Some("WithStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::WithStatement(Box::new(FromJSON::import(value)?))),
                Some("ThrowStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ThrowStatement(Box::new(FromJSON::import(value)?))),
-               Some("SwitchStatementWithDefault") => Ok(ImportDeclarationOrExportDeclarationOrStatement::SwitchStatementWithDefault(Box::new(FromJSON::import(value)?))),
+               Some("ForStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ForStatement(Box::new(FromJSON::import(value)?))),
+               Some("Block") => Ok(ImportDeclarationOrExportDeclarationOrStatement::Block(Box::new(FromJSON::import(value)?))),
+               Some("ExportAllFrom") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExportAllFrom(Box::new(FromJSON::import(value)?))),
                Some("LabelledStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::LabelledStatement(Box::new(FromJSON::import(value)?))),
-               Some("ClassDeclaration") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ClassDeclaration(Box::new(FromJSON::import(value)?))),
+               Some("TryCatchStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::TryCatchStatement(Box::new(FromJSON::import(value)?))),
+               Some("Export") => Ok(ImportDeclarationOrExportDeclarationOrStatement::Export(Box::new(FromJSON::import(value)?))),
+               Some("ExpressionStatement") => Ok(ImportDeclarationOrExportDeclarationOrStatement::ExpressionStatement(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of ImportDeclarationOrExportDeclarationOrStatement".to_string(),
                     got: value.dump()
@@ -1340,59 +1691,96 @@ pub mod ast {
     impl ToJSON for ImportDeclarationOrExportDeclarationOrStatement {
         fn export(&self) -> JSON {
             match *self {
-               ImportDeclarationOrExportDeclarationOrStatement::ImportNamespace(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::EmptyStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::BreakStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ExportFrom(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::SwitchStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::VariableDeclaration(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ExportLocals(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::ReturnStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::FunctionDeclaration(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::ExportDefault(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::ExpressionStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ContinueStatement(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::TryFinallyStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::Export(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::ForStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ImportNamespace(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::DoWhileStatement(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::ForInStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::SwitchStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::WithStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::VariableDeclaration(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::ExportAllFrom(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ClassDeclaration(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::ForOfStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::ExportFrom(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::SwitchStatementWithDefault(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::Import(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::IfStatement(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::DebuggerStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::EmptyStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ExportDefault(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::WhileStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::TryCatchStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::BreakStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::ContinueStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::Import(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::ExportLocals(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::Block(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::FunctionDeclaration(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::WithStatement(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::ThrowStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::SwitchStatementWithDefault(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ForStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::Block(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ExportAllFrom(box ref value) => value.export(),
                ImportDeclarationOrExportDeclarationOrStatement::LabelledStatement(box ref value) => value.export(),
-               ImportDeclarationOrExportDeclarationOrStatement::ClassDeclaration(box ref value) => value.export()
+               ImportDeclarationOrExportDeclarationOrStatement::TryCatchStatement(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::Export(box ref value) => value.export(),
+               ImportDeclarationOrExportDeclarationOrStatement::ExpressionStatement(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for ImportDeclarationOrExportDeclarationOrStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               ImportDeclarationOrExportDeclarationOrStatement::BreakStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ExportFrom(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::SwitchStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::VariableDeclaration(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ExportLocals(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ReturnStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ContinueStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::TryFinallyStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ImportNamespace(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::DoWhileStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ForInStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ClassDeclaration(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ForOfStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::SwitchStatementWithDefault(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::Import(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::IfStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::DebuggerStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::EmptyStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ExportDefault(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::WhileStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::FunctionDeclaration(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::WithStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ThrowStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ForStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::Block(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ExportAllFrom(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::LabelledStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::TryCatchStatement(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::Export(box ref mut value) => value.walk(path, visitor),
+               ImportDeclarationOrExportDeclarationOrStatement::ExpressionStatement(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum IterationStatement {
-        ForOfStatement(Box<ForOfStatement>),
-        DoWhileStatement(Box<DoWhileStatement>),
-        ForInStatement(Box<ForInStatement>),
         WhileStatement(Box<WhileStatement>),
-        ForStatement(Box<ForStatement>)
+        ForOfStatement(Box<ForOfStatement>),
+        ForInStatement(Box<ForInStatement>),
+        ForStatement(Box<ForStatement>),
+        DoWhileStatement(Box<DoWhileStatement>)
     }
 
     impl FromJSON for IterationStatement {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("ForOfStatement") => Ok(IterationStatement::ForOfStatement(Box::new(FromJSON::import(value)?))),
-               Some("DoWhileStatement") => Ok(IterationStatement::DoWhileStatement(Box::new(FromJSON::import(value)?))),
-               Some("ForInStatement") => Ok(IterationStatement::ForInStatement(Box::new(FromJSON::import(value)?))),
                Some("WhileStatement") => Ok(IterationStatement::WhileStatement(Box::new(FromJSON::import(value)?))),
+               Some("ForOfStatement") => Ok(IterationStatement::ForOfStatement(Box::new(FromJSON::import(value)?))),
+               Some("ForInStatement") => Ok(IterationStatement::ForInStatement(Box::new(FromJSON::import(value)?))),
                Some("ForStatement") => Ok(IterationStatement::ForStatement(Box::new(FromJSON::import(value)?))),
+               Some("DoWhileStatement") => Ok(IterationStatement::DoWhileStatement(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of IterationStatement".to_string(),
                     got: value.dump()
@@ -1405,34 +1793,46 @@ pub mod ast {
     impl ToJSON for IterationStatement {
         fn export(&self) -> JSON {
             match *self {
-               IterationStatement::ForOfStatement(box ref value) => value.export(),
-               IterationStatement::DoWhileStatement(box ref value) => value.export(),
-               IterationStatement::ForInStatement(box ref value) => value.export(),
                IterationStatement::WhileStatement(box ref value) => value.export(),
-               IterationStatement::ForStatement(box ref value) => value.export()
+               IterationStatement::ForOfStatement(box ref value) => value.export(),
+               IterationStatement::ForInStatement(box ref value) => value.export(),
+               IterationStatement::ForStatement(box ref value) => value.export(),
+               IterationStatement::DoWhileStatement(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for IterationStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               IterationStatement::WhileStatement(box ref mut value) => value.walk(path, visitor),
+               IterationStatement::ForOfStatement(box ref mut value) => value.walk(path, visitor),
+               IterationStatement::ForInStatement(box ref mut value) => value.walk(path, visitor),
+               IterationStatement::ForStatement(box ref mut value) => value.walk(path, visitor),
+               IterationStatement::DoWhileStatement(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum Literal {
-        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
         LiteralStringExpression(Box<LiteralStringExpression>),
         LiteralNullExpression(Box<LiteralNullExpression>),
-        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
-        LiteralNumericExpression(Box<LiteralNumericExpression>)
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>)
     }
 
     impl FromJSON for Literal {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("LiteralInfinityExpression") => Ok(Literal::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralStringExpression") => Ok(Literal::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralNullExpression") => Ok(Literal::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralBooleanExpression") => Ok(Literal::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralNumericExpression") => Ok(Literal::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralInfinityExpression") => Ok(Literal::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralBooleanExpression") => Ok(Literal::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of Literal".to_string(),
                     got: value.dump()
@@ -1445,30 +1845,42 @@ pub mod ast {
     impl ToJSON for Literal {
         fn export(&self) -> JSON {
             match *self {
-               Literal::LiteralInfinityExpression(box ref value) => value.export(),
                Literal::LiteralStringExpression(box ref value) => value.export(),
                Literal::LiteralNullExpression(box ref value) => value.export(),
-               Literal::LiteralBooleanExpression(box ref value) => value.export(),
-               Literal::LiteralNumericExpression(box ref value) => value.export()
+               Literal::LiteralNumericExpression(box ref value) => value.export(),
+               Literal::LiteralInfinityExpression(box ref value) => value.export(),
+               Literal::LiteralBooleanExpression(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for Literal {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               Literal::LiteralStringExpression(box ref mut value) => value.walk(path, visitor),
+               Literal::LiteralNullExpression(box ref mut value) => value.walk(path, visitor),
+               Literal::LiteralNumericExpression(box ref mut value) => value.walk(path, visitor),
+               Literal::LiteralInfinityExpression(box ref mut value) => value.walk(path, visitor),
+               Literal::LiteralBooleanExpression(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum MethodDefinition {
         Setter(Box<Setter>),
-        Getter(Box<Getter>),
-        Method(Box<Method>)
+        Method(Box<Method>),
+        Getter(Box<Getter>)
     }
 
     impl FromJSON for MethodDefinition {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
                Some("Setter") => Ok(MethodDefinition::Setter(Box::new(FromJSON::import(value)?))),
-               Some("Getter") => Ok(MethodDefinition::Getter(Box::new(FromJSON::import(value)?))),
                Some("Method") => Ok(MethodDefinition::Method(Box::new(FromJSON::import(value)?))),
+               Some("Getter") => Ok(MethodDefinition::Getter(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of MethodDefinition".to_string(),
                     got: value.dump()
@@ -1482,31 +1894,41 @@ pub mod ast {
         fn export(&self) -> JSON {
             match *self {
                MethodDefinition::Setter(box ref value) => value.export(),
-               MethodDefinition::Getter(box ref value) => value.export(),
-               MethodDefinition::Method(box ref value) => value.export()
+               MethodDefinition::Method(box ref value) => value.export(),
+               MethodDefinition::Getter(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for MethodDefinition {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               MethodDefinition::Setter(box ref mut value) => value.walk(path, visitor),
+               MethodDefinition::Method(box ref mut value) => value.walk(path, visitor),
+               MethodDefinition::Getter(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum ObjectProperty {
-        DataProperty(Box<DataProperty>),
         Method(Box<Method>),
+        Setter(Box<Setter>),
+        DataProperty(Box<DataProperty>),
         ShorthandProperty(Box<ShorthandProperty>),
-        Getter(Box<Getter>),
-        Setter(Box<Setter>)
+        Getter(Box<Getter>)
     }
 
     impl FromJSON for ObjectProperty {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("DataProperty") => Ok(ObjectProperty::DataProperty(Box::new(FromJSON::import(value)?))),
                Some("Method") => Ok(ObjectProperty::Method(Box::new(FromJSON::import(value)?))),
+               Some("Setter") => Ok(ObjectProperty::Setter(Box::new(FromJSON::import(value)?))),
+               Some("DataProperty") => Ok(ObjectProperty::DataProperty(Box::new(FromJSON::import(value)?))),
                Some("ShorthandProperty") => Ok(ObjectProperty::ShorthandProperty(Box::new(FromJSON::import(value)?))),
                Some("Getter") => Ok(ObjectProperty::Getter(Box::new(FromJSON::import(value)?))),
-               Some("Setter") => Ok(ObjectProperty::Setter(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of ObjectProperty".to_string(),
                     got: value.dump()
@@ -1519,23 +1941,35 @@ pub mod ast {
     impl ToJSON for ObjectProperty {
         fn export(&self) -> JSON {
             match *self {
-               ObjectProperty::DataProperty(box ref value) => value.export(),
                ObjectProperty::Method(box ref value) => value.export(),
+               ObjectProperty::Setter(box ref value) => value.export(),
+               ObjectProperty::DataProperty(box ref value) => value.export(),
                ObjectProperty::ShorthandProperty(box ref value) => value.export(),
-               ObjectProperty::Getter(box ref value) => value.export(),
-               ObjectProperty::Setter(box ref value) => value.export()
+               ObjectProperty::Getter(box ref value) => value.export()
             }
         }
     }
 
+
+    impl Walker for ObjectProperty {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               ObjectProperty::Method(box ref mut value) => value.walk(path, visitor),
+               ObjectProperty::Setter(box ref mut value) => value.walk(path, visitor),
+               ObjectProperty::DataProperty(box ref mut value) => value.walk(path, visitor),
+               ObjectProperty::ShorthandProperty(box ref mut value) => value.walk(path, visitor),
+               ObjectProperty::Getter(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum Parameter {
         ObjectBinding(Box<ObjectBinding>),
         BindingWithInitializer(Box<BindingWithInitializer>),
-        BindingIdentifier(Box<BindingIdentifier>),
-        ArrayBinding(Box<ArrayBinding>)
+        ArrayBinding(Box<ArrayBinding>),
+        BindingIdentifier(Box<BindingIdentifier>)
     }
 
     impl FromJSON for Parameter {
@@ -1543,8 +1977,8 @@ pub mod ast {
             match value["type"].as_str() {
                Some("ObjectBinding") => Ok(Parameter::ObjectBinding(Box::new(FromJSON::import(value)?))),
                Some("BindingWithInitializer") => Ok(Parameter::BindingWithInitializer(Box::new(FromJSON::import(value)?))),
-               Some("BindingIdentifier") => Ok(Parameter::BindingIdentifier(Box::new(FromJSON::import(value)?))),
                Some("ArrayBinding") => Ok(Parameter::ArrayBinding(Box::new(FromJSON::import(value)?))),
+               Some("BindingIdentifier") => Ok(Parameter::BindingIdentifier(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of Parameter".to_string(),
                     got: value.dump()
@@ -1559,25 +1993,36 @@ pub mod ast {
             match *self {
                Parameter::ObjectBinding(box ref value) => value.export(),
                Parameter::BindingWithInitializer(box ref value) => value.export(),
-               Parameter::BindingIdentifier(box ref value) => value.export(),
-               Parameter::ArrayBinding(box ref value) => value.export()
+               Parameter::ArrayBinding(box ref value) => value.export(),
+               Parameter::BindingIdentifier(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for Parameter {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               Parameter::ObjectBinding(box ref mut value) => value.walk(path, visitor),
+               Parameter::BindingWithInitializer(box ref mut value) => value.walk(path, visitor),
+               Parameter::ArrayBinding(box ref mut value) => value.walk(path, visitor),
+               Parameter::BindingIdentifier(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum Program {
-        Script(Box<Script>),
-        Module(Box<Module>)
+        Module(Box<Module>),
+        Script(Box<Script>)
     }
 
     impl FromJSON for Program {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("Script") => Ok(Program::Script(Box::new(FromJSON::import(value)?))),
                Some("Module") => Ok(Program::Module(Box::new(FromJSON::import(value)?))),
+               Some("Script") => Ok(Program::Script(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of Program".to_string(),
                     got: value.dump()
@@ -1590,12 +2035,21 @@ pub mod ast {
     impl ToJSON for Program {
         fn export(&self) -> JSON {
             match *self {
-               Program::Script(box ref value) => value.export(),
-               Program::Module(box ref value) => value.export()
+               Program::Module(box ref value) => value.export(),
+               Program::Script(box ref value) => value.export()
             }
         }
     }
 
+
+    impl Walker for Program {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               Program::Module(box ref mut value) => value.walk(path, visitor),
+               Program::Script(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
 
 
     #[derive(PartialEq, Debug, Clone)]
@@ -1628,19 +2082,28 @@ pub mod ast {
     }
 
 
+    impl Walker for PropertyName {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               PropertyName::LiteralPropertyName(box ref mut value) => value.walk(path, visitor),
+               PropertyName::ComputedPropertyName(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum SimpleAssignmentTarget {
-        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
         StaticMemberAssignmentTarget(Box<StaticMemberAssignmentTarget>),
+        AssignmentTargetIdentifier(Box<AssignmentTargetIdentifier>),
         ComputedMemberAssignmentTarget(Box<ComputedMemberAssignmentTarget>)
     }
 
     impl FromJSON for SimpleAssignmentTarget {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("AssignmentTargetIdentifier") => Ok(SimpleAssignmentTarget::AssignmentTargetIdentifier(Box::new(FromJSON::import(value)?))),
                Some("StaticMemberAssignmentTarget") => Ok(SimpleAssignmentTarget::StaticMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentTargetIdentifier") => Ok(SimpleAssignmentTarget::AssignmentTargetIdentifier(Box::new(FromJSON::import(value)?))),
                Some("ComputedMemberAssignmentTarget") => Ok(SimpleAssignmentTarget::ComputedMemberAssignmentTarget(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of SimpleAssignmentTarget".to_string(),
@@ -1654,80 +2117,90 @@ pub mod ast {
     impl ToJSON for SimpleAssignmentTarget {
         fn export(&self) -> JSON {
             match *self {
-               SimpleAssignmentTarget::AssignmentTargetIdentifier(box ref value) => value.export(),
                SimpleAssignmentTarget::StaticMemberAssignmentTarget(box ref value) => value.export(),
+               SimpleAssignmentTarget::AssignmentTargetIdentifier(box ref value) => value.export(),
                SimpleAssignmentTarget::ComputedMemberAssignmentTarget(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for SimpleAssignmentTarget {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               SimpleAssignmentTarget::StaticMemberAssignmentTarget(box ref mut value) => value.walk(path, visitor),
+               SimpleAssignmentTarget::AssignmentTargetIdentifier(box ref mut value) => value.walk(path, visitor),
+               SimpleAssignmentTarget::ComputedMemberAssignmentTarget(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum SpreadElementOrExpression {
-        ArrowExpression(Box<ArrowExpression>),
-        FunctionExpression(Box<FunctionExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
         TemplateExpression(Box<TemplateExpression>),
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        ClassExpression(Box<ClassExpression>),
+        ArrowExpression(Box<ArrowExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
         ComputedMemberExpression(Box<ComputedMemberExpression>),
         ThisExpression(Box<ThisExpression>),
-        IdentifierExpression(Box<IdentifierExpression>),
-        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
-        LiteralNullExpression(Box<LiteralNullExpression>),
-        BinaryExpression(Box<BinaryExpression>),
-        ClassExpression(Box<ClassExpression>),
-        ArrayExpression(Box<ArrayExpression>),
-        ObjectExpression(Box<ObjectExpression>),
-        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
-        YieldExpression(Box<YieldExpression>),
-        YieldStarExpression(Box<YieldStarExpression>),
-        LiteralStringExpression(Box<LiteralStringExpression>),
-        NewTargetExpression(Box<NewTargetExpression>),
-        UnaryExpression(Box<UnaryExpression>),
-        StaticMemberExpression(Box<StaticMemberExpression>),
-        NewExpression(Box<NewExpression>),
         UpdateExpression(Box<UpdateExpression>),
-        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
-        AssignmentExpression(Box<AssignmentExpression>),
-        CallExpression(Box<CallExpression>),
-        AwaitExpression(Box<AwaitExpression>),
-        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        FunctionExpression(Box<FunctionExpression>),
+        YieldExpression(Box<YieldExpression>),
         ConditionalExpression(Box<ConditionalExpression>),
+        BinaryExpression(Box<BinaryExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        CallExpression(Box<CallExpression>),
         LiteralNumericExpression(Box<LiteralNumericExpression>),
-        SpreadElement(Box<SpreadElement>)
+        NewExpression(Box<NewExpression>),
+        SpreadElement(Box<SpreadElement>),
+        LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        UnaryExpression(Box<UnaryExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        LiteralNullExpression(Box<LiteralNullExpression>)
     }
 
     impl FromJSON for SpreadElementOrExpression {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("ArrowExpression") => Ok(SpreadElementOrExpression::ArrowExpression(Box::new(FromJSON::import(value)?))),
-               Some("FunctionExpression") => Ok(SpreadElementOrExpression::FunctionExpression(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentExpression") => Ok(SpreadElementOrExpression::AssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("CompoundAssignmentExpression") => Ok(SpreadElementOrExpression::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
                Some("TemplateExpression") => Ok(SpreadElementOrExpression::TemplateExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralStringExpression") => Ok(SpreadElementOrExpression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
+               Some("ClassExpression") => Ok(SpreadElementOrExpression::ClassExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrowExpression") => Ok(SpreadElementOrExpression::ArrowExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewTargetExpression") => Ok(SpreadElementOrExpression::NewTargetExpression(Box::new(FromJSON::import(value)?))),
                Some("ComputedMemberExpression") => Ok(SpreadElementOrExpression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
                Some("ThisExpression") => Ok(SpreadElementOrExpression::ThisExpression(Box::new(FromJSON::import(value)?))),
-               Some("IdentifierExpression") => Ok(SpreadElementOrExpression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralRegExpExpression") => Ok(SpreadElementOrExpression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNullExpression") => Ok(SpreadElementOrExpression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
-               Some("BinaryExpression") => Ok(SpreadElementOrExpression::BinaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("ClassExpression") => Ok(SpreadElementOrExpression::ClassExpression(Box::new(FromJSON::import(value)?))),
-               Some("ArrayExpression") => Ok(SpreadElementOrExpression::ArrayExpression(Box::new(FromJSON::import(value)?))),
-               Some("ObjectExpression") => Ok(SpreadElementOrExpression::ObjectExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralBooleanExpression") => Ok(SpreadElementOrExpression::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldExpression") => Ok(SpreadElementOrExpression::YieldExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldStarExpression") => Ok(SpreadElementOrExpression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralStringExpression") => Ok(SpreadElementOrExpression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewTargetExpression") => Ok(SpreadElementOrExpression::NewTargetExpression(Box::new(FromJSON::import(value)?))),
-               Some("UnaryExpression") => Ok(SpreadElementOrExpression::UnaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("StaticMemberExpression") => Ok(SpreadElementOrExpression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewExpression") => Ok(SpreadElementOrExpression::NewExpression(Box::new(FromJSON::import(value)?))),
                Some("UpdateExpression") => Ok(SpreadElementOrExpression::UpdateExpression(Box::new(FromJSON::import(value)?))),
-               Some("CompoundAssignmentExpression") => Ok(SpreadElementOrExpression::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("AssignmentExpression") => Ok(SpreadElementOrExpression::AssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("CallExpression") => Ok(SpreadElementOrExpression::CallExpression(Box::new(FromJSON::import(value)?))),
-               Some("AwaitExpression") => Ok(SpreadElementOrExpression::AwaitExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralInfinityExpression") => Ok(SpreadElementOrExpression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("IdentifierExpression") => Ok(SpreadElementOrExpression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrayExpression") => Ok(SpreadElementOrExpression::ArrayExpression(Box::new(FromJSON::import(value)?))),
+               Some("FunctionExpression") => Ok(SpreadElementOrExpression::FunctionExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldExpression") => Ok(SpreadElementOrExpression::YieldExpression(Box::new(FromJSON::import(value)?))),
                Some("ConditionalExpression") => Ok(SpreadElementOrExpression::ConditionalExpression(Box::new(FromJSON::import(value)?))),
+               Some("BinaryExpression") => Ok(SpreadElementOrExpression::BinaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralInfinityExpression") => Ok(SpreadElementOrExpression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("CallExpression") => Ok(SpreadElementOrExpression::CallExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralNumericExpression") => Ok(SpreadElementOrExpression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewExpression") => Ok(SpreadElementOrExpression::NewExpression(Box::new(FromJSON::import(value)?))),
                Some("SpreadElement") => Ok(SpreadElementOrExpression::SpreadElement(Box::new(FromJSON::import(value)?))),
+               Some("LiteralBooleanExpression") => Ok(SpreadElementOrExpression::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
+               Some("UnaryExpression") => Ok(SpreadElementOrExpression::UnaryExpression(Box::new(FromJSON::import(value)?))),
+               Some("AwaitExpression") => Ok(SpreadElementOrExpression::AwaitExpression(Box::new(FromJSON::import(value)?))),
+               Some("StaticMemberExpression") => Ok(SpreadElementOrExpression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("ObjectExpression") => Ok(SpreadElementOrExpression::ObjectExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralRegExpExpression") => Ok(SpreadElementOrExpression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldStarExpression") => Ok(SpreadElementOrExpression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNullExpression") => Ok(SpreadElementOrExpression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of SpreadElementOrExpression".to_string(),
                     got: value.dump()
@@ -1740,94 +2213,130 @@ pub mod ast {
     impl ToJSON for SpreadElementOrExpression {
         fn export(&self) -> JSON {
             match *self {
-               SpreadElementOrExpression::ArrowExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::FunctionExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::AssignmentExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::CompoundAssignmentExpression(box ref value) => value.export(),
                SpreadElementOrExpression::TemplateExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::LiteralStringExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::ClassExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::ArrowExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::NewTargetExpression(box ref value) => value.export(),
                SpreadElementOrExpression::ComputedMemberExpression(box ref value) => value.export(),
                SpreadElementOrExpression::ThisExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::IdentifierExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::LiteralRegExpExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::LiteralNullExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::BinaryExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::ClassExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::ArrayExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::ObjectExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::LiteralBooleanExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::YieldExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::YieldStarExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::LiteralStringExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::NewTargetExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::UnaryExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::StaticMemberExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::NewExpression(box ref value) => value.export(),
                SpreadElementOrExpression::UpdateExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::CompoundAssignmentExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::AssignmentExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::CallExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::AwaitExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::LiteralInfinityExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::IdentifierExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::ArrayExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::FunctionExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::YieldExpression(box ref value) => value.export(),
                SpreadElementOrExpression::ConditionalExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::BinaryExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::LiteralInfinityExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::CallExpression(box ref value) => value.export(),
                SpreadElementOrExpression::LiteralNumericExpression(box ref value) => value.export(),
-               SpreadElementOrExpression::SpreadElement(box ref value) => value.export()
+               SpreadElementOrExpression::NewExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::SpreadElement(box ref value) => value.export(),
+               SpreadElementOrExpression::LiteralBooleanExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::UnaryExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::AwaitExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::StaticMemberExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::ObjectExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::LiteralRegExpExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::YieldStarExpression(box ref value) => value.export(),
+               SpreadElementOrExpression::LiteralNullExpression(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for SpreadElementOrExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               SpreadElementOrExpression::AssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::CompoundAssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::TemplateExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::LiteralStringExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::ClassExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::ArrowExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::NewTargetExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::ComputedMemberExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::ThisExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::UpdateExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::IdentifierExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::ArrayExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::FunctionExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::YieldExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::ConditionalExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::BinaryExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::LiteralInfinityExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::CallExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::LiteralNumericExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::NewExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::SpreadElement(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::LiteralBooleanExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::UnaryExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::AwaitExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::StaticMemberExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::ObjectExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::LiteralRegExpExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::YieldStarExpression(box ref mut value) => value.walk(path, visitor),
+               SpreadElementOrExpression::LiteralNullExpression(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum Statement {
-        ThrowStatement(Box<ThrowStatement>),
-        Block(Box<Block>),
-        BreakStatement(Box<BreakStatement>),
-        ForStatement(Box<ForStatement>),
-        WithStatement(Box<WithStatement>),
-        WhileStatement(Box<WhileStatement>),
-        VariableDeclaration(Box<VariableDeclaration>),
-        SwitchStatement(Box<SwitchStatement>),
-        FunctionDeclaration(Box<FunctionDeclaration>),
-        TryFinallyStatement(Box<TryFinallyStatement>),
-        SwitchStatementWithDefault(Box<SwitchStatementWithDefault>),
-        ContinueStatement(Box<ContinueStatement>),
         ReturnStatement(Box<ReturnStatement>),
-        EmptyStatement(Box<EmptyStatement>),
-        ClassDeclaration(Box<ClassDeclaration>),
         DoWhileStatement(Box<DoWhileStatement>),
-        ForOfStatement(Box<ForOfStatement>),
-        ExpressionStatement(Box<ExpressionStatement>),
-        LabelledStatement(Box<LabelledStatement>),
-        DebuggerStatement(Box<DebuggerStatement>),
-        TryCatchStatement(Box<TryCatchStatement>),
+        ForStatement(Box<ForStatement>),
+        BreakStatement(Box<BreakStatement>),
+        VariableDeclaration(Box<VariableDeclaration>),
+        WhileStatement(Box<WhileStatement>),
+        SwitchStatement(Box<SwitchStatement>),
         IfStatement(Box<IfStatement>),
-        ForInStatement(Box<ForInStatement>)
+        ThrowStatement(Box<ThrowStatement>),
+        TryFinallyStatement(Box<TryFinallyStatement>),
+        EmptyStatement(Box<EmptyStatement>),
+        ContinueStatement(Box<ContinueStatement>),
+        Block(Box<Block>),
+        ExpressionStatement(Box<ExpressionStatement>),
+        TryCatchStatement(Box<TryCatchStatement>),
+        FunctionDeclaration(Box<FunctionDeclaration>),
+        LabelledStatement(Box<LabelledStatement>),
+        ForInStatement(Box<ForInStatement>),
+        ForOfStatement(Box<ForOfStatement>),
+        ClassDeclaration(Box<ClassDeclaration>),
+        DebuggerStatement(Box<DebuggerStatement>),
+        WithStatement(Box<WithStatement>),
+        SwitchStatementWithDefault(Box<SwitchStatementWithDefault>)
     }
 
     impl FromJSON for Statement {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("ThrowStatement") => Ok(Statement::ThrowStatement(Box::new(FromJSON::import(value)?))),
-               Some("Block") => Ok(Statement::Block(Box::new(FromJSON::import(value)?))),
-               Some("BreakStatement") => Ok(Statement::BreakStatement(Box::new(FromJSON::import(value)?))),
-               Some("ForStatement") => Ok(Statement::ForStatement(Box::new(FromJSON::import(value)?))),
-               Some("WithStatement") => Ok(Statement::WithStatement(Box::new(FromJSON::import(value)?))),
-               Some("WhileStatement") => Ok(Statement::WhileStatement(Box::new(FromJSON::import(value)?))),
-               Some("VariableDeclaration") => Ok(Statement::VariableDeclaration(Box::new(FromJSON::import(value)?))),
-               Some("SwitchStatement") => Ok(Statement::SwitchStatement(Box::new(FromJSON::import(value)?))),
-               Some("FunctionDeclaration") => Ok(Statement::FunctionDeclaration(Box::new(FromJSON::import(value)?))),
-               Some("TryFinallyStatement") => Ok(Statement::TryFinallyStatement(Box::new(FromJSON::import(value)?))),
-               Some("SwitchStatementWithDefault") => Ok(Statement::SwitchStatementWithDefault(Box::new(FromJSON::import(value)?))),
-               Some("ContinueStatement") => Ok(Statement::ContinueStatement(Box::new(FromJSON::import(value)?))),
                Some("ReturnStatement") => Ok(Statement::ReturnStatement(Box::new(FromJSON::import(value)?))),
-               Some("EmptyStatement") => Ok(Statement::EmptyStatement(Box::new(FromJSON::import(value)?))),
-               Some("ClassDeclaration") => Ok(Statement::ClassDeclaration(Box::new(FromJSON::import(value)?))),
                Some("DoWhileStatement") => Ok(Statement::DoWhileStatement(Box::new(FromJSON::import(value)?))),
-               Some("ForOfStatement") => Ok(Statement::ForOfStatement(Box::new(FromJSON::import(value)?))),
-               Some("ExpressionStatement") => Ok(Statement::ExpressionStatement(Box::new(FromJSON::import(value)?))),
-               Some("LabelledStatement") => Ok(Statement::LabelledStatement(Box::new(FromJSON::import(value)?))),
-               Some("DebuggerStatement") => Ok(Statement::DebuggerStatement(Box::new(FromJSON::import(value)?))),
-               Some("TryCatchStatement") => Ok(Statement::TryCatchStatement(Box::new(FromJSON::import(value)?))),
+               Some("ForStatement") => Ok(Statement::ForStatement(Box::new(FromJSON::import(value)?))),
+               Some("BreakStatement") => Ok(Statement::BreakStatement(Box::new(FromJSON::import(value)?))),
+               Some("VariableDeclaration") => Ok(Statement::VariableDeclaration(Box::new(FromJSON::import(value)?))),
+               Some("WhileStatement") => Ok(Statement::WhileStatement(Box::new(FromJSON::import(value)?))),
+               Some("SwitchStatement") => Ok(Statement::SwitchStatement(Box::new(FromJSON::import(value)?))),
                Some("IfStatement") => Ok(Statement::IfStatement(Box::new(FromJSON::import(value)?))),
+               Some("ThrowStatement") => Ok(Statement::ThrowStatement(Box::new(FromJSON::import(value)?))),
+               Some("TryFinallyStatement") => Ok(Statement::TryFinallyStatement(Box::new(FromJSON::import(value)?))),
+               Some("EmptyStatement") => Ok(Statement::EmptyStatement(Box::new(FromJSON::import(value)?))),
+               Some("ContinueStatement") => Ok(Statement::ContinueStatement(Box::new(FromJSON::import(value)?))),
+               Some("Block") => Ok(Statement::Block(Box::new(FromJSON::import(value)?))),
+               Some("ExpressionStatement") => Ok(Statement::ExpressionStatement(Box::new(FromJSON::import(value)?))),
+               Some("TryCatchStatement") => Ok(Statement::TryCatchStatement(Box::new(FromJSON::import(value)?))),
+               Some("FunctionDeclaration") => Ok(Statement::FunctionDeclaration(Box::new(FromJSON::import(value)?))),
+               Some("LabelledStatement") => Ok(Statement::LabelledStatement(Box::new(FromJSON::import(value)?))),
                Some("ForInStatement") => Ok(Statement::ForInStatement(Box::new(FromJSON::import(value)?))),
+               Some("ForOfStatement") => Ok(Statement::ForOfStatement(Box::new(FromJSON::import(value)?))),
+               Some("ClassDeclaration") => Ok(Statement::ClassDeclaration(Box::new(FromJSON::import(value)?))),
+               Some("DebuggerStatement") => Ok(Statement::DebuggerStatement(Box::new(FromJSON::import(value)?))),
+               Some("WithStatement") => Ok(Statement::WithStatement(Box::new(FromJSON::import(value)?))),
+               Some("SwitchStatementWithDefault") => Ok(Statement::SwitchStatementWithDefault(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of Statement".to_string(),
                     got: value.dump()
@@ -1840,100 +2349,130 @@ pub mod ast {
     impl ToJSON for Statement {
         fn export(&self) -> JSON {
             match *self {
-               Statement::ThrowStatement(box ref value) => value.export(),
-               Statement::Block(box ref value) => value.export(),
-               Statement::BreakStatement(box ref value) => value.export(),
-               Statement::ForStatement(box ref value) => value.export(),
-               Statement::WithStatement(box ref value) => value.export(),
-               Statement::WhileStatement(box ref value) => value.export(),
-               Statement::VariableDeclaration(box ref value) => value.export(),
-               Statement::SwitchStatement(box ref value) => value.export(),
-               Statement::FunctionDeclaration(box ref value) => value.export(),
-               Statement::TryFinallyStatement(box ref value) => value.export(),
-               Statement::SwitchStatementWithDefault(box ref value) => value.export(),
-               Statement::ContinueStatement(box ref value) => value.export(),
                Statement::ReturnStatement(box ref value) => value.export(),
-               Statement::EmptyStatement(box ref value) => value.export(),
-               Statement::ClassDeclaration(box ref value) => value.export(),
                Statement::DoWhileStatement(box ref value) => value.export(),
-               Statement::ForOfStatement(box ref value) => value.export(),
-               Statement::ExpressionStatement(box ref value) => value.export(),
-               Statement::LabelledStatement(box ref value) => value.export(),
-               Statement::DebuggerStatement(box ref value) => value.export(),
-               Statement::TryCatchStatement(box ref value) => value.export(),
+               Statement::ForStatement(box ref value) => value.export(),
+               Statement::BreakStatement(box ref value) => value.export(),
+               Statement::VariableDeclaration(box ref value) => value.export(),
+               Statement::WhileStatement(box ref value) => value.export(),
+               Statement::SwitchStatement(box ref value) => value.export(),
                Statement::IfStatement(box ref value) => value.export(),
-               Statement::ForInStatement(box ref value) => value.export()
+               Statement::ThrowStatement(box ref value) => value.export(),
+               Statement::TryFinallyStatement(box ref value) => value.export(),
+               Statement::EmptyStatement(box ref value) => value.export(),
+               Statement::ContinueStatement(box ref value) => value.export(),
+               Statement::Block(box ref value) => value.export(),
+               Statement::ExpressionStatement(box ref value) => value.export(),
+               Statement::TryCatchStatement(box ref value) => value.export(),
+               Statement::FunctionDeclaration(box ref value) => value.export(),
+               Statement::LabelledStatement(box ref value) => value.export(),
+               Statement::ForInStatement(box ref value) => value.export(),
+               Statement::ForOfStatement(box ref value) => value.export(),
+               Statement::ClassDeclaration(box ref value) => value.export(),
+               Statement::DebuggerStatement(box ref value) => value.export(),
+               Statement::WithStatement(box ref value) => value.export(),
+               Statement::SwitchStatementWithDefault(box ref value) => value.export()
             }
         }
     }
 
 
+    impl Walker for Statement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               Statement::ReturnStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::DoWhileStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::ForStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::BreakStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::VariableDeclaration(box ref mut value) => value.walk(path, visitor),
+               Statement::WhileStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::SwitchStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::IfStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::ThrowStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::TryFinallyStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::EmptyStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::ContinueStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::Block(box ref mut value) => value.walk(path, visitor),
+               Statement::ExpressionStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::TryCatchStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::FunctionDeclaration(box ref mut value) => value.walk(path, visitor),
+               Statement::LabelledStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::ForInStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::ForOfStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::ClassDeclaration(box ref mut value) => value.walk(path, visitor),
+               Statement::DebuggerStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::WithStatement(box ref mut value) => value.walk(path, visitor),
+               Statement::SwitchStatementWithDefault(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
+
 
     #[derive(PartialEq, Debug, Clone)]
     pub enum VariableDeclarationOrExpression {
-        ArrayExpression(Box<ArrayExpression>),
-        AssignmentExpression(Box<AssignmentExpression>),
-        ArrowExpression(Box<ArrowExpression>),
-        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
-        LiteralNumericExpression(Box<LiteralNumericExpression>),
-        VariableDeclaration(Box<VariableDeclaration>),
-        AwaitExpression(Box<AwaitExpression>),
         LiteralBooleanExpression(Box<LiteralBooleanExpression>),
+        ArrayExpression(Box<ArrayExpression>),
+        AwaitExpression(Box<AwaitExpression>),
+        VariableDeclaration(Box<VariableDeclaration>),
         UpdateExpression(Box<UpdateExpression>),
-        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        ClassExpression(Box<ClassExpression>),
         BinaryExpression(Box<BinaryExpression>),
-        StaticMemberExpression(Box<StaticMemberExpression>),
-        NewTargetExpression(Box<NewTargetExpression>),
-        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
-        IdentifierExpression(Box<IdentifierExpression>),
-        YieldStarExpression(Box<YieldStarExpression>),
-        UnaryExpression(Box<UnaryExpression>),
-        TemplateExpression(Box<TemplateExpression>),
-        LiteralStringExpression(Box<LiteralStringExpression>),
-        NewExpression(Box<NewExpression>),
-        ThisExpression(Box<ThisExpression>),
+        LiteralInfinityExpression(Box<LiteralInfinityExpression>),
+        LiteralNumericExpression(Box<LiteralNumericExpression>),
         FunctionExpression(Box<FunctionExpression>),
         ConditionalExpression(Box<ConditionalExpression>),
-        ObjectExpression(Box<ObjectExpression>),
+        CompoundAssignmentExpression(Box<CompoundAssignmentExpression>),
+        ThisExpression(Box<ThisExpression>),
+        NewExpression(Box<NewExpression>),
+        AssignmentExpression(Box<AssignmentExpression>),
+        NewTargetExpression(Box<NewTargetExpression>),
         YieldExpression(Box<YieldExpression>),
-        ClassExpression(Box<ClassExpression>),
+        TemplateExpression(Box<TemplateExpression>),
+        StaticMemberExpression(Box<StaticMemberExpression>),
+        IdentifierExpression(Box<IdentifierExpression>),
+        LiteralRegExpExpression(Box<LiteralRegExpExpression>),
+        ObjectExpression(Box<ObjectExpression>),
+        CallExpression(Box<CallExpression>),
         ComputedMemberExpression(Box<ComputedMemberExpression>),
+        YieldStarExpression(Box<YieldStarExpression>),
+        ArrowExpression(Box<ArrowExpression>),
         LiteralNullExpression(Box<LiteralNullExpression>),
-        CallExpression(Box<CallExpression>)
+        LiteralStringExpression(Box<LiteralStringExpression>),
+        UnaryExpression(Box<UnaryExpression>)
     }
 
     impl FromJSON for VariableDeclarationOrExpression {
         fn import(value: &JSON) -> Result<Self, FromJSONError> {
             match value["type"].as_str() {
-               Some("ArrayExpression") => Ok(VariableDeclarationOrExpression::ArrayExpression(Box::new(FromJSON::import(value)?))),
-               Some("AssignmentExpression") => Ok(VariableDeclarationOrExpression::AssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("ArrowExpression") => Ok(VariableDeclarationOrExpression::ArrowExpression(Box::new(FromJSON::import(value)?))),
-               Some("CompoundAssignmentExpression") => Ok(VariableDeclarationOrExpression::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNumericExpression") => Ok(VariableDeclarationOrExpression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
-               Some("VariableDeclaration") => Ok(VariableDeclarationOrExpression::VariableDeclaration(Box::new(FromJSON::import(value)?))),
-               Some("AwaitExpression") => Ok(VariableDeclarationOrExpression::AwaitExpression(Box::new(FromJSON::import(value)?))),
                Some("LiteralBooleanExpression") => Ok(VariableDeclarationOrExpression::LiteralBooleanExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrayExpression") => Ok(VariableDeclarationOrExpression::ArrayExpression(Box::new(FromJSON::import(value)?))),
+               Some("AwaitExpression") => Ok(VariableDeclarationOrExpression::AwaitExpression(Box::new(FromJSON::import(value)?))),
+               Some("VariableDeclaration") => Ok(VariableDeclarationOrExpression::VariableDeclaration(Box::new(FromJSON::import(value)?))),
                Some("UpdateExpression") => Ok(VariableDeclarationOrExpression::UpdateExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralInfinityExpression") => Ok(VariableDeclarationOrExpression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("ClassExpression") => Ok(VariableDeclarationOrExpression::ClassExpression(Box::new(FromJSON::import(value)?))),
                Some("BinaryExpression") => Ok(VariableDeclarationOrExpression::BinaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("StaticMemberExpression") => Ok(VariableDeclarationOrExpression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewTargetExpression") => Ok(VariableDeclarationOrExpression::NewTargetExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralRegExpExpression") => Ok(VariableDeclarationOrExpression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
-               Some("IdentifierExpression") => Ok(VariableDeclarationOrExpression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
-               Some("YieldStarExpression") => Ok(VariableDeclarationOrExpression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
-               Some("UnaryExpression") => Ok(VariableDeclarationOrExpression::UnaryExpression(Box::new(FromJSON::import(value)?))),
-               Some("TemplateExpression") => Ok(VariableDeclarationOrExpression::TemplateExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralStringExpression") => Ok(VariableDeclarationOrExpression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
-               Some("NewExpression") => Ok(VariableDeclarationOrExpression::NewExpression(Box::new(FromJSON::import(value)?))),
-               Some("ThisExpression") => Ok(VariableDeclarationOrExpression::ThisExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralInfinityExpression") => Ok(VariableDeclarationOrExpression::LiteralInfinityExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNumericExpression") => Ok(VariableDeclarationOrExpression::LiteralNumericExpression(Box::new(FromJSON::import(value)?))),
                Some("FunctionExpression") => Ok(VariableDeclarationOrExpression::FunctionExpression(Box::new(FromJSON::import(value)?))),
                Some("ConditionalExpression") => Ok(VariableDeclarationOrExpression::ConditionalExpression(Box::new(FromJSON::import(value)?))),
-               Some("ObjectExpression") => Ok(VariableDeclarationOrExpression::ObjectExpression(Box::new(FromJSON::import(value)?))),
+               Some("CompoundAssignmentExpression") => Ok(VariableDeclarationOrExpression::CompoundAssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("ThisExpression") => Ok(VariableDeclarationOrExpression::ThisExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewExpression") => Ok(VariableDeclarationOrExpression::NewExpression(Box::new(FromJSON::import(value)?))),
+               Some("AssignmentExpression") => Ok(VariableDeclarationOrExpression::AssignmentExpression(Box::new(FromJSON::import(value)?))),
+               Some("NewTargetExpression") => Ok(VariableDeclarationOrExpression::NewTargetExpression(Box::new(FromJSON::import(value)?))),
                Some("YieldExpression") => Ok(VariableDeclarationOrExpression::YieldExpression(Box::new(FromJSON::import(value)?))),
-               Some("ClassExpression") => Ok(VariableDeclarationOrExpression::ClassExpression(Box::new(FromJSON::import(value)?))),
-               Some("ComputedMemberExpression") => Ok(VariableDeclarationOrExpression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
-               Some("LiteralNullExpression") => Ok(VariableDeclarationOrExpression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
+               Some("TemplateExpression") => Ok(VariableDeclarationOrExpression::TemplateExpression(Box::new(FromJSON::import(value)?))),
+               Some("StaticMemberExpression") => Ok(VariableDeclarationOrExpression::StaticMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("IdentifierExpression") => Ok(VariableDeclarationOrExpression::IdentifierExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralRegExpExpression") => Ok(VariableDeclarationOrExpression::LiteralRegExpExpression(Box::new(FromJSON::import(value)?))),
+               Some("ObjectExpression") => Ok(VariableDeclarationOrExpression::ObjectExpression(Box::new(FromJSON::import(value)?))),
                Some("CallExpression") => Ok(VariableDeclarationOrExpression::CallExpression(Box::new(FromJSON::import(value)?))),
+               Some("ComputedMemberExpression") => Ok(VariableDeclarationOrExpression::ComputedMemberExpression(Box::new(FromJSON::import(value)?))),
+               Some("YieldStarExpression") => Ok(VariableDeclarationOrExpression::YieldStarExpression(Box::new(FromJSON::import(value)?))),
+               Some("ArrowExpression") => Ok(VariableDeclarationOrExpression::ArrowExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralNullExpression") => Ok(VariableDeclarationOrExpression::LiteralNullExpression(Box::new(FromJSON::import(value)?))),
+               Some("LiteralStringExpression") => Ok(VariableDeclarationOrExpression::LiteralStringExpression(Box::new(FromJSON::import(value)?))),
+               Some("UnaryExpression") => Ok(VariableDeclarationOrExpression::UnaryExpression(Box::new(FromJSON::import(value)?))),
                 _ => Err(FromJSONError {
                     expected: "Instance of VariableDeclarationOrExpression".to_string(),
                     got: value.dump()
@@ -1946,39 +2485,75 @@ pub mod ast {
     impl ToJSON for VariableDeclarationOrExpression {
         fn export(&self) -> JSON {
             match *self {
-               VariableDeclarationOrExpression::ArrayExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::AssignmentExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::ArrowExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::CompoundAssignmentExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::LiteralNumericExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::VariableDeclaration(box ref value) => value.export(),
-               VariableDeclarationOrExpression::AwaitExpression(box ref value) => value.export(),
                VariableDeclarationOrExpression::LiteralBooleanExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::ArrayExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::AwaitExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::VariableDeclaration(box ref value) => value.export(),
                VariableDeclarationOrExpression::UpdateExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::LiteralInfinityExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::ClassExpression(box ref value) => value.export(),
                VariableDeclarationOrExpression::BinaryExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::StaticMemberExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::NewTargetExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::LiteralRegExpExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::IdentifierExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::YieldStarExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::UnaryExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::TemplateExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::LiteralStringExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::NewExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::ThisExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::LiteralInfinityExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::LiteralNumericExpression(box ref value) => value.export(),
                VariableDeclarationOrExpression::FunctionExpression(box ref value) => value.export(),
                VariableDeclarationOrExpression::ConditionalExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::ObjectExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::CompoundAssignmentExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::ThisExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::NewExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::AssignmentExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::NewTargetExpression(box ref value) => value.export(),
                VariableDeclarationOrExpression::YieldExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::ClassExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::TemplateExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::StaticMemberExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::IdentifierExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::LiteralRegExpExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::ObjectExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::CallExpression(box ref value) => value.export(),
                VariableDeclarationOrExpression::ComputedMemberExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::YieldStarExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::ArrowExpression(box ref value) => value.export(),
                VariableDeclarationOrExpression::LiteralNullExpression(box ref value) => value.export(),
-               VariableDeclarationOrExpression::CallExpression(box ref value) => value.export()
+               VariableDeclarationOrExpression::LiteralStringExpression(box ref value) => value.export(),
+               VariableDeclarationOrExpression::UnaryExpression(box ref value) => value.export()
             }
         }
     }
 
+
+    impl Walker for VariableDeclarationOrExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            match *self {
+               VariableDeclarationOrExpression::LiteralBooleanExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::ArrayExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::AwaitExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::VariableDeclaration(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::UpdateExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::ClassExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::BinaryExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::LiteralInfinityExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::LiteralNumericExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::FunctionExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::ConditionalExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::CompoundAssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::ThisExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::NewExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::AssignmentExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::NewTargetExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::YieldExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::TemplateExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::StaticMemberExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::IdentifierExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::LiteralRegExpExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::ObjectExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::CallExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::ComputedMemberExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::YieldStarExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::ArrowExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::LiteralNullExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::LiteralStringExpression(box ref mut value) => value.walk(path, visitor),
+               VariableDeclarationOrExpression::UnaryExpression(box ref mut value) => value.walk(path, visitor)
+            }
+        }
+    }
 
 
 
@@ -2032,8 +2607,8 @@ pub mod ast {
      // Interfaces and interface names (by lexicographical order)
     #[derive(PartialEq, Debug, Clone)]
     pub struct ArrayAssignmentTarget {
-        elements: ListOfAssignmentTargetOrAssignmentTargetWithInitializer,
-        rest: OptionalAssignmentTarget
+        pub elements: ListOfAssignmentTargetOrAssignmentTargetWithInitializer,
+        pub rest: OptionalAssignmentTarget
     }
 
     impl FromJSON for ArrayAssignmentTarget {
@@ -2061,12 +2636,28 @@ pub mod ast {
     }
 
 
+    impl Walker for ArrayAssignmentTarget {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ArrayAssignmentTarget);
+            visitor.enter_array_assignment_target(path, self)?;
+            path.enter_field(ASTField::Elements);
+            self.elements.walk(path, visitor)?;
+            path.exit_field(ASTField::Elements);
+            path.enter_field(ASTField::Rest);
+            self.rest.walk(path, visitor)?;
+            path.exit_field(ASTField::Rest);
+            visitor.exit_array_assignment_target(path, self)?;
+            path.exit_interface(ASTNode::ArrayAssignmentTarget);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ArrayBinding {
-        elements: ListOfOptionalBindingOrBindingWithInitializer,
-        rest: OptionalBinding
+        pub elements: ListOfOptionalBindingOrBindingWithInitializer,
+        pub rest: OptionalBinding
     }
 
     impl FromJSON for ArrayBinding {
@@ -2094,11 +2685,27 @@ pub mod ast {
     }
 
 
+    impl Walker for ArrayBinding {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ArrayBinding);
+            visitor.enter_array_binding(path, self)?;
+            path.enter_field(ASTField::Elements);
+            self.elements.walk(path, visitor)?;
+            path.exit_field(ASTField::Elements);
+            path.enter_field(ASTField::Rest);
+            self.rest.walk(path, visitor)?;
+            path.exit_field(ASTField::Rest);
+            visitor.exit_array_binding(path, self)?;
+            path.exit_interface(ASTNode::ArrayBinding);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ArrayExpression {
-        elements: ListOfOptionalSpreadElementOrExpression
+        pub elements: ListOfOptionalSpreadElementOrExpression
     }
 
     impl FromJSON for ArrayExpression {
@@ -2125,15 +2732,28 @@ pub mod ast {
     }
 
 
+    impl Walker for ArrayExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ArrayExpression);
+            visitor.enter_array_expression(path, self)?;
+            path.enter_field(ASTField::Elements);
+            self.elements.walk(path, visitor)?;
+            path.exit_field(ASTField::Elements);
+            visitor.exit_array_expression(path, self)?;
+            path.exit_interface(ASTNode::ArrayExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ArrowExpression {
-        is_async: bool,
-        parameter_scope: OptionalAssertedParameterScope,
-        body_scope: OptionalAssertedVarScope,
-        params: FormalParameters,
-        body: FunctionBodyOrExpression
+        pub is_async: bool,
+        pub parameter_scope: OptionalAssertedParameterScope,
+        pub body_scope: OptionalAssertedVarScope,
+        pub params: FormalParameters,
+        pub body: FunctionBodyOrExpression
     }
 
     impl FromJSON for ArrowExpression {
@@ -2164,13 +2784,38 @@ pub mod ast {
     }
 
 
+    impl Walker for ArrowExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ArrowExpression);
+            visitor.enter_arrow_expression(path, self)?;
+            path.enter_field(ASTField::IsAsync);
+            self.is_async.walk(path, visitor)?;
+            path.exit_field(ASTField::IsAsync);
+            path.enter_field(ASTField::ParameterScope);
+            self.parameter_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::ParameterScope);
+            path.enter_field(ASTField::BodyScope);
+            self.body_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::BodyScope);
+            path.enter_field(ASTField::Params);
+            self.params.walk(path, visitor)?;
+            path.exit_field(ASTField::Params);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_arrow_expression(path, self)?;
+            path.exit_interface(ASTNode::ArrowExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AssertedBlockScope {
-        lexically_declared_names: ListOfIdentifierName,
-        captured_names: ListOfIdentifierName,
-        has_direct_eval: bool
+        pub lexically_declared_names: ListOfIdentifierName,
+        pub captured_names: ListOfIdentifierName,
+        pub has_direct_eval: bool
     }
 
     impl FromJSON for AssertedBlockScope {
@@ -2199,13 +2844,32 @@ pub mod ast {
     }
 
 
+    impl Walker for AssertedBlockScope {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AssertedBlockScope);
+            visitor.enter_asserted_block_scope(path, self)?;
+            path.enter_field(ASTField::LexicallyDeclaredNames);
+            self.lexically_declared_names.walk(path, visitor)?;
+            path.exit_field(ASTField::LexicallyDeclaredNames);
+            path.enter_field(ASTField::CapturedNames);
+            self.captured_names.walk(path, visitor)?;
+            path.exit_field(ASTField::CapturedNames);
+            path.enter_field(ASTField::HasDirectEval);
+            self.has_direct_eval.walk(path, visitor)?;
+            path.exit_field(ASTField::HasDirectEval);
+            visitor.exit_asserted_block_scope(path, self)?;
+            path.exit_interface(ASTNode::AssertedBlockScope);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AssertedParameterScope {
-        parameter_names: ListOfIdentifierName,
-        captured_names: ListOfIdentifierName,
-        has_direct_eval: bool
+        pub parameter_names: ListOfIdentifierName,
+        pub captured_names: ListOfIdentifierName,
+        pub has_direct_eval: bool
     }
 
     impl FromJSON for AssertedParameterScope {
@@ -2234,14 +2898,33 @@ pub mod ast {
     }
 
 
+    impl Walker for AssertedParameterScope {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AssertedParameterScope);
+            visitor.enter_asserted_parameter_scope(path, self)?;
+            path.enter_field(ASTField::ParameterNames);
+            self.parameter_names.walk(path, visitor)?;
+            path.exit_field(ASTField::ParameterNames);
+            path.enter_field(ASTField::CapturedNames);
+            self.captured_names.walk(path, visitor)?;
+            path.exit_field(ASTField::CapturedNames);
+            path.enter_field(ASTField::HasDirectEval);
+            self.has_direct_eval.walk(path, visitor)?;
+            path.exit_field(ASTField::HasDirectEval);
+            visitor.exit_asserted_parameter_scope(path, self)?;
+            path.exit_interface(ASTNode::AssertedParameterScope);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AssertedVarScope {
-        lexically_declared_names: ListOfIdentifierName,
-        var_declared_names: ListOfIdentifierName,
-        captured_names: ListOfIdentifierName,
-        has_direct_eval: bool
+        pub lexically_declared_names: ListOfIdentifierName,
+        pub var_declared_names: ListOfIdentifierName,
+        pub captured_names: ListOfIdentifierName,
+        pub has_direct_eval: bool
     }
 
     impl FromJSON for AssertedVarScope {
@@ -2271,12 +2954,34 @@ pub mod ast {
     }
 
 
+    impl Walker for AssertedVarScope {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AssertedVarScope);
+            visitor.enter_asserted_var_scope(path, self)?;
+            path.enter_field(ASTField::LexicallyDeclaredNames);
+            self.lexically_declared_names.walk(path, visitor)?;
+            path.exit_field(ASTField::LexicallyDeclaredNames);
+            path.enter_field(ASTField::VarDeclaredNames);
+            self.var_declared_names.walk(path, visitor)?;
+            path.exit_field(ASTField::VarDeclaredNames);
+            path.enter_field(ASTField::CapturedNames);
+            self.captured_names.walk(path, visitor)?;
+            path.exit_field(ASTField::CapturedNames);
+            path.enter_field(ASTField::HasDirectEval);
+            self.has_direct_eval.walk(path, visitor)?;
+            path.exit_field(ASTField::HasDirectEval);
+            visitor.exit_asserted_var_scope(path, self)?;
+            path.exit_interface(ASTNode::AssertedVarScope);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AssignmentExpression {
-        binding: AssignmentTarget,
-        expression: Expression
+        pub binding: AssignmentTarget,
+        pub expression: Expression
     }
 
     impl FromJSON for AssignmentExpression {
@@ -2304,11 +3009,27 @@ pub mod ast {
     }
 
 
+    impl Walker for AssignmentExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AssignmentExpression);
+            visitor.enter_assignment_expression(path, self)?;
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_assignment_expression(path, self)?;
+            path.exit_interface(ASTNode::AssignmentExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AssignmentTargetIdentifier {
-        name: Identifier
+        pub name: Identifier
     }
 
     impl FromJSON for AssignmentTargetIdentifier {
@@ -2335,12 +3056,25 @@ pub mod ast {
     }
 
 
+    impl Walker for AssignmentTargetIdentifier {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AssignmentTargetIdentifier);
+            visitor.enter_assignment_target_identifier(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            visitor.exit_assignment_target_identifier(path, self)?;
+            path.exit_interface(ASTNode::AssignmentTargetIdentifier);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AssignmentTargetPropertyIdentifier {
-        binding: AssignmentTargetIdentifier,
-        init: OptionalExpression
+        pub binding: AssignmentTargetIdentifier,
+        pub init: OptionalExpression
     }
 
     impl FromJSON for AssignmentTargetPropertyIdentifier {
@@ -2368,12 +3102,28 @@ pub mod ast {
     }
 
 
+    impl Walker for AssignmentTargetPropertyIdentifier {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AssignmentTargetPropertyIdentifier);
+            visitor.enter_assignment_target_property_identifier(path, self)?;
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            path.enter_field(ASTField::Init);
+            self.init.walk(path, visitor)?;
+            path.exit_field(ASTField::Init);
+            visitor.exit_assignment_target_property_identifier(path, self)?;
+            path.exit_interface(ASTNode::AssignmentTargetPropertyIdentifier);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AssignmentTargetPropertyProperty {
-        name: PropertyName,
-        binding: AssignmentTargetOrAssignmentTargetWithInitializer
+        pub name: PropertyName,
+        pub binding: AssignmentTargetOrAssignmentTargetWithInitializer
     }
 
     impl FromJSON for AssignmentTargetPropertyProperty {
@@ -2401,12 +3151,28 @@ pub mod ast {
     }
 
 
+    impl Walker for AssignmentTargetPropertyProperty {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AssignmentTargetPropertyProperty);
+            visitor.enter_assignment_target_property_property(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            visitor.exit_assignment_target_property_property(path, self)?;
+            path.exit_interface(ASTNode::AssignmentTargetPropertyProperty);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AssignmentTargetWithInitializer {
-        binding: AssignmentTarget,
-        init: Expression
+        pub binding: AssignmentTarget,
+        pub init: Expression
     }
 
     impl FromJSON for AssignmentTargetWithInitializer {
@@ -2434,11 +3200,27 @@ pub mod ast {
     }
 
 
+    impl Walker for AssignmentTargetWithInitializer {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AssignmentTargetWithInitializer);
+            visitor.enter_assignment_target_with_initializer(path, self)?;
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            path.enter_field(ASTField::Init);
+            self.init.walk(path, visitor)?;
+            path.exit_field(ASTField::Init);
+            visitor.exit_assignment_target_with_initializer(path, self)?;
+            path.exit_interface(ASTNode::AssignmentTargetWithInitializer);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct AwaitExpression {
-        expression: Expression
+        pub expression: Expression
     }
 
     impl FromJSON for AwaitExpression {
@@ -2465,13 +3247,26 @@ pub mod ast {
     }
 
 
+    impl Walker for AwaitExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::AwaitExpression);
+            visitor.enter_await_expression(path, self)?;
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_await_expression(path, self)?;
+            path.exit_interface(ASTNode::AwaitExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct BinaryExpression {
-        operator: BinaryOperator,
-        left: Expression,
-        right: Expression
+        pub operator: BinaryOperator,
+        pub left: Expression,
+        pub right: Expression
     }
 
     impl FromJSON for BinaryExpression {
@@ -2500,11 +3295,30 @@ pub mod ast {
     }
 
 
+    impl Walker for BinaryExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::BinaryExpression);
+            visitor.enter_binary_expression(path, self)?;
+            path.enter_field(ASTField::Operator);
+            self.operator.walk(path, visitor)?;
+            path.exit_field(ASTField::Operator);
+            path.enter_field(ASTField::Left);
+            self.left.walk(path, visitor)?;
+            path.exit_field(ASTField::Left);
+            path.enter_field(ASTField::Right);
+            self.right.walk(path, visitor)?;
+            path.exit_field(ASTField::Right);
+            visitor.exit_binary_expression(path, self)?;
+            path.exit_interface(ASTNode::BinaryExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct BindingIdentifier {
-        name: Identifier
+        pub name: Identifier
     }
 
     impl FromJSON for BindingIdentifier {
@@ -2531,12 +3345,25 @@ pub mod ast {
     }
 
 
+    impl Walker for BindingIdentifier {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::BindingIdentifier);
+            visitor.enter_binding_identifier(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            visitor.exit_binding_identifier(path, self)?;
+            path.exit_interface(ASTNode::BindingIdentifier);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct BindingPropertyIdentifier {
-        binding: BindingIdentifier,
-        init: OptionalExpression
+        pub binding: BindingIdentifier,
+        pub init: OptionalExpression
     }
 
     impl FromJSON for BindingPropertyIdentifier {
@@ -2564,12 +3391,28 @@ pub mod ast {
     }
 
 
+    impl Walker for BindingPropertyIdentifier {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::BindingPropertyIdentifier);
+            visitor.enter_binding_property_identifier(path, self)?;
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            path.enter_field(ASTField::Init);
+            self.init.walk(path, visitor)?;
+            path.exit_field(ASTField::Init);
+            visitor.exit_binding_property_identifier(path, self)?;
+            path.exit_interface(ASTNode::BindingPropertyIdentifier);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct BindingPropertyProperty {
-        name: PropertyName,
-        binding: BindingOrBindingWithInitializer
+        pub name: PropertyName,
+        pub binding: BindingOrBindingWithInitializer
     }
 
     impl FromJSON for BindingPropertyProperty {
@@ -2597,12 +3440,28 @@ pub mod ast {
     }
 
 
+    impl Walker for BindingPropertyProperty {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::BindingPropertyProperty);
+            visitor.enter_binding_property_property(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            visitor.exit_binding_property_property(path, self)?;
+            path.exit_interface(ASTNode::BindingPropertyProperty);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct BindingWithInitializer {
-        binding: Binding,
-        init: Expression
+        pub binding: Binding,
+        pub init: Expression
     }
 
     impl FromJSON for BindingWithInitializer {
@@ -2630,12 +3489,28 @@ pub mod ast {
     }
 
 
+    impl Walker for BindingWithInitializer {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::BindingWithInitializer);
+            visitor.enter_binding_with_initializer(path, self)?;
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            path.enter_field(ASTField::Init);
+            self.init.walk(path, visitor)?;
+            path.exit_field(ASTField::Init);
+            visitor.exit_binding_with_initializer(path, self)?;
+            path.exit_interface(ASTNode::BindingWithInitializer);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Block {
-        scope: OptionalAssertedBlockScope,
-        statements: ListOfStatement
+        pub scope: OptionalAssertedBlockScope,
+        pub statements: ListOfStatement
     }
 
     impl FromJSON for Block {
@@ -2663,11 +3538,27 @@ pub mod ast {
     }
 
 
+    impl Walker for Block {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Block);
+            visitor.enter_block(path, self)?;
+            path.enter_field(ASTField::Scope);
+            self.scope.walk(path, visitor)?;
+            path.exit_field(ASTField::Scope);
+            path.enter_field(ASTField::Statements);
+            self.statements.walk(path, visitor)?;
+            path.exit_field(ASTField::Statements);
+            visitor.exit_block(path, self)?;
+            path.exit_interface(ASTNode::Block);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct BreakStatement {
-        label: OptionalLabel
+        pub label: OptionalLabel
     }
 
     impl FromJSON for BreakStatement {
@@ -2694,12 +3585,25 @@ pub mod ast {
     }
 
 
+    impl Walker for BreakStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::BreakStatement);
+            visitor.enter_break_statement(path, self)?;
+            path.enter_field(ASTField::Label);
+            self.label.walk(path, visitor)?;
+            path.exit_field(ASTField::Label);
+            visitor.exit_break_statement(path, self)?;
+            path.exit_interface(ASTNode::BreakStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct CallExpression {
-        callee: ExpressionOrSuper,
-        arguments: Arguments
+        pub callee: ExpressionOrSuper,
+        pub arguments: Arguments
     }
 
     impl FromJSON for CallExpression {
@@ -2727,12 +3631,28 @@ pub mod ast {
     }
 
 
+    impl Walker for CallExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::CallExpression);
+            visitor.enter_call_expression(path, self)?;
+            path.enter_field(ASTField::Callee);
+            self.callee.walk(path, visitor)?;
+            path.exit_field(ASTField::Callee);
+            path.enter_field(ASTField::Arguments);
+            self.arguments.walk(path, visitor)?;
+            path.exit_field(ASTField::Arguments);
+            visitor.exit_call_expression(path, self)?;
+            path.exit_interface(ASTNode::CallExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct CatchClause {
-        binding: Binding,
-        body: Block
+        pub binding: Binding,
+        pub body: Block
     }
 
     impl FromJSON for CatchClause {
@@ -2760,13 +3680,29 @@ pub mod ast {
     }
 
 
+    impl Walker for CatchClause {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::CatchClause);
+            visitor.enter_catch_clause(path, self)?;
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_catch_clause(path, self)?;
+            path.exit_interface(ASTNode::CatchClause);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ClassDeclaration {
-        name: BindingIdentifier,
-        super_: OptionalExpression,
-        elements: ListOfClassElement
+        pub name: BindingIdentifier,
+        pub super_: OptionalExpression,
+        pub elements: ListOfClassElement
     }
 
     impl FromJSON for ClassDeclaration {
@@ -2795,12 +3731,31 @@ pub mod ast {
     }
 
 
+    impl Walker for ClassDeclaration {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ClassDeclaration);
+            visitor.enter_class_declaration(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Super);
+            self.super_.walk(path, visitor)?;
+            path.exit_field(ASTField::Super);
+            path.enter_field(ASTField::Elements);
+            self.elements.walk(path, visitor)?;
+            path.exit_field(ASTField::Elements);
+            visitor.exit_class_declaration(path, self)?;
+            path.exit_interface(ASTNode::ClassDeclaration);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ClassElement {
-        is_static: bool,
-        method: MethodDefinition
+        pub is_static: bool,
+        pub method: MethodDefinition
     }
 
     impl FromJSON for ClassElement {
@@ -2828,13 +3783,29 @@ pub mod ast {
     }
 
 
+    impl Walker for ClassElement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ClassElement);
+            visitor.enter_class_element(path, self)?;
+            path.enter_field(ASTField::IsStatic);
+            self.is_static.walk(path, visitor)?;
+            path.exit_field(ASTField::IsStatic);
+            path.enter_field(ASTField::Method);
+            self.method.walk(path, visitor)?;
+            path.exit_field(ASTField::Method);
+            visitor.exit_class_element(path, self)?;
+            path.exit_interface(ASTNode::ClassElement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ClassExpression {
-        name: OptionalBindingIdentifier,
-        super_: OptionalExpression,
-        elements: ListOfClassElement
+        pub name: OptionalBindingIdentifier,
+        pub super_: OptionalExpression,
+        pub elements: ListOfClassElement
     }
 
     impl FromJSON for ClassExpression {
@@ -2863,13 +3834,32 @@ pub mod ast {
     }
 
 
+    impl Walker for ClassExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ClassExpression);
+            visitor.enter_class_expression(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Super);
+            self.super_.walk(path, visitor)?;
+            path.exit_field(ASTField::Super);
+            path.enter_field(ASTField::Elements);
+            self.elements.walk(path, visitor)?;
+            path.exit_field(ASTField::Elements);
+            visitor.exit_class_expression(path, self)?;
+            path.exit_interface(ASTNode::ClassExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct CompoundAssignmentExpression {
-        operator: CompoundAssignmentOperator,
-        binding: SimpleAssignmentTarget,
-        expression: Expression
+        pub operator: CompoundAssignmentOperator,
+        pub binding: SimpleAssignmentTarget,
+        pub expression: Expression
     }
 
     impl FromJSON for CompoundAssignmentExpression {
@@ -2898,12 +3888,31 @@ pub mod ast {
     }
 
 
+    impl Walker for CompoundAssignmentExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::CompoundAssignmentExpression);
+            visitor.enter_compound_assignment_expression(path, self)?;
+            path.enter_field(ASTField::Operator);
+            self.operator.walk(path, visitor)?;
+            path.exit_field(ASTField::Operator);
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_compound_assignment_expression(path, self)?;
+            path.exit_interface(ASTNode::CompoundAssignmentExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ComputedMemberAssignmentTarget {
-        object: ExpressionOrSuper,
-        expression: Expression
+        pub object: ExpressionOrSuper,
+        pub expression: Expression
     }
 
     impl FromJSON for ComputedMemberAssignmentTarget {
@@ -2931,12 +3940,28 @@ pub mod ast {
     }
 
 
+    impl Walker for ComputedMemberAssignmentTarget {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ComputedMemberAssignmentTarget);
+            visitor.enter_computed_member_assignment_target(path, self)?;
+            path.enter_field(ASTField::Object);
+            self.object.walk(path, visitor)?;
+            path.exit_field(ASTField::Object);
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_computed_member_assignment_target(path, self)?;
+            path.exit_interface(ASTNode::ComputedMemberAssignmentTarget);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ComputedMemberExpression {
-        object: ExpressionOrSuper,
-        expression: Expression
+        pub object: ExpressionOrSuper,
+        pub expression: Expression
     }
 
     impl FromJSON for ComputedMemberExpression {
@@ -2964,11 +3989,27 @@ pub mod ast {
     }
 
 
+    impl Walker for ComputedMemberExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ComputedMemberExpression);
+            visitor.enter_computed_member_expression(path, self)?;
+            path.enter_field(ASTField::Object);
+            self.object.walk(path, visitor)?;
+            path.exit_field(ASTField::Object);
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_computed_member_expression(path, self)?;
+            path.exit_interface(ASTNode::ComputedMemberExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ComputedPropertyName {
-        expression: Expression
+        pub expression: Expression
     }
 
     impl FromJSON for ComputedPropertyName {
@@ -2995,13 +4036,26 @@ pub mod ast {
     }
 
 
+    impl Walker for ComputedPropertyName {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ComputedPropertyName);
+            visitor.enter_computed_property_name(path, self)?;
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_computed_property_name(path, self)?;
+            path.exit_interface(ASTNode::ComputedPropertyName);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ConditionalExpression {
-        test: Expression,
-        consequent: Expression,
-        alternate: Expression
+        pub test: Expression,
+        pub consequent: Expression,
+        pub alternate: Expression
     }
 
     impl FromJSON for ConditionalExpression {
@@ -3030,11 +4084,30 @@ pub mod ast {
     }
 
 
+    impl Walker for ConditionalExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ConditionalExpression);
+            visitor.enter_conditional_expression(path, self)?;
+            path.enter_field(ASTField::Test);
+            self.test.walk(path, visitor)?;
+            path.exit_field(ASTField::Test);
+            path.enter_field(ASTField::Consequent);
+            self.consequent.walk(path, visitor)?;
+            path.exit_field(ASTField::Consequent);
+            path.enter_field(ASTField::Alternate);
+            self.alternate.walk(path, visitor)?;
+            path.exit_field(ASTField::Alternate);
+            visitor.exit_conditional_expression(path, self)?;
+            path.exit_interface(ASTNode::ConditionalExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ContinueStatement {
-        label: OptionalLabel
+        pub label: OptionalLabel
     }
 
     impl FromJSON for ContinueStatement {
@@ -3061,12 +4134,25 @@ pub mod ast {
     }
 
 
+    impl Walker for ContinueStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ContinueStatement);
+            visitor.enter_continue_statement(path, self)?;
+            path.enter_field(ASTField::Label);
+            self.label.walk(path, visitor)?;
+            path.exit_field(ASTField::Label);
+            visitor.exit_continue_statement(path, self)?;
+            path.exit_interface(ASTNode::ContinueStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct DataProperty {
-        name: PropertyName,
-        expression: Expression
+        pub name: PropertyName,
+        pub expression: Expression
     }
 
     impl FromJSON for DataProperty {
@@ -3093,6 +4179,22 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for DataProperty {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::DataProperty);
+            visitor.enter_data_property(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_data_property(path, self)?;
+            path.exit_interface(ASTNode::DataProperty);
+            Ok(())
+        }
+    }
 
 
 
@@ -3125,11 +4227,22 @@ pub mod ast {
     }
 
 
+    impl Walker for DebuggerStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::DebuggerStatement);
+            visitor.enter_debugger_statement(path, self)?;
+
+            visitor.exit_debugger_statement(path, self)?;
+            path.exit_interface(ASTNode::DebuggerStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Directive {
-        raw_value: String
+        pub raw_value: String
     }
 
     impl FromJSON for Directive {
@@ -3156,12 +4269,25 @@ pub mod ast {
     }
 
 
+    impl Walker for Directive {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Directive);
+            visitor.enter_directive(path, self)?;
+            path.enter_field(ASTField::RawValue);
+            self.raw_value.walk(path, visitor)?;
+            path.exit_field(ASTField::RawValue);
+            visitor.exit_directive(path, self)?;
+            path.exit_interface(ASTNode::Directive);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct DoWhileStatement {
-        test: Expression,
-        body: Statement
+        pub test: Expression,
+        pub body: Statement
     }
 
     impl FromJSON for DoWhileStatement {
@@ -3188,6 +4314,22 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for DoWhileStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::DoWhileStatement);
+            visitor.enter_do_while_statement(path, self)?;
+            path.enter_field(ASTField::Test);
+            self.test.walk(path, visitor)?;
+            path.exit_field(ASTField::Test);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_do_while_statement(path, self)?;
+            path.exit_interface(ASTNode::DoWhileStatement);
+            Ok(())
+        }
+    }
 
 
 
@@ -3220,11 +4362,22 @@ pub mod ast {
     }
 
 
+    impl Walker for EmptyStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::EmptyStatement);
+            visitor.enter_empty_statement(path, self)?;
+
+            visitor.exit_empty_statement(path, self)?;
+            path.exit_interface(ASTNode::EmptyStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Export {
-        declaration: FunctionDeclarationOrClassDeclarationOrVariableDeclaration
+        pub declaration: FunctionDeclarationOrClassDeclarationOrVariableDeclaration
     }
 
     impl FromJSON for Export {
@@ -3251,11 +4404,24 @@ pub mod ast {
     }
 
 
+    impl Walker for Export {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Export);
+            visitor.enter_export(path, self)?;
+            path.enter_field(ASTField::Declaration);
+            self.declaration.walk(path, visitor)?;
+            path.exit_field(ASTField::Declaration);
+            visitor.exit_export(path, self)?;
+            path.exit_interface(ASTNode::Export);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ExportAllFrom {
-        module_specifier: String
+        pub module_specifier: String
     }
 
     impl FromJSON for ExportAllFrom {
@@ -3282,11 +4448,24 @@ pub mod ast {
     }
 
 
+    impl Walker for ExportAllFrom {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ExportAllFrom);
+            visitor.enter_export_all_from(path, self)?;
+            path.enter_field(ASTField::ModuleSpecifier);
+            self.module_specifier.walk(path, visitor)?;
+            path.exit_field(ASTField::ModuleSpecifier);
+            visitor.exit_export_all_from(path, self)?;
+            path.exit_interface(ASTNode::ExportAllFrom);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ExportDefault {
-        body: FunctionDeclarationOrClassDeclarationOrExpression
+        pub body: FunctionDeclarationOrClassDeclarationOrExpression
     }
 
     impl FromJSON for ExportDefault {
@@ -3313,12 +4492,25 @@ pub mod ast {
     }
 
 
+    impl Walker for ExportDefault {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ExportDefault);
+            visitor.enter_export_default(path, self)?;
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_export_default(path, self)?;
+            path.exit_interface(ASTNode::ExportDefault);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ExportFrom {
-        named_exports: ListOfExportFromSpecifier,
-        module_specifier: String
+        pub named_exports: ListOfExportFromSpecifier,
+        pub module_specifier: String
     }
 
     impl FromJSON for ExportFrom {
@@ -3346,12 +4538,28 @@ pub mod ast {
     }
 
 
+    impl Walker for ExportFrom {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ExportFrom);
+            visitor.enter_export_from(path, self)?;
+            path.enter_field(ASTField::NamedExports);
+            self.named_exports.walk(path, visitor)?;
+            path.exit_field(ASTField::NamedExports);
+            path.enter_field(ASTField::ModuleSpecifier);
+            self.module_specifier.walk(path, visitor)?;
+            path.exit_field(ASTField::ModuleSpecifier);
+            visitor.exit_export_from(path, self)?;
+            path.exit_interface(ASTNode::ExportFrom);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ExportFromSpecifier {
-        name: IdentifierName,
-        exported_name: OptionalIdentifierName
+        pub name: IdentifierName,
+        pub exported_name: OptionalIdentifierName
     }
 
     impl FromJSON for ExportFromSpecifier {
@@ -3379,12 +4587,28 @@ pub mod ast {
     }
 
 
+    impl Walker for ExportFromSpecifier {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ExportFromSpecifier);
+            visitor.enter_export_from_specifier(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::ExportedName);
+            self.exported_name.walk(path, visitor)?;
+            path.exit_field(ASTField::ExportedName);
+            visitor.exit_export_from_specifier(path, self)?;
+            path.exit_interface(ASTNode::ExportFromSpecifier);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ExportLocalSpecifier {
-        name: IdentifierExpression,
-        exported_name: OptionalIdentifierName
+        pub name: IdentifierExpression,
+        pub exported_name: OptionalIdentifierName
     }
 
     impl FromJSON for ExportLocalSpecifier {
@@ -3412,11 +4636,27 @@ pub mod ast {
     }
 
 
+    impl Walker for ExportLocalSpecifier {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ExportLocalSpecifier);
+            visitor.enter_export_local_specifier(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::ExportedName);
+            self.exported_name.walk(path, visitor)?;
+            path.exit_field(ASTField::ExportedName);
+            visitor.exit_export_local_specifier(path, self)?;
+            path.exit_interface(ASTNode::ExportLocalSpecifier);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ExportLocals {
-        named_exports: ListOfExportLocalSpecifier
+        pub named_exports: ListOfExportLocalSpecifier
     }
 
     impl FromJSON for ExportLocals {
@@ -3443,11 +4683,24 @@ pub mod ast {
     }
 
 
+    impl Walker for ExportLocals {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ExportLocals);
+            visitor.enter_export_locals(path, self)?;
+            path.enter_field(ASTField::NamedExports);
+            self.named_exports.walk(path, visitor)?;
+            path.exit_field(ASTField::NamedExports);
+            visitor.exit_export_locals(path, self)?;
+            path.exit_interface(ASTNode::ExportLocals);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ExpressionStatement {
-        expression: Expression
+        pub expression: Expression
     }
 
     impl FromJSON for ExpressionStatement {
@@ -3474,12 +4727,25 @@ pub mod ast {
     }
 
 
+    impl Walker for ExpressionStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ExpressionStatement);
+            visitor.enter_expression_statement(path, self)?;
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_expression_statement(path, self)?;
+            path.exit_interface(ASTNode::ExpressionStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ForInOfBinding {
-        kind: VariableDeclarationKind,
-        binding: Binding
+        pub kind: VariableDeclarationKind,
+        pub binding: Binding
     }
 
     impl FromJSON for ForInOfBinding {
@@ -3507,13 +4773,29 @@ pub mod ast {
     }
 
 
+    impl Walker for ForInOfBinding {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ForInOfBinding);
+            visitor.enter_for_in_of_binding(path, self)?;
+            path.enter_field(ASTField::Kind);
+            self.kind.walk(path, visitor)?;
+            path.exit_field(ASTField::Kind);
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            visitor.exit_for_in_of_binding(path, self)?;
+            path.exit_interface(ASTNode::ForInOfBinding);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ForInStatement {
-        left: ForInOfBindingOrAssignmentTarget,
-        right: Expression,
-        body: Statement
+        pub left: ForInOfBindingOrAssignmentTarget,
+        pub right: Expression,
+        pub body: Statement
     }
 
     impl FromJSON for ForInStatement {
@@ -3542,13 +4824,32 @@ pub mod ast {
     }
 
 
+    impl Walker for ForInStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ForInStatement);
+            visitor.enter_for_in_statement(path, self)?;
+            path.enter_field(ASTField::Left);
+            self.left.walk(path, visitor)?;
+            path.exit_field(ASTField::Left);
+            path.enter_field(ASTField::Right);
+            self.right.walk(path, visitor)?;
+            path.exit_field(ASTField::Right);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_for_in_statement(path, self)?;
+            path.exit_interface(ASTNode::ForInStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ForOfStatement {
-        left: ForInOfBindingOrAssignmentTarget,
-        right: Expression,
-        body: Statement
+        pub left: ForInOfBindingOrAssignmentTarget,
+        pub right: Expression,
+        pub body: Statement
     }
 
     impl FromJSON for ForOfStatement {
@@ -3577,14 +4878,33 @@ pub mod ast {
     }
 
 
+    impl Walker for ForOfStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ForOfStatement);
+            visitor.enter_for_of_statement(path, self)?;
+            path.enter_field(ASTField::Left);
+            self.left.walk(path, visitor)?;
+            path.exit_field(ASTField::Left);
+            path.enter_field(ASTField::Right);
+            self.right.walk(path, visitor)?;
+            path.exit_field(ASTField::Right);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_for_of_statement(path, self)?;
+            path.exit_interface(ASTNode::ForOfStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ForStatement {
-        init: OptionalVariableDeclarationOrExpression,
-        test: OptionalExpression,
-        update: OptionalExpression,
-        body: Statement
+        pub init: OptionalVariableDeclarationOrExpression,
+        pub test: OptionalExpression,
+        pub update: OptionalExpression,
+        pub body: Statement
     }
 
     impl FromJSON for ForStatement {
@@ -3614,12 +4934,34 @@ pub mod ast {
     }
 
 
+    impl Walker for ForStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ForStatement);
+            visitor.enter_for_statement(path, self)?;
+            path.enter_field(ASTField::Init);
+            self.init.walk(path, visitor)?;
+            path.exit_field(ASTField::Init);
+            path.enter_field(ASTField::Test);
+            self.test.walk(path, visitor)?;
+            path.exit_field(ASTField::Test);
+            path.enter_field(ASTField::Update);
+            self.update.walk(path, visitor)?;
+            path.exit_field(ASTField::Update);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_for_statement(path, self)?;
+            path.exit_interface(ASTNode::ForStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct FormalParameters {
-        items: ListOfParameter,
-        rest: OptionalBinding
+        pub items: ListOfParameter,
+        pub rest: OptionalBinding
     }
 
     impl FromJSON for FormalParameters {
@@ -3647,12 +4989,28 @@ pub mod ast {
     }
 
 
+    impl Walker for FormalParameters {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::FormalParameters);
+            visitor.enter_formal_parameters(path, self)?;
+            path.enter_field(ASTField::Items);
+            self.items.walk(path, visitor)?;
+            path.exit_field(ASTField::Items);
+            path.enter_field(ASTField::Rest);
+            self.rest.walk(path, visitor)?;
+            path.exit_field(ASTField::Rest);
+            visitor.exit_formal_parameters(path, self)?;
+            path.exit_interface(ASTNode::FormalParameters);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct FunctionBody {
-        directives: ListOfDirective,
-        statements: ListOfStatement
+        pub directives: ListOfDirective,
+        pub statements: ListOfStatement
     }
 
     impl FromJSON for FunctionBody {
@@ -3680,17 +5038,33 @@ pub mod ast {
     }
 
 
+    impl Walker for FunctionBody {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::FunctionBody);
+            visitor.enter_function_body(path, self)?;
+            path.enter_field(ASTField::Directives);
+            self.directives.walk(path, visitor)?;
+            path.exit_field(ASTField::Directives);
+            path.enter_field(ASTField::Statements);
+            self.statements.walk(path, visitor)?;
+            path.exit_field(ASTField::Statements);
+            visitor.exit_function_body(path, self)?;
+            path.exit_interface(ASTNode::FunctionBody);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct FunctionDeclaration {
-        is_async: bool,
-        is_generator: bool,
-        parameter_scope: OptionalAssertedParameterScope,
-        body_scope: OptionalAssertedVarScope,
-        name: BindingIdentifier,
-        params: FormalParameters,
-        body: FunctionBody
+        pub is_async: bool,
+        pub is_generator: bool,
+        pub parameter_scope: OptionalAssertedParameterScope,
+        pub body_scope: OptionalAssertedVarScope,
+        pub name: BindingIdentifier,
+        pub params: FormalParameters,
+        pub body: FunctionBody
     }
 
     impl FromJSON for FunctionDeclaration {
@@ -3723,17 +5097,48 @@ pub mod ast {
     }
 
 
+    impl Walker for FunctionDeclaration {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::FunctionDeclaration);
+            visitor.enter_function_declaration(path, self)?;
+            path.enter_field(ASTField::IsAsync);
+            self.is_async.walk(path, visitor)?;
+            path.exit_field(ASTField::IsAsync);
+            path.enter_field(ASTField::IsGenerator);
+            self.is_generator.walk(path, visitor)?;
+            path.exit_field(ASTField::IsGenerator);
+            path.enter_field(ASTField::ParameterScope);
+            self.parameter_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::ParameterScope);
+            path.enter_field(ASTField::BodyScope);
+            self.body_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::BodyScope);
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Params);
+            self.params.walk(path, visitor)?;
+            path.exit_field(ASTField::Params);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_function_declaration(path, self)?;
+            path.exit_interface(ASTNode::FunctionDeclaration);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct FunctionExpression {
-        is_async: bool,
-        is_generator: bool,
-        parameter_scope: OptionalAssertedParameterScope,
-        body_scope: OptionalAssertedVarScope,
-        name: OptionalBindingIdentifier,
-        params: FormalParameters,
-        body: FunctionBody
+        pub is_async: bool,
+        pub is_generator: bool,
+        pub parameter_scope: OptionalAssertedParameterScope,
+        pub body_scope: OptionalAssertedVarScope,
+        pub name: OptionalBindingIdentifier,
+        pub params: FormalParameters,
+        pub body: FunctionBody
     }
 
     impl FromJSON for FunctionExpression {
@@ -3766,13 +5171,44 @@ pub mod ast {
     }
 
 
+    impl Walker for FunctionExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::FunctionExpression);
+            visitor.enter_function_expression(path, self)?;
+            path.enter_field(ASTField::IsAsync);
+            self.is_async.walk(path, visitor)?;
+            path.exit_field(ASTField::IsAsync);
+            path.enter_field(ASTField::IsGenerator);
+            self.is_generator.walk(path, visitor)?;
+            path.exit_field(ASTField::IsGenerator);
+            path.enter_field(ASTField::ParameterScope);
+            self.parameter_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::ParameterScope);
+            path.enter_field(ASTField::BodyScope);
+            self.body_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::BodyScope);
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Params);
+            self.params.walk(path, visitor)?;
+            path.exit_field(ASTField::Params);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_function_expression(path, self)?;
+            path.exit_interface(ASTNode::FunctionExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Getter {
-        body_scope: OptionalAssertedVarScope,
-        name: PropertyName,
-        body: FunctionBody
+        pub body_scope: OptionalAssertedVarScope,
+        pub name: PropertyName,
+        pub body: FunctionBody
     }
 
     impl FromJSON for Getter {
@@ -3801,11 +5237,30 @@ pub mod ast {
     }
 
 
+    impl Walker for Getter {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Getter);
+            visitor.enter_getter(path, self)?;
+            path.enter_field(ASTField::BodyScope);
+            self.body_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::BodyScope);
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_getter(path, self)?;
+            path.exit_interface(ASTNode::Getter);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct IdentifierExpression {
-        name: Identifier
+        pub name: Identifier
     }
 
     impl FromJSON for IdentifierExpression {
@@ -3832,13 +5287,26 @@ pub mod ast {
     }
 
 
+    impl Walker for IdentifierExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::IdentifierExpression);
+            visitor.enter_identifier_expression(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            visitor.exit_identifier_expression(path, self)?;
+            path.exit_interface(ASTNode::IdentifierExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct IfStatement {
-        test: Expression,
-        consequent: Statement,
-        alternate: OptionalStatement
+        pub test: Expression,
+        pub consequent: Statement,
+        pub alternate: OptionalStatement
     }
 
     impl FromJSON for IfStatement {
@@ -3867,13 +5335,32 @@ pub mod ast {
     }
 
 
+    impl Walker for IfStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::IfStatement);
+            visitor.enter_if_statement(path, self)?;
+            path.enter_field(ASTField::Test);
+            self.test.walk(path, visitor)?;
+            path.exit_field(ASTField::Test);
+            path.enter_field(ASTField::Consequent);
+            self.consequent.walk(path, visitor)?;
+            path.exit_field(ASTField::Consequent);
+            path.enter_field(ASTField::Alternate);
+            self.alternate.walk(path, visitor)?;
+            path.exit_field(ASTField::Alternate);
+            visitor.exit_if_statement(path, self)?;
+            path.exit_interface(ASTNode::IfStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Import {
-        module_specifier: String,
-        default_binding: OptionalBindingIdentifier,
-        named_imports: ListOfImportSpecifier
+        pub module_specifier: String,
+        pub default_binding: OptionalBindingIdentifier,
+        pub named_imports: ListOfImportSpecifier
     }
 
     impl FromJSON for Import {
@@ -3902,13 +5389,32 @@ pub mod ast {
     }
 
 
+    impl Walker for Import {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Import);
+            visitor.enter_import(path, self)?;
+            path.enter_field(ASTField::ModuleSpecifier);
+            self.module_specifier.walk(path, visitor)?;
+            path.exit_field(ASTField::ModuleSpecifier);
+            path.enter_field(ASTField::DefaultBinding);
+            self.default_binding.walk(path, visitor)?;
+            path.exit_field(ASTField::DefaultBinding);
+            path.enter_field(ASTField::NamedImports);
+            self.named_imports.walk(path, visitor)?;
+            path.exit_field(ASTField::NamedImports);
+            visitor.exit_import(path, self)?;
+            path.exit_interface(ASTNode::Import);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ImportNamespace {
-        module_specifier: String,
-        default_binding: OptionalBindingIdentifier,
-        namespace_binding: BindingIdentifier
+        pub module_specifier: String,
+        pub default_binding: OptionalBindingIdentifier,
+        pub namespace_binding: BindingIdentifier
     }
 
     impl FromJSON for ImportNamespace {
@@ -3937,12 +5443,31 @@ pub mod ast {
     }
 
 
+    impl Walker for ImportNamespace {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ImportNamespace);
+            visitor.enter_import_namespace(path, self)?;
+            path.enter_field(ASTField::ModuleSpecifier);
+            self.module_specifier.walk(path, visitor)?;
+            path.exit_field(ASTField::ModuleSpecifier);
+            path.enter_field(ASTField::DefaultBinding);
+            self.default_binding.walk(path, visitor)?;
+            path.exit_field(ASTField::DefaultBinding);
+            path.enter_field(ASTField::NamespaceBinding);
+            self.namespace_binding.walk(path, visitor)?;
+            path.exit_field(ASTField::NamespaceBinding);
+            visitor.exit_import_namespace(path, self)?;
+            path.exit_interface(ASTNode::ImportNamespace);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ImportSpecifier {
-        name: OptionalIdentifierName,
-        binding: BindingIdentifier
+        pub name: OptionalIdentifierName,
+        pub binding: BindingIdentifier
     }
 
     impl FromJSON for ImportSpecifier {
@@ -3970,12 +5495,28 @@ pub mod ast {
     }
 
 
+    impl Walker for ImportSpecifier {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ImportSpecifier);
+            visitor.enter_import_specifier(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            visitor.exit_import_specifier(path, self)?;
+            path.exit_interface(ASTNode::ImportSpecifier);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct LabelledStatement {
-        label: Label,
-        body: Statement
+        pub label: Label,
+        pub body: Statement
     }
 
     impl FromJSON for LabelledStatement {
@@ -4003,11 +5544,27 @@ pub mod ast {
     }
 
 
+    impl Walker for LabelledStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::LabelledStatement);
+            visitor.enter_labelled_statement(path, self)?;
+            path.enter_field(ASTField::Label);
+            self.label.walk(path, visitor)?;
+            path.exit_field(ASTField::Label);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_labelled_statement(path, self)?;
+            path.exit_interface(ASTNode::LabelledStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct LiteralBooleanExpression {
-        value: bool
+        pub value: bool
     }
 
     impl FromJSON for LiteralBooleanExpression {
@@ -4033,6 +5590,19 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for LiteralBooleanExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::LiteralBooleanExpression);
+            visitor.enter_literal_boolean_expression(path, self)?;
+            path.enter_field(ASTField::Value);
+            self.value.walk(path, visitor)?;
+            path.exit_field(ASTField::Value);
+            visitor.exit_literal_boolean_expression(path, self)?;
+            path.exit_interface(ASTNode::LiteralBooleanExpression);
+            Ok(())
+        }
+    }
 
 
 
@@ -4065,6 +5635,17 @@ pub mod ast {
     }
 
 
+    impl Walker for LiteralInfinityExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::LiteralInfinityExpression);
+            visitor.enter_literal_infinity_expression(path, self)?;
+
+            visitor.exit_literal_infinity_expression(path, self)?;
+            path.exit_interface(ASTNode::LiteralInfinityExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
@@ -4096,11 +5677,22 @@ pub mod ast {
     }
 
 
+    impl Walker for LiteralNullExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::LiteralNullExpression);
+            visitor.enter_literal_null_expression(path, self)?;
+
+            visitor.exit_literal_null_expression(path, self)?;
+            path.exit_interface(ASTNode::LiteralNullExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct LiteralNumericExpression {
-        value: f64
+        pub value: f64
     }
 
     impl FromJSON for LiteralNumericExpression {
@@ -4127,11 +5719,24 @@ pub mod ast {
     }
 
 
+    impl Walker for LiteralNumericExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::LiteralNumericExpression);
+            visitor.enter_literal_numeric_expression(path, self)?;
+            path.enter_field(ASTField::Value);
+            self.value.walk(path, visitor)?;
+            path.exit_field(ASTField::Value);
+            visitor.exit_literal_numeric_expression(path, self)?;
+            path.exit_interface(ASTNode::LiteralNumericExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct LiteralPropertyName {
-        value: String
+        pub value: String
     }
 
     impl FromJSON for LiteralPropertyName {
@@ -4158,12 +5763,25 @@ pub mod ast {
     }
 
 
+    impl Walker for LiteralPropertyName {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::LiteralPropertyName);
+            visitor.enter_literal_property_name(path, self)?;
+            path.enter_field(ASTField::Value);
+            self.value.walk(path, visitor)?;
+            path.exit_field(ASTField::Value);
+            visitor.exit_literal_property_name(path, self)?;
+            path.exit_interface(ASTNode::LiteralPropertyName);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct LiteralRegExpExpression {
-        pattern: String,
-        flags: String
+        pub pattern: String,
+        pub flags: String
     }
 
     impl FromJSON for LiteralRegExpExpression {
@@ -4191,11 +5809,27 @@ pub mod ast {
     }
 
 
+    impl Walker for LiteralRegExpExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::LiteralRegExpExpression);
+            visitor.enter_literal_reg_exp_expression(path, self)?;
+            path.enter_field(ASTField::Pattern);
+            self.pattern.walk(path, visitor)?;
+            path.exit_field(ASTField::Pattern);
+            path.enter_field(ASTField::Flags);
+            self.flags.walk(path, visitor)?;
+            path.exit_field(ASTField::Flags);
+            visitor.exit_literal_reg_exp_expression(path, self)?;
+            path.exit_interface(ASTNode::LiteralRegExpExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct LiteralStringExpression {
-        value: String
+        pub value: String
     }
 
     impl FromJSON for LiteralStringExpression {
@@ -4222,17 +5856,30 @@ pub mod ast {
     }
 
 
+    impl Walker for LiteralStringExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::LiteralStringExpression);
+            visitor.enter_literal_string_expression(path, self)?;
+            path.enter_field(ASTField::Value);
+            self.value.walk(path, visitor)?;
+            path.exit_field(ASTField::Value);
+            visitor.exit_literal_string_expression(path, self)?;
+            path.exit_interface(ASTNode::LiteralStringExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Method {
-        is_async: bool,
-        is_generator: bool,
-        parameter_scope: OptionalAssertedParameterScope,
-        body_scope: OptionalAssertedVarScope,
-        name: PropertyName,
-        params: FormalParameters,
-        body: FunctionBody
+        pub is_async: bool,
+        pub is_generator: bool,
+        pub parameter_scope: OptionalAssertedParameterScope,
+        pub body_scope: OptionalAssertedVarScope,
+        pub name: PropertyName,
+        pub params: FormalParameters,
+        pub body: FunctionBody
     }
 
     impl FromJSON for Method {
@@ -4265,13 +5912,44 @@ pub mod ast {
     }
 
 
+    impl Walker for Method {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Method);
+            visitor.enter_method(path, self)?;
+            path.enter_field(ASTField::IsAsync);
+            self.is_async.walk(path, visitor)?;
+            path.exit_field(ASTField::IsAsync);
+            path.enter_field(ASTField::IsGenerator);
+            self.is_generator.walk(path, visitor)?;
+            path.exit_field(ASTField::IsGenerator);
+            path.enter_field(ASTField::ParameterScope);
+            self.parameter_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::ParameterScope);
+            path.enter_field(ASTField::BodyScope);
+            self.body_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::BodyScope);
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Params);
+            self.params.walk(path, visitor)?;
+            path.exit_field(ASTField::Params);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_method(path, self)?;
+            path.exit_interface(ASTNode::Method);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Module {
-        scope: OptionalAssertedVarScope,
-        directives: ListOfDirective,
-        items: ListOfImportDeclarationOrExportDeclarationOrStatement
+        pub scope: OptionalAssertedVarScope,
+        pub directives: ListOfDirective,
+        pub items: ListOfImportDeclarationOrExportDeclarationOrStatement
     }
 
     impl FromJSON for Module {
@@ -4300,12 +5978,31 @@ pub mod ast {
     }
 
 
+    impl Walker for Module {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Module);
+            visitor.enter_module(path, self)?;
+            path.enter_field(ASTField::Scope);
+            self.scope.walk(path, visitor)?;
+            path.exit_field(ASTField::Scope);
+            path.enter_field(ASTField::Directives);
+            self.directives.walk(path, visitor)?;
+            path.exit_field(ASTField::Directives);
+            path.enter_field(ASTField::Items);
+            self.items.walk(path, visitor)?;
+            path.exit_field(ASTField::Items);
+            visitor.exit_module(path, self)?;
+            path.exit_interface(ASTNode::Module);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct NewExpression {
-        callee: Expression,
-        arguments: Arguments
+        pub callee: Expression,
+        pub arguments: Arguments
     }
 
     impl FromJSON for NewExpression {
@@ -4332,6 +6029,22 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for NewExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::NewExpression);
+            visitor.enter_new_expression(path, self)?;
+            path.enter_field(ASTField::Callee);
+            self.callee.walk(path, visitor)?;
+            path.exit_field(ASTField::Callee);
+            path.enter_field(ASTField::Arguments);
+            self.arguments.walk(path, visitor)?;
+            path.exit_field(ASTField::Arguments);
+            visitor.exit_new_expression(path, self)?;
+            path.exit_interface(ASTNode::NewExpression);
+            Ok(())
+        }
+    }
 
 
 
@@ -4364,11 +6077,22 @@ pub mod ast {
     }
 
 
+    impl Walker for NewTargetExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::NewTargetExpression);
+            visitor.enter_new_target_expression(path, self)?;
+
+            visitor.exit_new_target_expression(path, self)?;
+            path.exit_interface(ASTNode::NewTargetExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ObjectAssignmentTarget {
-        properties: ListOfAssignmentTargetProperty
+        pub properties: ListOfAssignmentTargetProperty
     }
 
     impl FromJSON for ObjectAssignmentTarget {
@@ -4395,11 +6119,24 @@ pub mod ast {
     }
 
 
+    impl Walker for ObjectAssignmentTarget {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ObjectAssignmentTarget);
+            visitor.enter_object_assignment_target(path, self)?;
+            path.enter_field(ASTField::Properties);
+            self.properties.walk(path, visitor)?;
+            path.exit_field(ASTField::Properties);
+            visitor.exit_object_assignment_target(path, self)?;
+            path.exit_interface(ASTNode::ObjectAssignmentTarget);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ObjectBinding {
-        properties: ListOfBindingProperty
+        pub properties: ListOfBindingProperty
     }
 
     impl FromJSON for ObjectBinding {
@@ -4426,11 +6163,24 @@ pub mod ast {
     }
 
 
+    impl Walker for ObjectBinding {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ObjectBinding);
+            visitor.enter_object_binding(path, self)?;
+            path.enter_field(ASTField::Properties);
+            self.properties.walk(path, visitor)?;
+            path.exit_field(ASTField::Properties);
+            visitor.exit_object_binding(path, self)?;
+            path.exit_interface(ASTNode::ObjectBinding);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ObjectExpression {
-        properties: ListOfObjectProperty
+        pub properties: ListOfObjectProperty
     }
 
     impl FromJSON for ObjectExpression {
@@ -4457,11 +6207,24 @@ pub mod ast {
     }
 
 
+    impl Walker for ObjectExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ObjectExpression);
+            visitor.enter_object_expression(path, self)?;
+            path.enter_field(ASTField::Properties);
+            self.properties.walk(path, visitor)?;
+            path.exit_field(ASTField::Properties);
+            visitor.exit_object_expression(path, self)?;
+            path.exit_interface(ASTNode::ObjectExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ReturnStatement {
-        expression: OptionalExpression
+        pub expression: OptionalExpression
     }
 
     impl FromJSON for ReturnStatement {
@@ -4488,13 +6251,26 @@ pub mod ast {
     }
 
 
+    impl Walker for ReturnStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ReturnStatement);
+            visitor.enter_return_statement(path, self)?;
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_return_statement(path, self)?;
+            path.exit_interface(ASTNode::ReturnStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Script {
-        scope: OptionalAssertedVarScope,
-        directives: ListOfDirective,
-        statements: ListOfStatement
+        pub scope: OptionalAssertedVarScope,
+        pub directives: ListOfDirective,
+        pub statements: ListOfStatement
     }
 
     impl FromJSON for Script {
@@ -4523,15 +6299,34 @@ pub mod ast {
     }
 
 
+    impl Walker for Script {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Script);
+            visitor.enter_script(path, self)?;
+            path.enter_field(ASTField::Scope);
+            self.scope.walk(path, visitor)?;
+            path.exit_field(ASTField::Scope);
+            path.enter_field(ASTField::Directives);
+            self.directives.walk(path, visitor)?;
+            path.exit_field(ASTField::Directives);
+            path.enter_field(ASTField::Statements);
+            self.statements.walk(path, visitor)?;
+            path.exit_field(ASTField::Statements);
+            visitor.exit_script(path, self)?;
+            path.exit_interface(ASTNode::Script);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct Setter {
-        parameter_scope: OptionalAssertedParameterScope,
-        body_scope: OptionalAssertedVarScope,
-        name: PropertyName,
-        param: Parameter,
-        body: FunctionBody
+        pub parameter_scope: OptionalAssertedParameterScope,
+        pub body_scope: OptionalAssertedVarScope,
+        pub name: PropertyName,
+        pub param: Parameter,
+        pub body: FunctionBody
     }
 
     impl FromJSON for Setter {
@@ -4562,11 +6357,36 @@ pub mod ast {
     }
 
 
+    impl Walker for Setter {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Setter);
+            visitor.enter_setter(path, self)?;
+            path.enter_field(ASTField::ParameterScope);
+            self.parameter_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::ParameterScope);
+            path.enter_field(ASTField::BodyScope);
+            self.body_scope.walk(path, visitor)?;
+            path.exit_field(ASTField::BodyScope);
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            path.enter_field(ASTField::Param);
+            self.param.walk(path, visitor)?;
+            path.exit_field(ASTField::Param);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_setter(path, self)?;
+            path.exit_interface(ASTNode::Setter);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ShorthandProperty {
-        name: IdentifierExpression
+        pub name: IdentifierExpression
     }
 
     impl FromJSON for ShorthandProperty {
@@ -4593,11 +6413,24 @@ pub mod ast {
     }
 
 
+    impl Walker for ShorthandProperty {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ShorthandProperty);
+            visitor.enter_shorthand_property(path, self)?;
+            path.enter_field(ASTField::Name);
+            self.name.walk(path, visitor)?;
+            path.exit_field(ASTField::Name);
+            visitor.exit_shorthand_property(path, self)?;
+            path.exit_interface(ASTNode::ShorthandProperty);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct SpreadElement {
-        expression: Expression
+        pub expression: Expression
     }
 
     impl FromJSON for SpreadElement {
@@ -4624,12 +6457,25 @@ pub mod ast {
     }
 
 
+    impl Walker for SpreadElement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::SpreadElement);
+            visitor.enter_spread_element(path, self)?;
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_spread_element(path, self)?;
+            path.exit_interface(ASTNode::SpreadElement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct StaticMemberAssignmentTarget {
-        object: ExpressionOrSuper,
-        property: IdentifierName
+        pub object: ExpressionOrSuper,
+        pub property: IdentifierName
     }
 
     impl FromJSON for StaticMemberAssignmentTarget {
@@ -4657,12 +6503,28 @@ pub mod ast {
     }
 
 
+    impl Walker for StaticMemberAssignmentTarget {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::StaticMemberAssignmentTarget);
+            visitor.enter_static_member_assignment_target(path, self)?;
+            path.enter_field(ASTField::Object);
+            self.object.walk(path, visitor)?;
+            path.exit_field(ASTField::Object);
+            path.enter_field(ASTField::Property);
+            self.property.walk(path, visitor)?;
+            path.exit_field(ASTField::Property);
+            visitor.exit_static_member_assignment_target(path, self)?;
+            path.exit_interface(ASTNode::StaticMemberAssignmentTarget);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct StaticMemberExpression {
-        object: ExpressionOrSuper,
-        property: IdentifierName
+        pub object: ExpressionOrSuper,
+        pub property: IdentifierName
     }
 
     impl FromJSON for StaticMemberExpression {
@@ -4689,6 +6551,22 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for StaticMemberExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::StaticMemberExpression);
+            visitor.enter_static_member_expression(path, self)?;
+            path.enter_field(ASTField::Object);
+            self.object.walk(path, visitor)?;
+            path.exit_field(ASTField::Object);
+            path.enter_field(ASTField::Property);
+            self.property.walk(path, visitor)?;
+            path.exit_field(ASTField::Property);
+            visitor.exit_static_member_expression(path, self)?;
+            path.exit_interface(ASTNode::StaticMemberExpression);
+            Ok(())
+        }
+    }
 
 
 
@@ -4721,12 +6599,23 @@ pub mod ast {
     }
 
 
+    impl Walker for Super {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Super);
+            visitor.enter_super_(path, self)?;
+
+            visitor.exit_super_(path, self)?;
+            path.exit_interface(ASTNode::Super);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct SwitchCase {
-        test: Expression,
-        consequent: ListOfStatement
+        pub test: Expression,
+        pub consequent: ListOfStatement
     }
 
     impl FromJSON for SwitchCase {
@@ -4754,11 +6643,27 @@ pub mod ast {
     }
 
 
+    impl Walker for SwitchCase {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::SwitchCase);
+            visitor.enter_switch_case(path, self)?;
+            path.enter_field(ASTField::Test);
+            self.test.walk(path, visitor)?;
+            path.exit_field(ASTField::Test);
+            path.enter_field(ASTField::Consequent);
+            self.consequent.walk(path, visitor)?;
+            path.exit_field(ASTField::Consequent);
+            visitor.exit_switch_case(path, self)?;
+            path.exit_interface(ASTNode::SwitchCase);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct SwitchDefault {
-        consequent: ListOfStatement
+        pub consequent: ListOfStatement
     }
 
     impl FromJSON for SwitchDefault {
@@ -4785,12 +6690,25 @@ pub mod ast {
     }
 
 
+    impl Walker for SwitchDefault {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::SwitchDefault);
+            visitor.enter_switch_default(path, self)?;
+            path.enter_field(ASTField::Consequent);
+            self.consequent.walk(path, visitor)?;
+            path.exit_field(ASTField::Consequent);
+            visitor.exit_switch_default(path, self)?;
+            path.exit_interface(ASTNode::SwitchDefault);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct SwitchStatement {
-        discriminant: Expression,
-        cases: ListOfSwitchCase
+        pub discriminant: Expression,
+        pub cases: ListOfSwitchCase
     }
 
     impl FromJSON for SwitchStatement {
@@ -4818,14 +6736,30 @@ pub mod ast {
     }
 
 
+    impl Walker for SwitchStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::SwitchStatement);
+            visitor.enter_switch_statement(path, self)?;
+            path.enter_field(ASTField::Discriminant);
+            self.discriminant.walk(path, visitor)?;
+            path.exit_field(ASTField::Discriminant);
+            path.enter_field(ASTField::Cases);
+            self.cases.walk(path, visitor)?;
+            path.exit_field(ASTField::Cases);
+            visitor.exit_switch_statement(path, self)?;
+            path.exit_interface(ASTNode::SwitchStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct SwitchStatementWithDefault {
-        discriminant: Expression,
-        pre_default_cases: ListOfSwitchCase,
-        default_case: SwitchDefault,
-        post_default_cases: ListOfSwitchCase
+        pub discriminant: Expression,
+        pub pre_default_cases: ListOfSwitchCase,
+        pub default_case: SwitchDefault,
+        pub post_default_cases: ListOfSwitchCase
     }
 
     impl FromJSON for SwitchStatementWithDefault {
@@ -4855,11 +6789,33 @@ pub mod ast {
     }
 
 
+    impl Walker for SwitchStatementWithDefault {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::SwitchStatementWithDefault);
+            visitor.enter_switch_statement_with_default(path, self)?;
+            path.enter_field(ASTField::Discriminant);
+            self.discriminant.walk(path, visitor)?;
+            path.exit_field(ASTField::Discriminant);
+            path.enter_field(ASTField::PreDefaultCases);
+            self.pre_default_cases.walk(path, visitor)?;
+            path.exit_field(ASTField::PreDefaultCases);
+            path.enter_field(ASTField::DefaultCase);
+            self.default_case.walk(path, visitor)?;
+            path.exit_field(ASTField::DefaultCase);
+            path.enter_field(ASTField::PostDefaultCases);
+            self.post_default_cases.walk(path, visitor)?;
+            path.exit_field(ASTField::PostDefaultCases);
+            visitor.exit_switch_statement_with_default(path, self)?;
+            path.exit_interface(ASTNode::SwitchStatementWithDefault);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct TemplateElement {
-        raw_value: String
+        pub raw_value: String
     }
 
     impl FromJSON for TemplateElement {
@@ -4886,12 +6842,25 @@ pub mod ast {
     }
 
 
+    impl Walker for TemplateElement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::TemplateElement);
+            visitor.enter_template_element(path, self)?;
+            path.enter_field(ASTField::RawValue);
+            self.raw_value.walk(path, visitor)?;
+            path.exit_field(ASTField::RawValue);
+            visitor.exit_template_element(path, self)?;
+            path.exit_interface(ASTNode::TemplateElement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct TemplateExpression {
-        tag: OptionalExpression,
-        elements: ListOfExpressionOrTemplateElement
+        pub tag: OptionalExpression,
+        pub elements: ListOfExpressionOrTemplateElement
     }
 
     impl FromJSON for TemplateExpression {
@@ -4918,6 +6887,22 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for TemplateExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::TemplateExpression);
+            visitor.enter_template_expression(path, self)?;
+            path.enter_field(ASTField::Tag);
+            self.tag.walk(path, visitor)?;
+            path.exit_field(ASTField::Tag);
+            path.enter_field(ASTField::Elements);
+            self.elements.walk(path, visitor)?;
+            path.exit_field(ASTField::Elements);
+            visitor.exit_template_expression(path, self)?;
+            path.exit_interface(ASTNode::TemplateExpression);
+            Ok(())
+        }
+    }
 
 
 
@@ -4950,11 +6935,22 @@ pub mod ast {
     }
 
 
+    impl Walker for ThisExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ThisExpression);
+            visitor.enter_this_expression(path, self)?;
+
+            visitor.exit_this_expression(path, self)?;
+            path.exit_interface(ASTNode::ThisExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct ThrowStatement {
-        expression: Expression
+        pub expression: Expression
     }
 
     impl FromJSON for ThrowStatement {
@@ -4981,12 +6977,25 @@ pub mod ast {
     }
 
 
+    impl Walker for ThrowStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::ThrowStatement);
+            visitor.enter_throw_statement(path, self)?;
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_throw_statement(path, self)?;
+            path.exit_interface(ASTNode::ThrowStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct TryCatchStatement {
-        body: Block,
-        catch_clause: CatchClause
+        pub body: Block,
+        pub catch_clause: CatchClause
     }
 
     impl FromJSON for TryCatchStatement {
@@ -5014,13 +7023,29 @@ pub mod ast {
     }
 
 
+    impl Walker for TryCatchStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::TryCatchStatement);
+            visitor.enter_try_catch_statement(path, self)?;
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            path.enter_field(ASTField::CatchClause);
+            self.catch_clause.walk(path, visitor)?;
+            path.exit_field(ASTField::CatchClause);
+            visitor.exit_try_catch_statement(path, self)?;
+            path.exit_interface(ASTNode::TryCatchStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct TryFinallyStatement {
-        body: Block,
-        catch_clause: OptionalCatchClause,
-        finalizer: Block
+        pub body: Block,
+        pub catch_clause: OptionalCatchClause,
+        pub finalizer: Block
     }
 
     impl FromJSON for TryFinallyStatement {
@@ -5049,12 +7074,31 @@ pub mod ast {
     }
 
 
+    impl Walker for TryFinallyStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::TryFinallyStatement);
+            visitor.enter_try_finally_statement(path, self)?;
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            path.enter_field(ASTField::CatchClause);
+            self.catch_clause.walk(path, visitor)?;
+            path.exit_field(ASTField::CatchClause);
+            path.enter_field(ASTField::Finalizer);
+            self.finalizer.walk(path, visitor)?;
+            path.exit_field(ASTField::Finalizer);
+            visitor.exit_try_finally_statement(path, self)?;
+            path.exit_interface(ASTNode::TryFinallyStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct UnaryExpression {
-        operator: UnaryOperator,
-        operand: Expression
+        pub operator: UnaryOperator,
+        pub operand: Expression
     }
 
     impl FromJSON for UnaryExpression {
@@ -5082,13 +7126,29 @@ pub mod ast {
     }
 
 
+    impl Walker for UnaryExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::UnaryExpression);
+            visitor.enter_unary_expression(path, self)?;
+            path.enter_field(ASTField::Operator);
+            self.operator.walk(path, visitor)?;
+            path.exit_field(ASTField::Operator);
+            path.enter_field(ASTField::Operand);
+            self.operand.walk(path, visitor)?;
+            path.exit_field(ASTField::Operand);
+            visitor.exit_unary_expression(path, self)?;
+            path.exit_interface(ASTNode::UnaryExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct UpdateExpression {
-        is_prefix: bool,
-        operator: UpdateOperator,
-        operand: SimpleAssignmentTarget
+        pub is_prefix: bool,
+        pub operator: UpdateOperator,
+        pub operand: SimpleAssignmentTarget
     }
 
     impl FromJSON for UpdateExpression {
@@ -5117,12 +7177,31 @@ pub mod ast {
     }
 
 
+    impl Walker for UpdateExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::UpdateExpression);
+            visitor.enter_update_expression(path, self)?;
+            path.enter_field(ASTField::IsPrefix);
+            self.is_prefix.walk(path, visitor)?;
+            path.exit_field(ASTField::IsPrefix);
+            path.enter_field(ASTField::Operator);
+            self.operator.walk(path, visitor)?;
+            path.exit_field(ASTField::Operator);
+            path.enter_field(ASTField::Operand);
+            self.operand.walk(path, visitor)?;
+            path.exit_field(ASTField::Operand);
+            visitor.exit_update_expression(path, self)?;
+            path.exit_interface(ASTNode::UpdateExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct VariableDeclaration {
-        kind: VariableDeclarationKind,
-        declarators: ListOfVariableDeclarator
+        pub kind: VariableDeclarationKind,
+        pub declarators: ListOfVariableDeclarator
     }
 
     impl FromJSON for VariableDeclaration {
@@ -5150,12 +7229,28 @@ pub mod ast {
     }
 
 
+    impl Walker for VariableDeclaration {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::VariableDeclaration);
+            visitor.enter_variable_declaration(path, self)?;
+            path.enter_field(ASTField::Kind);
+            self.kind.walk(path, visitor)?;
+            path.exit_field(ASTField::Kind);
+            path.enter_field(ASTField::Declarators);
+            self.declarators.walk(path, visitor)?;
+            path.exit_field(ASTField::Declarators);
+            visitor.exit_variable_declaration(path, self)?;
+            path.exit_interface(ASTNode::VariableDeclaration);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct VariableDeclarator {
-        binding: Binding,
-        init: OptionalExpression
+        pub binding: Binding,
+        pub init: OptionalExpression
     }
 
     impl FromJSON for VariableDeclarator {
@@ -5183,12 +7278,28 @@ pub mod ast {
     }
 
 
+    impl Walker for VariableDeclarator {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::VariableDeclarator);
+            visitor.enter_variable_declarator(path, self)?;
+            path.enter_field(ASTField::Binding);
+            self.binding.walk(path, visitor)?;
+            path.exit_field(ASTField::Binding);
+            path.enter_field(ASTField::Init);
+            self.init.walk(path, visitor)?;
+            path.exit_field(ASTField::Init);
+            visitor.exit_variable_declarator(path, self)?;
+            path.exit_interface(ASTNode::VariableDeclarator);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct WhileStatement {
-        test: Expression,
-        body: Statement
+        pub test: Expression,
+        pub body: Statement
     }
 
     impl FromJSON for WhileStatement {
@@ -5216,12 +7327,28 @@ pub mod ast {
     }
 
 
+    impl Walker for WhileStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::WhileStatement);
+            visitor.enter_while_statement(path, self)?;
+            path.enter_field(ASTField::Test);
+            self.test.walk(path, visitor)?;
+            path.exit_field(ASTField::Test);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_while_statement(path, self)?;
+            path.exit_interface(ASTNode::WhileStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct WithStatement {
-        object: Expression,
-        body: Statement
+        pub object: Expression,
+        pub body: Statement
     }
 
     impl FromJSON for WithStatement {
@@ -5249,11 +7376,27 @@ pub mod ast {
     }
 
 
+    impl Walker for WithStatement {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::WithStatement);
+            visitor.enter_with_statement(path, self)?;
+            path.enter_field(ASTField::Object);
+            self.object.walk(path, visitor)?;
+            path.exit_field(ASTField::Object);
+            path.enter_field(ASTField::Body);
+            self.body.walk(path, visitor)?;
+            path.exit_field(ASTField::Body);
+            visitor.exit_with_statement(path, self)?;
+            path.exit_interface(ASTNode::WithStatement);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct YieldExpression {
-        expression: OptionalExpression
+        pub expression: OptionalExpression
     }
 
     impl FromJSON for YieldExpression {
@@ -5280,11 +7423,24 @@ pub mod ast {
     }
 
 
+    impl Walker for YieldExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::YieldExpression);
+            visitor.enter_yield_expression(path, self)?;
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_yield_expression(path, self)?;
+            path.exit_interface(ASTNode::YieldExpression);
+            Ok(())
+        }
+    }
+
 
 
     #[derive(PartialEq, Debug, Clone)]
     pub struct YieldStarExpression {
-        expression: Expression
+        pub expression: Expression
     }
 
     impl FromJSON for YieldStarExpression {
@@ -5310,6 +7466,19 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for YieldStarExpression {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::YieldStarExpression);
+            visitor.enter_yield_star_expression(path, self)?;
+            path.enter_field(ASTField::Expression);
+            self.expression.walk(path, visitor)?;
+            path.exit_field(ASTField::Expression);
+            visitor.exit_yield_star_expression(path, self)?;
+            path.exit_interface(ASTNode::YieldStarExpression);
+            Ok(())
+        }
+    }
 
 
 
@@ -5341,6 +7510,17 @@ pub mod ast {
         }
     }
 
+
+    impl Walker for Null {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            path.enter_interface(ASTNode::Null);
+            visitor.enter_null(path, self)?;
+
+            visitor.exit_null(path, self)?;
+            path.exit_interface(ASTNode::Null);
+            Ok(())
+        }
+    }
 
 
 
@@ -5450,10 +7630,12 @@ pub mod ast {
 
 
 
+    #[derive(Debug)]
     pub struct ASTPathItem {
         pub interface: ASTNode,
         pub field: ASTField,
     }
+    #[derive(Debug)]
     pub struct ASTPath {
         /// Some(foo) if we have entered interface foo but no field yet.
         /// Otherwise, None.
@@ -5461,6 +7643,12 @@ pub mod ast {
         items: Vec<ASTPathItem>,
     }
     impl ASTPath {
+        pub fn new() -> Self {
+            Self {
+                interface: None,
+                items: vec![],
+            }
+        }
         fn enter_interface(&mut self, node: ASTNode) {
             debug_assert!(self.interface.is_none());
             self.interface = Some(node);
@@ -5488,7 +7676,7 @@ pub mod ast {
             debug_assert!(prev == field);
             self.interface = Some(interface);
         }
-        fn len(&self) -> usize {
+        pub fn len(&self) -> usize {
             self.items.len()
         }
 
@@ -5500,808 +7688,845 @@ pub mod ast {
         }
     }
 
-    pub trait Visitor {
+    pub trait Visitor<E> {
 
-        fn enter_array_assignment_target(&self, path: &ASTPath, node: &ArrayAssignmentTarget) -> Option<ArrayAssignmentTarget> {
-            None
+        fn enter_array_assignment_target(&mut self, _path: &ASTPath, _node: &mut ArrayAssignmentTarget) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_array_assignment_target(&self, path: &ASTPath, node: &ArrayAssignmentTarget) -> Option<ArrayAssignmentTarget> {
-            None
+        fn exit_array_assignment_target(&mut self, _path: &ASTPath, _node: &mut ArrayAssignmentTarget) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_array_binding(&self, path: &ASTPath, node: &ArrayBinding) -> Option<ArrayBinding> {
-            None
+        fn enter_array_binding(&mut self, _path: &ASTPath, _node: &mut ArrayBinding) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_array_binding(&self, path: &ASTPath, node: &ArrayBinding) -> Option<ArrayBinding> {
-            None
+        fn exit_array_binding(&mut self, _path: &ASTPath, _node: &mut ArrayBinding) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_array_expression(&self, path: &ASTPath, node: &ArrayExpression) -> Option<ArrayExpression> {
-            None
+        fn enter_array_expression(&mut self, _path: &ASTPath, _node: &mut ArrayExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_array_expression(&self, path: &ASTPath, node: &ArrayExpression) -> Option<ArrayExpression> {
-            None
+        fn exit_array_expression(&mut self, _path: &ASTPath, _node: &mut ArrayExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_arrow_expression(&self, path: &ASTPath, node: &ArrowExpression) -> Option<ArrowExpression> {
-            None
+        fn enter_arrow_expression(&mut self, _path: &ASTPath, _node: &mut ArrowExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_arrow_expression(&self, path: &ASTPath, node: &ArrowExpression) -> Option<ArrowExpression> {
-            None
+        fn exit_arrow_expression(&mut self, _path: &ASTPath, _node: &mut ArrowExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_asserted_block_scope(&self, path: &ASTPath, node: &AssertedBlockScope) -> Option<AssertedBlockScope> {
-            None
+        fn enter_asserted_block_scope(&mut self, _path: &ASTPath, _node: &mut AssertedBlockScope) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_asserted_block_scope(&self, path: &ASTPath, node: &AssertedBlockScope) -> Option<AssertedBlockScope> {
-            None
+        fn exit_asserted_block_scope(&mut self, _path: &ASTPath, _node: &mut AssertedBlockScope) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_asserted_parameter_scope(&self, path: &ASTPath, node: &AssertedParameterScope) -> Option<AssertedParameterScope> {
-            None
+        fn enter_asserted_parameter_scope(&mut self, _path: &ASTPath, _node: &mut AssertedParameterScope) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_asserted_parameter_scope(&self, path: &ASTPath, node: &AssertedParameterScope) -> Option<AssertedParameterScope> {
-            None
+        fn exit_asserted_parameter_scope(&mut self, _path: &ASTPath, _node: &mut AssertedParameterScope) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_asserted_var_scope(&self, path: &ASTPath, node: &AssertedVarScope) -> Option<AssertedVarScope> {
-            None
+        fn enter_asserted_var_scope(&mut self, _path: &ASTPath, _node: &mut AssertedVarScope) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_asserted_var_scope(&self, path: &ASTPath, node: &AssertedVarScope) -> Option<AssertedVarScope> {
-            None
+        fn exit_asserted_var_scope(&mut self, _path: &ASTPath, _node: &mut AssertedVarScope) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_assignment_expression(&self, path: &ASTPath, node: &AssignmentExpression) -> Option<AssignmentExpression> {
-            None
+        fn enter_assignment_expression(&mut self, _path: &ASTPath, _node: &mut AssignmentExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_assignment_expression(&self, path: &ASTPath, node: &AssignmentExpression) -> Option<AssignmentExpression> {
-            None
+        fn exit_assignment_expression(&mut self, _path: &ASTPath, _node: &mut AssignmentExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_assignment_target_identifier(&self, path: &ASTPath, node: &AssignmentTargetIdentifier) -> Option<AssignmentTargetIdentifier> {
-            None
+        fn enter_assignment_target_identifier(&mut self, _path: &ASTPath, _node: &mut AssignmentTargetIdentifier) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_assignment_target_identifier(&self, path: &ASTPath, node: &AssignmentTargetIdentifier) -> Option<AssignmentTargetIdentifier> {
-            None
+        fn exit_assignment_target_identifier(&mut self, _path: &ASTPath, _node: &mut AssignmentTargetIdentifier) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_assignment_target_property_identifier(&self, path: &ASTPath, node: &AssignmentTargetPropertyIdentifier) -> Option<AssignmentTargetPropertyIdentifier> {
-            None
+        fn enter_assignment_target_property_identifier(&mut self, _path: &ASTPath, _node: &mut AssignmentTargetPropertyIdentifier) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_assignment_target_property_identifier(&self, path: &ASTPath, node: &AssignmentTargetPropertyIdentifier) -> Option<AssignmentTargetPropertyIdentifier> {
-            None
+        fn exit_assignment_target_property_identifier(&mut self, _path: &ASTPath, _node: &mut AssignmentTargetPropertyIdentifier) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_assignment_target_property_property(&self, path: &ASTPath, node: &AssignmentTargetPropertyProperty) -> Option<AssignmentTargetPropertyProperty> {
-            None
+        fn enter_assignment_target_property_property(&mut self, _path: &ASTPath, _node: &mut AssignmentTargetPropertyProperty) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_assignment_target_property_property(&self, path: &ASTPath, node: &AssignmentTargetPropertyProperty) -> Option<AssignmentTargetPropertyProperty> {
-            None
+        fn exit_assignment_target_property_property(&mut self, _path: &ASTPath, _node: &mut AssignmentTargetPropertyProperty) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_assignment_target_with_initializer(&self, path: &ASTPath, node: &AssignmentTargetWithInitializer) -> Option<AssignmentTargetWithInitializer> {
-            None
+        fn enter_assignment_target_with_initializer(&mut self, _path: &ASTPath, _node: &mut AssignmentTargetWithInitializer) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_assignment_target_with_initializer(&self, path: &ASTPath, node: &AssignmentTargetWithInitializer) -> Option<AssignmentTargetWithInitializer> {
-            None
+        fn exit_assignment_target_with_initializer(&mut self, _path: &ASTPath, _node: &mut AssignmentTargetWithInitializer) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_await_expression(&self, path: &ASTPath, node: &AwaitExpression) -> Option<AwaitExpression> {
-            None
+        fn enter_await_expression(&mut self, _path: &ASTPath, _node: &mut AwaitExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_await_expression(&self, path: &ASTPath, node: &AwaitExpression) -> Option<AwaitExpression> {
-            None
+        fn exit_await_expression(&mut self, _path: &ASTPath, _node: &mut AwaitExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_binary_expression(&self, path: &ASTPath, node: &BinaryExpression) -> Option<BinaryExpression> {
-            None
+        fn enter_binary_expression(&mut self, _path: &ASTPath, _node: &mut BinaryExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_binary_expression(&self, path: &ASTPath, node: &BinaryExpression) -> Option<BinaryExpression> {
-            None
+        fn exit_binary_expression(&mut self, _path: &ASTPath, _node: &mut BinaryExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_binding_identifier(&self, path: &ASTPath, node: &BindingIdentifier) -> Option<BindingIdentifier> {
-            None
+        fn enter_binding_identifier(&mut self, _path: &ASTPath, _node: &mut BindingIdentifier) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_binding_identifier(&self, path: &ASTPath, node: &BindingIdentifier) -> Option<BindingIdentifier> {
-            None
+        fn exit_binding_identifier(&mut self, _path: &ASTPath, _node: &mut BindingIdentifier) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_binding_property_identifier(&self, path: &ASTPath, node: &BindingPropertyIdentifier) -> Option<BindingPropertyIdentifier> {
-            None
+        fn enter_binding_property_identifier(&mut self, _path: &ASTPath, _node: &mut BindingPropertyIdentifier) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_binding_property_identifier(&self, path: &ASTPath, node: &BindingPropertyIdentifier) -> Option<BindingPropertyIdentifier> {
-            None
+        fn exit_binding_property_identifier(&mut self, _path: &ASTPath, _node: &mut BindingPropertyIdentifier) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_binding_property_property(&self, path: &ASTPath, node: &BindingPropertyProperty) -> Option<BindingPropertyProperty> {
-            None
+        fn enter_binding_property_property(&mut self, _path: &ASTPath, _node: &mut BindingPropertyProperty) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_binding_property_property(&self, path: &ASTPath, node: &BindingPropertyProperty) -> Option<BindingPropertyProperty> {
-            None
+        fn exit_binding_property_property(&mut self, _path: &ASTPath, _node: &mut BindingPropertyProperty) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_binding_with_initializer(&self, path: &ASTPath, node: &BindingWithInitializer) -> Option<BindingWithInitializer> {
-            None
+        fn enter_binding_with_initializer(&mut self, _path: &ASTPath, _node: &mut BindingWithInitializer) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_binding_with_initializer(&self, path: &ASTPath, node: &BindingWithInitializer) -> Option<BindingWithInitializer> {
-            None
+        fn exit_binding_with_initializer(&mut self, _path: &ASTPath, _node: &mut BindingWithInitializer) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_block(&self, path: &ASTPath, node: &Block) -> Option<Block> {
-            None
+        fn enter_block(&mut self, _path: &ASTPath, _node: &mut Block) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_block(&self, path: &ASTPath, node: &Block) -> Option<Block> {
-            None
+        fn exit_block(&mut self, _path: &ASTPath, _node: &mut Block) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_break_statement(&self, path: &ASTPath, node: &BreakStatement) -> Option<BreakStatement> {
-            None
+        fn enter_break_statement(&mut self, _path: &ASTPath, _node: &mut BreakStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_break_statement(&self, path: &ASTPath, node: &BreakStatement) -> Option<BreakStatement> {
-            None
+        fn exit_break_statement(&mut self, _path: &ASTPath, _node: &mut BreakStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_call_expression(&self, path: &ASTPath, node: &CallExpression) -> Option<CallExpression> {
-            None
+        fn enter_call_expression(&mut self, _path: &ASTPath, _node: &mut CallExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_call_expression(&self, path: &ASTPath, node: &CallExpression) -> Option<CallExpression> {
-            None
+        fn exit_call_expression(&mut self, _path: &ASTPath, _node: &mut CallExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_catch_clause(&self, path: &ASTPath, node: &CatchClause) -> Option<CatchClause> {
-            None
+        fn enter_catch_clause(&mut self, _path: &ASTPath, _node: &mut CatchClause) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_catch_clause(&self, path: &ASTPath, node: &CatchClause) -> Option<CatchClause> {
-            None
+        fn exit_catch_clause(&mut self, _path: &ASTPath, _node: &mut CatchClause) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_class_declaration(&self, path: &ASTPath, node: &ClassDeclaration) -> Option<ClassDeclaration> {
-            None
+        fn enter_class_declaration(&mut self, _path: &ASTPath, _node: &mut ClassDeclaration) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_class_declaration(&self, path: &ASTPath, node: &ClassDeclaration) -> Option<ClassDeclaration> {
-            None
+        fn exit_class_declaration(&mut self, _path: &ASTPath, _node: &mut ClassDeclaration) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_class_element(&self, path: &ASTPath, node: &ClassElement) -> Option<ClassElement> {
-            None
+        fn enter_class_element(&mut self, _path: &ASTPath, _node: &mut ClassElement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_class_element(&self, path: &ASTPath, node: &ClassElement) -> Option<ClassElement> {
-            None
+        fn exit_class_element(&mut self, _path: &ASTPath, _node: &mut ClassElement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_class_expression(&self, path: &ASTPath, node: &ClassExpression) -> Option<ClassExpression> {
-            None
+        fn enter_class_expression(&mut self, _path: &ASTPath, _node: &mut ClassExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_class_expression(&self, path: &ASTPath, node: &ClassExpression) -> Option<ClassExpression> {
-            None
+        fn exit_class_expression(&mut self, _path: &ASTPath, _node: &mut ClassExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_compound_assignment_expression(&self, path: &ASTPath, node: &CompoundAssignmentExpression) -> Option<CompoundAssignmentExpression> {
-            None
+        fn enter_compound_assignment_expression(&mut self, _path: &ASTPath, _node: &mut CompoundAssignmentExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_compound_assignment_expression(&self, path: &ASTPath, node: &CompoundAssignmentExpression) -> Option<CompoundAssignmentExpression> {
-            None
+        fn exit_compound_assignment_expression(&mut self, _path: &ASTPath, _node: &mut CompoundAssignmentExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_computed_member_assignment_target(&self, path: &ASTPath, node: &ComputedMemberAssignmentTarget) -> Option<ComputedMemberAssignmentTarget> {
-            None
+        fn enter_computed_member_assignment_target(&mut self, _path: &ASTPath, _node: &mut ComputedMemberAssignmentTarget) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_computed_member_assignment_target(&self, path: &ASTPath, node: &ComputedMemberAssignmentTarget) -> Option<ComputedMemberAssignmentTarget> {
-            None
+        fn exit_computed_member_assignment_target(&mut self, _path: &ASTPath, _node: &mut ComputedMemberAssignmentTarget) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_computed_member_expression(&self, path: &ASTPath, node: &ComputedMemberExpression) -> Option<ComputedMemberExpression> {
-            None
+        fn enter_computed_member_expression(&mut self, _path: &ASTPath, _node: &mut ComputedMemberExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_computed_member_expression(&self, path: &ASTPath, node: &ComputedMemberExpression) -> Option<ComputedMemberExpression> {
-            None
+        fn exit_computed_member_expression(&mut self, _path: &ASTPath, _node: &mut ComputedMemberExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_computed_property_name(&self, path: &ASTPath, node: &ComputedPropertyName) -> Option<ComputedPropertyName> {
-            None
+        fn enter_computed_property_name(&mut self, _path: &ASTPath, _node: &mut ComputedPropertyName) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_computed_property_name(&self, path: &ASTPath, node: &ComputedPropertyName) -> Option<ComputedPropertyName> {
-            None
+        fn exit_computed_property_name(&mut self, _path: &ASTPath, _node: &mut ComputedPropertyName) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_conditional_expression(&self, path: &ASTPath, node: &ConditionalExpression) -> Option<ConditionalExpression> {
-            None
+        fn enter_conditional_expression(&mut self, _path: &ASTPath, _node: &mut ConditionalExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_conditional_expression(&self, path: &ASTPath, node: &ConditionalExpression) -> Option<ConditionalExpression> {
-            None
+        fn exit_conditional_expression(&mut self, _path: &ASTPath, _node: &mut ConditionalExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_continue_statement(&self, path: &ASTPath, node: &ContinueStatement) -> Option<ContinueStatement> {
-            None
+        fn enter_continue_statement(&mut self, _path: &ASTPath, _node: &mut ContinueStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_continue_statement(&self, path: &ASTPath, node: &ContinueStatement) -> Option<ContinueStatement> {
-            None
+        fn exit_continue_statement(&mut self, _path: &ASTPath, _node: &mut ContinueStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_data_property(&self, path: &ASTPath, node: &DataProperty) -> Option<DataProperty> {
-            None
+        fn enter_data_property(&mut self, _path: &ASTPath, _node: &mut DataProperty) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_data_property(&self, path: &ASTPath, node: &DataProperty) -> Option<DataProperty> {
-            None
+        fn exit_data_property(&mut self, _path: &ASTPath, _node: &mut DataProperty) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_debugger_statement(&self, path: &ASTPath, node: &DebuggerStatement) -> Option<DebuggerStatement> {
-            None
+        fn enter_debugger_statement(&mut self, _path: &ASTPath, _node: &mut DebuggerStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_debugger_statement(&self, path: &ASTPath, node: &DebuggerStatement) -> Option<DebuggerStatement> {
-            None
+        fn exit_debugger_statement(&mut self, _path: &ASTPath, _node: &mut DebuggerStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_directive(&self, path: &ASTPath, node: &Directive) -> Option<Directive> {
-            None
+        fn enter_directive(&mut self, _path: &ASTPath, _node: &mut Directive) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_directive(&self, path: &ASTPath, node: &Directive) -> Option<Directive> {
-            None
+        fn exit_directive(&mut self, _path: &ASTPath, _node: &mut Directive) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_do_while_statement(&self, path: &ASTPath, node: &DoWhileStatement) -> Option<DoWhileStatement> {
-            None
+        fn enter_do_while_statement(&mut self, _path: &ASTPath, _node: &mut DoWhileStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_do_while_statement(&self, path: &ASTPath, node: &DoWhileStatement) -> Option<DoWhileStatement> {
-            None
+        fn exit_do_while_statement(&mut self, _path: &ASTPath, _node: &mut DoWhileStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_empty_statement(&self, path: &ASTPath, node: &EmptyStatement) -> Option<EmptyStatement> {
-            None
+        fn enter_empty_statement(&mut self, _path: &ASTPath, _node: &mut EmptyStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_empty_statement(&self, path: &ASTPath, node: &EmptyStatement) -> Option<EmptyStatement> {
-            None
+        fn exit_empty_statement(&mut self, _path: &ASTPath, _node: &mut EmptyStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_export(&self, path: &ASTPath, node: &Export) -> Option<Export> {
-            None
+        fn enter_export(&mut self, _path: &ASTPath, _node: &mut Export) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_export(&self, path: &ASTPath, node: &Export) -> Option<Export> {
-            None
+        fn exit_export(&mut self, _path: &ASTPath, _node: &mut Export) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_export_all_from(&self, path: &ASTPath, node: &ExportAllFrom) -> Option<ExportAllFrom> {
-            None
+        fn enter_export_all_from(&mut self, _path: &ASTPath, _node: &mut ExportAllFrom) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_export_all_from(&self, path: &ASTPath, node: &ExportAllFrom) -> Option<ExportAllFrom> {
-            None
+        fn exit_export_all_from(&mut self, _path: &ASTPath, _node: &mut ExportAllFrom) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_export_default(&self, path: &ASTPath, node: &ExportDefault) -> Option<ExportDefault> {
-            None
+        fn enter_export_default(&mut self, _path: &ASTPath, _node: &mut ExportDefault) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_export_default(&self, path: &ASTPath, node: &ExportDefault) -> Option<ExportDefault> {
-            None
+        fn exit_export_default(&mut self, _path: &ASTPath, _node: &mut ExportDefault) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_export_from(&self, path: &ASTPath, node: &ExportFrom) -> Option<ExportFrom> {
-            None
+        fn enter_export_from(&mut self, _path: &ASTPath, _node: &mut ExportFrom) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_export_from(&self, path: &ASTPath, node: &ExportFrom) -> Option<ExportFrom> {
-            None
+        fn exit_export_from(&mut self, _path: &ASTPath, _node: &mut ExportFrom) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_export_from_specifier(&self, path: &ASTPath, node: &ExportFromSpecifier) -> Option<ExportFromSpecifier> {
-            None
+        fn enter_export_from_specifier(&mut self, _path: &ASTPath, _node: &mut ExportFromSpecifier) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_export_from_specifier(&self, path: &ASTPath, node: &ExportFromSpecifier) -> Option<ExportFromSpecifier> {
-            None
+        fn exit_export_from_specifier(&mut self, _path: &ASTPath, _node: &mut ExportFromSpecifier) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_export_local_specifier(&self, path: &ASTPath, node: &ExportLocalSpecifier) -> Option<ExportLocalSpecifier> {
-            None
+        fn enter_export_local_specifier(&mut self, _path: &ASTPath, _node: &mut ExportLocalSpecifier) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_export_local_specifier(&self, path: &ASTPath, node: &ExportLocalSpecifier) -> Option<ExportLocalSpecifier> {
-            None
+        fn exit_export_local_specifier(&mut self, _path: &ASTPath, _node: &mut ExportLocalSpecifier) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_export_locals(&self, path: &ASTPath, node: &ExportLocals) -> Option<ExportLocals> {
-            None
+        fn enter_export_locals(&mut self, _path: &ASTPath, _node: &mut ExportLocals) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_export_locals(&self, path: &ASTPath, node: &ExportLocals) -> Option<ExportLocals> {
-            None
+        fn exit_export_locals(&mut self, _path: &ASTPath, _node: &mut ExportLocals) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_expression_statement(&self, path: &ASTPath, node: &ExpressionStatement) -> Option<ExpressionStatement> {
-            None
+        fn enter_expression_statement(&mut self, _path: &ASTPath, _node: &mut ExpressionStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_expression_statement(&self, path: &ASTPath, node: &ExpressionStatement) -> Option<ExpressionStatement> {
-            None
+        fn exit_expression_statement(&mut self, _path: &ASTPath, _node: &mut ExpressionStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_for_in_of_binding(&self, path: &ASTPath, node: &ForInOfBinding) -> Option<ForInOfBinding> {
-            None
+        fn enter_for_in_of_binding(&mut self, _path: &ASTPath, _node: &mut ForInOfBinding) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_for_in_of_binding(&self, path: &ASTPath, node: &ForInOfBinding) -> Option<ForInOfBinding> {
-            None
+        fn exit_for_in_of_binding(&mut self, _path: &ASTPath, _node: &mut ForInOfBinding) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_for_in_statement(&self, path: &ASTPath, node: &ForInStatement) -> Option<ForInStatement> {
-            None
+        fn enter_for_in_statement(&mut self, _path: &ASTPath, _node: &mut ForInStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_for_in_statement(&self, path: &ASTPath, node: &ForInStatement) -> Option<ForInStatement> {
-            None
+        fn exit_for_in_statement(&mut self, _path: &ASTPath, _node: &mut ForInStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_for_of_statement(&self, path: &ASTPath, node: &ForOfStatement) -> Option<ForOfStatement> {
-            None
+        fn enter_for_of_statement(&mut self, _path: &ASTPath, _node: &mut ForOfStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_for_of_statement(&self, path: &ASTPath, node: &ForOfStatement) -> Option<ForOfStatement> {
-            None
+        fn exit_for_of_statement(&mut self, _path: &ASTPath, _node: &mut ForOfStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_for_statement(&self, path: &ASTPath, node: &ForStatement) -> Option<ForStatement> {
-            None
+        fn enter_for_statement(&mut self, _path: &ASTPath, _node: &mut ForStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_for_statement(&self, path: &ASTPath, node: &ForStatement) -> Option<ForStatement> {
-            None
+        fn exit_for_statement(&mut self, _path: &ASTPath, _node: &mut ForStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_formal_parameters(&self, path: &ASTPath, node: &FormalParameters) -> Option<FormalParameters> {
-            None
+        fn enter_formal_parameters(&mut self, _path: &ASTPath, _node: &mut FormalParameters) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_formal_parameters(&self, path: &ASTPath, node: &FormalParameters) -> Option<FormalParameters> {
-            None
+        fn exit_formal_parameters(&mut self, _path: &ASTPath, _node: &mut FormalParameters) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_function_body(&self, path: &ASTPath, node: &FunctionBody) -> Option<FunctionBody> {
-            None
+        fn enter_function_body(&mut self, _path: &ASTPath, _node: &mut FunctionBody) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_function_body(&self, path: &ASTPath, node: &FunctionBody) -> Option<FunctionBody> {
-            None
+        fn exit_function_body(&mut self, _path: &ASTPath, _node: &mut FunctionBody) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_function_declaration(&self, path: &ASTPath, node: &FunctionDeclaration) -> Option<FunctionDeclaration> {
-            None
+        fn enter_function_declaration(&mut self, _path: &ASTPath, _node: &mut FunctionDeclaration) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_function_declaration(&self, path: &ASTPath, node: &FunctionDeclaration) -> Option<FunctionDeclaration> {
-            None
+        fn exit_function_declaration(&mut self, _path: &ASTPath, _node: &mut FunctionDeclaration) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_function_expression(&self, path: &ASTPath, node: &FunctionExpression) -> Option<FunctionExpression> {
-            None
+        fn enter_function_expression(&mut self, _path: &ASTPath, _node: &mut FunctionExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_function_expression(&self, path: &ASTPath, node: &FunctionExpression) -> Option<FunctionExpression> {
-            None
+        fn exit_function_expression(&mut self, _path: &ASTPath, _node: &mut FunctionExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_getter(&self, path: &ASTPath, node: &Getter) -> Option<Getter> {
-            None
+        fn enter_getter(&mut self, _path: &ASTPath, _node: &mut Getter) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_getter(&self, path: &ASTPath, node: &Getter) -> Option<Getter> {
-            None
+        fn exit_getter(&mut self, _path: &ASTPath, _node: &mut Getter) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_identifier_expression(&self, path: &ASTPath, node: &IdentifierExpression) -> Option<IdentifierExpression> {
-            None
+        fn enter_identifier_expression(&mut self, _path: &ASTPath, _node: &mut IdentifierExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_identifier_expression(&self, path: &ASTPath, node: &IdentifierExpression) -> Option<IdentifierExpression> {
-            None
+        fn exit_identifier_expression(&mut self, _path: &ASTPath, _node: &mut IdentifierExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_if_statement(&self, path: &ASTPath, node: &IfStatement) -> Option<IfStatement> {
-            None
+        fn enter_if_statement(&mut self, _path: &ASTPath, _node: &mut IfStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_if_statement(&self, path: &ASTPath, node: &IfStatement) -> Option<IfStatement> {
-            None
+        fn exit_if_statement(&mut self, _path: &ASTPath, _node: &mut IfStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_import(&self, path: &ASTPath, node: &Import) -> Option<Import> {
-            None
+        fn enter_import(&mut self, _path: &ASTPath, _node: &mut Import) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_import(&self, path: &ASTPath, node: &Import) -> Option<Import> {
-            None
+        fn exit_import(&mut self, _path: &ASTPath, _node: &mut Import) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_import_namespace(&self, path: &ASTPath, node: &ImportNamespace) -> Option<ImportNamespace> {
-            None
+        fn enter_import_namespace(&mut self, _path: &ASTPath, _node: &mut ImportNamespace) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_import_namespace(&self, path: &ASTPath, node: &ImportNamespace) -> Option<ImportNamespace> {
-            None
+        fn exit_import_namespace(&mut self, _path: &ASTPath, _node: &mut ImportNamespace) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_import_specifier(&self, path: &ASTPath, node: &ImportSpecifier) -> Option<ImportSpecifier> {
-            None
+        fn enter_import_specifier(&mut self, _path: &ASTPath, _node: &mut ImportSpecifier) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_import_specifier(&self, path: &ASTPath, node: &ImportSpecifier) -> Option<ImportSpecifier> {
-            None
+        fn exit_import_specifier(&mut self, _path: &ASTPath, _node: &mut ImportSpecifier) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_labelled_statement(&self, path: &ASTPath, node: &LabelledStatement) -> Option<LabelledStatement> {
-            None
+        fn enter_labelled_statement(&mut self, _path: &ASTPath, _node: &mut LabelledStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_labelled_statement(&self, path: &ASTPath, node: &LabelledStatement) -> Option<LabelledStatement> {
-            None
+        fn exit_labelled_statement(&mut self, _path: &ASTPath, _node: &mut LabelledStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_literal_boolean_expression(&self, path: &ASTPath, node: &LiteralBooleanExpression) -> Option<LiteralBooleanExpression> {
-            None
+        fn enter_literal_boolean_expression(&mut self, _path: &ASTPath, _node: &mut LiteralBooleanExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_literal_boolean_expression(&self, path: &ASTPath, node: &LiteralBooleanExpression) -> Option<LiteralBooleanExpression> {
-            None
+        fn exit_literal_boolean_expression(&mut self, _path: &ASTPath, _node: &mut LiteralBooleanExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_literal_infinity_expression(&self, path: &ASTPath, node: &LiteralInfinityExpression) -> Option<LiteralInfinityExpression> {
-            None
+        fn enter_literal_infinity_expression(&mut self, _path: &ASTPath, _node: &mut LiteralInfinityExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_literal_infinity_expression(&self, path: &ASTPath, node: &LiteralInfinityExpression) -> Option<LiteralInfinityExpression> {
-            None
+        fn exit_literal_infinity_expression(&mut self, _path: &ASTPath, _node: &mut LiteralInfinityExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_literal_null_expression(&self, path: &ASTPath, node: &LiteralNullExpression) -> Option<LiteralNullExpression> {
-            None
+        fn enter_literal_null_expression(&mut self, _path: &ASTPath, _node: &mut LiteralNullExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_literal_null_expression(&self, path: &ASTPath, node: &LiteralNullExpression) -> Option<LiteralNullExpression> {
-            None
+        fn exit_literal_null_expression(&mut self, _path: &ASTPath, _node: &mut LiteralNullExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_literal_numeric_expression(&self, path: &ASTPath, node: &LiteralNumericExpression) -> Option<LiteralNumericExpression> {
-            None
+        fn enter_literal_numeric_expression(&mut self, _path: &ASTPath, _node: &mut LiteralNumericExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_literal_numeric_expression(&self, path: &ASTPath, node: &LiteralNumericExpression) -> Option<LiteralNumericExpression> {
-            None
+        fn exit_literal_numeric_expression(&mut self, _path: &ASTPath, _node: &mut LiteralNumericExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_literal_property_name(&self, path: &ASTPath, node: &LiteralPropertyName) -> Option<LiteralPropertyName> {
-            None
+        fn enter_literal_property_name(&mut self, _path: &ASTPath, _node: &mut LiteralPropertyName) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_literal_property_name(&self, path: &ASTPath, node: &LiteralPropertyName) -> Option<LiteralPropertyName> {
-            None
+        fn exit_literal_property_name(&mut self, _path: &ASTPath, _node: &mut LiteralPropertyName) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_literal_reg_exp_expression(&self, path: &ASTPath, node: &LiteralRegExpExpression) -> Option<LiteralRegExpExpression> {
-            None
+        fn enter_literal_reg_exp_expression(&mut self, _path: &ASTPath, _node: &mut LiteralRegExpExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_literal_reg_exp_expression(&self, path: &ASTPath, node: &LiteralRegExpExpression) -> Option<LiteralRegExpExpression> {
-            None
+        fn exit_literal_reg_exp_expression(&mut self, _path: &ASTPath, _node: &mut LiteralRegExpExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_literal_string_expression(&self, path: &ASTPath, node: &LiteralStringExpression) -> Option<LiteralStringExpression> {
-            None
+        fn enter_literal_string_expression(&mut self, _path: &ASTPath, _node: &mut LiteralStringExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_literal_string_expression(&self, path: &ASTPath, node: &LiteralStringExpression) -> Option<LiteralStringExpression> {
-            None
+        fn exit_literal_string_expression(&mut self, _path: &ASTPath, _node: &mut LiteralStringExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_method(&self, path: &ASTPath, node: &Method) -> Option<Method> {
-            None
+        fn enter_method(&mut self, _path: &ASTPath, _node: &mut Method) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_method(&self, path: &ASTPath, node: &Method) -> Option<Method> {
-            None
+        fn exit_method(&mut self, _path: &ASTPath, _node: &mut Method) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_module(&self, path: &ASTPath, node: &Module) -> Option<Module> {
-            None
+        fn enter_module(&mut self, _path: &ASTPath, _node: &mut Module) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_module(&self, path: &ASTPath, node: &Module) -> Option<Module> {
-            None
+        fn exit_module(&mut self, _path: &ASTPath, _node: &mut Module) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_new_expression(&self, path: &ASTPath, node: &NewExpression) -> Option<NewExpression> {
-            None
+        fn enter_new_expression(&mut self, _path: &ASTPath, _node: &mut NewExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_new_expression(&self, path: &ASTPath, node: &NewExpression) -> Option<NewExpression> {
-            None
+        fn exit_new_expression(&mut self, _path: &ASTPath, _node: &mut NewExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_new_target_expression(&self, path: &ASTPath, node: &NewTargetExpression) -> Option<NewTargetExpression> {
-            None
+        fn enter_new_target_expression(&mut self, _path: &ASTPath, _node: &mut NewTargetExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_new_target_expression(&self, path: &ASTPath, node: &NewTargetExpression) -> Option<NewTargetExpression> {
-            None
+        fn exit_new_target_expression(&mut self, _path: &ASTPath, _node: &mut NewTargetExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_object_assignment_target(&self, path: &ASTPath, node: &ObjectAssignmentTarget) -> Option<ObjectAssignmentTarget> {
-            None
+        fn enter_object_assignment_target(&mut self, _path: &ASTPath, _node: &mut ObjectAssignmentTarget) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_object_assignment_target(&self, path: &ASTPath, node: &ObjectAssignmentTarget) -> Option<ObjectAssignmentTarget> {
-            None
+        fn exit_object_assignment_target(&mut self, _path: &ASTPath, _node: &mut ObjectAssignmentTarget) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_object_binding(&self, path: &ASTPath, node: &ObjectBinding) -> Option<ObjectBinding> {
-            None
+        fn enter_object_binding(&mut self, _path: &ASTPath, _node: &mut ObjectBinding) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_object_binding(&self, path: &ASTPath, node: &ObjectBinding) -> Option<ObjectBinding> {
-            None
+        fn exit_object_binding(&mut self, _path: &ASTPath, _node: &mut ObjectBinding) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_object_expression(&self, path: &ASTPath, node: &ObjectExpression) -> Option<ObjectExpression> {
-            None
+        fn enter_object_expression(&mut self, _path: &ASTPath, _node: &mut ObjectExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_object_expression(&self, path: &ASTPath, node: &ObjectExpression) -> Option<ObjectExpression> {
-            None
+        fn exit_object_expression(&mut self, _path: &ASTPath, _node: &mut ObjectExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_return_statement(&self, path: &ASTPath, node: &ReturnStatement) -> Option<ReturnStatement> {
-            None
+        fn enter_return_statement(&mut self, _path: &ASTPath, _node: &mut ReturnStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_return_statement(&self, path: &ASTPath, node: &ReturnStatement) -> Option<ReturnStatement> {
-            None
+        fn exit_return_statement(&mut self, _path: &ASTPath, _node: &mut ReturnStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_script(&self, path: &ASTPath, node: &Script) -> Option<Script> {
-            None
+        fn enter_script(&mut self, _path: &ASTPath, _node: &mut Script) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_script(&self, path: &ASTPath, node: &Script) -> Option<Script> {
-            None
+        fn exit_script(&mut self, _path: &ASTPath, _node: &mut Script) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_setter(&self, path: &ASTPath, node: &Setter) -> Option<Setter> {
-            None
+        fn enter_setter(&mut self, _path: &ASTPath, _node: &mut Setter) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_setter(&self, path: &ASTPath, node: &Setter) -> Option<Setter> {
-            None
+        fn exit_setter(&mut self, _path: &ASTPath, _node: &mut Setter) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_shorthand_property(&self, path: &ASTPath, node: &ShorthandProperty) -> Option<ShorthandProperty> {
-            None
+        fn enter_shorthand_property(&mut self, _path: &ASTPath, _node: &mut ShorthandProperty) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_shorthand_property(&self, path: &ASTPath, node: &ShorthandProperty) -> Option<ShorthandProperty> {
-            None
+        fn exit_shorthand_property(&mut self, _path: &ASTPath, _node: &mut ShorthandProperty) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_spread_element(&self, path: &ASTPath, node: &SpreadElement) -> Option<SpreadElement> {
-            None
+        fn enter_spread_element(&mut self, _path: &ASTPath, _node: &mut SpreadElement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_spread_element(&self, path: &ASTPath, node: &SpreadElement) -> Option<SpreadElement> {
-            None
+        fn exit_spread_element(&mut self, _path: &ASTPath, _node: &mut SpreadElement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_static_member_assignment_target(&self, path: &ASTPath, node: &StaticMemberAssignmentTarget) -> Option<StaticMemberAssignmentTarget> {
-            None
+        fn enter_static_member_assignment_target(&mut self, _path: &ASTPath, _node: &mut StaticMemberAssignmentTarget) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_static_member_assignment_target(&self, path: &ASTPath, node: &StaticMemberAssignmentTarget) -> Option<StaticMemberAssignmentTarget> {
-            None
+        fn exit_static_member_assignment_target(&mut self, _path: &ASTPath, _node: &mut StaticMemberAssignmentTarget) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_static_member_expression(&self, path: &ASTPath, node: &StaticMemberExpression) -> Option<StaticMemberExpression> {
-            None
+        fn enter_static_member_expression(&mut self, _path: &ASTPath, _node: &mut StaticMemberExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_static_member_expression(&self, path: &ASTPath, node: &StaticMemberExpression) -> Option<StaticMemberExpression> {
-            None
+        fn exit_static_member_expression(&mut self, _path: &ASTPath, _node: &mut StaticMemberExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_super_(&self, path: &ASTPath, node: &Super) -> Option<Super> {
-            None
+        fn enter_super_(&mut self, _path: &ASTPath, _node: &mut Super) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_super_(&self, path: &ASTPath, node: &Super) -> Option<Super> {
-            None
+        fn exit_super_(&mut self, _path: &ASTPath, _node: &mut Super) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_switch_case(&self, path: &ASTPath, node: &SwitchCase) -> Option<SwitchCase> {
-            None
+        fn enter_switch_case(&mut self, _path: &ASTPath, _node: &mut SwitchCase) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_switch_case(&self, path: &ASTPath, node: &SwitchCase) -> Option<SwitchCase> {
-            None
+        fn exit_switch_case(&mut self, _path: &ASTPath, _node: &mut SwitchCase) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_switch_default(&self, path: &ASTPath, node: &SwitchDefault) -> Option<SwitchDefault> {
-            None
+        fn enter_switch_default(&mut self, _path: &ASTPath, _node: &mut SwitchDefault) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_switch_default(&self, path: &ASTPath, node: &SwitchDefault) -> Option<SwitchDefault> {
-            None
+        fn exit_switch_default(&mut self, _path: &ASTPath, _node: &mut SwitchDefault) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_switch_statement(&self, path: &ASTPath, node: &SwitchStatement) -> Option<SwitchStatement> {
-            None
+        fn enter_switch_statement(&mut self, _path: &ASTPath, _node: &mut SwitchStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_switch_statement(&self, path: &ASTPath, node: &SwitchStatement) -> Option<SwitchStatement> {
-            None
+        fn exit_switch_statement(&mut self, _path: &ASTPath, _node: &mut SwitchStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_switch_statement_with_default(&self, path: &ASTPath, node: &SwitchStatementWithDefault) -> Option<SwitchStatementWithDefault> {
-            None
+        fn enter_switch_statement_with_default(&mut self, _path: &ASTPath, _node: &mut SwitchStatementWithDefault) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_switch_statement_with_default(&self, path: &ASTPath, node: &SwitchStatementWithDefault) -> Option<SwitchStatementWithDefault> {
-            None
+        fn exit_switch_statement_with_default(&mut self, _path: &ASTPath, _node: &mut SwitchStatementWithDefault) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_template_element(&self, path: &ASTPath, node: &TemplateElement) -> Option<TemplateElement> {
-            None
+        fn enter_template_element(&mut self, _path: &ASTPath, _node: &mut TemplateElement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_template_element(&self, path: &ASTPath, node: &TemplateElement) -> Option<TemplateElement> {
-            None
+        fn exit_template_element(&mut self, _path: &ASTPath, _node: &mut TemplateElement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_template_expression(&self, path: &ASTPath, node: &TemplateExpression) -> Option<TemplateExpression> {
-            None
+        fn enter_template_expression(&mut self, _path: &ASTPath, _node: &mut TemplateExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_template_expression(&self, path: &ASTPath, node: &TemplateExpression) -> Option<TemplateExpression> {
-            None
+        fn exit_template_expression(&mut self, _path: &ASTPath, _node: &mut TemplateExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_this_expression(&self, path: &ASTPath, node: &ThisExpression) -> Option<ThisExpression> {
-            None
+        fn enter_this_expression(&mut self, _path: &ASTPath, _node: &mut ThisExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_this_expression(&self, path: &ASTPath, node: &ThisExpression) -> Option<ThisExpression> {
-            None
+        fn exit_this_expression(&mut self, _path: &ASTPath, _node: &mut ThisExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_throw_statement(&self, path: &ASTPath, node: &ThrowStatement) -> Option<ThrowStatement> {
-            None
+        fn enter_throw_statement(&mut self, _path: &ASTPath, _node: &mut ThrowStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_throw_statement(&self, path: &ASTPath, node: &ThrowStatement) -> Option<ThrowStatement> {
-            None
+        fn exit_throw_statement(&mut self, _path: &ASTPath, _node: &mut ThrowStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_try_catch_statement(&self, path: &ASTPath, node: &TryCatchStatement) -> Option<TryCatchStatement> {
-            None
+        fn enter_try_catch_statement(&mut self, _path: &ASTPath, _node: &mut TryCatchStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_try_catch_statement(&self, path: &ASTPath, node: &TryCatchStatement) -> Option<TryCatchStatement> {
-            None
+        fn exit_try_catch_statement(&mut self, _path: &ASTPath, _node: &mut TryCatchStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_try_finally_statement(&self, path: &ASTPath, node: &TryFinallyStatement) -> Option<TryFinallyStatement> {
-            None
+        fn enter_try_finally_statement(&mut self, _path: &ASTPath, _node: &mut TryFinallyStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_try_finally_statement(&self, path: &ASTPath, node: &TryFinallyStatement) -> Option<TryFinallyStatement> {
-            None
+        fn exit_try_finally_statement(&mut self, _path: &ASTPath, _node: &mut TryFinallyStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_unary_expression(&self, path: &ASTPath, node: &UnaryExpression) -> Option<UnaryExpression> {
-            None
+        fn enter_unary_expression(&mut self, _path: &ASTPath, _node: &mut UnaryExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_unary_expression(&self, path: &ASTPath, node: &UnaryExpression) -> Option<UnaryExpression> {
-            None
+        fn exit_unary_expression(&mut self, _path: &ASTPath, _node: &mut UnaryExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_update_expression(&self, path: &ASTPath, node: &UpdateExpression) -> Option<UpdateExpression> {
-            None
+        fn enter_update_expression(&mut self, _path: &ASTPath, _node: &mut UpdateExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_update_expression(&self, path: &ASTPath, node: &UpdateExpression) -> Option<UpdateExpression> {
-            None
+        fn exit_update_expression(&mut self, _path: &ASTPath, _node: &mut UpdateExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_variable_declaration(&self, path: &ASTPath, node: &VariableDeclaration) -> Option<VariableDeclaration> {
-            None
+        fn enter_variable_declaration(&mut self, _path: &ASTPath, _node: &mut VariableDeclaration) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_variable_declaration(&self, path: &ASTPath, node: &VariableDeclaration) -> Option<VariableDeclaration> {
-            None
+        fn exit_variable_declaration(&mut self, _path: &ASTPath, _node: &mut VariableDeclaration) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_variable_declarator(&self, path: &ASTPath, node: &VariableDeclarator) -> Option<VariableDeclarator> {
-            None
+        fn enter_variable_declarator(&mut self, _path: &ASTPath, _node: &mut VariableDeclarator) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_variable_declarator(&self, path: &ASTPath, node: &VariableDeclarator) -> Option<VariableDeclarator> {
-            None
+        fn exit_variable_declarator(&mut self, _path: &ASTPath, _node: &mut VariableDeclarator) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_while_statement(&self, path: &ASTPath, node: &WhileStatement) -> Option<WhileStatement> {
-            None
+        fn enter_while_statement(&mut self, _path: &ASTPath, _node: &mut WhileStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_while_statement(&self, path: &ASTPath, node: &WhileStatement) -> Option<WhileStatement> {
-            None
+        fn exit_while_statement(&mut self, _path: &ASTPath, _node: &mut WhileStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_with_statement(&self, path: &ASTPath, node: &WithStatement) -> Option<WithStatement> {
-            None
+        fn enter_with_statement(&mut self, _path: &ASTPath, _node: &mut WithStatement) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_with_statement(&self, path: &ASTPath, node: &WithStatement) -> Option<WithStatement> {
-            None
+        fn exit_with_statement(&mut self, _path: &ASTPath, _node: &mut WithStatement) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_yield_expression(&self, path: &ASTPath, node: &YieldExpression) -> Option<YieldExpression> {
-            None
+        fn enter_yield_expression(&mut self, _path: &ASTPath, _node: &mut YieldExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_yield_expression(&self, path: &ASTPath, node: &YieldExpression) -> Option<YieldExpression> {
-            None
+        fn exit_yield_expression(&mut self, _path: &ASTPath, _node: &mut YieldExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_yield_star_expression(&self, path: &ASTPath, node: &YieldStarExpression) -> Option<YieldStarExpression> {
-            None
+        fn enter_yield_star_expression(&mut self, _path: &ASTPath, _node: &mut YieldStarExpression) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_yield_star_expression(&self, path: &ASTPath, node: &YieldStarExpression) -> Option<YieldStarExpression> {
-            None
+        fn exit_yield_star_expression(&mut self, _path: &ASTPath, _node: &mut YieldStarExpression) -> Result<(), E> {
+            Ok(())
         }
 
 
-        fn enter_null(&self, path: &ASTPath, node: &Null) -> Option<Null> {
-            None
+        fn enter_null(&mut self, _path: &ASTPath, _node: &mut Null) -> Result<(), E> {
+            Ok(())
         }
-        fn exit_null(&self, path: &ASTPath, node: &Null) -> Option<Null> {
-            None
+        fn exit_null(&mut self, _path: &ASTPath, _node: &mut Null) -> Result<(), E> {
+            Ok(())
         }
 
     }
+
+    pub trait Walker {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E>;
+    }
+
+    impl Walker for String {
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {
+            Ok(())
+        }
+    }
+    impl Walker for bool {
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {
+            Ok(())
+        }
+    }
+    impl Walker for f64 {
+        fn walk<V, E>(&mut self, _: &mut ASTPath, _: &mut V) -> Result<(), E> where V: Visitor<E> {
+            Ok(())
+        }
+    }
+    impl<T> Walker for Option<T> where T: Walker {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            if let Some(ref mut contents) = *self {
+                contents.walk(path, visitor)?;
+            }
+            Ok(())
+        }        
+    }
+    impl<T> Walker for Vec<T> where T: Walker {
+        fn walk<V, E>(&mut self, path: &mut ASTPath, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {
+            for iter in self.iter_mut() {
+                iter.walk(path, visitor)?;
+            }
+            Ok(())
+        }
+    }
+    
 
 
 
@@ -6784,20 +9009,10 @@ impl Library {
 
 
         // Enumerations
-        builder.add_string_enum(&names.compound_assignment_operator).unwrap()
+        builder.add_string_enum(&names.update_operator).unwrap()
             .with_strings(&[
-                "+=",
-                "-=",
-                "*=",
-                "/=",
-                "%=",
-                "**=",
-                "<<=",
-                ">>=",
-                ">>>=",
-                "|=",
-                "^=",
-                "&="
+                "++",
+                "--"
            ]);
 
         builder.add_string_enum(&names.unary_operator).unwrap()
@@ -6847,43 +9062,21 @@ impl Library {
                 "**"
            ]);
 
-        builder.add_string_enum(&names.update_operator).unwrap()
+        builder.add_string_enum(&names.compound_assignment_operator).unwrap()
             .with_strings(&[
-                "++",
-                "--"
+                "+=",
+                "-=",
+                "*=",
+                "/=",
+                "%=",
+                "**=",
+                "<<=",
+                ">>=",
+                ">>>=",
+                "|=",
+                "^=",
+                "&="
            ]);
-
-        builder.add_typedef(&names.identifier).unwrap()
-            .with_type(
-                    Type::named(&names.string).required());
-
-        builder.add_typedef(&names.arguments).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.spread_element),
-                        Type::named(&names.expression)
-                    ]).required().array().required());
-
-        builder.add_typedef(&names.assignment_target_property).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.assignment_target_property_identifier),
-                        Type::named(&names.assignment_target_property_property)
-                    ]).required());
-
-        builder.add_typedef(&names.assignment_target).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.assignment_target_pattern),
-                        Type::named(&names.simple_assignment_target)
-                    ]).required());
-
-        builder.add_typedef(&names.binding).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.binding_pattern),
-                        Type::named(&names.binding_identifier)
-                    ]).required());
 
         builder.add_typedef(&names.expression).unwrap()
             .with_type(
@@ -6914,6 +9107,110 @@ impl Library {
                         Type::named(&names.await_expression)
                     ]).required());
 
+        builder.add_typedef(&names.binding_pattern).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.object_binding),
+                        Type::named(&names.array_binding)
+                    ]).required());
+
+        builder.add_typedef(&names.literal).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.literal_boolean_expression),
+                        Type::named(&names.literal_infinity_expression),
+                        Type::named(&names.literal_null_expression),
+                        Type::named(&names.literal_numeric_expression),
+                        Type::named(&names.literal_string_expression)
+                    ]).required());
+
+        builder.add_typedef(&names.iteration_statement).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.do_while_statement),
+                        Type::named(&names.for_in_statement),
+                        Type::named(&names.for_of_statement),
+                        Type::named(&names.for_statement),
+                        Type::named(&names.while_statement)
+                    ]).required());
+
+        builder.add_typedef(&names.string).unwrap()
+            .with_type(
+                    Type::string().required());
+
+        builder.add_typedef(&names.object_property).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.method_definition),
+                        Type::named(&names.data_property),
+                        Type::named(&names.shorthand_property)
+                    ]).required());
+
+        builder.add_typedef(&names.binding_property).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.binding_property_identifier),
+                        Type::named(&names.binding_property_property)
+                    ]).required());
+
+        builder.add_typedef(&names.assignment_target).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.assignment_target_pattern),
+                        Type::named(&names.simple_assignment_target)
+                    ]).required());
+
+        builder.add_typedef(&names.method_definition).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.method),
+                        Type::named(&names.getter),
+                        Type::named(&names.setter)
+                    ]).required());
+
+        builder.add_typedef(&names.import_declaration).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.import_namespace),
+                        Type::named(&names.import)
+                    ]).required());
+
+        builder.add_typedef(&names.arguments).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.spread_element),
+                        Type::named(&names.expression)
+                    ]).required().array().required());
+
+        builder.add_typedef(&names.label).unwrap()
+            .with_type(
+                    Type::named(&names.string).required());
+
+        builder.add_typedef(&names.parameter).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.binding),
+                        Type::named(&names.binding_with_initializer)
+                    ]).required());
+
+        builder.add_typedef(&names.assignment_target_property).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.assignment_target_property_identifier),
+                        Type::named(&names.assignment_target_property_property)
+                    ]).required());
+
+        builder.add_typedef(&names.identifier_name).unwrap()
+            .with_type(
+                    Type::named(&names.string).required());
+
+        builder.add_typedef(&names.program).unwrap()
+            .with_type(
+                    Type::sum(&[
+                        Type::named(&names.script),
+                        Type::named(&names.module)
+                    ]).required());
+
         builder.add_typedef(&names.export_declaration).unwrap()
             .with_type(
                     Type::sum(&[
@@ -6932,84 +9229,18 @@ impl Library {
                         Type::named(&names.static_member_assignment_target)
                     ]).required());
 
-        builder.add_typedef(&names.parameter).unwrap()
+        builder.add_typedef(&names.binding).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.binding),
-                        Type::named(&names.binding_with_initializer)
+                        Type::named(&names.binding_pattern),
+                        Type::named(&names.binding_identifier)
                     ]).required());
 
-        builder.add_typedef(&names.object_property).unwrap()
+        builder.add_typedef(&names.property_name).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.method_definition),
-                        Type::named(&names.data_property),
-                        Type::named(&names.shorthand_property)
-                    ]).required());
-
-        builder.add_typedef(&names.binding_property).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.binding_property_identifier),
-                        Type::named(&names.binding_property_property)
-                    ]).required());
-
-        builder.add_typedef(&names.binding_pattern).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.object_binding),
-                        Type::named(&names.array_binding)
-                    ]).required());
-
-        builder.add_typedef(&names.label).unwrap()
-            .with_type(
-                    Type::named(&names.string).required());
-
-        builder.add_typedef(&names.string).unwrap()
-            .with_type(
-                    Type::string().required());
-
-        builder.add_typedef(&names.identifier_name).unwrap()
-            .with_type(
-                    Type::named(&names.string).required());
-
-        builder.add_typedef(&names.assignment_target_pattern).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.object_assignment_target),
-                        Type::named(&names.array_assignment_target)
-                    ]).required());
-
-        builder.add_typedef(&names.program).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.script),
-                        Type::named(&names.module)
-                    ]).required());
-
-        builder.add_typedef(&names.method_definition).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.method),
-                        Type::named(&names.getter),
-                        Type::named(&names.setter)
-                    ]).required());
-
-        builder.add_typedef(&names.literal).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.literal_boolean_expression),
-                        Type::named(&names.literal_infinity_expression),
-                        Type::named(&names.literal_null_expression),
-                        Type::named(&names.literal_numeric_expression),
-                        Type::named(&names.literal_string_expression)
-                    ]).required());
-
-        builder.add_typedef(&names.import_declaration).unwrap()
-            .with_type(
-                    Type::sum(&[
-                        Type::named(&names.import_namespace),
-                        Type::named(&names.import)
+                        Type::named(&names.computed_property_name),
+                        Type::named(&names.literal_property_name)
                     ]).required());
 
         builder.add_typedef(&names.statement).unwrap()
@@ -7036,64 +9267,83 @@ impl Library {
                         Type::named(&names.with_statement)
                     ]).required());
 
-        builder.add_typedef(&names.iteration_statement).unwrap()
+        builder.add_typedef(&names.assignment_target_pattern).unwrap()
             .with_type(
                     Type::sum(&[
-                        Type::named(&names.do_while_statement),
-                        Type::named(&names.for_in_statement),
-                        Type::named(&names.for_of_statement),
-                        Type::named(&names.for_statement),
-                        Type::named(&names.while_statement)
+                        Type::named(&names.object_assignment_target),
+                        Type::named(&names.array_assignment_target)
                     ]).required());
 
-        builder.add_typedef(&names.property_name).unwrap()
+        builder.add_typedef(&names.identifier).unwrap()
             .with_type(
-                    Type::sum(&[
-                        Type::named(&names.computed_property_name),
-                        Type::named(&names.literal_property_name)
-                    ]).required());
+                    Type::named(&names.string).required());
 
-        builder.add_interface(&names.yield_star_expression).unwrap()
+        builder.add_interface(&names.static_member_assignment_target).unwrap()
+            .with_field(
+                 &names.field_object,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_property,
+                 Type::named(&names.identifier_name).required()
+            );
+
+        builder.add_interface(&names.export_from).unwrap()
+            .with_field(
+                 &names.field_named_exports,
+                 Type::named(&names.export_from_specifier).required().array().required()
+            )
+            .with_field(
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.export).unwrap()
+            .with_field(
+                 &names.field_declaration,
+                 Type::sum(&[
+                     Type::named(&names.function_declaration),
+                     Type::named(&names.class_declaration),
+                     Type::named(&names.variable_declaration)
+                 ]).required()
+            );
+
+        builder.add_interface(&names.expression_statement).unwrap()
             .with_field(
                  &names.field_expression,
                  Type::named(&names.expression).required()
             );
 
-        builder.add_interface(&names.variable_declarator).unwrap()
+        builder.add_interface(&names.literal_property_name).unwrap()
             .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
+                 &names.field_value,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.break_statement).unwrap()
+            .with_field(
+                 &names.field_label,
+                 Type::named(&names.label).optional()
+            );
+
+        builder.add_interface(&names.try_catch_statement).unwrap()
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.block).required()
             )
             .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).optional()
+                 &names.field_catch_clause,
+                 Type::named(&names.catch_clause).required()
             );
 
-        builder.add_interface(&names.array_expression).unwrap()
+        builder.add_interface(&names.setter).unwrap()
             .with_field(
-                 &names.field_elements,
-                 Type::sum(&[
-                     Type::named(&names.spread_element),
-                     Type::named(&names.expression)
-                 ]).optional().array().required()
-            );
-
-        builder.add_interface(&names.super_).unwrap()
-;
-
-        builder.add_interface(&names.object_binding).unwrap()
-            .with_field(
-                 &names.field_properties,
-                 Type::named(&names.binding_property).required().array().required()
-            );
-
-        builder.add_interface(&names.yield_expression).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.getter).unwrap()
+                 &names.field_parameter_scope,
+                 Type::named(&names.asserted_parameter_scope).optional()
+            )
             .with_field(
                  &names.field_body_scope,
                  Type::named(&names.asserted_var_scope).optional()
@@ -7103,145 +9353,38 @@ impl Library {
                  Type::named(&names.property_name).required()
             )
             .with_field(
+                 &names.field_param,
+                 Type::named(&names.parameter).required()
+            )
+            .with_field(
                  &names.field_body,
                  Type::named(&names.function_body).required()
             );
 
-        builder.add_interface(&names.try_finally_statement).unwrap()
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.block).required()
-            )
-            .with_field(
-                 &names.field_catch_clause,
-                 Type::named(&names.catch_clause).optional()
-            )
-            .with_field(
-                 &names.field_finalizer,
-                 Type::named(&names.block).required()
-            );
-
-        builder.add_interface(&names.new_expression).unwrap()
-            .with_field(
-                 &names.field_callee,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_arguments,
-                 Type::named(&names.arguments).required()
-            );
-
-        builder.add_interface(&names.new_target_expression).unwrap()
-;
-
-        builder.add_interface(&names.function_body).unwrap()
-            .with_field(
-                 &names.field_directives,
-                 Type::named(&names.directive).required().array().required()
-            )
-            .with_field(
-                 &names.field_statements,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.switch_default).unwrap()
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.switch_statement_with_default).unwrap()
-            .with_field(
-                 &names.field_discriminant,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_pre_default_cases,
-                 Type::named(&names.switch_case).required().array().required()
-            )
-            .with_field(
-                 &names.field_default_case,
-                 Type::named(&names.switch_default).required()
-            )
-            .with_field(
-                 &names.field_post_default_cases,
-                 Type::named(&names.switch_case).required().array().required()
-            );
-
-        builder.add_interface(&names.module).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_var_scope).optional()
-            )
-            .with_field(
-                 &names.field_directives,
-                 Type::named(&names.directive).required().array().required()
-            )
-            .with_field(
-                 &names.field_items,
-                 Type::sum(&[
-                     Type::named(&names.import_declaration),
-                     Type::named(&names.export_declaration),
-                     Type::named(&names.statement)
-                 ]).required().array().required()
-            );
-
-        builder.add_interface(&names.expression_statement).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.literal_numeric_expression).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::number().required()
-            );
-
-        builder.add_interface(&names.formal_parameters).unwrap()
-            .with_field(
-                 &names.field_items,
-                 Type::named(&names.parameter).required().array().required()
-            )
-            .with_field(
-                 &names.field_rest,
-                 Type::named(&names.binding).optional()
-            );
-
-        builder.add_interface(&names.export_local_specifier).unwrap()
+        builder.add_interface(&names.shorthand_property).unwrap()
             .with_field(
                  &names.field_name,
                  Type::named(&names.identifier_expression).required()
-            )
-            .with_field(
-                 &names.field_exported_name,
-                 Type::named(&names.identifier_name).optional()
             );
 
-        builder.add_interface(&names.literal_boolean_expression).unwrap()
+        builder.add_interface(&names.while_statement).unwrap()
             .with_field(
-                 &names.field_value,
-                 Type::bool().required()
-            );
-
-        builder.add_interface(&names.debugger_statement).unwrap()
-;
-
-        builder.add_interface(&names.for_of_statement).unwrap()
-            .with_field(
-                 &names.field_left,
-                 Type::sum(&[
-                     Type::named(&names.for_in_of_binding),
-                     Type::named(&names.assignment_target)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_right,
+                 &names.field_test,
                  Type::named(&names.expression).required()
             )
             .with_field(
                  &names.field_body,
                  Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.export_default).unwrap()
+            .with_field(
+                 &names.field_body,
+                 Type::sum(&[
+                     Type::named(&names.function_declaration),
+                     Type::named(&names.class_declaration),
+                     Type::named(&names.expression)
+                 ]).required()
             );
 
         builder.add_interface(&names.method).unwrap()
@@ -7274,24 +9417,36 @@ impl Library {
                  Type::named(&names.function_body).required()
             );
 
-        builder.add_interface(&names.import).unwrap()
+        builder.add_interface(&names.update_expression).unwrap()
             .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
+                 &names.field_is_prefix,
+                 Type::bool().required()
             )
             .with_field(
-                 &names.field_default_binding,
-                 Type::named(&names.binding_identifier).optional()
+                 &names.field_operator,
+                 Type::named(&names.update_operator).required()
             )
             .with_field(
-                 &names.field_named_imports,
-                 Type::named(&names.import_specifier).required().array().required()
+                 &names.field_operand,
+                 Type::named(&names.simple_assignment_target).required()
             );
 
-        builder.add_interface(&names.throw_statement).unwrap()
+        builder.add_interface(&names.switch_statement_with_default).unwrap()
             .with_field(
-                 &names.field_expression,
+                 &names.field_discriminant,
                  Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_pre_default_cases,
+                 Type::named(&names.switch_case).required().array().required()
+            )
+            .with_field(
+                 &names.field_default_case,
+                 Type::named(&names.switch_default).required()
+            )
+            .with_field(
+                 &names.field_post_default_cases,
+                 Type::named(&names.switch_case).required().array().required()
             );
 
         builder.add_interface(&names.binding_property_property).unwrap()
@@ -7307,38 +9462,197 @@ impl Library {
                  ]).required()
             );
 
-        builder.add_interface(&names.export_from_specifier).unwrap()
+        builder.add_interface(&names.module).unwrap()
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_directives,
+                 Type::named(&names.directive).required().array().required()
+            )
+            .with_field(
+                 &names.field_items,
+                 Type::sum(&[
+                     Type::named(&names.import_declaration),
+                     Type::named(&names.export_declaration),
+                     Type::named(&names.statement)
+                 ]).required().array().required()
+            );
+
+        builder.add_interface(&names.directive).unwrap()
+            .with_field(
+                 &names.field_raw_value,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.switch_case).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_consequent,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.class_expression).unwrap()
             .with_field(
                  &names.field_name,
-                 Type::named(&names.identifier_name).required()
+                 Type::named(&names.binding_identifier).optional()
+            )
+            .with_field(
+                 &names.field_super_,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_elements,
+                 Type::named(&names.class_element).required().array().required()
+            );
+
+        builder.add_interface(&names.asserted_parameter_scope).unwrap()
+            .with_field(
+                 &names.field_parameter_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_captured_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_has_direct_eval,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.super_).unwrap()
+;
+
+        builder.add_interface(&names.arrow_expression).unwrap()
+            .with_field(
+                 &names.field_is_async,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_parameter_scope,
+                 Type::named(&names.asserted_parameter_scope).optional()
+            )
+            .with_field(
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_params,
+                 Type::named(&names.formal_parameters).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::sum(&[
+                     Type::named(&names.function_body),
+                     Type::named(&names.expression)
+                 ]).required()
+            );
+
+        builder.add_interface(&names.formal_parameters).unwrap()
+            .with_field(
+                 &names.field_items,
+                 Type::named(&names.parameter).required().array().required()
+            )
+            .with_field(
+                 &names.field_rest,
+                 Type::named(&names.binding).optional()
+            );
+
+        builder.add_interface(&names.export_local_specifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_expression).required()
             )
             .with_field(
                  &names.field_exported_name,
                  Type::named(&names.identifier_name).optional()
             );
 
-        builder.add_interface(&names.empty_statement).unwrap()
+        builder.add_interface(&names.call_expression).unwrap()
+            .with_field(
+                 &names.field_callee,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_arguments,
+                 Type::named(&names.arguments).required()
+            );
+
+        builder.add_interface(&names.object_expression).unwrap()
+            .with_field(
+                 &names.field_properties,
+                 Type::named(&names.object_property).required().array().required()
+            );
+
+        builder.add_interface(&names.assignment_target_identifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier).required()
+            );
+
+        builder.add_interface(&names.array_binding).unwrap()
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.binding),
+                     Type::named(&names.binding_with_initializer)
+                 ]).optional().array().required()
+            )
+            .with_field(
+                 &names.field_rest,
+                 Type::named(&names.binding).optional()
+            );
+
+        builder.add_interface(&names.literal_null_expression).unwrap()
 ;
 
-        builder.add_interface(&names.this_expression).unwrap()
+        builder.add_interface(&names.null).unwrap()
 ;
+
+        builder.add_interface(&names.for_in_of_binding).unwrap()
+            .with_field(
+                 &names.field_kind,
+                 Type::named(&names.variable_declaration_kind).required()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            );
+
+        builder.add_interface(&names.return_statement).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.for_in_statement).unwrap()
+            .with_field(
+                 &names.field_left,
+                 Type::sum(&[
+                     Type::named(&names.for_in_of_binding),
+                     Type::named(&names.assignment_target)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_right,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
 
         builder.add_interface(&names.await_expression).unwrap()
             .with_field(
                  &names.field_expression,
                  Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.spread_element).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.template_element).unwrap()
-            .with_field(
-                 &names.field_raw_value,
-                 Type::named(&names.string).required()
             );
 
         builder.add_interface(&names.block).unwrap()
@@ -7351,10 +9665,257 @@ impl Library {
                  Type::named(&names.statement).required().array().required()
             );
 
+        builder.add_interface(&names.asserted_block_scope).unwrap()
+            .with_field(
+                 &names.field_lexically_declared_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_captured_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_has_direct_eval,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.import).unwrap()
+            .with_field(
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
+            )
+            .with_field(
+                 &names.field_default_binding,
+                 Type::named(&names.binding_identifier).optional()
+            )
+            .with_field(
+                 &names.field_named_imports,
+                 Type::named(&names.import_specifier).required().array().required()
+            );
+
+        builder.add_interface(&names.static_member_expression).unwrap()
+            .with_field(
+                 &names.field_object,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_property,
+                 Type::named(&names.identifier_name).required()
+            );
+
+        builder.add_interface(&names.literal_numeric_expression).unwrap()
+            .with_field(
+                 &names.field_value,
+                 Type::number().required()
+            );
+
+        builder.add_interface(&names.yield_star_expression).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.literal_infinity_expression).unwrap()
+;
+
+        builder.add_interface(&names.yield_expression).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.with_statement).unwrap()
+            .with_field(
+                 &names.field_object,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.variable_declarator).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.literal_reg_exp_expression).unwrap()
+            .with_field(
+                 &names.field_pattern,
+                 Type::named(&names.string).required()
+            )
+            .with_field(
+                 &names.field_flags,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.class_element).unwrap()
+            .with_field(
+                 &names.field_is_static,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_method,
+                 Type::named(&names.method_definition).required()
+            );
+
+        builder.add_interface(&names.binary_expression).unwrap()
+            .with_field(
+                 &names.field_operator,
+                 Type::named(&names.binary_operator).required()
+            )
+            .with_field(
+                 &names.field_left,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_right,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.do_while_statement).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.continue_statement).unwrap()
+            .with_field(
+                 &names.field_label,
+                 Type::named(&names.label).optional()
+            );
+
+        builder.add_interface(&names.for_statement).unwrap()
+            .with_field(
+                 &names.field_init,
+                 Type::sum(&[
+                     Type::named(&names.variable_declaration),
+                     Type::named(&names.expression)
+                 ]).optional()
+            )
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_update,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.function_body).unwrap()
+            .with_field(
+                 &names.field_directives,
+                 Type::named(&names.directive).required().array().required()
+            )
+            .with_field(
+                 &names.field_statements,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.binding_property_identifier).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding_identifier).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.object_assignment_target).unwrap()
+            .with_field(
+                 &names.field_properties,
+                 Type::named(&names.assignment_target_property).required().array().required()
+            );
+
+        builder.add_interface(&names.export_all_from).unwrap()
+            .with_field(
+                 &names.field_module_specifier,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.array_assignment_target).unwrap()
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.assignment_target),
+                     Type::named(&names.assignment_target_with_initializer)
+                 ]).required().array().required()
+            )
+            .with_field(
+                 &names.field_rest,
+                 Type::named(&names.assignment_target).optional()
+            );
+
+        builder.add_interface(&names.data_property).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.new_expression).unwrap()
+            .with_field(
+                 &names.field_callee,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_arguments,
+                 Type::named(&names.arguments).required()
+            );
+
+        builder.add_interface(&names.computed_member_expression).unwrap()
+            .with_field(
+                 &names.field_object,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.super_)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.assignment_target_with_initializer).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.assignment_target).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).required()
+            );
+
         builder.add_interface(&names.identifier_expression).unwrap()
             .with_field(
                  &names.field_name,
                  Type::named(&names.identifier).required()
+            );
+
+        builder.add_interface(&names.object_binding).unwrap()
+            .with_field(
+                 &names.field_properties,
+                 Type::named(&names.binding_property).required().array().required()
             );
 
         builder.add_interface(&names.unary_expression).unwrap()
@@ -7367,6 +9928,94 @@ impl Library {
                  Type::named(&names.expression).required()
             );
 
+        builder.add_interface(&names.literal_boolean_expression).unwrap()
+            .with_field(
+                 &names.field_value,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.spread_element).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.export_from_specifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_name).required()
+            )
+            .with_field(
+                 &names.field_exported_name,
+                 Type::named(&names.identifier_name).optional()
+            );
+
+        builder.add_interface(&names.if_statement).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_consequent,
+                 Type::named(&names.statement).required()
+            )
+            .with_field(
+                 &names.field_alternate,
+                 Type::named(&names.statement).optional()
+            );
+
+        builder.add_interface(&names.array_expression).unwrap()
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.spread_element),
+                     Type::named(&names.expression)
+                 ]).optional().array().required()
+            );
+
+        builder.add_interface(&names.export_locals).unwrap()
+            .with_field(
+                 &names.field_named_exports,
+                 Type::named(&names.export_local_specifier).required().array().required()
+            );
+
+        builder.add_interface(&names.class_declaration).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.binding_identifier).required()
+            )
+            .with_field(
+                 &names.field_super_,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_elements,
+                 Type::named(&names.class_element).required().array().required()
+            );
+
+        builder.add_interface(&names.throw_statement).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.script).unwrap()
+            .with_field(
+                 &names.field_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_directives,
+                 Type::named(&names.directive).required().array().required()
+            )
+            .with_field(
+                 &names.field_statements,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.new_target_expression).unwrap()
+;
+
         builder.add_interface(&names.labelled_statement).unwrap()
             .with_field(
                  &names.field_label,
@@ -7375,6 +10024,249 @@ impl Library {
             .with_field(
                  &names.field_body,
                  Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.assignment_expression).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.assignment_target).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.empty_statement).unwrap()
+;
+
+        builder.add_interface(&names.binding_identifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier).required()
+            );
+
+        builder.add_interface(&names.template_expression).unwrap()
+            .with_field(
+                 &names.field_tag,
+                 Type::named(&names.expression).optional()
+            )
+            .with_field(
+                 &names.field_elements,
+                 Type::sum(&[
+                     Type::named(&names.expression),
+                     Type::named(&names.template_element)
+                 ]).required().array().required()
+            );
+
+        builder.add_interface(&names.catch_clause).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.block).required()
+            );
+
+        builder.add_interface(&names.conditional_expression).unwrap()
+            .with_field(
+                 &names.field_test,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_consequent,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_alternate,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.template_element).unwrap()
+            .with_field(
+                 &names.field_raw_value,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.function_declaration).unwrap()
+            .with_field(
+                 &names.field_is_async,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_is_generator,
+                 Type::bool().required()
+            )
+            .with_field(
+                 &names.field_parameter_scope,
+                 Type::named(&names.asserted_parameter_scope).optional()
+            )
+            .with_field(
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.binding_identifier).required()
+            )
+            .with_field(
+                 &names.field_params,
+                 Type::named(&names.formal_parameters).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.function_body).required()
+            );
+
+        builder.add_interface(&names.switch_statement).unwrap()
+            .with_field(
+                 &names.field_discriminant,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_cases,
+                 Type::named(&names.switch_case).required().array().required()
+            );
+
+        builder.add_interface(&names.import_specifier).unwrap()
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.identifier_name).optional()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding_identifier).required()
+            );
+
+        builder.add_interface(&names.try_finally_statement).unwrap()
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.block).required()
+            )
+            .with_field(
+                 &names.field_catch_clause,
+                 Type::named(&names.catch_clause).optional()
+            )
+            .with_field(
+                 &names.field_finalizer,
+                 Type::named(&names.block).required()
+            );
+
+        builder.add_interface(&names.computed_property_name).unwrap()
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.getter).unwrap()
+            .with_field(
+                 &names.field_body_scope,
+                 Type::named(&names.asserted_var_scope).optional()
+            )
+            .with_field(
+                 &names.field_name,
+                 Type::named(&names.property_name).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.function_body).required()
+            );
+
+        builder.add_interface(&names.debugger_statement).unwrap()
+;
+
+        builder.add_interface(&names.assignment_target_property_identifier).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.assignment_target_identifier).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).optional()
+            );
+
+        builder.add_interface(&names.literal_string_expression).unwrap()
+            .with_field(
+                 &names.field_value,
+                 Type::named(&names.string).required()
+            );
+
+        builder.add_interface(&names.for_of_statement).unwrap()
+            .with_field(
+                 &names.field_left,
+                 Type::sum(&[
+                     Type::named(&names.for_in_of_binding),
+                     Type::named(&names.assignment_target)
+                 ]).required()
+            )
+            .with_field(
+                 &names.field_right,
+                 Type::named(&names.expression).required()
+            )
+            .with_field(
+                 &names.field_body,
+                 Type::named(&names.statement).required()
+            );
+
+        builder.add_interface(&names.binding_with_initializer).unwrap()
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.binding).required()
+            )
+            .with_field(
+                 &names.field_init,
+                 Type::named(&names.expression).required()
+            );
+
+        builder.add_interface(&names.switch_default).unwrap()
+            .with_field(
+                 &names.field_consequent,
+                 Type::named(&names.statement).required().array().required()
+            );
+
+        builder.add_interface(&names.asserted_var_scope).unwrap()
+            .with_field(
+                 &names.field_lexically_declared_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_var_declared_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_captured_names,
+                 Type::named(&names.identifier_name).required().array().required()
+            )
+            .with_field(
+                 &names.field_has_direct_eval,
+                 Type::bool().required()
+            );
+
+        builder.add_interface(&names.variable_declaration).unwrap()
+            .with_field(
+                 &names.field_kind,
+                 Type::named(&names.variable_declaration_kind).required()
+            )
+            .with_field(
+                 &names.field_declarators,
+                 Type::named(&names.variable_declarator).required().array().required()
+            );
+
+        builder.add_interface(&names.this_expression).unwrap()
+;
+
+        builder.add_interface(&names.compound_assignment_expression).unwrap()
+            .with_field(
+                 &names.field_operator,
+                 Type::named(&names.compound_assignment_operator).required()
+            )
+            .with_field(
+                 &names.field_binding,
+                 Type::named(&names.simple_assignment_target).required()
+            )
+            .with_field(
+                 &names.field_expression,
+                 Type::named(&names.expression).required()
             );
 
         builder.add_interface(&names.function_expression).unwrap()
@@ -7407,228 +10299,13 @@ impl Library {
                  Type::named(&names.function_body).required()
             );
 
-        builder.add_interface(&names.continue_statement).unwrap()
-            .with_field(
-                 &names.field_label,
-                 Type::named(&names.label).optional()
-            );
-
-        builder.add_interface(&names.static_member_expression).unwrap()
+        builder.add_interface(&names.computed_member_assignment_target).unwrap()
             .with_field(
                  &names.field_object,
                  Type::sum(&[
                      Type::named(&names.expression),
                      Type::named(&names.super_)
                  ]).required()
-            )
-            .with_field(
-                 &names.field_property,
-                 Type::named(&names.identifier_name).required()
-            );
-
-        builder.add_interface(&names.for_in_statement).unwrap()
-            .with_field(
-                 &names.field_left,
-                 Type::sum(&[
-                     Type::named(&names.for_in_of_binding),
-                     Type::named(&names.assignment_target)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_right,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.compound_assignment_expression).unwrap()
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.compound_assignment_operator).required()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.simple_assignment_target).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.asserted_block_scope).unwrap()
-            .with_field(
-                 &names.field_lexically_declared_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_captured_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_has_direct_eval,
-                 Type::bool().required()
-            );
-
-        builder.add_interface(&names.directive).unwrap()
-            .with_field(
-                 &names.field_raw_value,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.computed_property_name).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.class_declaration).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).required()
-            )
-            .with_field(
-                 &names.field_super_,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_elements,
-                 Type::named(&names.class_element).required().array().required()
-            );
-
-        builder.add_interface(&names.while_statement).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.export_from).unwrap()
-            .with_field(
-                 &names.field_named_exports,
-                 Type::named(&names.export_from_specifier).required().array().required()
-            )
-            .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.if_statement).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.statement).required()
-            )
-            .with_field(
-                 &names.field_alternate,
-                 Type::named(&names.statement).optional()
-            );
-
-        builder.add_interface(&names.array_binding).unwrap()
-            .with_field(
-                 &names.field_elements,
-                 Type::sum(&[
-                     Type::named(&names.binding),
-                     Type::named(&names.binding_with_initializer)
-                 ]).optional().array().required()
-            )
-            .with_field(
-                 &names.field_rest,
-                 Type::named(&names.binding).optional()
-            );
-
-        builder.add_interface(&names.variable_declaration).unwrap()
-            .with_field(
-                 &names.field_kind,
-                 Type::named(&names.variable_declaration_kind).required()
-            )
-            .with_field(
-                 &names.field_declarators,
-                 Type::named(&names.variable_declarator).required().array().required()
-            );
-
-        builder.add_interface(&names.class_element).unwrap()
-            .with_field(
-                 &names.field_is_static,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_method,
-                 Type::named(&names.method_definition).required()
-            );
-
-        builder.add_interface(&names.for_statement).unwrap()
-            .with_field(
-                 &names.field_init,
-                 Type::sum(&[
-                     Type::named(&names.variable_declaration),
-                     Type::named(&names.expression)
-                 ]).optional()
-            )
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_update,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.object_assignment_target).unwrap()
-            .with_field(
-                 &names.field_properties,
-                 Type::named(&names.assignment_target_property).required().array().required()
-            );
-
-        builder.add_interface(&names.for_in_of_binding).unwrap()
-            .with_field(
-                 &names.field_kind,
-                 Type::named(&names.variable_declaration_kind).required()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
-            );
-
-        builder.add_interface(&names.class_expression).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).optional()
-            )
-            .with_field(
-                 &names.field_super_,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_elements,
-                 Type::named(&names.class_element).required().array().required()
-            );
-
-        builder.add_interface(&names.export_default).unwrap()
-            .with_field(
-                 &names.field_body,
-                 Type::sum(&[
-                     Type::named(&names.function_declaration),
-                     Type::named(&names.class_declaration),
-                     Type::named(&names.expression)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.data_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
             )
             .with_field(
                  &names.field_expression,
@@ -7649,108 +10326,6 @@ impl Library {
                  Type::named(&names.binding_identifier).required()
             );
 
-        builder.add_interface(&names.setter).unwrap()
-            .with_field(
-                 &names.field_parameter_scope,
-                 Type::named(&names.asserted_parameter_scope).optional()
-            )
-            .with_field(
-                 &names.field_body_scope,
-                 Type::named(&names.asserted_var_scope).optional()
-            )
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.property_name).required()
-            )
-            .with_field(
-                 &names.field_param,
-                 Type::named(&names.parameter).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.function_body).required()
-            );
-
-        builder.add_interface(&names.literal_null_expression).unwrap()
-;
-
-        builder.add_interface(&names.static_member_assignment_target).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_property,
-                 Type::named(&names.identifier_name).required()
-            );
-
-        builder.add_interface(&names.conditional_expression).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_alternate,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.script).unwrap()
-            .with_field(
-                 &names.field_scope,
-                 Type::named(&names.asserted_var_scope).optional()
-            )
-            .with_field(
-                 &names.field_directives,
-                 Type::named(&names.directive).required().array().required()
-            )
-            .with_field(
-                 &names.field_statements,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.export).unwrap()
-            .with_field(
-                 &names.field_declaration,
-                 Type::sum(&[
-                     Type::named(&names.function_declaration),
-                     Type::named(&names.class_declaration),
-                     Type::named(&names.variable_declaration)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.switch_case).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_consequent,
-                 Type::named(&names.statement).required().array().required()
-            );
-
-        builder.add_interface(&names.export_locals).unwrap()
-            .with_field(
-                 &names.field_named_exports,
-                 Type::named(&names.export_local_specifier).required().array().required()
-            );
-
-        builder.add_interface(&names.try_catch_statement).unwrap()
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.block).required()
-            )
-            .with_field(
-                 &names.field_catch_clause,
-                 Type::named(&names.catch_clause).required()
-            );
-
         builder.add_interface(&names.assignment_target_property_property).unwrap()
             .with_field(
                  &names.field_name,
@@ -7762,356 +10337,6 @@ impl Library {
                      Type::named(&names.assignment_target),
                      Type::named(&names.assignment_target_with_initializer)
                  ]).required()
-            );
-
-        builder.add_interface(&names.literal_property_name).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.binding_identifier).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier).required()
-            );
-
-        builder.add_interface(&names.computed_member_expression).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.shorthand_property).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier_expression).required()
-            );
-
-        builder.add_interface(&names.return_statement).unwrap()
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.asserted_var_scope).unwrap()
-            .with_field(
-                 &names.field_lexically_declared_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_var_declared_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_captured_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_has_direct_eval,
-                 Type::bool().required()
-            );
-
-        builder.add_interface(&names.arrow_expression).unwrap()
-            .with_field(
-                 &names.field_is_async,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_parameter_scope,
-                 Type::named(&names.asserted_parameter_scope).optional()
-            )
-            .with_field(
-                 &names.field_body_scope,
-                 Type::named(&names.asserted_var_scope).optional()
-            )
-            .with_field(
-                 &names.field_params,
-                 Type::named(&names.formal_parameters).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::sum(&[
-                     Type::named(&names.function_body),
-                     Type::named(&names.expression)
-                 ]).required()
-            );
-
-        builder.add_interface(&names.null).unwrap()
-;
-
-        builder.add_interface(&names.function_declaration).unwrap()
-            .with_field(
-                 &names.field_is_async,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_is_generator,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_parameter_scope,
-                 Type::named(&names.asserted_parameter_scope).optional()
-            )
-            .with_field(
-                 &names.field_body_scope,
-                 Type::named(&names.asserted_var_scope).optional()
-            )
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.binding_identifier).required()
-            )
-            .with_field(
-                 &names.field_params,
-                 Type::named(&names.formal_parameters).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.function_body).required()
-            );
-
-        builder.add_interface(&names.call_expression).unwrap()
-            .with_field(
-                 &names.field_callee,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_arguments,
-                 Type::named(&names.arguments).required()
-            );
-
-        builder.add_interface(&names.template_expression).unwrap()
-            .with_field(
-                 &names.field_tag,
-                 Type::named(&names.expression).optional()
-            )
-            .with_field(
-                 &names.field_elements,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.template_element)
-                 ]).required().array().required()
-            );
-
-        builder.add_interface(&names.object_expression).unwrap()
-            .with_field(
-                 &names.field_properties,
-                 Type::named(&names.object_property).required().array().required()
-            );
-
-        builder.add_interface(&names.update_expression).unwrap()
-            .with_field(
-                 &names.field_is_prefix,
-                 Type::bool().required()
-            )
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.update_operator).required()
-            )
-            .with_field(
-                 &names.field_operand,
-                 Type::named(&names.simple_assignment_target).required()
-            );
-
-        builder.add_interface(&names.literal_infinity_expression).unwrap()
-;
-
-        builder.add_interface(&names.catch_clause).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.block).required()
-            );
-
-        builder.add_interface(&names.assignment_target_identifier).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier).required()
-            );
-
-        builder.add_interface(&names.binding_property_identifier).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding_identifier).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).optional()
-            );
-
-        builder.add_interface(&names.array_assignment_target).unwrap()
-            .with_field(
-                 &names.field_elements,
-                 Type::sum(&[
-                     Type::named(&names.assignment_target),
-                     Type::named(&names.assignment_target_with_initializer)
-                 ]).required().array().required()
-            )
-            .with_field(
-                 &names.field_rest,
-                 Type::named(&names.assignment_target).optional()
-            );
-
-        builder.add_interface(&names.export_all_from).unwrap()
-            .with_field(
-                 &names.field_module_specifier,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.literal_string_expression).unwrap()
-            .with_field(
-                 &names.field_value,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.binding_with_initializer).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.import_specifier).unwrap()
-            .with_field(
-                 &names.field_name,
-                 Type::named(&names.identifier_name).optional()
-            )
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.binding_identifier).required()
-            );
-
-        builder.add_interface(&names.break_statement).unwrap()
-            .with_field(
-                 &names.field_label,
-                 Type::named(&names.label).optional()
-            );
-
-        builder.add_interface(&names.switch_statement).unwrap()
-            .with_field(
-                 &names.field_discriminant,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_cases,
-                 Type::named(&names.switch_case).required().array().required()
-            );
-
-        builder.add_interface(&names.assignment_expression).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.assignment_target).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.asserted_parameter_scope).unwrap()
-            .with_field(
-                 &names.field_parameter_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_captured_names,
-                 Type::named(&names.identifier_name).required().array().required()
-            )
-            .with_field(
-                 &names.field_has_direct_eval,
-                 Type::bool().required()
-            );
-
-        builder.add_interface(&names.binary_expression).unwrap()
-            .with_field(
-                 &names.field_operator,
-                 Type::named(&names.binary_operator).required()
-            )
-            .with_field(
-                 &names.field_left,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_right,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.assignment_target_with_initializer).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.assignment_target).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.literal_reg_exp_expression).unwrap()
-            .with_field(
-                 &names.field_pattern,
-                 Type::named(&names.string).required()
-            )
-            .with_field(
-                 &names.field_flags,
-                 Type::named(&names.string).required()
-            );
-
-        builder.add_interface(&names.do_while_statement).unwrap()
-            .with_field(
-                 &names.field_test,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.with_statement).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::named(&names.expression).required()
-            )
-            .with_field(
-                 &names.field_body,
-                 Type::named(&names.statement).required()
-            );
-
-        builder.add_interface(&names.computed_member_assignment_target).unwrap()
-            .with_field(
-                 &names.field_object,
-                 Type::sum(&[
-                     Type::named(&names.expression),
-                     Type::named(&names.super_)
-                 ]).required()
-            )
-            .with_field(
-                 &names.field_expression,
-                 Type::named(&names.expression).required()
-            );
-
-        builder.add_interface(&names.assignment_target_property_identifier).unwrap()
-            .with_field(
-                 &names.field_binding,
-                 Type::named(&names.assignment_target_identifier).required()
-            )
-            .with_field(
-                 &names.field_init,
-                 Type::named(&names.expression).optional()
             );
 
         names

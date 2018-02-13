@@ -468,6 +468,7 @@ impl Reindentable for Option<String> {
     }
 }
 
+#[derive(Debug)]
 pub struct FromJSONError {
     pub expected: String,
     pub got: String,

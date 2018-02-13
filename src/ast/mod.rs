@@ -26,7 +26,7 @@ pub mod library;
 mod library_es6_generated;
 
 /// Collecting annotations on the AST (e.g. bound variables).
-pub mod annotation;
+// pub mod annotation;
 
 /// Tools for manipulating webidl.
 pub mod webidl;

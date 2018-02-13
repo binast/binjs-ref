@@ -9,7 +9,7 @@ use std::io::{ Write };
 use std::path::*;
 use std::process::*;
 
-use ast::grammar::{ ASTError, Interface, MutASTVisitor, MutASTWalker, NodeName, Syntax };
+use ast::grammar::{ ASTError, Interface, MutASTVisitor, MutASTWalker, NodeName, Syntax, WalkPath };
 use source::parser::SourceParser;
 
 #[derive(Debug)]
@@ -302,7 +302,7 @@ impl FromShift {
 
 struct ToShift;
 impl MutASTVisitor for ToShift {
-    fn exit_interface(&mut self, value: &mut JSON, interface: &Interface, name: &NodeName) -> Result<(), ASTError> {
+    fn exit_interface(&mut self, _path: &WalkPath, value: &mut JSON, interface: &Interface, name: &NodeName) -> Result<(), ASTError> {
         debug!(target: "Shift", "Should I rewrite {:?} at {:?}", interface.name(), name);
         match (name.to_str(), interface.name().to_str(), value) {
             ("Statement", "Block", &mut JSON::Object(ref mut object)) => {
