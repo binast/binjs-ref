@@ -243,6 +243,11 @@ AssertedBlockScope:
             
 AssertedParameterScope:
     inherits: AssertedBlockScope
+    fields:
+        parameterNames:
+            block:
+                replace: |
+                    MOZ_TRY(parseAndUpdateScopeNames(parseContext_->functionScope(), DeclarationKind:: PositionalFormalParameter));
     
 AssertedVarScope:
     inherits: AssertedBlockScope
@@ -366,12 +371,14 @@ BinaryExpression:
 
 Block:
     init: |
+        fprintf(stderr, "Block: PUSH parse context\n");
         ParseContext::Statement stmt(parseContext_, StatementKind::Block);
         ParseContext::Scope currentScope(cx_, parseContext_, usedNames_);
         TRY(currentScope.init(parseContext_));
     build: |
         TRY_DECL(bindings, NewLexicalScopeData(cx_, currentScope, alloc_, parseContext_));
         TRY_DECL(result, factory_.newLexicalScope(*bindings, statements));
+        fprintf(stderr, "Block: POP parse context\n");
 
 BreakStatement:
     fields:
@@ -607,7 +614,7 @@ FunctionDeclaration:
 
 FunctionExpression:
     fields:
-        bodyScope:
+        parameterScope:
             before: |
                 MOZ_TRY_DECL(funbox, buildFunctionBox(isGenerator, isAsync));
 
@@ -664,8 +671,8 @@ ListOfOptionalSpreadElementOrExpression:
             TRY(factory_.addElision(result, tokenizer_->pos(start)));
 
 ListOfParameter:
-    init:
-        ParseNode* result = new_<ListNode>(ParseNodeKind::ParamsBody, tokenizer_->pos());
+    init: |
+        ParseNode* result = new_<ListNode>(ParseNodeKind::ParamsBody, tokenizer_->pos(start));
     append:
         factory_.addList(/* list = */ result, /* item = */ item);
 
@@ -808,7 +815,7 @@ Setter:
 ShorthandProperty:
     build: |
         if (!factory_.isUsableAsObjectPropertyName(name))
-            return raiseError("shorthandProperty key kind");
+            TRY_VAR(name, factory_.newObjectLiteralPropertyName(name->name(), tokenizer_->pos(start)));
 
         TRY_DECL(result, factory_.newObjectMethodOrPropertyDefinition(name, name, AccessorType::None));
 
