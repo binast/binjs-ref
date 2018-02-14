@@ -492,6 +492,7 @@ impl<'a> RustExporter<'a> {
                     .map(|name| format!("        {}", name.to_class_cases()))
                     .format(",\n")
             );
+
             // Now generate the interface visitors
             let path = "
     #[derive(Debug)]
@@ -499,12 +500,22 @@ impl<'a> RustExporter<'a> {
         pub interface: ASTNode,
         pub field: ASTField,
     }
-    #[derive(Debug)]
     pub struct ASTPath {
         /// Some(foo) if we have entered interface foo but no field yet.
         /// Otherwise, None.
         interface: Option<ASTNode>,
         items: Vec<ASTPathItem>,
+    }
+    impl std::fmt::Debug for ASTPath {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+            use itertools::Itertools;
+            write!(f, \"[{items}{more}]\",
+                items = self.items.iter()
+                    .map(|item| format!(\"{:?}.{:?}\", item.interface, item.field))
+                    .format(\" > \"),
+                more = if let Some(ref interface) = self.interface { format!(\" > {:?}\", interface) } else { \"\".to_string( )}
+            )
+        }
     }
     impl ASTPath {
         pub fn new() -> Self {
@@ -609,8 +620,8 @@ impl<'a> RustExporter<'a> {
                     .format("\n")
                 );
             buffer.push_str(&interfaces_enum);
-            buffer.push_str(&path);
             buffer.push_str(&visitor);
+            buffer.push_str(&path);
         }
         struct_buffer.push_str("    // String enum names (by lexicographical order)\n");
         impl_buffer.push_str("            // String enum names (by lexicographical order)\n");

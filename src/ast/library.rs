@@ -68,54 +68,89 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
         Param,
         Implicit,
     }
-    // FIXME: Perform `hasDirectEval` cleanup if we realize that `eval` is bound.
+
+    #[derive(Default)]
     struct AnnotationVisitor {
-        var_names: HashSet<String>,
-        lex_names: HashSet<String>,
-        param_names: HashSet<String>,
-        free_names_in_current_function: HashSet<String>,
-        free_names_in_nested_function: HashSet<String>,
+        // The following are stacks.
+        var_names_stack: Vec<HashSet<String>>,
+        lex_names_stack: Vec<HashSet<String>>,
+        param_names_stack: Vec<HashSet<String>>,
         binding_kind_stack: Vec<BindingKind>,
+        apparent_direct_eval_stack: Vec<bool>,
+        free_names_in_function_stack: Vec<HashSet<String>>,
+
+        // Whenever we pop from `free_names_in_function_stack`,
+        // we transfer everything here.
+        free_names_in_nested_functions: HashSet<String>,
     }
     impl AnnotationVisitor {
-        fn new() -> Self {
-            Self {
-                var_names: HashSet::new(),
-                lex_names: HashSet::new(),
-                param_names: HashSet::new(),
-                free_names_in_current_function: HashSet::new(),
-                free_names_in_nested_function: HashSet::new(),
-                binding_kind_stack: vec![],
-            }
-        }
         fn pop_captured_names(&mut self, bindings: &[&HashSet<String>]) -> Vec<String> {
-            // FIXME: It might be possible to optimize this by reverting the lookup,
-            // i.e. lookup in `bindings` first and in `free_names_in_nested_function` later.
             let mut captured_names = vec![];
-            for name in &self.free_names_in_nested_function {
-                for binding in bindings {
-                    if binding.contains(name) {
-                        captured_names.push(name.to_string());
+            for binding in bindings {
+                for name in *binding {
+                    if self.free_names_in_nested_functions.remove(name) {
+                        // Names that appear in both `bindings` and in `free_names_in_nested_functions`
+                        // are names that are declared in the current scope and captured in a nested
+                        // function.
+                        captured_names.push(name.clone());
                     }
+                    // Also, cleanup free names.
+                    self.free_names_in_function_stack.last_mut()
+                        .unwrap()
+                        .remove(name);
                 }
             }
-            for name in &captured_names {
-                self.free_names_in_nested_function.remove(name);
-            }
+
             captured_names.sort();
             captured_names
         }
 
-        fn pop_block_scope(&mut self) -> Option<AssertedBlockScope> {
-            let mut lex_names = HashSet::new();
-            std::mem::swap(&mut self.lex_names, &mut lex_names);
+        fn push_free_names(&mut self) {
+            self.free_names_in_function_stack.push(HashSet::new());
+        }
+        fn pop_free_names(&mut self, bindings: &[&HashSet<String>]) {
+            let mut free_names_in_current_function = self.free_names_in_function_stack.pop().unwrap();
+            for name in free_names_in_current_function.drain() {
+                let is_bound = bindings.iter()
+                    .find(|container| container.contains(&name))
+                    .is_some();
+                if !is_bound {
+                    self.free_names_in_nested_functions.insert(name);
+                }
+            }
+        }
+
+        fn push_direct_eval(&mut self) {
+            // So far, we haven't spotted any direct eval.
+            self.apparent_direct_eval_stack.push(false);
+        }
+        fn pop_direct_eval(&mut self) -> bool {
+            let spotted_direct_eval = self.apparent_direct_eval_stack.pop().unwrap();
+            if spotted_direct_eval {
+                // If we have spotted a direct eval, well, the parents also have
+                // a direct eval. Note that we will perform a second pass to
+                // remove erroneous direct evals if we find out that name `eval`
+                // was actually bound at some point.
+                if let Some(parent) = self.apparent_direct_eval_stack.last_mut() {
+                    *parent = true;
+                }
+            }
+            spotted_direct_eval
+        }
+
+        fn push_block_scope(&mut self, _path: &ASTPath) {
+            self.lex_names_stack.push(HashSet::new());
+            self.push_direct_eval();
+        }
+        fn pop_block_scope(&mut self, path: &ASTPath) -> Option<AssertedBlockScope> {
+            debug!(target: "annotating", "pop_block_scope at {:?}", path);
+            let mut lex_names = self.lex_names_stack.pop().unwrap();
 
             let captured_names = self.pop_captured_names(&[&lex_names]);
             let mut lex_names : Vec<_> = lex_names.drain().collect();
             lex_names.sort();
 
-            let has_direct_eval = self.free_names_in_current_function.contains("eval")
-                                || self.free_names_in_nested_function.contains("eval");
+            let has_direct_eval = self.pop_direct_eval();
             if lex_names.len() > 0 || has_direct_eval /* implied || captured_var_names.len() > 0 */ {
                 Some(AssertedBlockScope {
                     lexically_declared_names: lex_names,
@@ -127,25 +162,34 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
             }
         }
 
-        /// Return the current AssertedVarScope, cleaning up `var_names`, `lex_names` and `free_names_in_nested_function`.
-        ///
-        /// Invariant: `var_names` and `lex_names` are empty at the end.
-        fn pop_var_scope(&mut self) -> Option<AssertedVarScope> {
-            let mut var_names = HashSet::new();
-            std::mem::swap(&mut self.var_names, &mut var_names);
+        fn push_var_scope(&mut self, _path: &ASTPath) {
+            self.var_names_stack.push(HashSet::new());
+            self.lex_names_stack.push(HashSet::new());
+            self.push_free_names();
+            self.push_direct_eval();
+        }
+        fn pop_var_scope(&mut self, path: &ASTPath, function_name: Option<&String>) -> Option<AssertedVarScope> {
+            debug!(target: "annotating", "pop_var_scope at {:?}", path);
+            let mut var_names = self.var_names_stack.pop().unwrap();
+            let mut lex_names = self.lex_names_stack.pop().unwrap();
 
-            let mut lex_names = HashSet::new();
-            std::mem::swap(&mut self.lex_names, &mut lex_names);
-
-            let captured_names = self.pop_captured_names(&[&var_names, &lex_names]);
+            let function_name = {
+                let mut set = HashSet::new();
+                if let Some(name) = function_name {
+                    set.insert(name.clone());
+                }
+                set
+            };
+            let captured_names = self.pop_captured_names(&[&var_names, &lex_names, &function_name]);
+            self.pop_free_names(&[&var_names, &lex_names, &function_name]);
 
             let mut var_names : Vec<_> = var_names.drain().collect();
             var_names.sort();
             let mut lex_names : Vec<_> = lex_names.drain().collect();
             lex_names.sort();
 
-            let has_direct_eval = self.free_names_in_current_function.contains("eval")
-                                || self.free_names_in_nested_function.contains("eval");
+            let has_direct_eval = self.pop_direct_eval();
+
             if var_names.len() > 0 || lex_names.len() > 0 || has_direct_eval /* implied || captured_var_names.len() > 0 */ {
                 Some(AssertedVarScope {
                     lexically_declared_names: lex_names,
@@ -157,21 +201,19 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
                 None
             }
         }
-        /// Return the current param scope, cleaning up `param_names` and `free_names_in_nested_function`.
-        ///
-        /// Invariant: `param_names` is empty at the end.
-        fn pop_param_scope(&mut self) -> Option<AssertedParameterScope> {
-            if self.param_names.len() == 0 {
-                return None;
-            }
-            let mut param_names = HashSet::new();
-            std::mem::swap(&mut self.param_names, &mut param_names);
+
+        fn push_param_scope(&mut self, _path: &ASTPath) {
+            self.param_names_stack.push(HashSet::new());
+            self.push_direct_eval();
+        }
+        fn pop_param_scope(&mut self, path: &ASTPath) -> Option<AssertedParameterScope> {
+            debug!(target: "annotating", "pop_param_scope at {:?}", path);
+            let mut param_names = self.param_names_stack.pop().unwrap();
             let captured_names = self.pop_captured_names(&[&param_names]);
 
-            let has_direct_eval = self.free_names_in_current_function.contains("eval")
-                                || self.free_names_in_nested_function.contains("eval");
-            if self.param_names.len() > 0 || has_direct_eval /* implied || captured_names.len() > 0 */ {
-                let mut param_names : Vec<_> = self.param_names.drain().collect();
+            let has_direct_eval = self.pop_direct_eval();
+            if param_names.len() > 0 || has_direct_eval /* implied || captured_names.len() > 0 */ {
+                let mut param_names : Vec<_> = param_names.drain().collect();
                 param_names.sort();
                 Some(AssertedParameterScope {
                     parameter_names: param_names,
@@ -187,8 +229,20 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
     impl Visitor<()> for AnnotationVisitor {
         // Identifiers
 
+        fn exit_call_expression(&mut self, _path: &ASTPath, node: &mut CallExpression) -> Result<(), ()> {
+            if let ExpressionOrSuper::IdentifierExpression(box ref id) = node.callee {
+                if id.name == "eval" {
+                    *self.apparent_direct_eval_stack.last_mut()
+                        .unwrap() = true;
+                }
+            }
+            Ok(())
+        }
+
         fn exit_identifier_expression(&mut self, _path: &ASTPath, node: &mut IdentifierExpression) -> Result<(), ()> {
-            self.free_names_in_current_function.insert(node.name.clone());
+            self.free_names_in_function_stack.last_mut()
+                .unwrap()
+                .insert(node.name.clone());
             Ok(())
         }
         
@@ -197,14 +251,23 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
             debug!(target: "annotating", "exit_binding identifier – marking {name} at {path:?}",
                 name = node.name,
                 path = _path);
-            let scope = match *self.binding_kind_stack.last().unwrap() {
-                BindingKind::Var => Some(&mut self.var_names),
-                BindingKind::Lex => Some(&mut self.lex_names),
-                BindingKind::Param => Some(&mut self.param_names),
-                BindingKind::Implicit => None,
-            };
-            if let Some(scope) = scope {
-                scope.insert(node.name.clone());
+            match *self.binding_kind_stack.last().unwrap() {
+                BindingKind::Var => {
+                    self.var_names_stack.last_mut()
+                        .unwrap()
+                        .insert(node.name.clone());
+                }
+                BindingKind::Lex => {
+                    self.lex_names_stack.last_mut()
+                        .unwrap()
+                        .insert(node.name.clone());
+                }
+                BindingKind::Param => {
+                    self.param_names_stack.last_mut()
+                        .unwrap()
+                        .insert(node.name.clone());
+                }
+                BindingKind::Implicit => { /* Nothing to do */ }
             }
             Ok(())
         }
@@ -212,20 +275,31 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
 
         // Blocks
 
-        fn exit_block(&mut self, _path: &ASTPath, node: &mut Block) -> Result<(), ()> {
-            node.scope = self.pop_block_scope();
+        fn enter_block(&mut self, path: &ASTPath, _node: &mut Block) -> Result<(), ()> {
+            self.push_block_scope(path);
             Ok(())
         }
 
-        fn exit_script(&mut self, _path: &ASTPath, node: &mut Script) -> Result<(), ()> {
-            node.scope = self.pop_var_scope();
-            // FIXME: We may need to promote free names to `var` names.
+        fn exit_block(&mut self, path: &ASTPath, node: &mut Block) -> Result<(), ()> {
+            node.scope = self.pop_block_scope(path);
             Ok(())
         }
 
-        fn exit_module(&mut self, _path: &ASTPath, node: &mut Module) -> Result<(), ()> {
-            node.scope = self.pop_var_scope();
-            // FIXME: We may need to promote free names to `var` names.
+        fn enter_script(&mut self, path: &ASTPath, _node: &mut Script) -> Result<(), ()> {
+            self.push_var_scope(path);
+            Ok(())
+        }
+        fn exit_script(&mut self, path: &ASTPath, node: &mut Script) -> Result<(), ()> {
+            node.scope = self.pop_var_scope(path, None);
+            Ok(())
+        }
+
+        fn enter_module(&mut self, path: &ASTPath, _node: &mut Module) -> Result<(), ()> {
+            self.push_var_scope(path);
+            Ok(())
+        }
+        fn exit_module(&mut self, path: &ASTPath, node: &mut Module) -> Result<(), ()> {
+            node.scope = self.pop_var_scope(path, None);
             Ok(())
         }
 
@@ -276,161 +350,305 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
         }
 
         // Functions, methods, arguments.
-        fn enter_setter(&mut self, _path: &ASTPath, _node: &mut Setter) -> Result<(), ()> {
+        fn enter_setter(&mut self, path: &ASTPath, _node: &mut Setter) -> Result<(), ()> {
             self.binding_kind_stack.push(BindingKind::Param);
+            self.push_param_scope(path);
+            self.push_var_scope(path);
             Ok(())
         }
-        fn exit_setter(&mut self, _path: &ASTPath, node: &mut Setter) -> Result<(), ()> {
+        fn exit_setter(&mut self, path: &ASTPath, node: &mut Setter) -> Result<(), ()> {
             assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
-            // If a name declaration was specified, remove it from `unknown`.
-            if let PropertyName::LiteralPropertyName(ref name) = node.name {
-                self.free_names_in_current_function.remove(&name.value);
-                self.free_names_in_nested_function.remove(&name.value);
-            }
+            // If the setter has a name, it's not a free name.
+            let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
+                Some(&name.value)
+            } else {
+                None
+            };
 
             // Commit parameter scope and var scope.
-            node.body_scope = self.pop_var_scope();
-            node.parameter_scope = self.pop_param_scope();
-            // Anything we do from this point affects the scope outside the function.
-
-            // Empty free_names_in_current_function in free_names_in_nested_function.
-            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+            node.parameter_scope = self.pop_param_scope(path);
+            node.body_scope = self.pop_var_scope(path, name);
 
             Ok(())
         }
 
-        fn exit_getter(&mut self, _path: &ASTPath, node: &mut Getter) -> Result<(), ()> {
-            // If a name declaration was specified, remove it from `unknown`.
-            if let PropertyName::LiteralPropertyName(ref name) = node.name {
-                self.free_names_in_current_function.remove(&name.value);
-                self.free_names_in_nested_function.remove(&name.value);
-            }
+        fn enter_getter(&mut self, path: &ASTPath, _node: &mut Getter) -> Result<(), ()> {
+            self.push_var_scope(path);
+            Ok(())
+        }
 
-            // Commit parameter scope and var scope.
-            node.body_scope = self.pop_var_scope();
-            // Anything we do from this point affects the scope outside the function.
+        fn exit_getter(&mut self, path: &ASTPath, node: &mut Getter) -> Result<(), ()> {
+            // If the getter has a name, it's not a free name.
+            let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
+                Some(&name.value)
+            } else {
+                None
+            };
 
-            // Empty free_names_in_current_function in free_names_in_nested_function.
-            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+            node.body_scope = self.pop_var_scope(path, name);
 
             Ok(())
         }
 
-        fn enter_method(&mut self, _path: &ASTPath, _node: &mut Method) -> Result<(), ()> {
+        fn enter_method(&mut self, path: &ASTPath, _node: &mut Method) -> Result<(), ()> {
             self.binding_kind_stack.push(BindingKind::Param);
+            self.push_var_scope(path);
+            self.push_param_scope(path);
             Ok(())
         }
-        fn exit_method(&mut self, _path: &ASTPath, node: &mut Method) -> Result<(), ()> {
-            assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
-
-            // If a name declaration was specified, remove it from `unknown`.
-            if let PropertyName::LiteralPropertyName(ref name) = node.name {
-                self.free_names_in_current_function.remove(&name.value);
-                self.free_names_in_nested_function.remove(&name.value);
-            }
-
-            // Commit parameter scope and var scope.
-            node.parameter_scope = self.pop_param_scope();
-            node.body_scope = self.pop_var_scope();
-            // Anything we do from this point affects the scope outside the function.
-
-            // Empty free_names_in_current_function in free_names_in_nested_function.
-            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
-
-            Ok(())
-        }
-
-        fn enter_arrow_expression(&mut self, _path: &ASTPath, _node: &mut ArrowExpression) -> Result<(), ()> {
-            self.binding_kind_stack.push(BindingKind::Param);
-            Ok(())
-        }
-        fn exit_arrow_expression(&mut self, _path: &ASTPath, node: &mut ArrowExpression) -> Result<(), ()> {
+        fn exit_method(&mut self, path: &ASTPath, node: &mut Method) -> Result<(), ()> {
             assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
 
+            // If the method has a name, it's not a free name.
+            let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
+                Some(&name.value)
+            } else {
+                None
+            };
+
             // Commit parameter scope and var scope.
-            node.parameter_scope = self.pop_param_scope();
-            node.body_scope = self.pop_var_scope();
-            // Anything we do from this point affects the scope outside the function.
-
-            // Empty free_names_in_current_function in free_names_in_nested_function.
-            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+            node.parameter_scope = self.pop_param_scope(path);
+            node.body_scope = self.pop_var_scope(path, name);
 
             Ok(())
         }
 
-        fn enter_function_expression(&mut self, _path: &ASTPath, _node: &mut FunctionExpression) -> Result<(), ()> {
+        fn enter_arrow_expression(&mut self, path: &ASTPath, _node: &mut ArrowExpression) -> Result<(), ()> {
             self.binding_kind_stack.push(BindingKind::Param);
+            self.push_var_scope(path);
+            self.push_param_scope(path);
             Ok(())
         }
-        fn exit_function_expression(&mut self, _path: &ASTPath, node: &mut FunctionExpression) -> Result<(), ()> {
+        fn exit_arrow_expression(&mut self, path: &ASTPath, node: &mut ArrowExpression) -> Result<(), ()> {
             assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
 
-            // If a name declaration was specified, remove it from `unknown`.
-            if let Some(ref name) = node.name {
-                self.free_names_in_current_function.remove(&name.name);
-                self.free_names_in_nested_function.remove(&name.name);
-            }
-
             // Commit parameter scope and var scope.
-            node.parameter_scope = self.pop_param_scope();
-            node.body_scope = self.pop_var_scope();
-            // Anything we do from this point affects the scope outside the function.
-
-            // Empty free_names_in_current_function in free_names_in_nested_function.
-            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
+            node.parameter_scope = self.pop_param_scope(path);
+            node.body_scope = self.pop_var_scope(path, None);
 
             Ok(())
         }
 
-        fn enter_function_declaration(&mut self, _path: &ASTPath, _node: &mut FunctionDeclaration) -> Result<(), ()> {
+        fn enter_function_expression(&mut self, path: &ASTPath, _node: &mut FunctionExpression) -> Result<(), ()> {
             self.binding_kind_stack.push(BindingKind::Param);
+            self.push_var_scope(path);
+            self.push_param_scope(path);
+            Ok(())
+        }
+        fn exit_function_expression(&mut self, path: &ASTPath, node: &mut FunctionExpression) -> Result<(), ()> {
+            assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+
+            // If the function has a name, it's not a free name
+            let name = if let Some(ref name) = node.name {
+                Some(&name.name)
+            } else {
+                None
+            };
+
+            // Commit parameter scope and var scope.
+            node.parameter_scope = self.pop_param_scope(path);
+            node.body_scope = self.pop_var_scope(path, name);
+
+            Ok(())
+        }
+
+        fn enter_function_declaration(&mut self, path: &ASTPath, _node: &mut FunctionDeclaration) -> Result<(), ()> {
+            self.binding_kind_stack.push(BindingKind::Param);
+            self.push_var_scope(path);
+            self.push_param_scope(path);
             Ok(())
         }
         fn exit_function_declaration(&mut self, path: &ASTPath, node: &mut FunctionDeclaration) -> Result<(), ()> {
             assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
 
             // If a name declaration was specified, remove it from `unknown`.
-            let mut id_was_captured = false;
-            let ref id = node.name.name;
-
-            if self.free_names_in_current_function.remove(id) {
-                id_was_captured = true;
-            }
-            if self.free_names_in_nested_function.remove(id) {
-                id_was_captured = true;
-            }
+            let ref name = node.name.name;
 
             // Commit parameter scope and var scope.
-            node.parameter_scope = self.pop_param_scope();
-            node.body_scope = self.pop_var_scope();
+            node.parameter_scope = self.pop_param_scope(path);
+            node.body_scope = self.pop_var_scope(path, Some(name));
             // Anything we do from this point affects the scope outside the function.
-
-            // Empty free_names_in_current_function in free_names_in_nested_function.
-            self.free_names_in_nested_function.extend(self.free_names_in_current_function.drain());
-
-            // If the id was captured, reintroduce it as captured in a subfunction.
-            if id_was_captured {
-                self.free_names_in_nested_function.insert(id.clone());
-            }
 
             // 1. If the declaration is at the toplevel, the name is declared as a `var`.
             // 2. If the declaration is in a function's toplevel block, the name is declared as a `var`.
             // 3. Otherwise, the name is declared as a `let`.
-            let id = id.to_string();
+            let name = name.to_string();
             match path.get(1) {
                 None => {
                     // Case 1.
-                    self.var_names.insert(id);
+                    self.var_names_stack.last_mut()
+                        .unwrap()
+                        .insert(name);
                 }
                 Some(&ASTPathItem { field: ASTField::Statements, interface: ASTNode::FunctionBody }) =>
                 {
                     // Case 2.
-                    self.var_names.insert(id);
+                    self.var_names_stack.last_mut()
+                        .unwrap()
+                        .insert(name);
                 }
                 Some(_) => {
                     // Case 3.
-                    self.lex_names.insert(id);
+                    self.lex_names_stack.last_mut()
+                        .unwrap()
+                        .insert(name);
                 }
+            }
+            Ok(())
+        }
+    }
+
+
+    /// Perform a second pass to cleanup incorrect instances of `eval`.
+    struct EvalCleanupAnnotator {
+        /// `true` if name `eval` was bound at this level or higher in the tree.
+        eval_bindings: Vec<bool>,
+    }
+    impl Visitor<()> for EvalCleanupAnnotator {
+        // FIXME: Anything that has a scope (including CatchClause and its invisible scope) should push an `eval_bindings`.
+        // on entering, pop it on exit.
+        fn enter_function_declaration(&mut self, _path: &ASTPath, _node: &mut FunctionDeclaration) -> Result<(), ()> {
+            // By default, adopt parent's behavior.
+            // If necessary, reading the scope information will amend it.
+            let has_eval_binding = *self.eval_bindings.last().unwrap();
+            self.eval_bindings.push(has_eval_binding);
+            Ok(())
+        }
+        fn exit_function_declaration(&mut self, _path: &ASTPath, _node: &mut FunctionDeclaration) -> Result<(), ()> {
+            self.eval_bindings.pop().unwrap();
+            Ok(())
+        }
+        fn enter_function_expression(&mut self, _path: &ASTPath, node: &mut FunctionExpression) -> Result<(), ()> {
+            // By default, adopt parent's behavior.
+            // Don't forget that the internal name of the function may mask `eval`.
+            let mut has_eval_binding = *self.eval_bindings.last().unwrap();
+            if let Some(ref name) = node.name {
+                has_eval_binding = has_eval_binding || &name.name == "eval";
+            }
+            self.eval_bindings.push(has_eval_binding);
+            // If necessary, reading the scope information will amend it.
+            Ok(())
+        }
+        fn exit_function_expression(&mut self, _path: &ASTPath, _node: &mut FunctionExpression) -> Result<(), ()> {
+            self.eval_bindings.pop().unwrap();
+            Ok(())
+        }
+        fn enter_arrow_expression(&mut self, _path: &ASTPath, _node: &mut ArrowExpression) -> Result<(), ()> {
+            // By default, adopt parent's behavior.
+            // If necessary, reading the scope information will amend it.
+            let has_eval_binding = *self.eval_bindings.last().unwrap();
+            self.eval_bindings.push(has_eval_binding);
+            Ok(())
+        }
+        fn exit_arrow_expression(&mut self, _path: &ASTPath, _node: &mut ArrowExpression) -> Result<(), ()> {
+            self.eval_bindings.pop().unwrap();
+            Ok(())
+        }
+        fn enter_getter(&mut self, _path: &ASTPath, node: &mut Getter) -> Result<(), ()> {
+            // Don't forget that the internal name of the getter may mask `eval`.
+            let mut has_eval_binding = *self.eval_bindings.last().unwrap();
+            if let PropertyName::LiteralPropertyName(ref name) = node.name {
+                has_eval_binding = has_eval_binding || &name.value == "eval";
+            }
+            // If necessary, reading the scope information will amend it.
+            self.eval_bindings.push(has_eval_binding);
+            Ok(())
+        }
+        fn exit_getter(&mut self, _path: &ASTPath, _node: &mut Getter) -> Result<(), ()> {
+            self.eval_bindings.pop().unwrap();
+            Ok(())
+        }
+        fn enter_setter(&mut self, _path: &ASTPath, node: &mut Setter) -> Result<(), ()> {
+            // Don't forget that the internal name of the setter may mask `eval`.
+            let mut has_eval_binding = *self.eval_bindings.last().unwrap();
+            if let PropertyName::LiteralPropertyName(ref name) = node.name {
+                has_eval_binding = has_eval_binding || &name.value == "eval";
+            }
+            // If necessary, reading the scope information will amend it.
+            self.eval_bindings.push(has_eval_binding);
+            Ok(())
+        }
+        fn exit_setter(&mut self, _path: &ASTPath, _node: &mut Setter) -> Result<(), ()> {
+            self.eval_bindings.pop().unwrap();
+            Ok(())
+        }
+        fn enter_method(&mut self, _path: &ASTPath, node: &mut Method) -> Result<(), ()> {
+            // Don't forget that the internal name of the method may mask `eval`.
+            let mut has_eval_binding = *self.eval_bindings.last().unwrap();
+            if let PropertyName::LiteralPropertyName(ref name) = node.name {
+                has_eval_binding = has_eval_binding || &name.value == "eval";
+            }
+            // If necessary, reading the scope information will amend it.
+            self.eval_bindings.push(has_eval_binding);
+            Ok(())
+        }
+        fn exit_method(&mut self, _path: &ASTPath, _node: &mut Method) -> Result<(), ()> {
+            self.eval_bindings.pop().unwrap();
+            Ok(())
+        }
+        fn enter_catch_clause(&mut self, _path: &ASTPath, node: &mut CatchClause) -> Result<(), ()> {
+            // Don't forget that the implicitly declared variable may mask `eval`.
+            let mut has_eval_binding = *self.eval_bindings.last().unwrap();
+            match node.binding {
+                Binding::BindingIdentifier(ref binding) => {
+                    has_eval_binding = has_eval_binding || &binding.name == "eval";
+                }
+                _ => unimplemented!() // FIXME: Patterns may also mask `eval`.
+            }
+            self.eval_bindings.push(has_eval_binding);
+            Ok(())
+        }
+        fn exit_catch_clause(&mut self, _path: &ASTPath, _node: &mut CatchClause) -> Result<(), ()> {
+            self.eval_bindings.pop().unwrap();
+            Ok(())
+        }
+
+
+
+        // Update scopes themselves.
+        fn exit_asserted_block_scope(&mut self, _path: &ASTPath, node: &mut AssertedBlockScope) -> Result<(), ()> {
+            if node.lexically_declared_names.iter()
+                .find(|e| *e == "eval")
+                .is_some()
+            {
+                *self.eval_bindings.last_mut()
+                    .unwrap() = true;
+            }
+            if *self.eval_bindings.last()
+                .unwrap()
+            {
+                node.has_direct_eval = false;    
+            }
+            Ok(())
+        }
+        fn exit_asserted_var_scope(&mut self, _path: &ASTPath, node: &mut AssertedVarScope) -> Result<(), ()> {
+            if node.lexically_declared_names.iter()
+                .chain(node.var_declared_names.iter())
+                .find(|e| *e == "eval")
+                .is_some()
+            {
+                *self.eval_bindings.last_mut()
+                    .unwrap() = true;
+            }
+            if *self.eval_bindings.last()
+                .unwrap()
+            {
+                node.has_direct_eval = false;    
+            }
+            Ok(())
+        }
+        fn exit_asserted_parameter_scope(&mut self, _path: &ASTPath, node: &mut AssertedParameterScope) -> Result<(), ()> {
+            if node.parameter_names.iter()
+                .find(|e| *e == "eval")
+                .is_some()
+            {
+                *self.eval_bindings.last_mut()
+                    .unwrap() = true;
+            }
+            if *self.eval_bindings.last()
+                .unwrap()
+            {
+                node.has_direct_eval = false;    
             }
             Ok(())
         }
@@ -442,11 +660,18 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
                 .expect("Invalid script"); // FIXME: Error values would be nicer.
             script.walk(&mut ASTPath::new(), self)
                 .expect("Could not walk script");
+
+            let mut cleanup = EvalCleanupAnnotator {
+                eval_bindings: vec![false]
+            };
+            script.walk(&mut ASTPath::new(), &mut cleanup)
+                .expect("Could not walk script for eval cleanup");
+
             *ast = script.export();
         }
     }
 
-    Box::new(RefCell::new(AnnotationVisitor::new()))
+    Box::new(RefCell::new(AnnotationVisitor::default()))
 }
 
 
