@@ -1,0 +1,3 @@
+if (self.CavalryLogger) { CavalryLogger.start_js(["qiEID"]); }
+
+__d('PagesMessengerContextBanner.react',['cx','MercuryThreadImage.react','ProfileHeaderCoverPhoto.react','React'],(function a(b,c,d,e,f,g,h){'use strict';var i,j,k=83,l=260,m=60;i=babelHelpers.inherits(n,c('React').PureComponent);j=i&&i.prototype;n.prototype.render=function(){return (c('React').createElement('div',{style:this.props.style},c('React').createElement(c('ProfileHeaderCoverPhoto.react'),{coverPhotoData:this.props.coverData.cover_photo.coverPhotoData,height:k,width:l}),c('React').createElement('div',{className:"_2-0o"},c('React').createElement(c('MercuryThreadImage.react'),{size:m,thread:this.props.thread,viewer:this.props.viewer}))));};function n(){i.apply(this,arguments);}f.exports=n;}),null);

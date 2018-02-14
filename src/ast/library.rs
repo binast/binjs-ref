@@ -247,10 +247,14 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
         }
         
 
-        fn exit_binding_identifier(&mut self, _path: &ASTPath, node: &mut BindingIdentifier) -> Result<(), ()> {
+        fn exit_binding_identifier(&mut self, path: &ASTPath, node: &mut BindingIdentifier) -> Result<(), ()> {
+            if let Some(&ASTPathItem { interface: ASTNode::FunctionDeclaration, field: ASTField::Name}) = path.get(0) {
+                // The name of a FunctionDeclaration is quite special and is handled in `exit_function_declaration`.
+                return Ok(())
+            }
             debug!(target: "annotating", "exit_binding identifier – marking {name} at {path:?}",
                 name = node.name,
-                path = _path);
+                path = path);
             match *self.binding_kind_stack.last().unwrap() {
                 BindingKind::Var => {
                     self.var_names_stack.last_mut()
@@ -459,6 +463,7 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
             Ok(())
         }
         fn exit_function_declaration(&mut self, path: &ASTPath, node: &mut FunctionDeclaration) -> Result<(), ()> {
+            debug!(target: "annotating", "exit_function_declaration {} at {:?}", node.name.name, path);
             assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
 
             // If a name declaration was specified, remove it from `unknown`.
@@ -473,9 +478,11 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
             // 2. If the declaration is in a function's toplevel block, the name is declared as a `var`.
             // 3. Otherwise, the name is declared as a `let`.
             let name = name.to_string();
-            match path.get(1) {
+            debug!(target: "annotating", "exit_function_declaration sees {} at {:?}", node.name.name, path.get(0));
+            match path.get(0) {
                 None => {
                     // Case 1.
+                    debug!(target: "annotating", "exit_function_declaration says it's a var (case 1)");
                     self.var_names_stack.last_mut()
                         .unwrap()
                         .insert(name);
@@ -483,12 +490,14 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
                 Some(&ASTPathItem { field: ASTField::Statements, interface: ASTNode::FunctionBody }) =>
                 {
                     // Case 2.
+                    debug!(target: "annotating", "exit_function_declaration says it's a var (case 2)");
                     self.var_names_stack.last_mut()
                         .unwrap()
                         .insert(name);
                 }
                 Some(_) => {
                     // Case 3.
+                    debug!(target: "annotating", "exit_function_declaration says it's a lex (case 3)");
                     self.lex_names_stack.last_mut()
                         .unwrap()
                         .insert(name);

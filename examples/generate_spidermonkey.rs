@@ -521,7 +521,7 @@ impl CPPExporter {
     AutoList guard(*tokenizer_);
 
     TRY(tokenizer_->enterList(length, guard));{empty_check}
-    MOZ_CRASH(\"FIXME: Not implemented yet ({kind})\");
+    return raiseError(\"FIXME: Not implemented yet ({kind})\");
 }}\n",
                 first_line = first_line,
                 kind = kind,
@@ -635,7 +635,7 @@ impl CPPExporter {
                                 first_line = self.get_method_definition_start(name, "ParseNode*", "", ""),
                                 build = build_result,
                                 return_ = if build_result.len() == 0 {
-                                    format!("MOZ_CRASH(\"FIXME: Not implemented yet ({kind})\");\n",
+                                    format!("return raiseError(\"FIXME: Not implemented yet ({kind})\");\n",
                                         kind = name.to_str())
                                 } else {
                                     "return result;".to_string()
@@ -801,7 +801,7 @@ impl CPPExporter {
 
         if build_result == "" {
             buffer.push_str(&format!("{first_line} {{
-    MOZ_CRASH(\"FIXME: Not implemented yet ({})\");
+    return raiseError(\"FIXME: Not implemented yet ({})\");
 }}
 
 ",

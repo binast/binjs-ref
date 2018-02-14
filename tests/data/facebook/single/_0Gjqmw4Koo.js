@@ -1,0 +1,3 @@
+if (self.CavalryLogger) { CavalryLogger.start_js(["afhs4"]); }
+
+__d('FbFeedOptionsExpander',['BanzaiLogger','CSS','DOMQuery','Event'],(function a(b,c,d,e,f,g){var h={expand:function i(j){var k=j.expander,l=j.menu,m=j.foldedClass,n=j.unfoldedClass,o=j.foldedItemClass,p=j.data;c('Event').listen(k,'click',function(){c('CSS').toggleClass(l.getRoot(),m);c('CSS').toggleClass(l.getRoot(),n);var q=c('DOMQuery').scry(l.getRoot(),'li.'+o);q.forEach(function(r){var s=r.getAttribute('data-feed-option-name');if(s)c('BanzaiLogger').log('FeedStoryOptionMenuLoggerConfig',{option_name:s,is_secondary:1,event_type:'imp',feed_location:p.location,session_id:p.session_id,is_sponsored:p.is_sponsored,is_self_story:p.is_self_story});},this);});}};f.exports=h;}),null);
