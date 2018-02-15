@@ -385,7 +385,6 @@ BreakStatement:
         label:
             block:
                 replace: |
-                    // FIXME: Check validity of the abel.
                     RootedAtom label(cx_);
                     MOZ_TRY(readMaybeString(&label));
 
@@ -912,7 +911,7 @@ UnaryExpression:
             pnk = ParseNodeKind::Neg;
             break;
           case UnaryOperator::Plus:
-            pnk = ParseNodeKind::Add;
+            pnk = ParseNodeKind::Pos;
             break;
           case UnaryOperator::Not:
             pnk = ParseNodeKind::Not;
