@@ -4,17 +4,149 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
+use binjs::ast::grammar::Syntax;
 use binjs::bytes::compress::*;
 use binjs::token::encode::*;
 use binjs::source::*;
 
+use std::cell::RefCell;
 use std::fs::*;
 use std::io::*;
 use std::path::{ Path, PathBuf };
 
 use clap::*;
 
+struct Options<'a> {
+    parser: &'a Shift,
+    grammar: &'a Syntax,
+    multipart_stats: RefCell<binjs::token::multipart::Statistics>,
+    simple_stats: RefCell<binjs::token::simple::Statistics>,
+    dump_ast: bool,
+    compression: Option<binjs::token::multipart::WriteOptions>,
+    dest_dir: Option<PathBuf>
+}
 
+fn handle_path<'a>(options: &Options<'a>,
+    source_path: &Path,
+    sub_dir: &Path)
+{
+    println!("Treating {:?} ({:?})", source_path, sub_dir);
+    let is_dir = std::fs::metadata(source_path)
+        .unwrap()
+        .is_dir();
+    if is_dir {
+        let file_name = source_path.file_name()
+            .unwrap_or_else(|| panic!("Invalid source path {:?}", source_path));
+        let sub_dir = sub_dir.join(file_name);
+        for entry in std::fs::read_dir(source_path)
+            .expect("Could not open directory")
+            .map(|dir| dir.unwrap())
+        {
+            handle_path(options, entry.path().as_path(), &sub_dir);
+        }
+        return;
+    }
+    if let Some(Some("js")) = source_path.extension().map(std::ffi::OsStr::to_str) {
+        // Proceed
+    } else {
+        println!("Skipping {:?}", source_path);
+        return;
+    }
+    let (dest_txt_path, dest_bin_path) = match options.dest_dir {
+        None => (None, None), // Do not write
+        Some(ref d) => {
+            let file_name = source_path.file_stem()
+                .expect("Could not extract file name");
+
+            std::fs::create_dir_all(d.join(sub_dir))
+                .expect("Could not find or create destination directory");
+
+            let mut bin_path = d.join(sub_dir);
+            bin_path.push(file_name);
+            bin_path.set_extension("binjs");
+
+            let mut txt_path = d.join(sub_dir);
+            txt_path.push(file_name);
+            txt_path.set_extension("js");
+
+            (Some(txt_path), Some(bin_path))
+        }
+    };
+
+    if let Some(ref bin_path) = dest_bin_path {
+        println!("Output: {}", bin_path.to_string_lossy());
+    } else {
+        println!("Compressing to memory");
+    }
+
+    let source_len = std::fs::metadata(source_path)
+        .expect("Could not open source")
+        .len();
+
+    println!("Parsing.");
+    let mut ast    = options.parser.parse_file(source_path)
+        .expect("Could not parse source");
+
+    println!("Annotating.");
+    options.grammar.annotate(&mut ast)
+        .expect("Could not infer annotations");
+
+    if options.dump_ast {
+        println!("Dumping AST.\n{:2}", ast.pretty(2));
+    }
+
+    println!("Encoding.");
+    let data: Box<AsRef<[u8]>> = {
+        match options.compression {
+            None => {
+                let writer = binjs::token::simple::TreeTokenWriter::new();
+                let encoder = binjs::token::encode::Encoder::new(options.grammar, writer);
+                encoder
+                    .encode(&ast)
+                    .expect("Could not encode AST");
+                let (data, stats) = encoder.done()
+                    .expect("Could not finalize AST encoding");
+
+                let mut borrow = options.simple_stats.borrow_mut();
+                *borrow += stats;
+                Box::new(data)
+            }
+            Some(ref compression) => {
+                let writer = binjs::token::multipart::TreeTokenWriter::new(compression.clone(), options.grammar);
+                let encoder = binjs::token::encode::Encoder::new(options.grammar, writer);
+                encoder
+                    .encode(&ast)
+                    .expect("Could not encode AST");
+                let (data, stats) = encoder.done()
+                    .expect("Could not finalize AST encoding");
+
+                let mut borrow = options.multipart_stats.borrow_mut();
+                *borrow += stats.with_source_bytes(source_len as usize);
+                Box::new(data)
+            }
+        }
+    };
+
+    let dest_len = data.as_ref().as_ref().len();
+
+    if let Some(ref bin_path) = dest_bin_path {
+        println!("Writing binary file.");
+        let mut dest = File::create(bin_path)
+            .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", bin_path, e));
+        dest.write((*data).as_ref())
+            .expect("Could not write destination file");
+    } else {
+        println!("Skipping write.");
+    }
+
+    if let Some(ref txt_path) = dest_txt_path {
+        println!("Copying source file.");
+        std::fs::copy(source_path, txt_path)
+            .expect("Could not copy source file");
+    }
+
+    println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
+}
 fn main() {
     env_logger::init();
 
@@ -28,15 +160,11 @@ fn main() {
                 .multiple(true)
                 .takes_value(true)
                 .help("Input files to use. Must be JS source file."),
-            Arg::with_name("dir")
-                .long("dir")
-                .takes_value(true)
-                .help("Output directory to use. Files in this directory may be overwritten. Required if `in` is specified more than once."),
             Arg::with_name("out")
                 .long("out")
                 .short("o")
                 .takes_value(true)
-                .help("Output file to use. Will be overwritten. Not possible if `in` is specified more than once."),
+                .help("Output directory to use. Files in this directory may be overwritten. Required if `in` is specified more than once."),
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
@@ -64,7 +192,10 @@ fn main() {
                 .help("Compression format for the tree. Defaults to identity."),
             Arg::with_name("statistics")
                 .long("show-stats")
-                .help("Show statistics.")
+                .help("Show statistics."),
+            Arg::with_name("dump")
+                .long("dump")
+                .help("Dup JSON AST tree"),
         ])
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
@@ -74,27 +205,13 @@ fn main() {
 
     let sources : Vec<_> = matches.values_of("in")
         .expect("Missing `in`")
+        .map(Path::new)
         .collect();
 
-    let dest_path =
-        if sources.len() > 1 {
-            if matches.value_of("out").is_some() {
-                panic!("Cannot specify a single destination path with several sources");
-            }
-            None
-        } else {
-            matches.value_of("out")
-        };
-
-    let dest_dir = matches.value_of("dir")
-        .or_else(|| {
-            if sources.len() > 1 || dest_path.is_none() {
-                Some(".")
-            } else {
-                None
-            }
-        });
-
+    let dest_dir = match matches.value_of("out") {
+        None => None,
+        Some(path) => Some(Path::new(path).to_path_buf())
+    };
 
     let compression = {
         let mut is_compressed = false;
@@ -143,104 +260,34 @@ fn main() {
         }
     };
     let show_stats = matches.is_present("statistics");
+    let dump_ast = matches.is_present("dump");
 
     // Setup.
     let parser = Shift::new();
     let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
 
-    let mut multipart_stats = binjs::token::multipart::Statistics::default()
+    let multipart_stats = binjs::token::multipart::Statistics::default()
         .with_source_bytes(0);
-    let mut simple_stats = binjs::token::simple::Statistics::default();
+    let simple_stats = binjs::token::simple::Statistics::default();
 
+    let options = Options {
+        parser: &parser,
+        grammar: &grammar,
+        multipart_stats: RefCell::new(multipart_stats),
+        simple_stats: RefCell::new(simple_stats),
+        compression,
+        dump_ast,
+        dest_dir,
+    };
     for source_path in sources {
-        println!("Treating {}", source_path);
-        let dest_path = match dest_path {
-            Some(ref x) => Some(x.to_string()),
-            None => match dest_dir {
-                None => None, // Do not write
-                Some(ref d) => {
-                    let source = Path::new(source_path);
-                    let file_name = source.file_stem()
-                        .expect("Could not extract file name");
-                    let mut path = PathBuf::new();
-                    path.push(d);
-                    path.push(file_name);
-                    path.set_extension("binjs");
-                    Some(path.to_str()
-                        .expect("Could not convert path to string")
-                        .to_string())
-                }
-            }
-        };
-
-        if let Some(ref dest) = dest_path {
-            println!("Output: {}", dest);
-        } else {
-            println!("Compressing to memory");
-        }
-
-        let source_len = std::fs::metadata(source_path)
-            .expect("Could not open source")
-            .len();
-
-        println!("Parsing.");
-        let mut ast    = parser.parse_file(source_path)
-            .expect("Could not parse source");
-
-        println!("Annotating.");
-        grammar.annotate(&mut ast)
-            .expect("Could not infer annotations");
-
-        println!("Encoding.");
-        let data: Box<AsRef<[u8]>> = {
-            match compression {
-                None => {
-                    let writer = binjs::token::simple::TreeTokenWriter::new();
-                    let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
-                    encoder
-                        .encode(&ast)
-                        .expect("Could not encode AST");
-                    let (data, stats) = encoder.done()
-                        .expect("Could not finalize AST encoding");
-
-                    simple_stats = simple_stats + stats;
-                    Box::new(data)
-                }
-                Some(ref options) => {
-                    let writer = binjs::token::multipart::TreeTokenWriter::new(options.clone(), &grammar);
-                    let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
-                    encoder
-                        .encode(&ast)
-                        .expect("Could not encode AST");
-                    let (data, stats) = encoder.done()
-                        .expect("Could not finalize AST encoding");
-
-                    multipart_stats = multipart_stats + stats.with_source_bytes(source_len as usize);
-                    Box::new(data)
-                }
-            }
-        };
-
-        let dest_len = data.as_ref().as_ref().len();
-
-        if let Some(ref dest_path) = dest_path {
-            println!("Writing.");
-            let mut dest = File::create(dest_path)
-                .expect("Could not create destination file");
-            dest.write((*data).as_ref())
-                .expect("Could not write destination file");
-        } else {
-            println!("Skipping write.");
-        }
-
-        println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
+        handle_path(&options, source_path, PathBuf::new().as_path());
     }
 
     if show_stats {
-        if compression.is_none() {
-            println!("Statistics: {}", simple_stats);
+        if options.compression.is_none() {
+            println!("Statistics: {}", options.simple_stats.borrow());
         } else {
-            println!("Statistics: {}", multipart_stats);
+            println!("Statistics: {}", options.multipart_stats.borrow());
         }
     }
 }

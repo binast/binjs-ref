@@ -8,8 +8,7 @@
 //! To ensure this, we define not only the AST of EcmaScript as the language is today, but
 //! the mechanism to define and evolve this AST, without incurring breaking changes in BinJS.
 
-use ast;
-use util::{ pick, type_of };
+use util::{ pick, type_of, ToCases };
 
 use json;
 use json::JsonValue as JSON;
@@ -18,12 +17,18 @@ use rand;
 use std;
 use std::cell::*;
 use std::collections::{ HashMap, HashSet };
-use std::fmt::Debug;
+use std::fmt::{ Debug, Display };
 use std::hash::*;
 use std::rc::*;
 
+pub trait Annotator {
+    fn annotate(&mut self, _ast: &mut JSON) {
+        // By default, do nothing.
+    }
+}
+
 /// The name of an interface or enum.
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NodeName(Rc<String>);
 impl NodeName {
     pub fn to_string(&self) -> &String {
@@ -35,7 +40,17 @@ impl NodeName {
 }
 impl Debug for NodeName {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.to_str().fmt(formatter)
+        Debug::fmt(self.to_str(), formatter)
+    }
+}
+impl Display for NodeName {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Display::fmt(self.to_str(), formatter)
+    }
+}
+impl ToCases for NodeName {
+    fn to_str(&self) -> &str {
+        NodeName::to_str(self)
     }
 }
 
@@ -53,7 +68,12 @@ impl FieldName {
 }
 impl Debug for FieldName {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.to_str().fmt(formatter)
+        Debug::fmt(self.to_str(), formatter)
+    }
+}
+impl ToCases for FieldName {
+    fn to_str(&self) -> &str {
+        FieldName::to_str(self)
     }
 }
 
@@ -87,6 +107,9 @@ impl TypeSum {
     }
     pub fn types_mut(&mut self) -> &mut [TypeSpec] {
         &mut self.types
+    }
+    pub fn interfaces(&self) -> &HashSet<NodeName> {
+        &self.interfaces
     }
     pub fn get_interface(&self, grammar: &Syntax, name: &NodeName) -> Option<Rc<Interface>> {
         debug!(target: "grammar", "get_interface, looking for {:?} in sum {:?}", name, self);
@@ -212,84 +235,33 @@ impl TypeSpec {
         TypeSpec::Array {
             contents: Box::new(Type {
                 spec: self,
-                defaults_to: None
+                or_null: false
             }),
             supports_empty: true,
-        }.close()
+        }.required()
     }
 
     pub fn non_empty_array(self) -> Type {
         TypeSpec::Array {
             contents: Box::new(Type {
                 spec: self,
-                defaults_to: None
+                or_null: false,
             }),
             supports_empty: false,
-        }.close()
+        }.required()
     }
 
-    pub fn defaults_to(self, value: JSON) -> Type {
+    pub fn optional(self) -> Type {
         Type {
             spec: self,
-            defaults_to: Some(value)
+            or_null: true
         }
     }
 
-    pub fn close(self) -> Type {
-        match self {
-            TypeSpec::Array { supports_empty: true, .. } => Type {
-                spec: self,
-                defaults_to: None,
-            },
-            TypeSpec::Array { supports_empty: false, .. } => Type {
-                spec: self,
-                defaults_to: None,
-            },
-            TypeSpec::Boolean => Type {
-                spec: self,
-                defaults_to: None,
-            },
-            TypeSpec::Number => Type {
-                spec: self,
-                defaults_to: None,
-            },
-            _ => Type {
-                spec: self,
-                defaults_to: None,
-            },
-        }
-    }
-
-    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        match *self {
-            TypeSpec::Array { ref contents, supports_empty: false } =>
-                format!("[{}] /* Non-empty */", contents.pretty(prefix, indent)),
-            TypeSpec::Array { ref contents, supports_empty: true } =>
-                format!("[{}]", contents.pretty(prefix, indent)),
-            TypeSpec::Boolean =>
-                "bool".to_string(),
-            TypeSpec::String =>
-                "string".to_string(),
-            TypeSpec::Number =>
-                "number".to_string(),
-            TypeSpec::NamedType(ref name) =>
-                name.to_str().to_string(),
-            TypeSpec::TypeSum(ref types) => {
-                let mut result = String::new();
-                result.push('(');
-                let mut first = true;
-                for typ in types.types() {
-                    if first {
-                        first = false;
-                    } else {
-                        result.push_str(" or ");
-                    }
-                    result.push_str(&typ.pretty("", indent));
-                }
-                result.push(')');
-                result
-            }
-            TypeSpec::Void => "void".to_string()
+    pub fn required(self) -> Type {
+        Type {
+            spec: self,
+            or_null: false
         }
     }
 
@@ -431,21 +403,59 @@ impl TypeSpec {
         }
         result.into_iter()
     }
+    pub fn get_primitive(&self, syntax: &Syntax) -> Option<IsNullable<Primitive>> {
+        match *self {
+            TypeSpec::Boolean => Some(IsNullable::non_nullable(Primitive::Boolean)),
+            TypeSpec::Void => Some(IsNullable::non_nullable(Primitive::Void)),
+            TypeSpec::Number => Some(IsNullable::non_nullable(Primitive::Number)),
+            TypeSpec::String => Some(IsNullable::non_nullable(Primitive::String)),
+            TypeSpec::NamedType(ref name) => {
+                match syntax.get_type_by_name(name).unwrap() {
+                    NamedType::Interface(ref interface) =>
+                        Some(IsNullable::non_nullable(Primitive::Interface(interface.clone()))),
+                    NamedType::Typedef(ref type_) =>
+                        type_.get_primitive(syntax),
+                    NamedType::StringEnum(_) => None
+                }
+            }
+            _ => None
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct IsNullable<T> {
+    pub is_nullable: bool,
+    pub content: T,
+}
+impl<T> IsNullable<T> {
+    fn non_nullable(value: T) -> Self {
+        IsNullable {
+            is_nullable: false,
+            content: value
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Primitive {
+    String,
+    Boolean,
+    Void,
+    Number,
+    Interface(Rc<Interface>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Type {
     pub spec: TypeSpec,
-
-    /// If the value is not specified, it defaults to...
-    /// (`None` if the value MUST be specified)
-    pub defaults_to: Option<JSON>,
+    or_null: bool,
 }
 impl Eq for Type {}
 
 impl Type {
-    pub fn with_default(&mut self, default: JSON) -> &mut Self {
-        self.defaults_to = Some(default);
+    pub fn or_null(&mut self) -> &mut Self {
+        self.or_null = true;
         self
     }
 
@@ -456,7 +466,7 @@ impl Type {
 
     pub fn with_type(&mut self, type_: Type) -> &mut Self {
         self.spec = type_.spec;
-        self.defaults_to = type_.defaults_to;
+        self.or_null = type_.or_null;
         self
     }
 
@@ -466,8 +476,8 @@ impl Type {
     pub fn spec_mut(&mut self) -> &mut TypeSpec {
         &mut self.spec
     }
-    pub fn default(&self) -> Option<&JSON> {
-        self.defaults_to.as_ref()
+    pub fn is_optional(&self) -> bool {
+        self.or_null
     }
 
     /// Shorthand constructors.
@@ -489,6 +499,9 @@ impl Type {
     pub fn bool() -> TypeSpec {
         TypeSpec::Boolean
     }
+    pub fn void() -> TypeSpec {
+        TypeSpec::Void
+    }
 
     pub fn array(self) -> TypeSpec {
         TypeSpec::Array {
@@ -505,34 +518,35 @@ impl Type {
     }
 
     pub fn random<T: rand::Rng>(&self, syntax: &Syntax, rng: &mut T, depth_limit: isize) -> JSON {
-        if let Some(ref value) = self.defaults_to {
+        if self.or_null {
             // 50% chance of returning the default value
             if depth_limit <= 0 || rng.gen() {
-                return value.clone()
+                return JSON::Null
             }
         }
         self.spec.random(syntax, rng, depth_limit)
-    }
-
-    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        let pretty_type = self.spec.pretty(prefix, indent);
-        let pretty_default = match self.defaults_to {
-            None => String::new(),
-            Some(ref default) =>
-                format!(" = {}", default.dump())
-        };
-        format!("{}{}", pretty_type, pretty_default)
     }
 
     /// Compare two ASTs, restricting comparison to the
     /// items that appear in the grammar.
     pub fn compare(&self, syntax: &Syntax, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
         use json::JsonValue::*;
-        if let (&Some(Null), &Null, &Null) = (&self.defaults_to, left, right) {
-            // This is the only case in which we accept `null` as a value.
-            return Ok(true)
+        if self.or_null {
+            if let (&Null, &Null) = (left, right) {
+                // This is the only case in which we accept `null` as a value.
+                return Ok(true)                
+            }
         }
         self.spec.compare(syntax, left, right)
+    }
+
+    pub fn get_primitive(&self, syntax: &Syntax) -> Option<IsNullable<Primitive>> {
+        if let Some(mut primitive) = self.spec.get_primitive(syntax) {
+            primitive.is_nullable = primitive.is_nullable || self.or_null;
+            Some(primitive)
+        } else {
+            None
+        }
     }
 }
 
@@ -608,6 +622,10 @@ impl Obj {
 }
 
 impl StringEnum {
+    pub fn name(&self) -> &NodeName {
+        &self.name
+    }
+
     pub fn strings(&self) -> &[String] {
         &self.values
     }
@@ -626,21 +644,6 @@ impl StringEnum {
             self.with_string(string);
         }
         self
-    }
-
-    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        let mut result = format!("{prefix}enum {name} {{\n",
-            prefix = prefix,
-            name = self.name.to_str());
-        {
-            let prefix = format!("{prefix}{indent}", prefix=prefix, indent=indent);
-            for string in &self.values {
-                result.push_str(&format!("{prefix}\"{string}\",\n", prefix=prefix, string=string));
-            }
-        }
-        result.push_str(prefix);
-        result.push_str("}\n");
-        result
     }
 }
 
@@ -695,6 +698,10 @@ impl SyntaxBuilder {
         }
     }
 
+    pub fn names(&self) -> &HashMap<String, Rc<String>> {
+        &self.names
+    }
+
     /// Return an `NodeName` for a name. Equality comparison
     /// on `NodeName` can be performed by checking physical
     /// equality.
@@ -707,6 +714,13 @@ impl SyntaxBuilder {
         self.names.insert(name.to_string(), shared);
         result
     }
+    pub fn get_node_name(&self, name: &str) -> Option<NodeName> {
+        self.names.get(name)
+            .map(|hit| NodeName(hit.clone()))
+    }
+    pub fn import_node_name(&mut self, node_name: &NodeName) {
+        self.names.insert(node_name.to_string().clone(), node_name.0.clone());
+    }
 
     pub fn field_name(&mut self, name: &str) -> FieldName {
         if let Some(result) = self.names.get(name) {
@@ -716,6 +730,9 @@ impl SyntaxBuilder {
         let result = FieldName(shared.clone());
         self.names.insert(name.to_string(), shared);
         result
+    }
+    pub fn import_field_name(&mut self, field_name: &FieldName) {
+        self.names.insert(field_name.to_string().clone(), field_name.0.clone());
     }
 
     pub fn add_interface(&mut self, name: &NodeName) -> Option<RefMut<InterfaceDeclaration>> {
@@ -752,14 +769,19 @@ impl SyntaxBuilder {
         if self.typedefs_by_name.get(name).is_some() {
             return None;
         }
-        let e = RefCell::new(TypeSpec::Void.close());
+        let e = RefCell::new(TypeSpec::Void.required());
         self.typedefs_by_name.insert(name.clone(), e);
         self.typedefs_by_name.get(name).map(RefCell::borrow_mut)
     }
 
+    pub fn get_typedef(&self, name: &NodeName) -> Option<Ref<Type>> {
+        self.typedefs_by_name.get(name).
+            map(RefCell::borrow)
+    }
+
     /// Generate the graph.
     pub fn into_syntax<'a>(self, options: SyntaxOptions<'a>) -> Syntax {
-        // 1. Collect all node names.
+        // 1. Collect node names.
         let mut interfaces_by_name = self.interfaces_by_name;
         let interfaces_by_name : HashMap<_, _> = interfaces_by_name.drain()
             .map(|(k, v)| (k, Rc::new(Interface {
@@ -788,7 +810,7 @@ impl SyntaxBuilder {
             }
         }
 
-        let mut resolved_type_sums_by_name = HashMap::new();
+        let mut resolved_type_sums_by_name : HashMap<NodeName, HashSet<NodeName>> = HashMap::new();
         {
             // 3. Check that node names are not duplicated.
             for name in node_names.values() {
@@ -836,7 +858,10 @@ impl SyntaxBuilder {
             #[derive(Clone, Debug)]
             enum TypeClassification {
                 SumOfInterfaces(HashSet<NodeName>),
-                BadForSumOfInterfaces,
+                Array,
+                Primitive,
+                StringEnum,
+                Optional,
             }
 
             // 5. Classify typedefs between
@@ -861,11 +886,11 @@ impl SyntaxBuilder {
                         let _ = classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, contents.spec(), name);
                         // Regardless, the result is bad for a sum of interfaces.
                         debug!(target: "grammar", "classify_type => don't put me in an interface");
-                        TypeClassification::BadForSumOfInterfaces
+                        TypeClassification::Array
                     },
                     TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => {
                         debug!(target: "grammar", "classify_type => don't put me in an interface");
-                        TypeClassification::BadForSumOfInterfaces
+                        TypeClassification::Primitive
                     }
                     TypeSpec::NamedType(ref name) => {
                         if let Some(fetch) = cache.get(name) {
@@ -883,7 +908,7 @@ impl SyntaxBuilder {
                             names.insert(name.clone());
                             TypeClassification::SumOfInterfaces(names)
                         } else if string_enums_by_name.contains_key(name) {
-                            TypeClassification::BadForSumOfInterfaces
+                            TypeClassification::StringEnum
                         } else {
                             let type_ = typedefs_by_name.get(name)
                                 .unwrap(); // Completeness checked abover in this method.
@@ -897,11 +922,15 @@ impl SyntaxBuilder {
                         let mut names = HashSet::new();
                         for type_ in sum.types() {
                             match classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_, name) {
-                                TypeClassification::BadForSumOfInterfaces =>
-                                    panic!("In type {}, there is a non-interface type in a sum"),
                                 TypeClassification::SumOfInterfaces(sum) => {
                                     names.extend(sum);
                                 }
+                                class =>
+                                    panic!("In type {name}, there is a non-interface type {class:?} ({type_:?}) in a sum {sum:?}",
+                                        name = name.to_str(),
+                                        class = class,
+                                        sum = sum,
+                                        type_ = type_),
                             }
                         }
                         debug!(target: "grammar", "classify_type => built sum {:?}", names);
@@ -912,7 +941,12 @@ impl SyntaxBuilder {
             for (name, type_) in &typedefs_by_name {
                 classification.insert(name.clone(), None);
                 let class = classify_type(&typedefs_by_name, &string_enums_by_name, &interfaces_by_name, &mut classification, type_.spec(), name);
-                classification.insert(name.clone(), Some(class));
+                if !type_.is_optional() {
+                    classification.insert(name.clone(), Some(class));
+                } else {
+                    // FIXME: That looks weird.
+                    classification.insert(name.clone(), Some(TypeClassification::Optional));
+                }
             }
 
             // 6. Using this classification, check that the attributes of interfaces don't mix
@@ -942,6 +976,7 @@ impl SyntaxBuilder {
             node_names,
             fields,
             root: options.root.clone(),
+            null: options.null.clone(),
             annotator: options.annotator,
         };
 
@@ -975,7 +1010,7 @@ impl Interface {
     }
 
     pub fn type_(&self) -> Type {
-        self.spec().close()
+        self.spec().required()
     }
 
     pub fn get_field_by_name(&self, name: &FieldName) -> Option<&Field> {
@@ -985,31 +1020,6 @@ impl Interface {
             }
         }
         None
-    }
-
-    /// Export a description of this interface.
-    pub fn pretty(&self, prefix: &str, indent: &str) -> String {
-        let mut result = format!("{prefix} interface {name} : Node {{\n", prefix=prefix, name=self.name().to_str());
-        {
-            let prefix = format!("{prefix}{indent}",
-                prefix=prefix,
-                indent=indent);
-            for field in self.declaration.contents.fields() {
-                if let Some(ref doc) = field.doc() {
-                    result.push_str(&format!("{prefix}// {doc}\n", prefix = prefix, doc = doc));
-                }
-                result.push_str(&format!("{prefix}{name}: {description};\n",
-                    prefix = prefix,
-                    name = field.name().to_str(),
-                    description = field.type_().pretty(&prefix, indent)
-                ));
-                if field.doc().is_some() {
-                    result.push_str("\n");
-                }
-            }
-        }
-        result.push_str(&format!("{prefix} }}\n", prefix=prefix));
-        result
     }
 
     /// Generate a random instance of this interface matching the syntax.
@@ -1045,11 +1055,14 @@ pub struct Syntax {
     interfaces_by_name: HashMap<NodeName, Rc<Interface>>,
     string_enums_by_name: HashMap<NodeName, Rc<StringEnum>>,
     typedefs_by_name: HashMap<NodeName, Rc<Type>>,
+
     resolved_type_sums_by_name: HashMap<NodeName, HashSet<NodeName>>,
+
     node_names: HashMap<String, NodeName>,
     fields: HashMap<String, FieldName>,
     root: NodeName,
-    annotator: Box<ast::annotation::Annotator>,
+    null: NodeName,
+    annotator: Box<RefCell<Annotator>>,
 }
 
 impl Syntax {
@@ -1065,6 +1078,9 @@ impl Syntax {
     }
     pub fn typedefs_by_name(&self) -> &HashMap<NodeName, Rc<Type>> {
         &self.typedefs_by_name
+    }
+    pub fn resolved_sums_of_interfaces_by_name(&self) -> &HashMap<NodeName, HashSet<NodeName>> {
+        &self.resolved_type_sums_by_name
     }
     pub fn get_sums_of_interfaces(&self) -> impl Iterator<Item = (&NodeName, &HashSet<NodeName>)> {
         self.resolved_type_sums_by_name.iter()
@@ -1092,9 +1108,17 @@ impl Syntax {
         self.node_names
             .get(name)
     }
-
+    pub fn node_names(&self) -> &HashMap<String, NodeName> {
+        &self.node_names
+    }
+    pub fn field_names(&self) -> &HashMap<String, FieldName> {
+        &self.fields
+    }
     pub fn get_root_name(&self) -> &NodeName {
         &self.root
+    }
+    pub fn get_null_name(&self) -> &NodeName {
+        &self.null
     }
 
     /// The starting point for parsing.
@@ -1112,9 +1136,8 @@ impl Syntax {
     }
 
     pub fn annotate(&self, tree: &mut JSON) -> Result<(), ASTError> {
-        use ast::annotation::*;
-        self.annotator.process_declarations_aux(self.annotator.as_ref(), &mut Context::new(self), tree)?;
-        self.annotator.process_references_aux(self.annotator.as_ref(),   &mut Context::new(self), tree)?;
+        self.annotator.borrow_mut()
+            .annotate(tree);
         Ok(())
     }
 
@@ -1133,35 +1156,6 @@ impl Syntax {
         let root = self.interfaces_by_name.get(&self.root)
             .expect("Root interface doesn't exist");
         root.random(self, rng, depth_limit)
-    }
-
-    pub fn pretty(&self, indent: &str) -> String {
-        let mut result = String::new();
-
-        result.push_str(" // # Interfaces.\n");
-        result.push_str(" //\n");
-        result.push_str(" // Unless specified otherwise in comments, the order of fields does NOT matter.\n\n\n");
-        let mut interfaces : Vec<_> = self.interfaces_by_name.iter().collect();
-        interfaces.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
-        for (name, interface) in interfaces {
-            if name == &self.root {
-                result.push_str(" // Root of the AST.\n")
-            }
-            result.push_str(&interface.pretty("", indent));
-            result.push_str("\n");
-        }
-
-        result.push_str("\n\n // # Enums.\n");
-        result.push_str(" //\n");
-        result.push_str(" // The order of enum values does NOT matter.\n");
-        let mut enums : Vec<_> = self.string_enums_by_name.iter().collect();
-        enums.sort_unstable_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
-        for (_, enum_) in enums {
-            result.push_str(&enum_.pretty("", indent));
-            result.push_str("\n");
-        };
-
-        result
     }
 }
 
@@ -1201,43 +1195,95 @@ impl ASTError {
 pub struct SyntaxOptions<'a> {
     /// The name of the node used to start encoding.
     pub root: &'a NodeName,
+    pub null: &'a NodeName,
 
-    pub annotator: Box<ast::annotation::Annotator>,
+    pub annotator: Box<RefCell<Annotator>>,
 }
 
 /// Define immutable and mutable visitors.
+#[derive(Debug)]
+pub struct WalkPathItem {
+    pub interface: NodeName,
+    pub field: FieldName,
+}
+pub struct WalkPath {
+    /// Some(foo) if we have entered interface foo but no field yet.
+    /// Otherwise, None.
+    interface: Option<NodeName>,
+    items: Vec<WalkPathItem>,
+}
+impl WalkPath {
+    fn enter_interface(&mut self, name: &NodeName) {
+        debug_assert!(self.interface.is_none());
+        self.interface = Some(name.clone());
+    }
+    fn exit_interface(&mut self, name: &NodeName) {
+        let interface = self.interface.take()
+            .expect("Could not exit_interface if we're not in an interface");
+        debug_assert!(*name == interface);
+    }
+    fn enter_field(&mut self, name: &FieldName) {
+        let interface = self.interface.take()
+            .unwrap();
+        self.items.push(WalkPathItem {
+            interface,
+            field: name.clone()
+        });
+    }
+    fn exit_field(&mut self, name: &FieldName) {
+        debug_assert!(self.interface.is_none());
+        let WalkPathItem {
+            interface,
+            field
+        } = self.items.pop()
+            .expect("Could not exit_field from an empty WalkPath");
+        debug_assert!(*name == field);
+        self.interface = Some(interface);
+    }
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn get(&self, index: usize) -> Option<&WalkPathItem> {
+        if index >= self.len() {
+            return None;
+        }
+        Some(&self.items[self.len() - index - 1])
+    }
+}
 macro_rules! make_ast_visitor {
+    // $mutability is either `mut` or nothing.
     ($visitor_name:ident, $walker_name:ident, $($mutability: ident)*) => {
         pub trait $visitor_name {
-            fn enter_type(&mut self, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_type(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_type(&mut self, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_type(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _type_: &Type, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn enter_typespec(&mut self, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_typespec(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_typespec(&mut self, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_typespec(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _typespec_: &TypeSpec, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn enter_string_enum(&mut self, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_string_enum(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_string_enum(&mut self, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_string_enum(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _enum_: &StringEnum, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn enter_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
+            fn enter_interface(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
-            fn exit_interface(&mut self, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
+            fn exit_interface(&mut self, _path: &WalkPath, _value: & $($mutability)* JSON, _interface: &Interface, _name: &NodeName) -> Result<(), ASTError> {
                 // Do nothing
                 Ok(())
             }
@@ -1246,30 +1292,38 @@ macro_rules! make_ast_visitor {
         pub struct $walker_name<'a, V> where V: $visitor_name {
             syntax: &'a Syntax,
             visitor: V,
+            path: WalkPath,
         }
 
-        // Indirection is either &JSON or &mut JSON
         impl<'a, V> $walker_name<'a, V> where V: $visitor_name {
             pub fn new(syntax: &'a Syntax, visitor: V) -> Self {
                 $walker_name {
                     syntax,
                     visitor,
+                    path: WalkPath {
+                        interface: None,
+                        items: vec![],
+                    },
                 }
             }
             pub fn walk(&mut self, value: & $($mutability)* JSON) -> Result<(), ASTError> {
                 let root = self.syntax.get_root();
                 let name = self.syntax.get_root_name();
-                self.walk_named_type(value, &root, name)
+                assert_eq!(self.path.len(), 0);
+                self.walk_named_type(value, &root, name)?;
+                assert_eq!(self.path.len(), 0);
+                Ok(())
             }
             pub fn walk_named_type(&mut self, value: & $($mutability)* JSON, named: &NamedType, name: &NodeName) -> Result<(), ASTError> {
                 match *named {
-                    NamedType::StringEnum(ref enum_) => self.walk_string_enum(value, enum_, name),
-                    NamedType::Interface(ref interface_) => self.walk_interface(value, interface_, name),
-                    NamedType::Typedef(ref typedef_) => self.walk_type(value, typedef_, name),
+                    NamedType::StringEnum(ref enum_) => self.walk_string_enum(value, enum_, name)?,
+                    NamedType::Interface(ref interface_) => self.walk_interface(value, interface_, name)?,
+                    NamedType::Typedef(ref typedef_) => self.walk_type(value, typedef_, name)?,
                 }
+                Ok(())
             }
             pub fn walk_string_enum(&mut self, value: & $($mutability)* JSON, enum_: &StringEnum, name: &NodeName) -> Result<(), ASTError> {
-                self.visitor.enter_string_enum(value, enum_, name)?;
+                self.visitor.enter_string_enum(&self.path, value, enum_, name)?;
                 if let Some(ref s) = value.as_str() {
                     if enum_.values.iter()
                         .find(|x| x == s)
@@ -1286,31 +1340,32 @@ macro_rules! make_ast_visitor {
                         got: format!("{:?}", *value)
                     })
                 }
-                self.visitor.exit_string_enum(value, enum_, name)?;
+                self.visitor.exit_string_enum(&self.path, value, enum_, name)?;
                 Ok(())
             }
             pub fn walk_type(&mut self, value: & $($mutability)* JSON, type_: &Type, name: &NodeName) -> Result<(), ASTError> {
-                self.visitor.enter_type(value, type_, name)?;
+                self.visitor.enter_type(&self.path, value, type_, name)?;
                 if let JSON::Null = *value {
-                    if let Some(_) = type_.defaults_to {
-                        self.visitor.exit_type(value, type_, name)?;
+                    // Value was omitted.
+                    if type_.is_optional() {
+                        self.visitor.exit_type(&self.path, value, type_, name)?;
                         return Ok(())
                     }
                 }
                 self.walk_type_spec(value, type_.spec(), name)?;
-                self.visitor.exit_type(value, type_, name)?;
+                self.visitor.exit_type(&self.path, value, type_, name)?;
                 Ok(())
             }
             pub fn walk_type_spec(&mut self, value: & $($mutability)* JSON, spec: &TypeSpec, name: &NodeName) -> Result<(), ASTError> {
-                self.visitor.enter_typespec(value, spec, name)?;
+                self.visitor.enter_typespec(&self.path, value, spec, name)?;
                 self.walk_type_spec_aux(value, spec, name)?;
-                self.visitor.exit_typespec(value, spec, name)?;
+                self.visitor.exit_typespec(&self.path, value, spec, name)?;
                 Ok(())
             }
 
             pub fn walk_interface(&mut self, value: & $($mutability)* JSON, interface: &Interface, name: &NodeName) -> Result<(), ASTError> {
                 // Let the visitor rewrite the object if necessary.
-                self.visitor.enter_interface(value, interface, name)?;
+                self.visitor.enter_interface(&self.path, value, interface, name)?;
                 // Check type.
                 let is_ok =
                     if let Some(name) = value["type"].as_str() {
@@ -1322,18 +1377,22 @@ macro_rules! make_ast_visitor {
                     return Err(ASTError::invalid_value(value, &format!("Instance of {:?}", interface.name())))                    
                 }
                 if value.is_object() {
+                    self.path.enter_interface(name);
                     // Visit fields, ignoring excess fields and, if necessary, optional fields.
                     for field in &interface.declaration.contents.fields {
+                        self.path.enter_field(field.name());
                         let ref $($mutability)* value = value[field.name().to_str()];
                         self.walk_type(value, field.type_(), interface.name())?;
+                        self.path.exit_field(field.name());
                     }
+                    self.path.exit_interface(name);
                 } else {
                     return Err(ASTError::InvalidValue {
                         expected: "object".to_string(),
                         got: type_of(&*value)
                     })
                 }
-                self.visitor.exit_interface(value, interface, name)?;
+                self.visitor.exit_interface(&self.path, value, interface, name)?;
                 Ok(())
             }
             fn walk_type_spec_aux(&mut self, value: & $($mutability)* JSON, spec: &TypeSpec, name: &NodeName) -> Result<(), ASTError> {

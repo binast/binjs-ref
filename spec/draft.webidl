@@ -71,15 +71,35 @@ enum UpdateOperator {
 };
 
 
-// Binary AST delayed assertions
+// deferred assertions
 
-interface AssertedScope {
-  attribute FrozenArray<IdentifierName> varDeclaredNames;
+interface AssertedBlockScope {
+  // checked eagerly during transformation
   attribute FrozenArray<IdentifierName> lexicallyDeclaredNames;
+
+  // checked lazily as inner functions are invoked
   attribute FrozenArray<IdentifierName> capturedNames;
   attribute boolean hasDirectEval;
 };
 
+interface AssertedVarScope {
+  // checked eagerly during transformation
+  attribute FrozenArray<IdentifierName> lexicallyDeclaredNames;
+  attribute FrozenArray<IdentifierName> varDeclaredNames;
+
+  // checked lazily as inner functions are invoked
+  attribute FrozenArray<IdentifierName> capturedNames;
+  attribute boolean hasDirectEval;
+};
+
+interface AssertedParameterScope {
+  // checked eagerly during transformation
+  attribute FrozenArray<IdentifierName> parameterNames;
+
+  // checked lazily as inner functions are invoked
+  attribute FrozenArray<IdentifierName> capturedNames;
+  attribute boolean hasDirectEval;
+};
 
 // nodes
 
@@ -106,7 +126,7 @@ typedef (Block or
          FunctionDeclaration or
          IfStatement or
          IterationStatement or
-         LabeledStatement or
+         LabelledStatement or
          ReturnStatement or
          SwitchStatement or
          SwitchStatementWithDefault or
@@ -151,7 +171,7 @@ typedef (Literal or
         Expression;
 
 typedef (ComputedPropertyName or
-         StaticPropertyName)
+         LiteralPropertyName)
         PropertyName;
 
 typedef (Method or Getter or Setter) MethodDefinition;
@@ -198,10 +218,10 @@ typedef (AssignmentTargetPattern or
 
 // `FormalParameter`
 typedef (Binding or
-         BindingWithDefault)
+         BindingWithInitializer)
         Parameter;
 
-interface BindingWithDefault : Node {
+interface BindingWithInitializer : Node {
   attribute Binding binding;
   attribute Expression init;
 };
@@ -227,7 +247,7 @@ interface StaticMemberAssignmentTarget : Node {
 // `ArrayBindingPattern`
 interface ArrayBinding : Node {
   // The elements of the array pattern; a null value represents an elision.
-  attribute FrozenArray<(Binding or BindingWithDefault)?> elements;
+  attribute FrozenArray<(Binding or BindingWithInitializer)?> elements;
   attribute Binding? rest;
 };
 
@@ -240,7 +260,7 @@ interface BindingPropertyIdentifier : Node {
 // `BindingProperty :: PropertyName : BindingElement`
 interface BindingPropertyProperty : Node {
   attribute PropertyName name;
-  attribute (Binding or BindingWithDefault) binding;
+  attribute (Binding or BindingWithInitializer) binding;
 };
 
 typedef (BindingPropertyIdentifier or
@@ -251,8 +271,9 @@ interface ObjectBinding : Node {
   attribute FrozenArray<BindingProperty> properties;
 };
 
-// This interface represents the case where the initializer is present in `AssignmentElement :: DestructuringAssignmentTarget Initializer_opt`.
-interface AssignmentTargetWithDefault : Node {
+// This interface represents the case where the initializer is present in
+// `AssignmentElement :: DestructuringAssignmentTarget Initializer_opt`.
+interface AssignmentTargetWithInitializer : Node {
   attribute AssignmentTarget binding;
   attribute Expression init;
 };
@@ -260,7 +281,7 @@ interface AssignmentTargetWithDefault : Node {
 // `ArrayAssignmentPattern`
 interface ArrayAssignmentTarget : Node {
   // The elements of the array pattern; a null value represents an elision.
-  attribute FrozenArray<(AssignmentTarget or AssignmentTargetWithDefault?)> elements;
+  attribute FrozenArray<(AssignmentTarget or AssignmentTargetWithInitializer?)> elements;
   attribute AssignmentTarget? rest;
 };
 
@@ -273,7 +294,7 @@ interface AssignmentTargetPropertyIdentifier : Node {
 // `AssignmentProperty :: PropertyName : Node`
 interface AssignmentTargetPropertyProperty : Node {
   attribute PropertyName name;
-  attribute (AssignmentTarget or AssignmentTargetWithDefault) binding;
+  attribute (AssignmentTarget or AssignmentTargetWithInitializer) binding;
 };
 
 typedef (AssignmentTargetPropertyIdentifier or
@@ -310,6 +331,7 @@ interface ClassElement : Node {
 // modules
 
 interface Module : Node {
+  attribute AssertedVarScope? scope;
   attribute FrozenArray<Directive> directives;
   attribute FrozenArray<(ImportDeclaration or ExportDeclaration or Statement)> items;
 };
@@ -331,7 +353,8 @@ interface ImportNamespace : Node {
 };
 
 interface ImportSpecifier : Node {
-  // The `IdentifierName` in the production `ImportSpecifier :: IdentifierName as ImportedBinding`; absent if this specifier represents the production `ImportSpecifier :: ImportedBinding`.
+  // The `IdentifierName` in the production `ImportSpecifier :: IdentifierName as ImportedBinding`;
+  // absent if this specifier represents the production `ImportSpecifier :: ImportedBinding`.
   attribute IdentifierName? name;
   attribute BindingIdentifier binding;
 };
@@ -357,22 +380,27 @@ interface Export : Node {
   attribute (FunctionDeclaration or ClassDeclaration or VariableDeclaration) declaration;
 };
 
-// `export default HoistableDeclaration`, `export default ClassDeclaration`, `export default AssignmentExpression`
+// `export default HoistableDeclaration`,
+// `export default ClassDeclaration`,
+// `export default AssignmentExpression`
 interface ExportDefault : Node {
   attribute (FunctionDeclaration or ClassDeclaration or Expression) body;
 };
 
 // `ExportSpecifier`, as part of an `ExportFrom`.
 interface ExportFromSpecifier : Node {
-  // The only `IdentifierName in `ExportSpecifier :: IdentifierName`, or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
+  // The only `IdentifierName in `ExportSpecifier :: IdentifierName`,
+  // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
   attribute IdentifierName name;
-  // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`, if that is the production represented.
+  // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`,
+  // if that is the production represented.
   attribute IdentifierName? exportedName;
 };
 
 // `ExportSpecifier`, as part of an `ExportLocals`.
 interface ExportLocalSpecifier : Node {
-  // The only `IdentifierName in `ExportSpecifier :: IdentifierName`, or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
+  // The only `IdentifierName in `ExportSpecifier :: IdentifierName`,
+  // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
   attribute IdentifierExpression name;
   // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`, if present.
   attribute IdentifierName? exportedName;
@@ -381,26 +409,33 @@ interface ExportLocalSpecifier : Node {
 
 // property definition
 
-// `MethodDefinition :: PropertyName ( UniqueFormalParameters ) { FunctionBody }`, `GeneratorMethod :: * PropertyName ( UniqueFormalParameters ) { GeneratorBody }`, `AsyncMethod :: async PropertyName ( UniqueFormalParameters ) { AsyncFunctionBody }`
+// `MethodDefinition :: PropertyName ( UniqueFormalParameters ) { FunctionBody }`,
+// `GeneratorMethod :: * PropertyName ( UniqueFormalParameters ) { GeneratorBody }`,
+// `AsyncMethod :: async PropertyName ( UniqueFormalParameters ) { AsyncFunctionBody }`
 interface Method : Node {
   // True for `AsyncMethod`, false otherwise.
   attribute boolean isAsync;
   // True for `GeneratorMethod`, false otherwise.
   attribute boolean isGenerator;
-  // The `UniqueFormalParameters`.
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute PropertyName name;
+  // The `UniqueFormalParameters`.
   attribute FormalParameters params;
   attribute FunctionBody body;
 };
 
 // `get PropertyName ( ) { FunctionBody }`
 interface Getter : Node {
+  attribute AssertedVarScope? bodyScope;
   attribute PropertyName name;
   attribute FunctionBody body;
 };
 
 // `set PropertyName ( PropertySetParameterList ) { FunctionBody }`
 interface Setter : Node {
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute PropertyName name;
   // The `PropertySetParameterList`.
   attribute Parameter param;
@@ -425,7 +460,7 @@ interface ComputedPropertyName : Node {
 };
 
 // `LiteralPropertyName`
-interface StaticPropertyName : Node {
+interface LiteralPropertyName : Node {
   attribute string value;
 };
 
@@ -468,10 +503,13 @@ interface ArrayExpression : Node {
   attribute FrozenArray<(SpreadElement or Expression)?> elements;
 };
 
-// `ArrowFunction`, `AsyncArrowFunction`
+// `ArrowFunction`,
+// `AsyncArrowFunction`
 interface ArrowExpression : Node {
   // True for `AsyncArrowFunction`, false otherwise.
   attribute boolean isAsync;
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute FormalParameters params;
   attribute (FunctionBody or Expression) body;
 };
@@ -484,7 +522,17 @@ interface AssignmentExpression : Node {
   attribute Expression expression;
 };
 
-// `ExponentiationExpression`, `MultiplicativeExpression`, `AdditiveExpression`, `ShiftExpression`, `RelationalExpression`, `EqualityExpression`, `BitwiseANDExpression`, `BitwiseXORExpression`, `BitwiseORExpression`, `LogicalANDExpression`, `LogicalORExpression`
+// `ExponentiationExpression`,
+// `MultiplicativeExpression`,
+// `AdditiveExpression`,
+// `ShiftExpression`,
+// `RelationalExpression`,
+// `EqualityExpression`,
+// `BitwiseANDExpression`,
+// `BitwiseXORExpression`,
+// `BitwiseORExpression`,
+// `LogicalANDExpression`,
+// `LogicalORExpression`
 interface BinaryExpression : Node {
   attribute BinaryOperator operator;
   // The expression before the operator.
@@ -530,7 +578,8 @@ interface ConditionalExpression : Node {
 interface FunctionExpression : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
-  attribute AssertedScope? scope;
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute BindingIdentifier? name;
   attribute FormalParameters params;
   attribute FunctionBody body;
@@ -564,26 +613,35 @@ interface StaticMemberExpression : Node {
   attribute IdentifierName property;
 };
 
-// `TemplateLiteral`, `MemberExpression :: MemberExpression TemplateLiteral`, `CallExpression : CallExpression TemplateLiteral`
+// `TemplateLiteral`,
+// `MemberExpression :: MemberExpression TemplateLiteral`,
+// `CallExpression : CallExpression TemplateLiteral`
 interface TemplateExpression : Node {
   // The second `MemberExpression` or `CallExpression`, if present.
   attribute Expression? tag;
-  // The contents of the template. This list must be alternating TemplateElements and Expressions, beginning and ending with TemplateElement.
+  // The contents of the template. This list must be alternating
+  // TemplateElements and Expressions, beginning and ending with
+  // TemplateElement.
   attribute FrozenArray<(Expression or TemplateElement)> elements;
 };
 
 // `PrimaryExpression :: this`
 interface ThisExpression : Node { };
 
-// `UpdateExpression :: LeftHandSideExpression ++`, `UpdateExpression :: LeftHandSideExpression --`, `UpdateExpression :: ++ LeftHandSideExpression`, ``UpdateExpression :: -- LeftHandSideExpression`
+// `UpdateExpression :: LeftHandSideExpression ++`,
+// `UpdateExpression :: LeftHandSideExpression --`,
+// `UpdateExpression :: ++ LeftHandSideExpression`,
+// `UpdateExpression :: -- LeftHandSideExpression`
 interface UpdateExpression : Node {
-  // True for `UpdateExpression :: ++ LeftHandSideExpression` and `UpdateExpression :: -- LeftHandSideExpression`, false otherwise.
+  // True for `UpdateExpression :: ++ LeftHandSideExpression` and
+  // `UpdateExpression :: -- LeftHandSideExpression`, false otherwise.
   attribute boolean isPrefix;
   attribute UpdateOperator operator;
   attribute SimpleAssignmentTarget operand;
 };
 
-// `YieldExpression :: yield`, `YieldExpression :: yield AssignmentExpression`
+// `YieldExpression :: yield`,
+// `YieldExpression :: yield AssignmentExpression`
 interface YieldExpression : Node {
   // The `AssignmentExpression`, if present.
   attribute Expression? expression;
@@ -627,7 +685,10 @@ interface ForInOfBinding : Node {
   attribute Binding binding;
 };
 
-// `for ( LeftHandSideExpression in Expression ) Statement`, `for ( var ForBinding in Expression ) Statement`, `for ( ForDeclaration in Expression ) Statement`, `for ( var BindingIdentifier Initializer in Expression ) Statement`
+// `for ( LeftHandSideExpression in Expression ) Statement`,
+// `for ( var ForBinding in Expression ) Statement`,
+// `for ( ForDeclaration in Expression ) Statement`,
+// `for ( var BindingIdentifier Initializer in Expression ) Statement`
 interface ForInStatement : Node {
   // The expression or declaration before `in`.
   attribute (ForInOfBinding or AssignmentTarget) left;
@@ -636,7 +697,9 @@ interface ForInStatement : Node {
   attribute Statement body;
 };
 
-// `for ( LeftHandSideExpression of Expression ) Statement`, `for ( var ForBinding of Expression ) Statement`, `for ( ForDeclaration of Expression ) Statement`
+// `for ( LeftHandSideExpression of Expression ) Statement`,
+// `for ( var ForBinding of Expression ) Statement`,
+// `for ( ForDeclaration of Expression ) Statement`
 interface ForOfStatement : Node {
   // The expression or declaration before `of`.
   attribute (ForInOfBinding or AssignmentTarget) left;
@@ -645,7 +708,8 @@ interface ForOfStatement : Node {
   attribute Statement body;
 };
 
-// `for ( Expression ; Expression ; Expression ) Statement`, `for ( var VariableDeclarationlist ; Expression ; Expression ) Statement`
+// `for ( Expression ; Expression ; Expression ) Statement`,
+// `for ( var VariableDeclarationList ; Expression ; Expression ) Statement`
 interface ForStatement : Node {
   // The expression or declaration before the first `;`, if present.
   attribute (VariableDeclaration or Expression)? init;
@@ -656,7 +720,8 @@ interface ForStatement : Node {
   attribute Statement body;
 };
 
-// `if ( Expression ) Statement`, `if ( Expression ) Statement else Statement`,
+// `if ( Expression ) Statement`,
+// `if ( Expression ) Statement else Statement`,
 interface IfStatement : Node {
   attribute Expression test;
   // The first `Statement`.
@@ -665,7 +730,7 @@ interface IfStatement : Node {
   attribute Statement? alternate;
 };
 
-interface LabeledStatement : Node {
+interface LabelledStatement : Node {
   attribute Label label;
   attribute Statement body;
 };
@@ -674,13 +739,15 @@ interface ReturnStatement : Node {
   attribute Expression? expression;
 };
 
-// A `SwitchStatement` whose `CaseBlock` is `CaseBlock :: { CaseClauses }`.
+// A `SwitchStatement` whose `CaseBlock` is
+//   `CaseBlock :: { CaseClauses }`.
 interface SwitchStatement : Node {
   attribute Expression discriminant;
   attribute FrozenArray<SwitchCase> cases;
 };
 
-// A `SwitchStatement` whose `CaseBlock` is `CaseBlock :: { CaseClauses DefaultClause CaseClauses }`.
+// A `SwitchStatement` whose `CaseBlock` is
+//   `CaseBlock :: { CaseClauses DefaultClause CaseClauses }`.
 interface SwitchStatementWithDefault : Node {
   attribute Expression discriminant;
   // The `CaseClauses` before the `DefaultClause`.
@@ -701,7 +768,8 @@ interface TryCatchStatement : Node {
   attribute CatchClause catchClause;
 };
 
-// `TryStatement :: try Block Finally`, `TryStatement :: try Block Catch Finally`
+// `TryStatement :: try Block Finally`,
+// `TryStatement :: try Block Catch Finally`
 interface TryFinallyStatement : Node {
   // The `Block`.
   attribute Block body;
@@ -725,7 +793,7 @@ interface WithStatement : Node {
 // other nodes
 
 interface Block : Node {
-  attribute AssertedScope? scope;
+  attribute AssertedBlockScope? scope;
   attribute FrozenArray<Statement> statements;
 };
 
@@ -756,13 +824,15 @@ interface FunctionBody : Node {
 interface FunctionDeclaration : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
-  attribute AssertedScope? scope;
+  attribute AssertedParameterScope? parameterScope;
+  attribute AssertedVarScope? bodyScope;
   attribute BindingIdentifier name;
   attribute FormalParameters params;
   attribute FunctionBody body;
 };
 
 interface Script : Node {
+  attribute AssertedVarScope? scope;
   attribute FrozenArray<Directive> directives;
   attribute FrozenArray<Statement> statements;
 };

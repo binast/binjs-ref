@@ -1,6 +1,8 @@
 use ast::grammar::ASTError;
 
+use inflector;
 use rand;
+use json;
 use json::JsonValue as JSON;
 use json::object::Object as Object;
 
@@ -323,12 +325,261 @@ pub fn pick<'a, T: rand::Rng, U,>(rng: &mut T, slice: &'a [U]) -> &'a U {
     &slice[index]
 }
 
-pub fn to_rust_case(value: &str) -> String {
-    use inflector;
-    let snake = inflector::cases::snakecase::to_snake_case(value);
-    match &snake as &str {
-        "super" => "super_".to_string(),
-        "type" => "type_".to_string(),
-        _ => snake
+
+pub trait ToCases {
+    fn to_str(&self) -> &str;
+    fn to_class_cases(&self) -> String {
+        self.to_str().to_class_cases()
+    }
+    fn to_cpp_enum_case(&self) -> String {
+        self.to_str().to_cpp_enum_case()
+    }
+    fn to_rust_identifier_case(&self) -> String {
+        self.to_str().to_rust_identifier_case()
+    }
+    fn to_cpp_field_case(&self) -> String {
+        self.to_str().to_cpp_field_case()
+    }
+}
+
+impl ToCases for String {
+    fn to_str(&self) -> &str {
+        &self
+    }
+}
+
+impl ToCases for str {
+    fn to_str(&self) -> &str {
+        self
+    }
+    fn to_class_cases(&self) -> String {
+        inflector::cases::classcases::to_class_cases(self)
+    }
+    fn to_cpp_enum_case(&self) -> String {
+        match self {
+            "+=" => "PlusAssign".to_string(),
+            "-=" => "MinusAssign".to_string(),
+            "*=" => "MulAssign".to_string(),
+            "/=" => "DivAssign".to_string(),
+            "%=" => "ModAssign".to_string(),
+            "**=" => "PowAssign".to_string(),
+            "<<=" => "LshAssign".to_string(),
+            ">>=" => "RshAssign".to_string(),
+            ">>>=" => "UrshAssign".to_string(),
+            "|=" => "BitOrAssign".to_string(),
+            "^=" => "BitXorAssign".to_string(),
+            "&=" => "BitAndAssign".to_string(),
+            "," => "Comma".to_string(),
+            "||" => "LogicalOr".to_string(),
+            "&&" => "LogicalAnd".to_string(),
+            "|" => "BitOr".to_string(),
+            "^" => "BitXor".to_string(),
+            "&" => "BitAnd".to_string(),
+            "==" => "Eq".to_string(),
+            "!=" => "Neq".to_string(),
+            "===" => "StrictEq".to_string(),
+            "!==" => "StrictNeq".to_string(),
+            "<" => "LessThan".to_string(),
+            "<=" => "LeqThan".to_string(),
+            ">" => "GreaterThan".to_string(),
+            ">=" => "GeqThan".to_string(),
+            "<<" => "Lsh".to_string(),
+            ">>" => "Rsh".to_string(),
+            ">>>" => "Ursh".to_string(),
+            "+" => "Plus".to_string(),
+            "-" => "Minus".to_string(),
+            "~" => "BitNot".to_string(),
+            "*" => "Mul".to_string(),
+            "/" => "Div".to_string(),
+            "%" => "Mod".to_string(),
+            "**" => "Pow".to_string(),
+            "!" => "Not".to_string(),
+            "++" => "Incr".to_string(),
+            "--" => "Decr".to_string(),
+            _ => {
+                let class_cased = self.to_class_cases();
+                assert!(&class_cased != "");
+                class_cased
+            }
+        }
+    }
+    fn to_cpp_field_case(&self) -> String {
+        let snake = inflector::cases::camelcase::to_camel_case(self);
+        match &snake as &str {
+            "class" => "class_".to_string(),
+            "operator" => "operator_".to_string(),
+            "const" => "const_".to_string(),
+            "void" => "void_".to_string(),
+            "delete" => "delete_".to_string(),
+            "in" => "in_".to_string(),
+            // Names reserved by us
+            "result" => "result_".to_string(),
+            "kind" => "kind_".to_string(),
+            // Special cases
+            "" => unimplemented!(),
+            _ => snake
+        }
+    }
+    fn to_rust_identifier_case(&self) -> String {
+        let snake = inflector::cases::snakecase::to_snake_case(self);
+        match &snake as &str {
+            "super" => "super_".to_string(),
+            "type" => "type_".to_string(),
+            _ => snake
+        }
+    }
+}
+
+
+pub trait Reindentable {
+    fn reindent(&self, prefix: &str) -> String;
+}
+
+impl Reindentable for String {
+    fn reindent(&self, prefix: &str) -> String {
+        use itertools::Itertools;
+
+        // Determine the number of whitespace chars on the first line.
+        // Trim that many whitespace chars on the following lines.
+        if let Some(first_line) = self.lines().next() {
+            let remove_indent = first_line.chars()
+                .take_while(|c| char::is_whitespace(*c))
+                .count();
+            let mut lines = vec![];
+            for line in self.lines() {
+                lines.push(format!("{prefix}{text}\n",
+                    prefix = prefix,
+                    text = line[remove_indent..].to_string()
+                ));
+            }
+            format!("{}", lines.iter().format(""))
+        } else {
+            "".to_string()
+        }
+    }
+}
+
+impl Reindentable for Option<String> {
+    fn reindent(&self, prefix: &str) -> String {
+        match *self {
+            None => "".to_string(),
+            Some(ref string) => string.reindent(prefix)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct FromJSONError {
+    pub expected: String,
+    pub got: String,
+}
+
+pub trait FromJSON: Sized {
+    fn import(json: &JSON) -> Result<Self, FromJSONError>; // FIXME: Having error messages would be nicer.
+}
+impl FromJSON for bool {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_bool() {
+            None => Err(FromJSONError {
+                expected: "Boolean".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(*s)
+        }
+    }
+}
+impl FromJSON for f64 {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_f64() {
+            None => Err(FromJSONError {
+                expected: "Number".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(*s)
+        }
+    }
+}
+impl FromJSON for String {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_str() {
+            None => Err(FromJSONError {
+                expected: "String".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(s.to_string())
+        }
+    }
+}
+impl<T> FromJSON for Vec<T> where T: FromJSON {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match *value {
+            JSON::Array(ref array) => {
+                let mut result = Vec::with_capacity(array.len());
+                for item in array {
+                    let imported = FromJSON::import(item)?;
+                    result.push(imported);
+                }
+                Ok(result)
+            },
+            _ => Err(FromJSONError {
+                expected: "Array".to_string(),
+                got: value.dump(),
+            })
+        }
+    }
+}
+impl<T> FromJSON for Option<T> where T: FromJSON {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        if value.is_null() {
+            return Ok(None)
+        }
+        T::import(value)
+            .map(Some)
+    }
+}
+impl<T> FromJSON for Box<T> where T: FromJSON {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        T::import(value)
+            .map(Box::new)
+    }
+}
+
+pub trait ToJSON {
+    fn export(&self) -> JSON;
+}
+impl ToJSON for String {
+    fn export(&self) -> JSON {
+        json::from(self.clone())
+    }
+}
+impl ToJSON for bool {
+    fn export(&self) -> JSON {
+        json::from(self.clone())
+    }
+}
+impl ToJSON for f64 {
+    fn export(&self) -> JSON {
+        json::from(self.clone())
+    }
+}
+impl<T> ToJSON for Vec<T> where T: ToJSON {
+    fn export(&self) -> JSON {
+        let vec = self.iter()
+            .map(ToJSON::export)
+            .collect();
+        JSON::Array(vec)
+    }    
+}
+impl<T> ToJSON for Option<T> where T: ToJSON {
+    fn export(&self) -> JSON {
+        match *self {
+            None => JSON::Null,
+            Some(ref x) => x.export()
+        }
+    }
+}
+impl<T> ToJSON for Box<T> where T: ToJSON {
+    fn export(&self) -> JSON {
+        (**self).export()
     }
 }

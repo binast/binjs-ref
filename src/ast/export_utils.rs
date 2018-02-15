@@ -1,166 +1,268 @@
 use ast::grammar::*;
 
-use util::to_rust_case;
+use std::collections::{ HashSet };
 
-use json::JsonValue as JSON;
+use itertools::Itertools;
 
-use std::collections::HashSet;
-
-impl TypeSpec {
-    pub fn to_rust_source(&self) -> String {
-        match *self {
-            TypeSpec::Array { ref contents, supports_empty: false } => {
-                format!("{}.non_empty_array()", contents.to_rust_source())
-            }
-            TypeSpec::Array { ref contents, supports_empty: true } => {
-                format!("{}.array()", contents.to_rust_source())
-            }
-            TypeSpec::Boolean => "Type::bool()".to_string(),
-            TypeSpec::String => "Type::string()".to_string(),
-            TypeSpec::Number => "Type::number()".to_string(),
-            TypeSpec::NamedType(ref name) => format!("Type::named(&{})", to_rust_case(name.to_str())),
-            TypeSpec::TypeSum(ref types) => {
-                let mut source = String::new();
-                let mut first = true;
-                for type_ in types.types() {
-                    if first {
-                        first = false;
-                    } else {
-                        source.push_str(",");
-                    }
-                    source.push_str("\n\t");
-                    source.push_str(&type_.to_rust_source())
-                }
-                format!("Type::sum(&[{}\n])", source)
-            }
-            TypeSpec::Void => "void".to_string()
-        }
-    }
+pub struct TypeDeanonymizer {
+    builder: SyntaxBuilder,
 }
-
-impl Type {
-    pub fn to_rust_source(&self) -> String {
-        let pretty_type = self.spec.to_rust_source();
-        match self.defaults_to {
-            None => format!("{}.close()", pretty_type),
-            Some(JSON::Null) => {
-                format!("{}.defaults_to(JSON::Null)",
-                    pretty_type)
-            }
-            _ => unimplemented!()
+impl TypeDeanonymizer {
+    pub fn new(syntax: &Syntax) -> Self {
+        let mut result = TypeDeanonymizer {
+            builder: SyntaxBuilder::new(),
+        };
+        // Copy names
+        for (_, name) in syntax.field_names() {
+            result.builder.import_field_name(name)
         }
-    }
-}
-
-impl Syntax {
-    pub fn to_rust_source(&self) -> String {
-        let mut buffer = String::new();
-
-        fn print_names<'a, T>(buffer: &mut String, source: T) where T: Iterator<Item = &'a NodeName> {
-            use inflector;
-            let mut names : Vec<_> = source.map(|x| x.to_string())
-                .collect();
-            names.sort();
-            for name in names {
-                let source = format!("let {snake} = syntax.node_name(\"{original}\"); // C name {cname}\n",
-                    snake = to_rust_case(name),
-                    original = name,
-                    cname = inflector::cases::camelcase::to_camel_case(name));
-                buffer.push_str(&source);
-            }
-        }
-        buffer.push_str("// String enum names (by lexicographical order)\n");
-        print_names(&mut buffer, self.string_enums_by_name().keys());
-
-        buffer.push_str("\n\n// Typedef names (by lexicographical order)\n");
-        print_names(&mut buffer, self.typedefs_by_name().keys());
-
-        buffer.push_str("\n\n// Resolving sums of interfaces (by lexicographical order)\n");
-        let mut sums_of_interfaces : Vec<_> = self.get_sums_of_interfaces()
-            .collect();
-        sums_of_interfaces.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
-
-        for (name, nodes) in sums_of_interfaces.drain(..) {
-            let mut nodes : Vec<_> = nodes.iter()
-                .collect();
-            nodes.sort_by(|a, b| str::cmp(a.to_str(), b.to_str()));
-            buffer.push_str("/*\n ");
-            buffer.push_str(name.to_str());
-            buffer.push_str(" ::= ");
-            let mut first = true;
-            for node in nodes {
-                if first {
-                    first = false;
-                } else {
-                    buffer.push_str("     ");
-                }
-                buffer.push_str(node.to_str());
-                buffer.push_str("\n");
-            }
-            buffer.push_str("*/\n");
-        }
-
-        buffer.push_str("\n\n// Interface names (by lexicographical order)\n");
-        print_names(&mut buffer, self.interfaces_by_name().keys());
-
-        buffer.push_str("\n\n\n// Field names (by lexicographical order)\n");
-        let mut fields = HashSet::new();
-        for interface in self.interfaces_by_name().values() {
+        // Copy and deanonymize interfaces.
+        for (name, interface) in syntax.interfaces_by_name() {
+            result.builder.import_node_name(name);
+            // Collect interfaces to copy them into the `builder`
+            // and walk through their fields to deanonymize types.
+            let mut fields = vec![];
             for field in interface.contents().fields() {
-                fields.insert(field.name().to_string().clone());
+                result.import_type(syntax, field.type_(), None);
+                fields.push(field.clone());
             }
-        }
-        let mut fields : Vec<_> = fields.drain().collect();
-        fields.sort();
-        for name in fields {
-            let source = format!("let field_{snake} = syntax.field_name(\"{original}\");\n",
-                snake = to_rust_case(&name),
-                original = name);
-            buffer.push_str(&source);
-        }
 
-        buffer.push_str("\n\n\n// Enumerations\n");
-        for (name, def) in self.string_enums_by_name() {
-            let mut strings = String::new();
-            let mut first = true;
-            for string in def.strings() {
-                if first {
-                    first = false;
-                } else {
-                    strings.push_str(",\n\t");
+            // Copy the declaration.
+            let mut declaration = result.builder.add_interface(name)
+                .unwrap();
+            for field in fields.drain(..) {
+                declaration.with_field(field.name(), field.type_().clone());
+            }
+        }
+        // Copy and deanonymize typedefs
+        for (name, definition) in syntax.typedefs_by_name() {
+            result.builder.import_node_name(name);
+            if result.builder.get_typedef(name).is_some() {
+                // Already imported by following links.
+                continue
+            }
+            result.import_type(syntax, &definition, Some(name.clone()));
+        }
+        // Copy and deanonymize string enums
+        for (name, definition) in syntax.string_enums_by_name() {
+            result.builder.import_node_name(name);
+            let mut strings: Vec<_> = definition.strings()
+                .iter()
+                .collect();
+            let mut declaration = result.builder.add_string_enum(name)
+                .unwrap();
+            for string in strings.drain(..) {
+                declaration.with_string(&string);
+            }
+        }
+        debug!(target: "export_utils", "Names: {:?}", result.builder.names().keys().format(", "));
+
+        result
+    }
+    pub fn into_syntax(self, options: SyntaxOptions) -> Syntax {
+        self.builder.into_syntax(options)
+    }
+    pub fn get_node_name(&self, name: &str) -> Option<NodeName> {
+        self.builder.get_node_name(name)
+    }
+    /// Returns `(sum, name)` where `sum` is `Some(names)` iff this type can be resolved to a sum of interfaces.
+    fn import_type(&mut self, syntax: &Syntax, type_: &Type, public_name: Option<NodeName>) -> (Option<HashSet<NodeName>>, NodeName) {
+        debug!(target: "export_utils", "import_type {:?} => {:?}", public_name, type_);
+        if type_.is_optional() {
+            let (_, spec_name) = self.import_typespec(syntax, &type_.spec, None);
+            let my_name = 
+                match public_name {
+                    None => self.builder.node_name(&format!("Optional{}", spec_name)),
+                    Some(ref name) => name.clone()
+                };
+            let deanonymized = Type::named(&spec_name).optional();
+            if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
+                typedef.with_type(deanonymized.clone());
+            } else {
+                debug!(target: "export_utils", "import_type: Attempting to redefine typedef {name}", name = my_name.to_str());
+            }
+            (None, my_name)
+        } else {
+            self.import_typespec(syntax, &type_.spec, public_name)
+        }
+    }
+    fn import_typespec(&mut self, syntax: &Syntax, spec: &TypeSpec, public_name: Option<NodeName>) -> (Option<HashSet<NodeName>>, NodeName) {
+        debug!(target: "export_utils", "import_typespec {:?} => {:?}", public_name, spec);
+        match *spec {
+            TypeSpec::Boolean |
+            TypeSpec::Number |
+            TypeSpec::String |
+            TypeSpec::Void    => {
+                if let Some(ref my_name) = public_name {
+                    if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
+                        debug!(target: "export_utils", "import_typespec: Defining {name} (primitive)", name = my_name.to_str());
+                        typedef.with_type(spec.clone().required());
+                    } else {
+                        debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
+                    }
                 }
-                strings.push_str("\"");
-                strings.push_str(&*string);
-                strings.push_str("\"");
+                (None, self.builder.node_name("@@"))
             }
-            let source = format!("syntax.add_string_enum(&{name}).unwrap()
-                .with_strings(&[
-                    {strings}
-                ]);\n\n",
-                name = to_rust_case(name.to_str()),
-                strings = strings);
-            buffer.push_str(&source);
-        }
-        for (name, def) in self.typedefs_by_name() {
-            let source = format!("syntax.add_typedef(&{name}).unwrap()
-                .with_type({spec});\n\n",
-                name = to_rust_case(name.to_str()),
-                spec = def.to_rust_source());
-            buffer.push_str(&source);
-        }
-        for (name, def) in self.interfaces_by_name() {
-            let mut fields = String::new();
-            for field in def.contents().fields() {
-                let source = format!("\n  .with_field(&field_{name}, {spec})",
-                    name = to_rust_case(field.name().to_str()),
-                    spec = field.type_().to_rust_source());
-                fields.push_str(&source);
+            TypeSpec::NamedType(ref link) => {
+                let resolved = syntax.get_type_by_name(link)
+                    .unwrap_or_else(|| panic!("While deanonymizing, could not find the definition of {} in the original syntax.", link.to_str()));
+                let (sum, rewrite, primitive) = match resolved {
+                    NamedType::StringEnum(_) => {
+                        // - Can't use in a sum
+                        // - No rewriting happened.
+                        (None, None, None)
+                    }
+                    NamedType::Typedef(ref type_) => {
+                        // - Might use in a sum.
+                        // - Might be rewritten.
+                        let (sum, name) = self.import_type(syntax, type_, Some(link.clone()));
+                        (sum, Some(name), type_.get_primitive(syntax))
+                    }
+                    NamedType::Interface(_) => {
+                        // - May use in a sum.
+                        // - If a rewriting takes place, it didn't change the names.
+                        let sum = [link.clone()].iter()
+                            .cloned()
+                            .collect();
+                        (Some(sum), None, None)
+                    }
+                };
+                debug!(target: "export_utils", "import_typespec dealing with named type {}, public name {:?} => {:?}",
+                    link, public_name, rewrite);
+                if let Some(ref my_name) = public_name {
+                    // If we have a public name, alias it to `content`
+                    if let Some(content) = rewrite {
+                        let deanonymized = match primitive {
+                            None |
+                            Some(IsNullable { is_nullable: true, .. }) |
+                            Some(IsNullable { content: Primitive::Interface(_), .. }) => Type::named(&content).required(),
+                            Some(IsNullable { content: Primitive::String, .. }) => Type::string().required(),
+                            Some(IsNullable { content: Primitive::Number, .. }) => Type::number().required(),
+                            Some(IsNullable { content: Primitive::Boolean, .. }) => Type::bool().required(),
+                            Some(IsNullable { content: Primitive::Void, .. }) => Type::void().required()
+                        };
+                        debug!(target: "export_utils", "import_typespec aliasing {:?} => {:?}",
+                            my_name, deanonymized);
+                        if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
+                            debug!(target: "export_utils", "import_typespec: Defining {name} (name to content)", name = my_name.to_str());
+                            typedef.with_type(deanonymized.clone());
+                        } else {
+                            debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
+                        }
+                    }
+                    // Also, don't forget to copy the typedef and alias `link`
+                    let deanonymized = Type::named(link).required();
+                    if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
+                        debug!(target: "export_utils", "import_typespec: Defining {name} (name to link)", name = my_name.to_str());
+                        typedef.with_type(deanonymized.clone());
+                    } else {
+                        debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
+                    }
+                }
+                (sum, link.clone())
             }
-            let source = format!("syntax.add_interface(&{name}).unwrap(){fields};\n\n",
-                name = to_rust_case(name.to_str()),
-                fields = fields);
-            buffer.push_str(&source);
+            TypeSpec::Array {
+                ref contents,
+                ref supports_empty
+            } => {
+                let (_, contents_name) = self.import_type(syntax, contents, None);
+                let my_name = 
+                    match public_name {
+                        None => self.builder.node_name(&format!("{non_empty}ListOf{content}",
+                            non_empty =
+                                if *supports_empty {
+                                    ""
+                                } else {
+                                    "NonEmpty"
+                                },
+                            content = contents_name.to_str())),
+                        Some(ref name) => name.clone()
+                    };
+                let deanonymized =
+                    if *supports_empty {
+                        Type::named(&contents_name).array()
+                    } else {
+                        Type::named(&contents_name).non_empty_array()
+                    };
+                if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
+                    debug!(target: "export_utils", "import_typespec: Defining {name} (name to list)",
+                        name = my_name.to_str());
+                    typedef.with_type(deanonymized.clone());
+                } else {
+                    debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
+                }
+                (None, my_name)
+            }
+            TypeSpec::TypeSum(ref sum) => {
+                let mut full_sum = HashSet::new();
+                let mut names = vec![];
+                for sub_type in sum.types() {
+                    let (mut sub_sum, name) = self.import_typespec(syntax, sub_type, None);
+                    let mut sub_sum = sub_sum.unwrap_or_else(
+                        || panic!("While treating {:?}, attempting to create a sum containing {}, which isn't an interface or a sum of interfaces", spec, name)
+                    );
+                    names.push(name);
+                    for item in sub_sum.drain() {
+                        full_sum.insert(item);
+                    }
+                }
+                let my_name =
+                    match public_name {
+                        None => self.builder.node_name(&format!("{}",
+                            names.drain(..).format("Or"))),
+                        Some(ref name) => name.clone()
+                    };
+                let sum : Vec<_> = full_sum.iter()
+                    .map(Type::named)
+                    .collect();
+                let deanonymized = Type::sum(&sum).required();
+                if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
+                    debug!(target: "export_utils", "import_typespec: Defining {name} (name to sum)", name = my_name.to_str());
+                    typedef.with_type(deanonymized.clone());
+                } else {
+                    debug!(target: "export_utils", "import_type: Attempting to redefine typedef {name}", name = my_name.to_str());
+                }
+                (Some(full_sum), my_name)
+            }
         }
-        buffer
+    }
+}
+
+
+
+pub struct TypeName;
+impl TypeName {
+    pub fn type_(type_: &Type) -> String {
+        let spec_name = Self::type_spec(type_.spec());
+        if type_.is_optional() {
+            format!("Optional{}", spec_name)
+        } else {
+            spec_name
+        }
+    }
+
+    pub fn type_spec(spec: &TypeSpec) -> String {
+        match *spec {
+            TypeSpec::Array { ref contents, supports_empty: false } =>
+                format!("NonEmptyListOf{}", Self::type_(contents)),
+            TypeSpec::Array { ref contents, supports_empty: true } =>
+                format!("ListOf{}", Self::type_(contents)),
+            TypeSpec::NamedType(ref name) =>
+                name.to_string().clone(),
+            TypeSpec::Boolean =>
+                "_Bool".to_string(),
+            TypeSpec::Number =>
+                "_Number".to_string(),
+            TypeSpec::String =>
+                "_String".to_string(),
+            TypeSpec::Void =>
+                "_Void".to_string(),
+            TypeSpec::TypeSum(ref sum) => {
+                format!("{}", sum.types()
+                    .iter()
+                    .map(Self::type_spec)
+                    .format("Or"))
+            }
+        }
     }
 }

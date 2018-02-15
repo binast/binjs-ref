@@ -25,7 +25,7 @@ impl<'a, R> ReaderState<'a, R> where R: Read + Seek {
     }
 
     pub fn read_u32(&mut self) -> Result<u32, TokenReaderError> {
-        let mut buf : [u8; 4] = unsafe { std::mem::uninitialized() };
+        let mut buf : [u8; 4] = [0, 0, 0, 0];
         debug_assert!(std::mem::size_of::<u32>() == std::mem::size_of_val(&buf));
         self.reader.read(&mut buf)
             .map_err(TokenReaderError::ReadError)?;
@@ -228,7 +228,7 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek + 'a {
 
     fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
         debug!("TreeTokenReader: bool");
-        let mut buf : [u8; 1] = unsafe { std::mem::uninitialized() };
+        let mut buf : [u8; 1] = [0];
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
             state.reader.read(&mut buf)
@@ -243,7 +243,7 @@ impl<'a, R> TokenReader for TreeTokenReader<'a, R> where R: Read + Seek + 'a {
     fn float(&mut self) -> Result<Option<f64>, Self::Error> {
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
-            let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
+            let mut buf : [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
             state.reader.read(&mut buf)
                 .map_err(TokenReaderError::ReadError)?;
             Ok(bytes::float::float_of_bytes(&buf))
@@ -395,6 +395,12 @@ impl std::ops::Add for Statistics {
         Statistics
     }
 }
+impl std::ops::AddAssign for Statistics {
+    fn add_assign(&mut self, _: Self) {
+        // Nothing to do.
+    }
+}
+
 
 impl TokenWriter for TreeTokenWriter {
     type Tree = Rc<Vec<u8>>;
@@ -546,42 +552,32 @@ impl ExtendFromUTF8 for Vec<u8> {
 
 #[test]
 fn test_simple_io() {
-    use ast::annotation::*;
     use ast::grammar::*;
 
     use std::fs::*;
-
-    use json::object::Object;
 
     use std::io::{ Cursor, Write };
 
     debug!("Setting up syntax");
     let mut builder = SyntaxBuilder::new();
 
+    let null = builder.node_name("Null");
     let kinded = builder.node_name("Pattern");
-    let field_string = Field::new(builder.field_name("id"), Type::string().close());
-    let field_number = Field::new(builder.field_name("value"), Type::number().close());
+    let field_string = Field::new(builder.field_name("id"), Type::string().required());
+    let field_number = Field::new(builder.field_name("value"), Type::number().required());
 
+    builder.add_interface(&null).unwrap();
     builder.add_interface(&kinded).unwrap()
         .with_full_field(field_string.clone())
         .with_full_field(field_number.clone());
 
     struct FakeAnnotator;
-    impl Annotator for FakeAnnotator {
-        fn name(&self) -> String {
-            unimplemented!()
-        }
-        fn process_references(&self, _: &Annotator, _: &mut Context<RefContents>, _: &mut Object) -> Result<(), ASTError> {
-            unimplemented!()
-        }
-        fn process_declarations(&self, _: &Annotator, _: &mut Context<DeclContents>, _: &mut Object) -> Result<(), ASTError> {
-            unimplemented!()
-        }
-    }
+    impl Annotator for FakeAnnotator {}
 
     let syntax = builder.into_syntax(SyntaxOptions {
         root: &kinded,
-        annotator: Box::new(FakeAnnotator)
+        null: &null,
+        annotator: Box::new(RefCell::new(FakeAnnotator))
     });
 
     debug!("Testing string I/O");
@@ -683,9 +679,9 @@ fn test_simple_io() {
         // Order of fields is not deterministic
         if fields[0].name().to_string() == &"id".to_string() {
             assert_eq!(fields[0].name().to_string(), &"id".to_string());
-            assert_eq!(*fields[0].type_(), Type::string().close());
+            assert_eq!(*fields[0].type_(), Type::string().required());
             assert_eq!(fields[1].name().to_string(), &"value".to_string());
-            assert_eq!(*fields[1].type_(), Type::number().close());
+            assert_eq!(*fields[1].type_(), Type::number().required());
             let simple_string = reader.string()
                 .expect("Reading trivial tagged tuple[0]")
                 .expect("Reading a non-null string");
@@ -696,9 +692,9 @@ fn test_simple_io() {
             assert_eq!(simple_float, 3.1415);
         } else {
             assert_eq!(fields[1].name().to_string(), &"id".to_string());
-            assert_eq!(*fields[1].type_(), Type::string().close());
+            assert_eq!(*fields[1].type_(), Type::string().required());
             assert_eq!(fields[0].name().to_string(), &"value".to_string());
-            assert_eq!(*fields[0].type_(), Type::number().close());
+            assert_eq!(*fields[0].type_(), Type::number().required());
             let simple_float = reader.float()
                 .expect("Reading trivial tagged tuple[1]")
                 .expect("Reading a non-null float");

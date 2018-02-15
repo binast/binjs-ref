@@ -1,6 +1,5 @@
 use ast::grammar::{ self, SyntaxBuilder, TypeSum };
 
-use json::JsonValue as JSON;
 use webidl::ast::*;
 
 pub struct Importer {
@@ -40,7 +39,7 @@ impl Importer {
         let type_ = self.convert_type(&*typedef.type_);
         let mut node = self.builder.add_typedef(&name)
             .expect("Name already present");
-        assert!(type_.defaults_to.is_none());
+        assert!(!type_.is_optional());
         node.with_spec(type_.spec);
     }
     fn import_interface(&mut self, interface: &Interface) {
@@ -100,9 +99,9 @@ impl Importer {
             }
         };
         if t.nullable {
-            spec.defaults_to(JSON::Null) // FIXME: Not a very good default.
+            spec.optional()
         } else {
-            spec.close()
+            spec.required()
         }
     }
 }

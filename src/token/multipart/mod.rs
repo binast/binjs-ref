@@ -148,14 +148,11 @@ pub use self::write::{ TreeTokenWriter, Statistics, WriteOptions };
 #[test]
 fn test_multipart_io() {
     println!("Multipart (de)tokenizer test starting");
-    use ast::annotation::*;
     use ast::grammar::*;
     use token::io::*;
 
+    use std::cell::RefCell;
     use std::fs::*;
-
-    use json::object::Object;
-
     use std::io::{ Cursor, Write };
 
     // All combinations of options for compression.
@@ -180,29 +177,22 @@ fn test_multipart_io() {
     debug!("Setting up syntax");
     let mut builder = SyntaxBuilder::new();
     let kinded = builder.node_name("Pattern");
-    let field_string = Field::new(builder.field_name("id"), Type::string().close());
-    let field_number = Field::new(builder.field_name("value"), Type::number().close());
+    let null = builder.node_name("Null");
+    let field_string = Field::new(builder.field_name("id"), Type::string().required());
+    let field_number = Field::new(builder.field_name("value"), Type::number().required());
 
+    builder.add_interface(&null).unwrap();
     builder.add_interface(&kinded).unwrap()
         .with_full_field(field_string.clone())
         .with_full_field(field_number.clone());
 
     struct FakeAnnotator;
-    impl Annotator for FakeAnnotator {
-        fn name(&self) -> String {
-            unimplemented!()
-        }
-        fn process_references(&self, _: &Annotator, _: &mut Context<RefContents>, _: &mut Object) -> Result<(), ASTError> {
-            unimplemented!()
-        }
-        fn process_declarations(&self, _: &Annotator, _: &mut Context<DeclContents>, _: &mut Object) -> Result<(), ASTError> {
-            unimplemented!()
-        }
-    }
+    impl Annotator for FakeAnnotator {}
 
     let syntax = builder.into_syntax(SyntaxOptions {
         root: &kinded,
-        annotator: Box::new(FakeAnnotator)
+        null: &null,
+        annotator: Box::new(RefCell::new(FakeAnnotator))
     });
 
     for options in all_options {
@@ -327,9 +317,9 @@ fn test_multipart_io() {
             // Order of fields is not deterministic
             if fields[0].name().to_string() == &"id".to_string() {
                 assert_eq!(fields[0].name().to_string(), &"id".to_string());
-                assert_eq!(*fields[0].type_(), Type::string().close());
+                assert_eq!(*fields[0].type_(), Type::string().required());
                 assert_eq!(fields[1].name().to_string(), &"value".to_string());
-                assert_eq!(*fields[1].type_(), Type::number().close());
+                assert_eq!(*fields[1].type_(), Type::number().required());
                 let simple_string = reader.string()
                     .expect("Reading trivial tagged tuple[0]")
                     .expect("Reading a non-null string");
@@ -340,9 +330,9 @@ fn test_multipart_io() {
                 assert_eq!(simple_float, 3.1415);
             } else {
                 assert_eq!(fields[1].name().to_string(), &"id".to_string());
-                assert_eq!(*fields[1].type_(), Type::string().close());
+                assert_eq!(*fields[1].type_(), Type::string().required());
                 assert_eq!(fields[0].name().to_string(), &"value".to_string());
-                assert_eq!(*fields[0].type_(), Type::number().close());
+                assert_eq!(*fields[0].type_(), Type::number().required());
                 let simple_float = reader.float()
                     .expect("Reading trivial tagged tuple[1]")
                     .expect("Reading a non-null float");

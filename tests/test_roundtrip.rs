@@ -1,8 +1,10 @@
 //! Encode a BinJS, then decode it, ensure that we obtain the same AST.
 
 extern crate binjs;
-extern crate glob;
 extern crate env_logger;
+extern crate glob;
+#[macro_use]
+extern crate log;
 
 use binjs::bytes::compress::*;
 use binjs::source::*;
@@ -51,7 +53,7 @@ fn test_roundtrip() {
         println!("Parsing {:?}.", entry);
         let mut ast    = parser.parse_file(entry.clone())
             .expect("Could not parse source");
-
+        debug!(target: "test_roundtrip", "Source: {}", ast.pretty(2));
         println!("Annotating {:?}.", entry);
         grammar.annotate(&mut ast)
             .expect("Could not infer annotations");

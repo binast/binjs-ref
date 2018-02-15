@@ -1,0 +1,3 @@
+if (self.CavalryLogger) { CavalryLogger.start_js(["Hjkmf"]); }
+
+__d('ChatMontageSheet.react',['MontageThreadViewContainer.react','React'],(function a(b,c,d,e,f,g){'use strict';var h,i;h=babelHelpers.inherits(j,c('React').Component);i=h&&h.prototype;j.prototype.render=function(){return (c('React').createElement(c('MontageThreadViewContainer.react'),{onResize:this.props.onResize,threadID:this.props.threadID}));};function j(){h.apply(this,arguments);}f.exports=j;}),null);
