@@ -211,6 +211,15 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
             let mut param_names = self.param_names_stack.pop().unwrap();
             let captured_names = self.pop_captured_names(&[&param_names]);
 
+            // In the case of `function foo(j) {var j;}`, the `var j` is not the true declaration.
+            // Remove it from parameters.
+            for name in &param_names {
+                self.var_names_stack.last_mut()
+                    .unwrap()
+                    .remove(name);
+            }
+
+
             let has_direct_eval = self.pop_direct_eval();
             if param_names.len() > 0 || has_direct_eval /* implied || captured_names.len() > 0 */ {
                 let mut param_names : Vec<_> = param_names.drain().collect();
@@ -248,9 +257,18 @@ fn setup_es6(syntax: &mut SyntaxBuilder) -> Box<RefCell<Annotator>> {
         
 
         fn exit_binding_identifier(&mut self, path: &ASTPath, node: &mut BindingIdentifier) -> Result<(), ()> {
-            if let Some(&ASTPathItem { interface: ASTNode::FunctionDeclaration, field: ASTField::Name}) = path.get(0) {
-                // The name of a FunctionDeclaration is quite special and is handled in `exit_function_declaration`.
-                return Ok(())
+            match path.get(0) {
+                Some(&ASTPathItem { interface: ASTNode::FunctionDeclaration, field: ASTField::Name})
+                | Some(&ASTPathItem { interface: ASTNode::FunctionExpression, field: ASTField::Name})
+                | Some(&ASTPathItem { interface: ASTNode::Method, field: ASTField::Name})
+                | Some(&ASTPathItem { interface: ASTNode::Getter, field: ASTField::Name})
+                | Some(&ASTPathItem { interface: ASTNode::Setter, field: ASTField::Name})
+                => {
+                    // Function names are special.
+                    // They are handled in the respective `exit_*` methods.
+                    return Ok(())
+                }
+                _ => {}
             }
             debug!(target: "annotating", "exit_binding identifier – marking {name} at {path:?}",
                 name = node.name,
