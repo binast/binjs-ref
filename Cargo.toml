@@ -7,6 +7,11 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 default = []
 
 [dependencies]
+binjs_generic = { path = "crates/binjs_generic", version = "*" }
+binjs_es6 = { path = "crates/binjs_es6", version = "*" }
+binjs_io = { path = "crates/binjs_io", version = "*" }
+binjs_meta = { path = "crates/binjs_meta", version = "*" }
+binjs_shared = { path = "crates/binjs_shared", version = "*" }
 assert_matches = "*"
 brotli = "1.*"
 env_logger = "^0.5"
@@ -19,11 +24,9 @@ lzw = "*"
 rand = "*"
 topological-sort = "*"
 vec_map = "*"
-webidl = "*"
 
 [dev-dependencies]
 clap = "*"
 env_logger = "*"
 glob = "*"
 test-logger = "*"
-yaml-rust = "^0.4"

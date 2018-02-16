@@ -3,8 +3,10 @@ extern crate binjs;
 #[macro_use]
 extern crate test_logger;
 
+use binjs::generic::io::encode::*;
+use binjs::generic::syntax::*;
+use binjs::meta::spec::*;
 use binjs::source::*;
-use binjs::token::encode::*;
 
 use std::io::*;
 
@@ -12,7 +14,12 @@ test!(test_simple_tokenization, {
     println!("Preparing test.");
 
     let parser = Shift::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::ES6);
+    let mut spec_builder = SpecBuilder::new();
+    let library = binjs::generic::es6::Library::new(&mut spec_builder);
+    let spec = spec_builder.into_spec(SpecOptions {
+        null: &library.null,
+        root: &library.program,
+    });
 
     for source in [
         "function foo() {}",
@@ -33,12 +40,11 @@ test!(test_simple_tokenization, {
             .expect("Could not parse source");
 
         println!("Annotating");
-        grammar.annotate(&mut ast)
-            .expect("Could not annotate AST");
+        library.annotate(&mut ast);
 
         println!("Encoding sample {}", ast.pretty(2));
-        let writer  = binjs::token::simple::TreeTokenWriter::new();
-        let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+        let writer  = binjs::io::simple::TreeTokenWriter::new();
+        let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
 
         encoder.encode(&ast)
             .expect("Could not encode AST");
@@ -46,19 +52,18 @@ test!(test_simple_tokenization, {
             .expect("Could not finalize encoding");
 
         println!("Decoding sample");
-        let reader = binjs::token::simple::TreeTokenReader::new(Cursor::new(data),
-            &grammar);
-        let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+        let reader = binjs::io::simple::TreeTokenReader::new(Cursor::new(data));
+        let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
 
         let decoded = decoder.decode()
             .expect("Could not decode AST");
 
-        let pretty = parser.to_source(&grammar, &decoded)
+        let pretty = parser.to_source(&spec, &decoded)
             .expect("Could not pretty-print");
 
         println!("Decoded: {}", pretty);
 
-        let equal = grammar.compare(&ast, &decoded)
+        let equal = Comparator::compare(&spec, &ast, &decoded)
             .expect("Could not compare ASTs");
         assert!(equal)
     }

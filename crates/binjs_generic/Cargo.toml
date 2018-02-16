@@ -1,0 +1,16 @@
+[package]
+name = "binjs_generic"
+version = "0.1.0"
+authors = ["David Teller <D.O.Teller@gmail.com>"]
+
+[dependencies]
+binjs_es6 = { path = "../binjs_es6", version = "*" }
+binjs_io = { path = "../binjs_io", version = "*" }
+binjs_meta = { path = "../binjs_meta", version = "*" }
+binjs_shared = { path = "../binjs_shared", version = "*" }
+json = "^0.11"
+log = "*"
+rand = "^0.4"
+
+[dev-dependencies]
+clap = "^2.30"

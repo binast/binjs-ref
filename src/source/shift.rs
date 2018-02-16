@@ -9,7 +9,10 @@ use std::io::{ Write };
 use std::path::*;
 use std::process::*;
 
-use ast::grammar::{ ASTError, Interface, MutASTVisitor, MutASTWalker, NodeName, Syntax, WalkPath };
+use binjs_meta::spec::{ Interface, NodeName, Spec };
+use binjs_generic::syntax::{ASTError, MutASTVisitor, MutASTWalker, WalkPath };
+use binjs_meta::spec::ToStr;
+
 use source::parser::SourceParser;
 
 #[derive(Debug)]
@@ -96,7 +99,7 @@ impl Shift {
             .map_err(Error::JsonError)
     }
 
-    pub fn to_source(&self, syntax: &Syntax, ast: &JSON) -> Result<String, Error> {
+    pub fn to_source(&self, syntax: &Spec, ast: &JSON) -> Result<String, Error> {
         let mut ast = ast.clone();
 
         debug!(target: "Shift", "Preparing source\n{:#}", ast);
@@ -425,10 +428,8 @@ fn test_shift_basic() {
     use env_logger;
     env_logger::init();
 
-    use util::strip;
-
     let shift = Shift::new();
-    let mut parsed = shift.parse_str("function foo() {}")
+    let parsed = shift.parse_str("function foo() {}")
         .expect("Error in parse_str");
     let expected = object!{
         "type" => "Script",
@@ -458,7 +459,6 @@ fn test_shift_basic() {
     };
 
 
-    strip(&mut parsed);
     println!("Comparing\n{}\n{}",
         parsed.pretty(2),
         expected.pretty(2)

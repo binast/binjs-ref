@@ -1,10 +1,16 @@
 //! Decode a BinJS to a text source.
 
 extern crate binjs;
+extern crate binjs_es6;
+extern crate binjs_io;
+extern crate binjs_generic;
+extern crate binjs_meta;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::source::*;
+
+use binjs::source::Shift;
+use binjs_meta::spec::{ SpecBuilder, SpecOptions };
 
 use std::fs::*;
 use std::io::*;
@@ -24,10 +30,10 @@ fn main() {
             Arg::with_name("OUTPUT")
                 .required(true)
                 .help("Output file to use. Will be overwritten."),
-            Arg::with_name("print-json")
-                .long("print-json")
+            Arg::with_name("dump")
+                .long("dump")
                 .takes_value(false)
-                .help("If specified, print JSON version of the AST.")
+                .help("If specified, dump a JSON version of the AST.")
         ])
     .get_matches();
 
@@ -38,7 +44,12 @@ fn main() {
 
     // Setup.
     let parser = Shift::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
+    let mut spec_builder = SpecBuilder::new();
+    let library = binjs_generic::es6::Library::new(&mut spec_builder);
+    let spec = spec_builder.into_spec(SpecOptions {
+        null: &library.null,
+        root: &library.program,
+    });
 
     println!("Reading.");
     let file = File::open(source_path)
@@ -46,8 +57,8 @@ fn main() {
     let stream = BufReader::new(file);
 
     println!("Attempting to decode as multipart.");
-    let tree = if let Ok(reader) = binjs::token::multipart::TreeTokenReader::new(stream, &grammar) {
-        let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+    let tree = if let Ok(reader) = binjs_io::multipart::TreeTokenReader::new(stream) {
+        let mut decoder = binjs_generic::io::decode::Decoder::new(&spec, reader);
         decoder.decode()
             .expect("Could not decode")
     } else {
@@ -57,8 +68,8 @@ fn main() {
             .expect("Could not open source");
         let stream = BufReader::new(file);
 
-        let reader = binjs::token::simple::TreeTokenReader::new(stream, &grammar);
-        let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+        let reader = binjs_io::simple::TreeTokenReader::new(stream);
+        let mut decoder = binjs_generic::io::decode::Decoder::new(&spec, reader);
         decoder.decode()
             .expect("Could not decode")
     };
@@ -70,7 +81,7 @@ fn main() {
     }
 
     println!("Pretty-printing");
-    let source = parser.to_source(&grammar, &tree)
+    let source = parser.to_source(&spec, &tree)
         .expect("Could not pretty-print");
 
     println!("Writing.");

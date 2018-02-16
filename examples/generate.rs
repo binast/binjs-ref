@@ -4,18 +4,20 @@
 
 
 extern crate binjs;
+
 extern crate clap;
 extern crate env_logger;
 extern crate rand;
 
 const DEFAULT_TREE_SIZE: isize = 5;
 
+
+use binjs::source::Shift;
+use binjs::generic::io::encode::Encode;
+use binjs::generic::pick::{ Pick, Picker };
+
 use clap::*;
 use rand::Rand;
-
-use binjs::ast::library;
-use binjs::source::Shift;
-use binjs::token::encode::Encode;
 
 use std::io::Write;
 
@@ -42,11 +44,6 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .takes_value(true)
                 .required(true)
                 .help("Number of files to generate."),
-            Arg::with_name("level")
-                .long("level")
-                .takes_value(true)
-                .possible_values(&["es6"])
-                .help("JavaScript level to use."),
             Arg::with_name("size")
                 .long("size")
                 .takes_value(true)
@@ -77,10 +74,12 @@ Note that this tool does not attempt to make sure that the files are entirely co
             .expect("Invalid size")
     };
 
-    let grammar = match matches.value_of("level") {
-        None | Some("es6") => library::syntax(library::Level::ES6),
-        _ => panic!("Invalid level")
-    };
+    let mut builder = binjs::meta::spec::SpecBuilder::new();
+    let library = binjs::generic::es6::Library::new(&mut builder);
+    let spec = builder.into_spec(binjs::meta::spec::SpecOptions {
+        root: &library.program,
+        null: &library.null
+    });
 
     let random_metadata = matches.is_present("random-metadata");
 
@@ -92,15 +91,14 @@ Note that this tool does not attempt to make sure that the files are entirely co
         if i >= number {
             break;
         }
-        let mut ast = grammar.random(&mut rng, size);
+        let mut ast = Picker.random(&spec, &mut rng, size);
 
         if !random_metadata {
-            // Reannotate.
-            grammar.annotate(&mut ast)
-                .expect("Could not infer annotations");
+            // Overwrite random annotations.
+            library.annotate(&mut ast);
         }
 
-        if let Ok(source) = parser.to_source(&grammar, &ast) {
+        if let Ok(source) = parser.to_source(&spec, &ast) {
             i += 1;
 
             println!("Generated sample {}/{}", i, number);
@@ -114,17 +112,17 @@ Note that this tool does not attempt to make sure that the files are entirely co
 
             let encoded =
                 if is_multipart {
-                    let options = binjs::token::multipart::WriteOptions::rand(&mut rng);
-                    let writer = binjs::token::multipart::TreeTokenWriter::new(options, &grammar);
-                    let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+                    let options = binjs::io::multipart::WriteOptions::rand(&mut rng);
+                    let writer = binjs::io::multipart::TreeTokenWriter::new(options);
+                    let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
                     encoder
                         .encode(&ast)
                         .expect("Could not encode AST");
                     encoder.done()
                         .map(|(data, _)| Box::new(data) as Box<AsRef<[u8]>>)
                 } else {
-                    let writer = binjs::token::simple::TreeTokenWriter::new();
-                    let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+                    let writer = binjs::io::simple::TreeTokenWriter::new();
+                    let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
                     encoder
                         .encode(&ast)
                         .expect("Could not encode AST");
