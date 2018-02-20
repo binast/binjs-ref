@@ -1,0 +1,10 @@
+[package]
+name = "binjs_es6"
+version = "0.1.0"
+authors = ["David Teller <D.O.Teller@gmail.com>"]
+
+[dependencies]
+assert_matches = "*"
+binjs_shared = { path = "../binjs_shared/", version = "*" }
+json = "^0.11"
+log = "*"

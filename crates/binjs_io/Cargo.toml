@@ -1,0 +1,16 @@
+[package]
+name = "binjs_io"
+version = "0.1.0"
+authors = ["David Teller <D.O.Teller@gmail.com>"]
+
+[dependencies]
+brotli = "*"
+flate2 = "^1.0"
+lzw = "*"
+log = "*"
+rand = "*"
+vec_map = "*"
+
+[dev-dependencies]
+env_logger = "*"
+assert_matches = "*"

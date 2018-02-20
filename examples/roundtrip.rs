@@ -6,9 +6,10 @@ extern crate env_logger;
 
 use clap::*;
 
-use binjs::bytes::compress::*;
+use binjs::io::bytes::compress::*;
+use binjs::meta::spec::*;
 use binjs::source::*;
-use binjs::token::encode::*;
+use binjs::generic::io::encode::*;
 
 use std::default::Default;
 use std::io::*;
@@ -91,7 +92,7 @@ fn main() {
             let tree = parse_compression(matches.value_of("tree"));
 
             println!("Format: multipart\n\tstrings table: {:?}\n\tgrammar table: {:?}\n\ttree: {:?}", strings, grammar, tree);
-            Some(binjs::token::multipart::WriteOptions {
+            Some(binjs::io::multipart::WriteOptions {
                 strings_table: strings,
                 grammar_table: grammar,
                 tree
@@ -109,12 +110,17 @@ fn main() {
 
     let show_stats = matches.is_present("statistics");
 
-    let mut multipart_stats = binjs::token::multipart::Statistics::default()
+    let mut multipart_stats = binjs::io::multipart::Statistics::default()
         .with_source_bytes(0);
-    let mut simple_stats = binjs::token::simple::Statistics::default();
+    let mut simple_stats = binjs::io::simple::Statistics::default();
 
     let parser = Shift::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
+    let mut spec_builder = SpecBuilder::new();
+    let library = binjs::generic::es6::Library::new(&mut spec_builder);
+    let spec = spec_builder.into_spec(SpecOptions {
+        null: &library.null,
+        root: &library.program,
+    });
 
     for source_path in files {
         println!("Parsing {}.", source_path);
@@ -126,14 +132,13 @@ fn main() {
             .expect("Could not parse source");
 
         println!("Annotating.");
-        grammar.annotate(&mut ast)
-            .expect("Could not infer annotations");
+        library.annotate(&mut ast);
 
         let decoded = match compression {
             None => {
                 println!("Encoding.");
-                let writer  = binjs::token::simple::TreeTokenWriter::new();
-                let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+                let writer  = binjs::io::simple::TreeTokenWriter::new();
+                let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
 
                 encoder.encode(&ast)
                     .expect("Could not encode AST");
@@ -144,16 +149,16 @@ fn main() {
 
                 println!("Decoding.");
                 let source = Cursor::new(data.as_ref().clone());
-                let reader = binjs::token::simple::TreeTokenReader::new(source, &grammar);
-                let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+                let reader = binjs::io::simple::TreeTokenReader::new(source);
+                let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
 
                 decoder.decode()
                     .expect("Could not decode")
             }
             Some(ref options) => {
                 println!("Encoding.");
-                let writer  = binjs::token::multipart::TreeTokenWriter::new(options.clone(), &grammar);
-                let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+                let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());
+                let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
 
                 encoder.encode(&ast)
                     .expect("Could not encode AST");
@@ -164,9 +169,9 @@ fn main() {
 
                 println!("Decoding.");
                 let source = Cursor::new(data.as_ref().clone());
-                let reader = binjs::token::multipart::TreeTokenReader::new(source, &grammar)
+                let reader = binjs::io::multipart::TreeTokenReader::new(source)
                     .expect("Could not decode AST container");
-                let mut decoder = binjs::token::decode::Decoder::new(&grammar, reader);
+                let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
 
                 decoder.decode()
                     .expect("Could not decode")
@@ -174,7 +179,7 @@ fn main() {
         };
 
         println!("Checking.");
-        let equal = grammar.compare(&ast, &decoded)
+        let equal = binjs::generic::syntax::Comparator::compare(&spec, &ast, &decoded)
             .expect("Could not compare ASTs");
         assert!(equal);
 

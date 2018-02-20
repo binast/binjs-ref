@@ -6,8 +6,9 @@ extern crate env_logger;
 extern crate glob;
 extern crate rand;
 
-use binjs::bytes::compress::*;
-use binjs::token::encode::*;
+use binjs::io::bytes::compress::*;
+use binjs::generic::io::encode::*;
+use binjs::meta::spec::*;
 use binjs::source::*;
 
 use clap::*;
@@ -22,7 +23,7 @@ struct FileStats {
     after_binjs: u64,
     after_gzip: u64,
     after_br: u64,
-    binjs_compression: binjs::token::multipart::Statistics,
+    binjs_compression: binjs::io::multipart::Statistics,
 }
 
 impl FileStats {
@@ -77,7 +78,7 @@ fn main() {
     let compression = Compression::parse(Some(compression))
         .expect("Could not parse compression format");
     let binjs_options = {
-        binjs::token::multipart::WriteOptions {
+        binjs::io::multipart::WriteOptions {
             strings_table: compression.clone(),
             grammar_table: compression.clone(),
             tree: compression.clone()
@@ -85,9 +86,14 @@ fn main() {
     };
 
     let parser = Shift::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
+    let mut spec_builder = SpecBuilder::new();
+    let library = binjs::generic::es6::Library::new(&mut spec_builder);
+    let spec = spec_builder.into_spec(SpecOptions {
+        null: &library.null,
+        root: &library.program,
+    });
 
-    let mut multipart_stats = binjs::token::multipart::Statistics::default()
+    let mut multipart_stats = binjs::io::multipart::Statistics::default()
         .with_source_bytes(0);
 
     let mut all_stats = HashMap::new();
@@ -108,11 +114,10 @@ fn main() {
                 eprintln!("Compressing with binjs");
                 let mut ast = parser.parse_file(&source_path)
                     .expect("Could not parse source");
-                grammar.annotate(&mut ast)
-                    .expect("Could not infer annotations");
+                library.annotate(&mut ast);
 
-                let writer = binjs::token::multipart::TreeTokenWriter::new(binjs_options.clone(), &grammar);
-                let encoder = binjs::token::encode::Encoder::new(&grammar, writer);
+                let writer = binjs::io::multipart::TreeTokenWriter::new(binjs_options.clone());
+                let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
                 encoder
                     .encode(&ast)
                     .expect("Could not encode AST");
@@ -217,9 +222,12 @@ fn main() {
 
     eprintln!("*** Done");
     println!("File, Original size, Binjs size, Gzip size, Brotli size, Number of strings, Number of identifiers, Number of grammar entries");
-    let identifier_node = grammar.get_node_name("Identifier").unwrap();
     for (path, stats) in &all_stats {
-        let number_of_identifiers = match stats.binjs_compression.per_kind_name.get(&identifier_node) {
+        let number_of_binding_identifiers = match stats.binjs_compression.per_kind_name.get("BindingIdentifier") {
+            None => 0,
+            Some(identifiers) => identifiers.entries
+        };
+        let number_of_expression_identifiers = match stats.binjs_compression.per_kind_name.get("IdentifierExpression") {
             None => 0,
             Some(identifiers) => identifiers.entries
         };
@@ -230,7 +238,7 @@ fn main() {
             after_gz=stats.after_gzip,
             after_br=stats.after_br,
             strings=stats.binjs_compression.strings_table.entries,
-            identifiers=number_of_identifiers,
+            identifiers=number_of_binding_identifiers + number_of_expression_identifiers,
             grammar_entries=stats.binjs_compression.grammar_table.entries,
             path=path);
     }

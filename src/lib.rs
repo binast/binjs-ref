@@ -31,6 +31,12 @@
 #![feature(conservative_impl_trait, universal_impl_trait)]
 #![feature(iter_rfind)]
 
+extern crate binjs_generic;
+extern crate binjs_es6;
+extern crate binjs_io;
+extern crate binjs_meta;
+extern crate binjs_shared;
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate assert_matches;
@@ -38,27 +44,26 @@ extern crate brotli;
 #[cfg(test)]
 extern crate env_logger;
 extern crate flate2;
-extern crate inflector;
 extern crate itertools;
 #[macro_use]
 extern crate json;
 #[macro_use]
 extern crate log;
-extern crate lzw;
 extern crate rand;
-extern crate topological_sort;
+extern crate lzw;
 extern crate vec_map;
-extern crate webidl;
 
+pub mod generic {
+    pub use binjs_generic::*;
+}
 
-/// Manipulating the AST.
-pub mod ast;
+pub mod io {
+    pub use binjs_io::*;
+}
 
-/// Encoding/decoding an AST to/from a stream of tokens.
-pub mod token;
-
-/// Encoding/decoding a stream of tokens to/from a stream of bytes.
-pub mod bytes;
+pub mod meta {
+    pub use binjs_meta::*;
+}
 
 /// Parsing source JavaScript.
 pub mod source;

@@ -1,13 +1,17 @@
 //! Encode a text source to a BinJS.
 
 extern crate binjs;
+extern crate binjs_generic;
+extern crate binjs_es6;
+extern crate binjs_io;
+extern crate binjs_meta;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::ast::grammar::Syntax;
-use binjs::bytes::compress::*;
-use binjs::token::encode::*;
-use binjs::source::*;
+use binjs::source::{ Shift, SourceParser };
+use binjs_generic::annotate::Annotator;
+use binjs_generic::io::encode::Encode;
+use binjs_meta::spec::{ Spec, SpecBuilder, SpecOptions };
 
 use std::cell::RefCell;
 use std::fs::*;
@@ -18,11 +22,12 @@ use clap::*;
 
 struct Options<'a> {
     parser: &'a Shift,
-    grammar: &'a Syntax,
-    multipart_stats: RefCell<binjs::token::multipart::Statistics>,
-    simple_stats: RefCell<binjs::token::simple::Statistics>,
+    spec: &'a Spec,
+    annotator: &'a Annotator,
+    multipart_stats: RefCell<binjs_io::multipart::Statistics>,
+    simple_stats: RefCell<binjs_io::simple::Statistics>,
     dump_ast: bool,
-    compression: Option<binjs::token::multipart::WriteOptions>,
+    compression: Option<binjs_io::multipart::WriteOptions>,
     dest_dir: Option<PathBuf>
 }
 
@@ -88,8 +93,7 @@ fn handle_path<'a>(options: &Options<'a>,
         .expect("Could not parse source");
 
     println!("Annotating.");
-    options.grammar.annotate(&mut ast)
-        .expect("Could not infer annotations");
+    options.annotator.annotate(&mut ast);
 
     if options.dump_ast {
         println!("Dumping AST.\n{:2}", ast.pretty(2));
@@ -99,8 +103,8 @@ fn handle_path<'a>(options: &Options<'a>,
     let data: Box<AsRef<[u8]>> = {
         match options.compression {
             None => {
-                let writer = binjs::token::simple::TreeTokenWriter::new();
-                let encoder = binjs::token::encode::Encoder::new(options.grammar, writer);
+                let writer = binjs_io::simple::TreeTokenWriter::new();
+                let encoder = binjs_generic::io::encode::Encoder::new(options.spec, writer);
                 encoder
                     .encode(&ast)
                     .expect("Could not encode AST");
@@ -112,8 +116,8 @@ fn handle_path<'a>(options: &Options<'a>,
                 Box::new(data)
             }
             Some(ref compression) => {
-                let writer = binjs::token::multipart::TreeTokenWriter::new(compression.clone(), options.grammar);
-                let encoder = binjs::token::encode::Encoder::new(options.grammar, writer);
+                let writer = binjs_io::multipart::TreeTokenWriter::new(compression.clone());
+                let encoder = binjs_generic::io::encode::Encoder::new(options.spec, writer);
                 encoder
                     .encode(&ast)
                     .expect("Could not encode AST");
@@ -234,21 +238,21 @@ fn main() {
         }
         if is_compressed {
             if let Some(ref compression) = matches.value_of("sections") {
-                let compression = Compression::parse(Some(compression))
+                let compression = binjs_io::bytes::compress::Compression::parse(Some(compression))
                     .expect("Could not parse sections compression format");
-                Some(binjs::token::multipart::WriteOptions {
+                Some(binjs_io::multipart::WriteOptions {
                     strings_table: compression.clone(),
                     grammar_table: compression.clone(),
                     tree: compression,
                 })
             } else {
-                let strings = Compression::parse(matches.value_of("strings"))
+                let strings = binjs_io::bytes::compress::Compression::parse(matches.value_of("strings"))
                     .expect("Could not parse string compression format");
-                let grammar = Compression::parse(matches.value_of("grammar"))
+                let grammar = binjs_io::bytes::compress::Compression::parse(matches.value_of("grammar"))
                     .expect("Could not parse grammar compression format");
-                let tree = Compression::parse(matches.value_of("tree"))
+                let tree = binjs_io::bytes::compress::Compression::parse(matches.value_of("tree"))
                     .expect("Could not parse tree compression format");
-                Some(binjs::token::multipart::WriteOptions {
+                Some(binjs_io::multipart::WriteOptions {
                     strings_table: strings,
                     grammar_table: grammar,
                     tree
@@ -264,17 +268,23 @@ fn main() {
 
     // Setup.
     let parser = Shift::new();
-    let grammar = binjs::ast::library::syntax(binjs::ast::library::Level::Latest);
+    let mut spec_builder = SpecBuilder::new();
+    let library = binjs_generic::es6::Library::new(&mut spec_builder);
+    let spec = spec_builder.into_spec(SpecOptions {
+        null: &library.null,
+        root: &library.program,
+    });
 
-    let multipart_stats = binjs::token::multipart::Statistics::default()
+    let multipart_stats = binjs_io::multipart::Statistics::default()
         .with_source_bytes(0);
-    let simple_stats = binjs::token::simple::Statistics::default();
+    let simple_stats = binjs_io::simple::Statistics::default();
 
     let options = Options {
         parser: &parser,
-        grammar: &grammar,
+        spec: &spec,
         multipart_stats: RefCell::new(multipart_stats),
         simple_stats: RefCell::new(simple_stats),
+        annotator: &library,
         compression,
         dump_ast,
         dest_dir,

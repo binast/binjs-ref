@@ -1,0 +1,15 @@
+[package]
+name = "binjs_meta"
+version = "0.3.0"
+authors = ["David Teller <D.O.Teller@gmail.com>"]
+
+[dependencies]
+Inflector = { git = "https://github.com/Yoric/Inflector" }
+itertools = "^0.6"
+log = "^0.4"
+webidl = "^0.4"
+
+[dev-dependencies]
+clap = "^2"
+env_logger = "^0.5"
+yaml-rust = "^0.4"
