@@ -407,7 +407,7 @@ enum class BinField {
 //
 // To generate this file, you will need to install the external tool:
 // - cargo install binjs_meta
-// - spidermonkey_generator {webidl} {yaml}
+// - binjs_generate_spidermonkey {webidl} {yaml}
 //     --out-class {class}
 //     --out-impl {impl_}
 //     --out-token {token}
