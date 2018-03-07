@@ -1,6 +1,6 @@
 [package]
 name = "binjs_meta"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 description = "Part of binjs-ref. Tools for manipulating grammars. You probably do not want to use this crate directly unless you're writing an encoder, decoder or parser generator for binjs."
 homepage = "https://binast.github.io/ecmascript-binary-ast/"
@@ -19,7 +19,11 @@ itertools = "^0.6"
 log = "^0.4"
 webidl = "^0.4"
 
-[dev-dependencies]
+# Truly, the following dependencies should be dev-dependencies
 clap = "^2"
 env_logger = "^0.5"
 yaml-rust = "^0.4"
+
+[[bin]]
+name = "binjs_generate_spidermonkey"
+path = "examples/generate_spidermonkey.rs"
