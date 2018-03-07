@@ -84,7 +84,6 @@ pub trait ToCases: ToStr {
     fn to_rust_identifier_case(&self) -> String {
         self.to_str().to_rust_identifier_case()
     }
-
 }
 
 impl<T> ToCases for T where T: ToStr {
@@ -175,7 +174,8 @@ pub trait Reindentable {
     /// Remove leading whitespace, replace it with `prefix`.
     ///
     /// If `self` spans more than one line, the leading whitespace
-    /// is computed from the first line and extracted from all lines.
+    /// is computed from the first line and extracted from all lines
+    /// and `prefix` is added to all lines.
     ///
     /// ```
     /// use binjs_meta::util::Reindentable;
@@ -186,6 +186,28 @@ pub trait Reindentable {
     /// assert_eq!(&" jkl\n    mno".reindent("   "), "   jkl\n      mno");
     /// ```
     fn reindent(&self, prefix: &str) -> String;
+
+    /// Remove leading whitespace, replace it with `prefix`,
+    /// ensure that the text fits within `width` columns.
+    ///
+    /// If `self` spans more than one line, the leading whitespace
+    /// is computed from the first line and extracted from all lines.
+    /// and `prefix` is added to all lines.
+    ///
+    /// If the result goes past `width` columns, `self` is split
+    /// into several lines to try and fit within `width` columns.
+    ///
+    /// ```
+    /// use binjs_meta::util::Reindentable;
+    ///
+    /// assert_eq!(&"abc".fit("// ", 30), "// abc");
+    /// assert_eq!(&" def".fit("// ", 30), "// def");
+    /// assert_eq!(&"  ghi".fit("// ", 30), "// ghi");
+    /// assert_eq!(&" jkl\n    mno".fit("// ", 30), "// jkl\n//    mno");
+    /// assert_eq!(&"abc def ghi".fit("// ", 8), "// abc\n// def\n// ghi");
+    /// assert_eq!(&"abc def ghi".fit("// ", 5), "// abc\n// def\n// ghi");
+    /// ```
+    fn fit(&self, prefix: &str, width: usize) -> String;
 }
 
 impl<T> Reindentable for T where T: ToStr {
@@ -209,6 +231,80 @@ impl<T> Reindentable for T where T: ToStr {
             "".to_string()
         }
     }
+
+    fn fit(&self, prefix: &str, columns: usize) -> String {
+        use itertools::Itertools;
+
+        let str = self.to_str();
+        // Determine the number of whitespace chars on the first line.
+        // Trim that many whitespace chars on the following lines.
+        if let Some(first_line) = str.lines().next() {
+            let indent_len = first_line.chars()
+                .take_while(|c| char::is_whitespace(*c))
+                .count();
+            let mut lines = vec![];
+            'per_line: for line in str.lines() {
+                eprintln!("Inspecting line {}", line);
+                let text = &line[indent_len..];
+                let mut gobbled = 0;
+                while text.len() > gobbled {
+                    let mut rest = &text[gobbled..];
+                    eprintln!("Line still contains {} ({})", rest, gobbled);
+                    if rest.len() + prefix.len() > columns {
+                        // Try and find the largest prefix of `text` that fits within `columns`.
+                        let mut iterator = rest.chars()
+                            .enumerate()
+                            .filter(|&(_, c)| char::is_whitespace(c));
+                        let mut last_whitespace_before_break = None;
+                        let mut first_whitespace_after_break = None;
+                        while let Some((found_pos, _)) = iterator.next() {
+                            if found_pos + prefix.len() <= columns {
+                                last_whitespace_before_break = Some(found_pos);
+                            } else {
+                                first_whitespace_after_break = Some(found_pos);
+                                break;
+                            }
+                        }
+
+                        match (last_whitespace_before_break, first_whitespace_after_break) {
+                            (None, None) => {
+                                eprintln!("Ok, string didn't contain any whitespace: '{}'", rest);
+                                // Oh, `rest` does not contain any whitespace. Well, use everything.
+                                lines.push(format!("{prefix}{rest}",
+                                    prefix = prefix,
+                                    rest = rest));
+                                continue 'per_line
+                            }
+                            (Some(pos), _) | (None, Some(pos)) if pos != 0 => {
+                                eprintln!("Best whitespace found at {}", pos);
+                                // Use `rest[0..pos]`, trimmed right.
+                                gobbled += pos + 1;
+                                let line = format!("{prefix}{rest}",
+                                    prefix = prefix,
+                                    rest = rest[0..pos].trim_right());
+                                lines.push(line)
+                            }
+                            _else => {
+                                panic!("{:?}", _else)
+                            }
+                        }
+                    } else {
+                        let line = format!("{prefix}{rest}",
+                            prefix = prefix,
+                            rest = rest);
+                        lines.push(line);
+                        continue 'per_line
+                    }
+                }
+            }
+            format!("{lines}",
+                lines = lines.iter()
+                    .format("\n"))
+        } else {
+            "".to_string()
+        }
+
+    }
 }
 
 impl Reindentable for Option<String> {
@@ -216,6 +312,12 @@ impl Reindentable for Option<String> {
         match *self {
             None => "".to_string(),
             Some(ref string) => string.reindent(prefix)
+        }
+    }
+    fn fit(&self, prefix: &str, columns: usize) -> String {
+        match *self {
+            None => "".to_string(),
+            Some(ref string) => string.fit(prefix, columns)
         }
     }
 }
