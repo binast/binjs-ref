@@ -1,7 +1,6 @@
 //! Miscellaneous utilities.
 
 extern crate inflector;
-use inflector::Inflector;
 
 pub trait ToStr {
     /// Return the value as a `str`.
@@ -90,7 +89,7 @@ pub trait ToCases: ToStr {
 
 impl<T> ToCases for T where T: ToStr {
     fn to_class_cases(&self) -> String {
-        let result = inflector::cases::classcases::to_class_cases(self.to_str());
+        let result = inflector::cases::pascalcase::to_pascal_case(self.to_str());
         assert!(result.to_str().len() != 0, "Could not convert {} to class case", self.to_str() );
         result
     }
