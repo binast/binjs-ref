@@ -138,6 +138,7 @@ impl TypeDeanonymizer {
                 };
             let deanonymized = Type::named(&spec_name).optional();
             if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
+                debug!(target: "export_utils", "import_type introduced {:?}", my_name);
                 typedef.with_type(deanonymized.clone());
             } else {
                 debug!(target: "export_utils", "import_type: Attempting to redefine typedef {name}", name = my_name.to_str());
