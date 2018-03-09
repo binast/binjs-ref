@@ -19,11 +19,7 @@ itertools = "^0.6"
 log = "^0.4"
 webidl = "^0.4"
 
-# Truly, the following dependencies should be dev-dependencies
+[dev-dependencies]
 clap = "^2"
 env_logger = "^0.5"
 yaml-rust = "^0.4"
-
-[[bin]]
-name = "binjs_generate_spidermonkey"
-path = "examples/generate_spidermonkey.rs"
