@@ -223,9 +223,14 @@ impl<T> Reindentable for T where T: ToStr {
                 .take_while(|c| char::is_whitespace(*c))
                 .count();
             format!("{}", str.lines()
-                .map(|line| format!("{prefix}{text}",
-                    prefix = prefix,
-                    text = line[indent_len..].to_string()))
+                .map(|line|
+                    if line.len() > indent_len {
+                        format!("{prefix}{text}",
+                            prefix = prefix,
+                            text = line[indent_len..].to_string())
+                    } else {
+                        "".to_string()
+                    })
                 .format("\n"))
         } else {
             "".to_string()
