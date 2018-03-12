@@ -1,0 +1,27 @@
+{
+  "name": "binjs-ref",
+  "version": "1.0.0",
+  "description": "Binary AST JS",
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "test": "tests"
+  },
+  "dependencies": {
+    "babel-core": "^6.26.0",
+    "babylon": "^6.18.0",
+    "mktemp": "^0.4.0"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/binast/binjs-ref.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/binast/binjs-ref/issues"
+  },
+  "homepage": "https://github.com/binast/binjs-ref#readme"
+}
