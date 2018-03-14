@@ -17,15 +17,6 @@
 //! This crate offers a (WIP) reference implementation for BinJS, a vendor-neutral
 //! JavaScript format designed to optimize parsing speed and, when possible,
 //! loading speed.
-//!
-//!
-//! # The format
-//!
-//! To simplify reading, specifications of the format are cut in three layers:
-//!
-//! - the AST (see module `ast`);
-//! - the Token Streams (see module `token`);
-//! - the Byte Streams (see module `bytes`).
 
 #![feature(box_patterns)]
 #![feature(conservative_impl_trait, universal_impl_trait)]
@@ -53,14 +44,32 @@ extern crate rand;
 extern crate lzw;
 extern crate vec_map;
 
+/// Working with a generic (i.e. JSON-based) representation
+/// of the JavaScript AST.
 pub mod generic {
     pub use binjs_generic::*;
 }
 
+/// Working with a specialized (i.e. strongly-typed)
+/// representation of the JavaScript AST.
+pub mod specialized {
+    pub mod es6 {
+        pub use binjs_es6::*;
+    }
+}
+
+/// Language-agnostic and representation-agnostic primitives for
+/// tokenization and detokenization of ASTs, including (de)compression.
+///
+/// Weakly-typed constructs (using a dynamic language specification and
+/// a JSON AST) based on these primitives are in module `generic::io`.
+/// Strongly-typed constructs (using a strongly-typed AST) based on
+/// these primitives will appear in modules `specialized::*::io`.
 pub mod io {
     pub use binjs_io::*;
 }
 
+/// Dynamic manipulation of the specifications.
 pub mod meta {
     pub use binjs_meta::*;
 }

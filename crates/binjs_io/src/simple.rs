@@ -534,7 +534,7 @@ fn test_simple_io() {
 
     use std::io::{ Cursor, Write };
 
-    debug!("Testing string I/O");
+    eprintln!("Testing string I/O");
 
     {
         let mut writer = TreeTokenWriter::new();
@@ -568,7 +568,7 @@ fn test_simple_io() {
         assert_eq!(&escapes_string, data);
     }
 
-    debug!("Testing untagged tuple I/O");
+    eprintln!("Testing untagged tuple I/O");
 
     {
         let mut writer = TreeTokenWriter::new();
@@ -613,13 +613,13 @@ fn test_simple_io() {
             .expect("Untagged tuple read properly");
     }
 
-    debug!("Testing tagged tuple I/O");
+    eprintln!("Testing tagged tuple I/O");
 
     {
         let mut writer = TreeTokenWriter::new();
         let item_0 = writer.string(Some("foo")).unwrap();
         let item_1 = writer.float(Some(3.1415)).unwrap();
-        writer.tagged_tuple("some tuple", &[("id", item_0), ("value", item_1)])
+        writer.tagged_tuple("BindingIdentifier", &[("label", item_0), ("value", item_1)])
             .expect("Writing trivial tagged tuple");
 
         File::create("/tmp/test-simple-tagged-tuple.binjs").unwrap()
@@ -628,10 +628,10 @@ fn test_simple_io() {
         let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
         let (name, fields, guard) = reader.tagged_tuple()
             .expect("Reading trivial tagged tuple");
-        assert_eq!(&name, "some tuple");
+        assert_eq!(&name, "BindingIdentifier");
 
         // Order of fields is deterministic
-        assert!(&fields[0] == "id");
+        assert!(&fields[0] == "label");
         assert!(&fields[1] == "value");
         let simple_string = reader.string()
             .expect("Reading trivial tagged tuple[0]")
@@ -646,7 +646,7 @@ fn test_simple_io() {
             .expect("Trivial tagged tuple read properly");
     }
 
-    debug!("Testing list I/O");
+    eprintln!("Testing list I/O");
 
     {
         let mut writer = TreeTokenWriter::new();

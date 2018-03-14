@@ -16,7 +16,7 @@ assert_matches = "*"
 brotli = "1.*"
 env_logger = "^0.5"
 flate2 = "0.2"
-Inflector = { git = "https://github.com/Yoric/Inflector" }
+Inflector = "^0.11.2"
 itertools = "*"
 json = "*"
 log = "*"
