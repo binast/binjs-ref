@@ -131,7 +131,7 @@ impl TypeDeanonymizer {
         debug!(target: "export_utils", "import_type {:?} => {:?}", public_name, type_);
         if type_.is_optional() {
             let (_, spec_name) = self.import_typespec(spec, &type_.spec, None);
-            let my_name = 
+            let my_name =
                 match public_name {
                     None => self.builder.node_name(&format!("Optional{}", spec_name)),
                     Some(ref name) => name.clone()
