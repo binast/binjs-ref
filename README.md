@@ -97,4 +97,4 @@ Total parsing time:  -72% without skipping, -94% skipping all functions
 # Specifications
 
 All (WIP) specifications may be found in the modules that implement them.
-See [the documentation](https://yoric.github.io/binjs-ref/binjs/index.html).
+See [the documentation](https://binast.github.io/binjs-ref/binjs/index.html).
