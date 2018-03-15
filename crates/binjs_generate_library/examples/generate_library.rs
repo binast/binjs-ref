@@ -2,7 +2,6 @@ extern crate binjs_generate_library;
 extern crate binjs_meta;
 extern crate clap;
 extern crate env_logger;
-extern crate yaml_rust;
 extern crate webidl;
 
 use binjs_generate_library::*;
