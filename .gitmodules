@@ -1,3 +1,0 @@
-[submodule "tests/data/esprima"]
-	path = tests/data/esprima
-	url = https://github.com/jquery/esprima

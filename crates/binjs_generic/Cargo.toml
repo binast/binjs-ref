@@ -1,7 +1,8 @@
 [package]
 name = "binjs_generic"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
+build = "build.rs"
 
 [dependencies]
 binjs_es6 = { path = "../binjs_es6", version = "*" }
@@ -14,3 +15,8 @@ rand = "^0.4"
 
 [dev-dependencies]
 clap = "^2.30"
+
+[build-dependencies]
+binjs_generate_library = { path = "../binjs_generate_library", version = "*" }
+binjs_meta = { path = "../binjs_meta", version = "*" }
+webidl = "^0.5"
