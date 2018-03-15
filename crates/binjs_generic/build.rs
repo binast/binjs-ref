@@ -45,14 +45,14 @@ fn main() {
     let exporter = RustExporter::new(spec);
     let code = exporter.to_rust_source();
 
-    // Export strongly-typed source.
+    // Export generic source.
     let dest_dir = env::var("OUT_DIR")
         .expect("OUT_DIR is not set");
-    let dest_name = format!("{}/ast.rs", dest_dir);
+    let dest_name = format!("{}/es6.rs", dest_dir);
     let mut dest = File::create(dest_name)
-        .expect("Could not create rust strongly-typed source output");
-    dest.write_all(code.typed.as_bytes())
-        .expect("Could not write rust strongly-typed source output");
+        .expect("Could not create rust generic source output");
+    dest.write_all(code.generic.as_bytes())
+        .expect("Could not write rust generic source output");
 
     println!("...done");
 }
