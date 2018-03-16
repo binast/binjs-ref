@@ -296,6 +296,20 @@ impl FromShift {
                 // - `remove` is the `VariableDeclarationStatement`
                 // - `object` is the `VariableDeclaration`
             }
+            Some("LiteralNumericExpression") => {
+                let remove = match object.remove("value") {
+                    Some(JSON::Number(remove)) => remove,
+                    _ => panic!("No field `declaration` in a `VariableDeclarationStatement`")
+                };
+                
+                if remove == 0 {
+                    object["type"] = json::from("LiteralZeroExpression");
+                } else if remove == 1 {
+                    object["type"] = json::from("LiteralOneExpression");
+                } else {
+                    object["value"] = json::JsonValue::Number(remove);
+                }
+            }
             _ => { /* No change */ }
         }
     }
@@ -414,6 +428,14 @@ impl MutASTVisitor for ToShift {
                         "binding" => binding
                     }
                 ];
+            },
+            (_, "LiteralZeroExpression", &mut JSON::Object(ref mut object)) => {
+                object["type"] = json::from("LiteralNumericExpression");
+                object["value"] =  json::from(0);
+            }
+            (_, "LiteralOneExpression", &mut JSON::Object(ref mut object)) => {
+                object["type"] = json::from("LiteralNumericExpression");
+                object["value"] =  json::from(1);
             }
             _ => {
                 // Nothing to do.

@@ -140,6 +140,8 @@ typedef (Block or
 typedef (LiteralBooleanExpression or
          LiteralInfinityExpression or
          LiteralNullExpression or
+         LiteralZeroExpression or
+         LiteralOneExpression or
          LiteralNumericExpression or
          LiteralStringExpression)
         Literal;
@@ -474,6 +476,12 @@ interface LiteralBooleanExpression : Node {
 
 // A `NumericLiteral` for which the Number value of its MV is positive infinity.
 interface LiteralInfinityExpression : Node { };
+
+// A `NumericLiteral` for which the Number value of its MV is 0.
+interface LiteralZeroExpression : Node { };
+
+// A `NumericLiteral` for which the Number value of its MV is 1.
+interface LiteralOneExpression : Node { };
 
 // `NullLiteral`
 interface LiteralNullExpression : Node { };
