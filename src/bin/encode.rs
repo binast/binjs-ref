@@ -163,12 +163,14 @@ fn main() {
                 .short("i")
                 .multiple(true)
                 .takes_value(true)
-                .help("Input files to use. Must be JS source file."),
+                .required(true)
+                .help("Input files to use. Must be JS source file. May be specified multiple times"),
             Arg::with_name("out")
                 .long("out")
                 .short("o")
                 .takes_value(true)
-                .help("Output directory to use. Files in this directory may be overwritten. Required if `in` is specified more than once."),
+                .required(true)
+                .help("Output directory to use. Files in this directory may be overwritten."),
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)

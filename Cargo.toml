@@ -14,21 +14,26 @@ binjs_meta = { path = "crates/binjs_meta", version = "*" }
 binjs_shared = { path = "crates/binjs_shared", version = "*" }
 assert_matches = "*"
 brotli = "1.*"
+clap = "*"
 env_logger = "^0.5"
 flate2 = "0.2"
+glob = "*"
 Inflector = "^0.11.2"
 itertools = "*"
 json = "*"
 log = "*"
 lzw = "*"
 rand = "*"
+test-logger = "*"
 topological-sort = "*"
 vec_map = "*"
-
-[dev-dependencies]
-clap = "*"
-env_logger = "*"
-glob = "*"
-test-logger = "*"
 webidl = "*"
 yaml-rust = "*"
+
+[[bin]]
+name = "binjs_encode"
+path = "src/bin/encode.rs"
+
+[[bin]]
+name = "binjs_decode"
+path = "src/bin/decode.rs"
