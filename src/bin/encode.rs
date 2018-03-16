@@ -163,17 +163,19 @@ fn main() {
                 .short("i")
                 .multiple(true)
                 .takes_value(true)
-                .help("Input files to use. Must be JS source file."),
+                .required(true)
+                .help("Input files to use. Must be JS source file. May be specified multiple times"),
             Arg::with_name("out")
                 .long("out")
                 .short("o")
                 .takes_value(true)
-                .help("Output directory to use. Files in this directory may be overwritten. Required if `in` is specified more than once."),
+                .required(true)
+                .help("Output directory to use. Files in this directory may be overwritten."),
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
                 .possible_values(&["simple", "multipart"])
-                .help("Format to use for writing to OUTPUT. Defaults to simple unless --strings, --grammar or --tree is specified."),
+                .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
             Arg::with_name("strings")
                 .long("strings")
                 .takes_value(true)
@@ -218,24 +220,19 @@ fn main() {
     };
 
     let compression = {
-        let mut is_compressed = false;
-        if matches.values_of("sections").is_some()
-        || matches.value_of("strings").is_some()
-        || matches.value_of("grammar").is_some()
-        || matches.value_of("tree").is_some() {
+        let is_compressed =
             match matches.value_of("format") {
-                None | Some("multipart") => {
-                    is_compressed = true;
-                }
-                _ => {
+                None | Some("multipart") => true,
+                _ if matches.values_of("sections").is_some()
+                   || matches.value_of("strings").is_some()
+                   || matches.value_of("grammar").is_some()
+                   || matches.value_of("tree").is_some()
+                 => {
                     println!("Error: Cannot specify `strings`, `grammar` or `tree` with this format.\n{}", matches.usage());
                     std::process::exit(-1);
-                }
-            }
-        }
-        if let Some("multipart") = matches.value_of("format") {
-            is_compressed = true;
-        }
+                 }
+                _ => false
+            };
         if is_compressed {
             if let Some(ref compression) = matches.value_of("sections") {
                 let compression = binjs_io::bytes::compress::Compression::parse(Some(compression))
