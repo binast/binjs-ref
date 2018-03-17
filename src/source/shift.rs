@@ -65,7 +65,6 @@ impl Shift {
 
         debug!(target: "Shift", "Launching script {}", script);
         let mut child = Command::new(&*self.bin_path)
-            .arg("--max_old_space_size=4096") // by default node limits itself to 1.76GB mem.This bumps up the memory to 4GB
             .env("NODE_PATH", "node_modules")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -403,7 +402,7 @@ impl MutASTVisitor for ToShift {
                 //      VariableDeclarator {
                 //        init: null,
                 //        binding
-                //      }
+                //      } 
                 //    }]
                 // }
                 object["type"] = json::from("VariableDeclaration");
