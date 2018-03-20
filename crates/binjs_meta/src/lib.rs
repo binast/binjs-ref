@@ -1,6 +1,8 @@
 //! This crate offers tools designed to aid with the implementation
 //! of the JavaScript syntax and BinAST encoders/decoders/manipulators.
 
+#![feature(conservative_impl_trait)]
+
 extern crate inflector;
 extern crate itertools;
 

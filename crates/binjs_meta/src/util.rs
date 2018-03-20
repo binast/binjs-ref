@@ -326,3 +326,166 @@ impl Reindentable for Option<String> {
         }
     }
 }
+
+pub mod name_sorter {
+    use std;
+    use std::collections::HashMap;
+
+    /// A type used to sort names by length, then prefixes, to speed
+    /// up lookups.
+    pub struct NameSorter<T> {
+        per_length: HashMap<usize, Node<T>>,
+        len: usize,
+    }
+    impl<T> NameSorter<T> {
+        pub fn new() -> Self {
+            NameSorter {
+                per_length: HashMap::new(),
+                len: 0,
+            }
+        }
+
+        /// Return the number of items in the sorter.
+        pub fn len(&self) -> usize {
+            debug_assert!( {
+                // Let's check that the length is always the sum of sublengths.
+                let len = self.per_length.values()
+                    .map(|v| {
+                        match v {
+                            &Node::Leaf(Some(_)) => 1,
+                            &Node::Leaf(_) => panic!("Invariant error: empty leaf!"),
+                            &Node::Internal { ref len, .. } => *len
+                        }
+                    })
+                    .fold(0, |x, y| (x + y));
+                len == self.len
+            });
+            self.len
+        }
+
+        /// Insert a value in a sorter.
+        ///
+        /// ```
+        /// let mut sorter = binjs_meta::util::name_sorter::NameSorter::new();
+        /// assert_eq!(sorter.len(), 0);
+        ///
+        /// assert!(sorter.insert("abcd", 0).is_none());
+        /// assert_eq!(sorter.len(), 1);
+        /// assert_eq!(*sorter.get("abcd").unwrap(), 0);
+        /// assert!(sorter.get("dbca").is_none());
+        /// assert!(sorter.get("").is_none());
+        ///
+        /// assert!(sorter.insert("dcba", 1).is_none());
+        /// assert_eq!(sorter.len(), 2);
+        /// assert_eq!(*sorter.get("abcd").unwrap(), 0);
+        /// assert_eq!(*sorter.get("dcba").unwrap(), 1);
+        /// assert!(sorter.get("").is_none());
+        ///
+        /// assert_eq!(sorter.insert("abcd", 3).unwrap(), 0);
+        /// assert_eq!(sorter.len(), 2);
+        /// assert_eq!(*sorter.get("abcd").unwrap(), 3);
+        /// assert_eq!(*sorter.get("dcba").unwrap(), 1);
+        /// assert!(sorter.get("").is_none());
+        ///
+        /// assert!(sorter.insert("", 4).is_none());
+        /// assert_eq!(sorter.len(), 3);
+        /// assert_eq!(*sorter.get("abcd").unwrap(), 3);
+        /// assert_eq!(*sorter.get("dcba").unwrap(), 1);
+        /// assert_eq!(*sorter.get("").unwrap(), 4);
+        ///
+        /// assert_eq!(sorter.insert("", 5).unwrap(), 4);
+        /// assert_eq!(sorter.len(), 3);
+        /// assert_eq!(*sorter.get("abcd").unwrap(), 3);
+        /// assert_eq!(*sorter.get("dcba").unwrap(), 1);
+        /// assert_eq!(*sorter.get("").unwrap(), 5);
+        /// ```
+        pub fn insert(&mut self, key: &str, value: T) -> Option<T> {
+            if let Some(node) = self.per_length.get_mut(&key.len()) {
+                let result = node.insert(key, value);
+                if result.is_none() {
+                    self.len += 1;
+                }
+                return result;
+            }
+            let node = Node::new(key, value);
+            self.per_length.insert(key.len(), node);
+            self.len += 1;
+            None
+        }
+
+        pub fn iter(&self) -> impl Iterator<Item = (usize, &Node<T>)> {
+            self.per_length.iter()
+                .map(|(&len, node)| (len, node))
+        }
+
+        pub fn get(&self, key: &str) -> Option<&T> {
+            self.per_length.get(&key.len())
+                .and_then(|node| node.get(key))
+        }
+    }
+
+    pub enum Node<T> {
+        Leaf(Option<T>),
+        Internal {
+            /// The children of this node.
+            ///
+            /// Invariant: May only be empty during a call to `insert()`.
+            children: HashMap<char, Node<T>>,
+
+            /// Number of leaves in this subtree.
+            len: usize,
+        }
+    }
+    impl<T> Node<T> {
+        fn get(&self, key: &str) -> Option<&T> {
+            match (self, key.chars().next()) {
+                (&Node::Leaf(Some(ref result)), None) => Some(result),
+                (&Node::Internal { ref children, ..}, Some(c)) => {
+                    debug_assert!(children.len() != 0);
+                    children.get(&c)
+                        .and_then(|node| node.get(&key[1..]))
+                }
+                _ => panic!("Invariant error: length")
+            }
+        }
+
+        fn insert(&mut self, key: &str, value: T) -> Option<T> {
+            match (self, key.chars().next()) {
+                (&mut Node::Leaf(ref mut old), None) => {
+                    // We have reached the end of `name`.
+                    let mut data = Some(value);
+                    std::mem::swap(&mut data, old);
+                    data
+                }
+                (&mut Node::Internal { ref mut children, ref mut len }, Some(c)) => {
+                    let result = {
+                        let entry = if key.len() == 1 {
+                            children.entry(c)
+                                .or_insert_with(|| Node::Leaf(None))
+                        } else {
+                            children.entry(c)
+                                .or_insert_with(|| Node::Internal { children: HashMap::new(), len: 0})
+                        };
+                        entry.insert(&key[1..], value)
+                    };
+                    if result.is_none() {
+                        *len += 1;
+                    }
+                    debug_assert!(*len > 0);
+                    debug_assert!(children.len() != 0);
+                    result
+                }
+                _ => panic!("Invariant error: length")
+            }
+        }
+        fn new(key: &str, value: T) -> Self {
+            if key.len() == 0 {
+                Node::Leaf(Some(value))
+            } else {
+                let mut node = Node::Internal { children: HashMap::new(), len : 0};
+                assert!(node.insert(key, value).is_none());
+                node
+            }
+        }
+    }
+}
