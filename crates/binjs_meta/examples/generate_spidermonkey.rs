@@ -93,7 +93,7 @@ pub struct GenerationRules {
     hpp_tokens_footer: Option<String>,
     hpp_tokens_kind_doc: Option<String>,
     hpp_tokens_field_doc: Option<String>,
-    hpp_tokens_enums_doc: Option<String>,
+    hpp_tokens_variant_doc: Option<String>,
     per_node: HashMap<NodeName, NodeParsingRules>,
 }
 
@@ -287,8 +287,8 @@ enum class BinField {
 ");
         buffer.push_str(&format!("\n// The number of distinct values of BinField.\nconst size_t BINFIELD_LIMIT = {};\n", self.syntax.field_names().len()));
 
-        if self.rules.hpp_tokens_enums_doc.is_some() {
-            buffer.push_str(&self.rules.hpp_tokens_enums_doc.reindent(""));
+        if self.rules.hpp_tokens_variant_doc.is_some() {
+            buffer.push_str(&self.rules.hpp_tokens_variant_doc.reindent(""));
         }
         let enum_cases : Vec<_> = self.syntax.string_enums_by_name()
             .iter()
@@ -303,9 +303,9 @@ enum class BinField {
                     .then_with(|| Ord::cmp(s_1, s_2))
             });
 
-        buffer.push_str(&format!("\n#define FOR_EACH_BIN_ENUM(F) \\\n{nodes}",
+        buffer.push_str(&format!("\n#define FOR_EACH_BIN_VARIANT(F) \\\n{nodes}",
             nodes = enum_cases.iter()
-                .map(|&(ref enum_name, ref string)| format!("    F({case_name}, {spec_name})",
+                .map(|&(ref enum_name, ref string)| format!("    F({case_name}, \"{spec_name}\")",
                     spec_name = string,
                     case_name = format!("{enum_name}{partial_case_name}",
                         enum_name = enum_name,
@@ -314,13 +314,13 @@ enum class BinField {
         buffer.push_str("
 
 
-enum class BinEnum {
+enum class BinVariant {
 #define EMIT_ENUM(name, _) name,
-    FOR_EACH_BIN_ENUM(EMIT_ENUM)
+    FOR_EACH_BIN_VARIANT(EMIT_ENUM)
 #undef EMIT_ENUM
 };
 ");
-        buffer.push_str(&format!("\n// The number of distinct values of BinEnum.\nconst size_t BINENUM_LIMIT = {};\n", enum_cases.len()));
+        buffer.push_str(&format!("\n// The number of distinct values of BinVariant.\nconst size_t BINVARIANT_LIMIT = {};\n", enum_cases.len()));
 
         buffer.push_str(&self.rules.hpp_tokens_footer.reindent(""));
         buffer.push_str("\n");
@@ -487,11 +487,11 @@ impl CPPExporter {
     AutoTaggedTuple guard(*tokenizer_);
     const auto start = tokenizer_->offset();
 
-    TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
+    MOZ_TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
 
     MOZ_TRY_DECL(result, parseSum{kind}(start, kind, fields));
 
-    TRY(guard.done());
+    MOZ_TRY(guard.done());
     return result;
 }}\n",
                 bnf = rendered_bnf,
@@ -560,7 +560,7 @@ impl CPPExporter {
     AutoList guard(*tokenizer_);
 
     const auto start = tokenizer_->offset();
-    TRY(tokenizer_->enterList(length, guard));{empty_check}
+    MOZ_TRY(tokenizer_->enterList(length, guard));{empty_check}
 {init}
 
     for (uint32_t i = 0; i < length; ++i) {{
@@ -568,7 +568,7 @@ impl CPPExporter {
 {append}
     }}
 
-    TRY(guard.done());
+    MOZ_TRY(guard.done());
     return result;
 }}\n",
             first_line = first_line,
@@ -592,7 +592,7 @@ impl CPPExporter {
         let rules_for_this_node = self.rules.get(name);
 
         let type_ok = self.get_type_ok(name, "ParseNode*");
-        let default_value = 
+        let default_value =
             if type_ok == "Ok" {
                 "Ok()"
             } else {
@@ -601,7 +601,7 @@ impl CPPExporter {
 
         // At this stage, thanks to deanonymization, `contents`
         // is something like `OptionalFooBar`.
-        let named_implementation = 
+        let named_implementation =
             if let Some(NamedType::Typedef(ref typedef)) = self.syntax.get_type_by_name(&name) {
                 assert!(typedef.is_optional());
                 if let TypeSpec::NamedType(ref named) = *typedef.spec() {
@@ -621,7 +621,7 @@ impl CPPExporter {
     BinFields fields((cx_));
     AutoTaggedTuple guard(*tokenizer_);
 
-    TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
+    MOZ_TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
     {type_ok} result;
     if (kind == BinKind::{null}) {{
         result = {default_value};
@@ -629,7 +629,7 @@ impl CPPExporter {
         const auto start = tokenizer_->offset();
         MOZ_TRY_VAR(result, parseInterface{contents}(start, kind, fields));
     }}
-    TRY(guard.done());
+    MOZ_TRY(guard.done());
 
     return result;
 }}
@@ -651,7 +651,7 @@ impl CPPExporter {
     BinFields fields((cx_));
     AutoTaggedTuple guard(*tokenizer_);
 
-    TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
+    MOZ_TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
     {type_ok} result;
     if (kind == BinKind::_Null) {{
         result = {default_value};
@@ -659,7 +659,7 @@ impl CPPExporter {
         const auto start = tokenizer_->offset();
         MOZ_TRY_VAR(result, parseSum{contents}(start, kind, fields));
     }}
-    TRY(guard.done());
+    MOZ_TRY(guard.done());
 
     return result;
 }}
@@ -719,11 +719,11 @@ impl CPPExporter {
     BinFields fields(cx_);
     AutoTaggedTuple guard(*tokenizer_);
 
-    TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
+    MOZ_TRY(tokenizer_->enterTaggedTuple(kind, fields, guard));
     const auto start = tokenizer_->offset();
 
     MOZ_TRY_DECL(result, parseInterface{kind}(start, kind, fields));
-    TRY(guard.done());
+    MOZ_TRY(guard.done());
 
     return result;
 }}
@@ -876,9 +876,9 @@ impl CPPExporter {
             ));
         } else {
             let check_fields = if number_of_fields == 0 {
-                format!("MOZ_TRY(checkFields0(kind, fields));")
+                format!("MOZ_TRY(tokenizer_->checkFields0(kind, fields));")
             } else {
-                format!("MOZ_TRY(checkFields(kind, fields, {fields_type_list}));",
+                format!("MOZ_TRY(tokenizer_->checkFields(kind, fields, {fields_type_list}));",
                     fields_type_list = fields_type_list)
             };
             buffer.push_str(&format!("{first_line}
@@ -940,16 +940,17 @@ impl CPPExporter {
                 .iter()
                 .sorted_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
             for (kind, enum_) in string_enums_by_name {
-                let convert = format!("{cases}
-
-    return raiseInvalidEnum(\"{kind}\", chars);",
+                let convert = format!("    switch (variant) {{
+{cases}
+      default:
+        return raiseInvalidVariant(\"{kind}\", variant);
+    }}",
                     kind = kind,
                     cases = enum_.strings()
                         .iter()
                         .map(|string| {
-                            format!("    if (chars == \"{string}\")
+                            format!("      case BinVariant::{kind}{variant}:
         return {kind}::{variant};",
-                                string = string,
                                 kind = kind,
                                 variant = string.to_cpp_enum_case()
                             )
@@ -966,9 +967,7 @@ impl CPPExporter {
                 );
                 buffer.push_str(&format!("{rendered_doc}{first_line}
 {{
-    // Unoptimized implementation.
-    Chars chars((cx_));
-    MOZ_TRY(readString(chars));
+    MOZ_TRY_DECL(variant, tokenizer_->readVariant());
 
 {convert}
 }}
@@ -1009,7 +1008,7 @@ fn update_rule(rule: &mut Option<String>, entry: &yaml_rust::Yaml) -> Option<Opt
         Some(Some(()))
     } else {
         None
-    }    
+    }
 }
 
 
@@ -1122,8 +1121,8 @@ fn main() {
                         .unwrap_or_else(|| panic!("Rule hpp.tokens.footer must be a string"));
                     update_rule(&mut generation_rules.hpp_tokens_kind_doc, &node_entries["tokens"]["kind"]["doc"])
                         .unwrap_or_else(|| panic!("Rule hpp.tokens.kind.doc must be a string"));
-                    update_rule(&mut generation_rules.hpp_tokens_enums_doc, &node_entries["tokens"]["enums"]["doc"])
-                        .unwrap_or_else(|| panic!("Rule hpp.tokens.enums.doc must be a string"));
+                    update_rule(&mut generation_rules.hpp_tokens_variant_doc, &node_entries["tokens"]["variant"]["doc"])
+                        .unwrap_or_else(|| panic!("Rule hpp.tokens.variant.doc must be a string"));
                     update_rule(&mut generation_rules.hpp_tokens_field_doc, &node_entries["tokens"]["field"]["doc"])
                         .unwrap_or_else(|| panic!("Rule hpp.tokens.field.doc must be a string"));
                     continue;
