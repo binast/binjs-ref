@@ -1,6 +1,6 @@
 ![Travis status](https://travis-ci.org/Yoric/binjs-ref.svg?branch=master)
 
-# About BinJs
+# About the JavaScript Binary AST
 
 As websites become more sophisticated, the amount of JavaScript source code keeps
 increasing. By itself, this is not a problem. However, with the amount of code
@@ -18,32 +18,31 @@ This repo offers a (WIP) reference implementation for BinJs, a vendor-neutral
 JavaScript format designed to optimize parsing speed and, when possible,
 loading speed.
 
-The BinJs format is not designed to be read or written by developers. Rather,
+The JavaScript Binary AST format is not designed to be read or written by developers. Rather,
 we expect that the toolchain, both server-side and browser-side, will generate
-(respectively parse) BinJs files, letting BinJs files be used transparently
+(respectively parse) .binjs files, letting .binjs files be used transparently
 for communication between the browser and the server.
 
 ## Testing it
 
-1. Install dependencies (you will need `npm`)
+1. Install dependencies (you will need `npm`, `rustup`)
 ```
 npm install
+rustup install nightly
 ```
 2. Pull the code.
-3. Build the code.
 ```
-cargo build && cargo test
+git clone https://github.com/binast/binjs-ref
 ```
-4. Running examples
+3. Compress/decompress.
 ```
-./target/debug/examples/encode source.js dest.binjs
-./target/debug/examples/decode dest.binjs source.js
-./target/debug/examples/roundtrip source.js
+cargo run --bin binjs_encode -- --help
+cargo run --bin binjs_decode -- --help
 ```
 
 ## Compatibility with JavaScript source code
 
-The BinJs format is designed to preserve the semantics for all syntactically
+The JavaScript Binary AST format is designed to preserve the semantics for all syntactically
 correct files.
 
 Not preserved:
