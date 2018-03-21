@@ -225,7 +225,7 @@ impl CPPExporter {
     fn get_method_definition_start(&self, name: &NodeName, default_type_ok: &str, prefix: &str, args: &str) -> String {
         let type_ok = self.get_type_ok(name, default_type_ok);
         let kind = name.to_class_cases();
-        format!("JS::Result<{type_ok}>\nBinASTParser::parse{prefix}{kind}({args})",
+        format!("template<typename Tok> JS::Result<{type_ok}>\nBinASTParser<Tok>::parse{prefix}{kind}({args})",
             prefix = prefix,
             type_ok = type_ok,
             kind = kind,
@@ -401,7 +401,7 @@ enum class BinVariant {
             .iter()
             .sorted_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
         for (kind, _) in string_enums_by_name {
-            let type_ok = format!("BinASTParser::{kind}", kind = kind.to_class_cases());
+            let type_ok = format!("typename BinASTParser<Tok>::{kind}", kind = kind.to_class_cases());
             let rendered = self.get_method_signature(kind, &type_ok, "", "");
             buffer.push_str(&rendered.reindent(""));
             buffer.push_str("\n");
@@ -677,7 +677,7 @@ impl CPPExporter {
                         buffer.push_str(&format!("{first_line}
 {{
     RootedAtom string((cx_));
-    MOZ_TRY(readMaybeString(&string));
+    MOZ_TRY_VAR(string, tokenizer_->readMaybeAtom());
 
 {build}
 
@@ -757,19 +757,19 @@ impl CPPExporter {
                 Some(IsNullable { is_nullable: false, content: Primitive::Number }) => {
                     if needs_block {
                         (Some(format!("double {var_name};", var_name = var_name)),
-                            Some(format!("MOZ_TRY_VAR({var_name}, readNumber());", var_name = var_name)))
+                            Some(format!("MOZ_TRY_VAR({var_name}, tokenizer_->readDouble());", var_name = var_name)))
                     } else {
                         (None,
-                            Some(format!("MOZ_TRY_DECL({var_name}, readNumber());", var_name = var_name)))
+                            Some(format!("MOZ_TRY_DECL({var_name}, tokenizer_->readDouble());", var_name = var_name)))
                     }
                 }
                 Some(IsNullable { is_nullable: false, content: Primitive::Boolean }) => {
                     if needs_block {
                         (Some(format!("bool {var_name};", var_name = var_name)),
-                        Some(format!("MOZ_TRY_VAR({var_name}, readBool());", var_name = var_name)))
+                        Some(format!("MOZ_TRY_VAR({var_name}, tokenizer_->readBool());", var_name = var_name)))
                     } else {
                         (None,
-                        Some(format!("MOZ_TRY_DECL({var_name}, readBool());", var_name = var_name)))
+                        Some(format!("MOZ_TRY_DECL({var_name}, tokenizer_->readBool());", var_name = var_name)))
                     }
                 }
                 Some(IsNullable { content: Primitive::Void, .. }) => {
@@ -778,7 +778,7 @@ impl CPPExporter {
                 }
                 Some(IsNullable { is_nullable: false, content: Primitive::String }) => {
                     (Some(format!("RootedAtom {var_name}((cx_));", var_name = var_name)),
-                        Some(format!("MOZ_TRY(readString(&{var_name}));", var_name = var_name)))
+                        Some(format!("MOZ_TRY_VAR({var_name}, tokenizer_->readAtom());", var_name = var_name)))
                 }
                 Some(IsNullable { content: Primitive::Interface(ref interface), ..})
                     if &self.get_type_ok(interface.name(), "?") == "Ok" =>
@@ -975,7 +975,7 @@ impl CPPExporter {
 ",
                     rendered_doc = rendered_doc,
                     convert = convert,
-                    first_line = self.get_method_definition_start(kind, &format!("BinASTParser::{kind}", kind = kind), "", "")
+                    first_line = self.get_method_definition_start(kind, &format!("typename BinASTParser<Tok>::{kind}", kind = kind), "", "")
                 ));
             }
         }
