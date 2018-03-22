@@ -1,9 +1,10 @@
 language: rust
+script:
+  - cargo build --verbose
+  - cargo test -- --nocapture
 rust:
   - nightly
 node_js:
   - "8"
 before_install:
-  - "npm install shift-codegen"
-  - "npm install shift-scope"
-  - "npm install shift-parser"
+  - "npm install"
