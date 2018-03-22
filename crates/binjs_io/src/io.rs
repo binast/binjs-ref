@@ -81,7 +81,7 @@ pub trait TokenReader where Self::Error: Debug,
     /// call `guard.done()` to ensure that the tuple was properly
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
-    fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[String]>>, Self::TaggedGuard), Self::Error>;
+    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error>;
 
     /// Start reading an untagged tuple.
     ///
