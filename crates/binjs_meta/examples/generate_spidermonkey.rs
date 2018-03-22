@@ -157,6 +157,7 @@ pub struct CPPExporter {
     rules: GenerationRules,
     list_parsers_to_generate: Vec<(NodeName, (/* supports_empty */ bool, NodeName))>,
     option_parsers_to_generate: Vec<(NodeName, NodeName)>,
+    variants_by_symbol: HashMap<String, String>,
 }
 
 impl CPPExporter {
@@ -187,11 +188,32 @@ impl CPPExporter {
         list_parsers_to_generate.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
         option_parsers_to_generate.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
 
+        // Detect enum values that can appear in several enums (e.g. "+" is both a
+        // unary and a binary operator).
+        let mut enum_by_string : HashMap<String, Vec<std::rc::Rc<String>>> = HashMap::new();
+        for (name, enum_) in syntax.string_enums_by_name().iter() {
+            let name = std::rc::Rc::new(name.to_string().clone());
+            for string in enum_.strings().iter() {
+                let vec = enum_by_string.entry(string.clone())
+                    .or_insert_with(|| vec![]);
+                vec.push(name.clone());
+            }
+        }
+        let variants_by_symbol = enum_by_string.drain()
+            .map(|(string, names)| {
+                let expanded = format!("{names}{symbol}",
+                    names = names.iter().format("Or"),
+                    symbol = string.to_cpp_enum_case());
+                (string, expanded)
+            })
+            .collect();
+
         CPPExporter {
             syntax,
             rules: GenerationRules::default(),
             list_parsers_to_generate,
             option_parsers_to_generate,
+            variants_by_symbol,
         }
     }
 
@@ -290,26 +312,19 @@ enum class BinField {
         if self.rules.hpp_tokens_variant_doc.is_some() {
             buffer.push_str(&self.rules.hpp_tokens_variant_doc.reindent(""));
         }
-        let enum_cases : Vec<_> = self.syntax.string_enums_by_name()
+
+        let mut enum_variants = self.variants_by_symbol
             .iter()
-            .flat_map(|(name, enum_)| {
-                let name = std::rc::Rc::new(name);
-                enum_.strings()
-                    .iter()
-                    .map(move |s| (name.clone(), s.clone()))
-            })
-            .sorted_by(|&(ref name_1, ref s_1), &(ref name_2, ref s_2)| {
+            .sorted_by(|&(ref symbol_1, ref name_1), &(ref symbol_2, ref name_2)| {
                 Ord::cmp(name_1, name_2)
-                    .then_with(|| Ord::cmp(s_1, s_2))
+                    .then_with(|| Ord::cmp(symbol_1, symbol_2))
             });
 
         buffer.push_str(&format!("\n#define FOR_EACH_BIN_VARIANT(F) \\\n{nodes}",
-            nodes = enum_cases.iter()
-                .map(|&(ref enum_name, ref string)| format!("    F({case_name}, \"{spec_name}\")",
-                    spec_name = string,
-                    case_name = format!("{enum_name}{partial_case_name}",
-                        enum_name = enum_name,
-                        partial_case_name = string.to_cpp_enum_case())))
+            nodes = enum_variants.drain(..)
+                .map(|(symbol, name)| format!("    F({variant_name}, \"{spec_name}\")",
+                    spec_name = symbol,
+                    variant_name = name))
                 .format(" \\\n")));
         buffer.push_str("
 
@@ -320,7 +335,7 @@ enum class BinVariant {
 #undef EMIT_ENUM
 };
 ");
-        buffer.push_str(&format!("\n// The number of distinct values of BinVariant.\nconst size_t BINVARIANT_LIMIT = {};\n", enum_cases.len()));
+        buffer.push_str(&format!("\n// The number of distinct values of BinVariant.\nconst size_t BINVARIANT_LIMIT = {};\n", enum_variants.len()));
 
         buffer.push_str(&self.rules.hpp_tokens_footer.reindent(""));
         buffer.push_str("\n");
@@ -886,7 +901,8 @@ impl CPPExporter {
     MOZ_ASSERT(kind == BinKind::{kind});
     {check_fields}
 {pre}{fields_implem}
-{post}return result;
+{post}
+    return result;
 }}
 
 ",
@@ -948,11 +964,13 @@ impl CPPExporter {
                     kind = kind,
                     cases = enum_.strings()
                         .iter()
-                        .map(|string| {
-                            format!("      case BinVariant::{kind}{variant}:
-        return {kind}::{variant};",
+                        .map(|symbol| {
+                            format!("      case BinVariant::{binvariant_variant}:
+        return {kind}::{specialized_variant};",
                                 kind = kind,
-                                variant = string.to_cpp_enum_case()
+                                specialized_variant = symbol.to_cpp_enum_case(),
+                                binvariant_variant  = self.variants_by_symbol.get(symbol)
+                                    .unwrap()
                             )
                         })
                         .format("\n")
