@@ -157,6 +157,9 @@ pub struct CPPExporter {
     rules: GenerationRules,
     list_parsers_to_generate: Vec<(NodeName, (/* supports_empty */ bool, NodeName))>,
     option_parsers_to_generate: Vec<(NodeName, NodeName)>,
+
+    /// A mapping from string enum symbol (e.g. "delete")
+    /// to its name in BinVariant (e.g. "UnaryOperatorDelete").
     variants_by_symbol: HashMap<String, String>,
 }
 
@@ -188,8 +191,10 @@ impl CPPExporter {
         list_parsers_to_generate.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
         option_parsers_to_generate.sort_by(|a, b| str::cmp(a.0.to_str(), b.0.to_str()));
 
-        // Detect enum values that can appear in several enums (e.g. "+" is both a
-        // unary and a binary operator).
+        // Prepare variant_by_symbol, which will let us lookup the BinVariant name of
+        // a symbol. Since some symbols can appear in several enums (e.g. "+"
+        // is both a unary and a binary operator), we need to collect all the
+        // string enums that contain each symbol and come up with a unique name.
         let mut enum_by_string : HashMap<String, Vec<std::rc::Rc<String>>> = HashMap::new();
         for (name, enum_) in syntax.string_enums_by_name().iter() {
             let name = std::rc::Rc::new(name.to_string().clone());
