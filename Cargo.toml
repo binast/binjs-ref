@@ -2,9 +2,10 @@
 name = "binjs"
 version = "0.3.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
-
-[features]
-default = []
+homepage = "https://binast.github.io/ecmascript-binary-ast/"
+repository = "https://github.com/binast/binjs-ref"
+description = "Set of tools to manipulate files in the JavaScript Binary AST format."
+license = "MIT"
 
 [dependencies]
 binjs_generic = { path = "crates/binjs_generic", version = "*" }
@@ -25,7 +26,6 @@ log = "*"
 lzw = "*"
 rand = "*"
 test-logger = "*"
-topological-sort = "*"
 vec_map = "*"
 webidl = "*"
 yaml-rust = "*"
