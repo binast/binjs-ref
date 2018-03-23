@@ -291,10 +291,7 @@ fn test_multipart_io() {
                 .expect("Reading trivial tagged tuple");
             assert_eq!(name, "some tuple".to_string());
 
-            assert_eq!(fields.len(), 3);
-            assert_eq!(&fields[0], "abc");
-            assert_eq!(&fields[1], "def");
-            assert_eq!(&fields[2], "value");
+            assert_eq!(fields, None);
             let simple_string_1 = reader.string()
                 .expect("Reading trivial tagged tuple[0]")
                 .expect("Reading a non-null string");

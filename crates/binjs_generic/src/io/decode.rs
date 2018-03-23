@@ -102,54 +102,69 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             }
         }
     }
-    pub fn decode_object_contents(&mut self, interface: &Interface, field_names: Rc<Box<[String]>>, guard: E::TaggedGuard) -> Result<JSON, Error<E::Error>> {
+    pub fn decode_object_contents(&mut self, interface: &Interface, field_names: Option<Rc<Box<[String]>>>, guard: E::TaggedGuard) -> Result<JSON, Error<E::Error>> {
         debug!(target: "decode", "decode_object_contents: Interface {:?} ", interface.name());
-        // Determine all the fields that we were expecting.
-        let mut expected: HashMap<_,_> = interface.contents()
-            .fields()
-            .iter()
-            .map(|field| {
-                (field.name().clone(), field.type_())
-            })
-            .collect();
-        debug!(target: "decode", "decode_object_contents: Expecting fields {:?} ", expected);
-
-        // Read the fields **in the order** in which they appear in the stream.
         let mut object = Object::new();
-        for field in field_names.as_ref().iter() {
-            debug!(target: "decode", "decode_object_contents: Looking at field {:?} ", field);
-            let field_name = self.grammar.get_field_name(field)
-                .ok_or_else(|| self.raise_error(Error::NoSuchField(field.clone())))?;
-            let type_ =
-                if let Some(type_) = expected.remove(field_name) {
-                    type_
-                } else {
-                    debug!(target: "decode", "decode_object_contents: I didn't expect field {:?}.", field);
-                    self.extractor.poison();
-                    return Err(self.raise_error(Error::NoSuchField(field.clone())))
-                };
-            let item = self.decode_from_type(type_, false)?;
-            object.insert(field, item);
-        }
-        debug!(target: "decode", "decode_object_contents: Remaining fields {:?} ", expected);
 
-        // Any field missing? Find out if there is a default value.
-        for (name, type_) in expected.drain() {
-            let name = name.to_str();
-            if type_.is_optional() {
-                object.insert(name, JSON::Null);
-            } else {
-                self.extractor.poison();
-                return Err(self.raise_error(Error::MissingField {
-                    name: name.to_string(),
-                    kind: interface.name().to_string().clone()
-                }))
+        if let Some(field_names) = field_names {
+            // Determine all the fields that we were expecting.
+            let mut expected: HashMap<_,_> = interface.contents()
+                .fields()
+                .iter()
+                .map(|field| {
+                    (field.name().clone(), field.type_())
+                })
+                .collect();
+            debug!(target: "decode", "decode_object_contents: Expecting fields {:?} ", expected);
+
+            // Read the fields **in the order** in which they appear in the stream.
+            for field in field_names.as_ref().iter() {
+                debug!(target: "decode", "decode_object_contents: Looking at field {:?} ", field);
+                let field_name = self.grammar.get_field_name(field)
+                    .ok_or_else(|| self.raise_error(Error::NoSuchField(field.clone())))?;
+                let type_ =
+                    if let Some(type_) = expected.remove(field_name) {
+                        type_
+                    } else {
+                        debug!(target: "decode", "decode_object_contents: I didn't expect field {:?}.", field);
+                        self.extractor.poison();
+                        return Err(self.raise_error(Error::NoSuchField(field.clone())))
+                    };
+                let item = self.decode_from_type(type_, false)?;
+                object.insert(field, item);
+            }
+            debug!(target: "decode", "decode_object_contents: Remaining fields {:?} ", expected);
+
+            // Any field missing? Find out if there is a default value.
+            for (name, type_) in expected.drain() {
+                let name = name.to_str();
+                if type_.is_optional() {
+                    object.insert(name, JSON::Null);
+                } else {
+                    self.extractor.poison();
+                    return Err(self.raise_error(Error::MissingField {
+                        name: name.to_string(),
+                        kind: interface.name().to_string().clone()
+                    }))
+                }
+            }
+
+        } else {
+            // Read the fields **in the order** in which they appear in the spec.
+            for field in interface.contents().fields() {
+                debug!(target: "decode", "decode_object_contents: Looking at field {:?} with type {:?}",
+                    field.name(),
+                    field.type_());
+                let item = self.decode_from_type(field.type_(), false)?;
+                object.insert(field.name().to_str(), item);
             }
         }
+
 
         // Don't forget `"type"`.
         debug!(target: "decode", "decode_object_contents: Adding type");
         object.insert("type", json::from(interface.name().to_str()));
+
         guard.done()
             .map_err(Error::TokenReaderError)?;
 

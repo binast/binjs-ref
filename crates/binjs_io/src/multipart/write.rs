@@ -227,7 +227,6 @@ impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone +
 #[derive(PartialEq, Eq, Clone, Hash, Debug)] // FIXME: Clone shouldn't be necessary. Sigh.
 pub struct NodeDescription {
     kind: String,
-    fields: Vec<String>, // FIXME: Atoms would be nice here.
 }
 
 /// Format:
@@ -240,16 +239,12 @@ impl Serializable for NodeDescription {
         let mut total = 0;
 
         total += self.kind.to_string().write(out)?;
-        total += out.write_varnum(self.fields.len() as u32)?;
-        for field in &self.fields {
-            total += field.to_string().write(out)?;
-        }
         Ok(total)
     }
 }
 
 impl FormatInTable for NodeDescription {
-    const HAS_LENGTH_INDEX : bool = true;
+    const HAS_LENGTH_INDEX : bool = false;
 }
 
 enum Nature {
@@ -671,9 +666,6 @@ impl TokenWriter for TreeTokenWriter {
         {
             let description = NodeDescription {
                 kind: name.to_string(),
-                fields: children.iter()
-                    .map(|&(s, _)| s.to_string())
-                    .collect() // FIXME: We shouldn't build the Vec unless we know we need it.
             };
             debug!(target: "multipart", "writing tagged tuple {} with {} children as {:?}",
                 name,
@@ -1017,38 +1009,6 @@ impl Display for NodeNameAndStatistics {
     }
 }
 
-struct NodeDescriptionAndStatistics {
-    total_uncompressed_bytes: usize,
-    nodes: Vec<(NodeDescription, NodeStatistics)>
-}
-
-impl Display for NodeDescriptionAndStatistics {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        let total_number_of_entries : usize = self.nodes
-            .iter()
-            .map(|node| node.1.entries)
-            .sum();
-        // FIXME: Ugly. Find a better way to handle indentation.
-        for &(ref description, ref stats) in &self.nodes {
-            write!(f, "\t\t{} [", description.kind.to_string())?;
-            let mut start = true;
-            for field in &description.fields {
-                if !start {
-                    write!(f, ", ")?;
-                }
-                start = false;
-                write!(f, "{}", field.to_string())?;
-            }
-            write!(f, "]\n")?;
-            write!(f, "\t\t\tEntries: {} ({:.2}%)\n", stats.entries, 100. * (stats.entries as f64) / (total_number_of_entries as f64))?;
-            write!(f, "\t\t\tOwn bytes: {} ({:.2}%)\n", stats.own_bytes, 100. * (stats.own_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
-            write!(f, "\t\t\tShallow bytes: {} ({:.2}%)\n", stats.shallow_bytes, 100. * (stats.shallow_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
-            write!(f, "\t\t\tTotal bytes: {} ({:.2}%)\n", stats.total_bytes, 100. * (stats.total_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
-        }
-        Ok(())
-    }
-}
-
 struct ListLengthsAndNumber(Vec<(usize, usize)>, String);
 
 impl Display for ListLengthsAndNumber {
@@ -1114,10 +1074,8 @@ Statistics
 {section_strings}
 \t\tTree:
 {section_tree}
-\tNodes (grammar entries collapsed):
+\tNodes:
 {collapsed_nodes}
-\tNodes (grammar entries expanded):
-{expanded_nodes}
 \tTokens:
 {token_bool}
 {token_float}
@@ -1163,10 +1121,6 @@ Statistics
         collapsed_nodes = NodeNameAndStatistics {
             total_uncompressed_bytes: self.uncompressed_bytes,
             nodes: per_kind
-        },
-        expanded_nodes = NodeDescriptionAndStatistics {
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            nodes: per_description
         },
         token_bool = NodeAndStatistics {
             name: "Bool",

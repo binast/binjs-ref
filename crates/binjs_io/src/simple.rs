@@ -288,7 +288,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[String]>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         debug!("TreeTokenReader: tagged_tuple");
         let clone = self.owner.clone();
         let mut owner = self.owner.borrow_mut();
@@ -315,7 +315,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
             let guard = TaggedGuard::new(clone);
 
             debug!("TreeTokenReader: tagged_tuple has name {:?}, fields {:?}", kind_name, fields);
-            Ok((kind_name, Rc::new(fields.into_boxed_slice()), guard))
+            Ok((kind_name, Some(Rc::new(fields.into_boxed_slice())), guard))
         })
     }
 
@@ -631,6 +631,7 @@ fn test_simple_io() {
         assert_eq!(&name, "BindingIdentifier");
 
         // Order of fields is deterministic
+        let fields = fields.expect("Missing fields");
         assert!(&fields[0] == "label");
         assert!(&fields[1] == "value");
         let simple_string = reader.string()

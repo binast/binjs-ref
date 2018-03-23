@@ -114,11 +114,10 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
 /// Description of a node in the table.
 pub struct NodeDescription {
     kind: String,
-    fields: Rc<Box<[String]>>
 }
 
 impl<'a> FormatInTable for NodeDescription {
-    const HAS_LENGTH_INDEX : bool = true;
+    const HAS_LENGTH_INDEX : bool = false;
 }
 
 struct NodeDescriptionDeserializer;
@@ -136,22 +135,8 @@ impl Deserializer for NodeDescriptionDeserializer {
             Some(x) => x
         };
 
-        // Extract fields
-        let mut number_of_entries = 0;
-        inp.read_varnum(&mut number_of_entries)?;
-
-        let mut fields = Vec::with_capacity(number_of_entries as usize);
-        for _ in 0..number_of_entries {
-            if let Some(name) = strings_deserializer.read(inp)? {
-                fields.push(name);
-            } else {
-                return Err(TokenReaderError::EmptyFieldName.into())
-            }
-        }
-
         Ok(NodeDescription {
             kind: name,
-            fields: Rc::new(Box::from(fields))
         })
     }
 }
@@ -375,14 +360,12 @@ impl TokenReader for TreeTokenReader {
         })
     }
 
-    /// Start reading a tagged tuple. If the stream was encoded
-    /// properly, the tag is attached to an **ordered** tuple of
-    /// fields that may be extracted **in order**.
+    /// Start reading a tagged tuple.
     ///
-    /// Returns the tag name, the ordered array of fields in which
-    /// the contents must be read, and a sub-extractor dedicated
+    /// Returns the tag name, `None` for fields and a
+    /// sub-extractor dedicated
     /// to that tuple. The sub-extractor MUST be consumed entirely.
-    fn tagged_tuple(&mut self) -> Result<(String, Rc<Box<[String]>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
             let index = state.reader.read_varnum_2()
@@ -391,11 +374,10 @@ impl TokenReader for TreeTokenReader {
                 .ok_or(TokenReaderError::BadKindIndex(index))?;
 
             let tag = description.kind.clone();
-            let fields = description.fields.clone();
             let guard = SimpleGuard::new(clone);
-            debug!(target: "multipart", "Reading tagged tuple with kind \"{}\", fields {:?}",
-                tag, fields);
-            Ok((tag, fields, guard))
+            debug!(target: "multipart", "Reading tagged tuple with kind \"{}\"",
+                tag);
+            Ok((tag, None, guard))
         })
     }
 
