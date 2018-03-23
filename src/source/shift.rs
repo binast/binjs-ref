@@ -200,6 +200,11 @@ impl FromShift {
         }
     }
 
+    fn make_eager(&self, object: &mut json::object::Object) {
+        let kind = format!("Eager{}", object["type"].as_str().unwrap());
+        object.insert("type", json::from(kind));
+    }
+
     fn convert_object(&self, object: &mut json::object::Object) {
         // By alphabetical order
         match object["type"].as_str() {
@@ -245,6 +250,10 @@ impl FromShift {
                     object["isAsync"] = JSON::Boolean(false)
                 }
                 object.insert("scope", JSON::Null);
+                self.make_eager(object);
+            }
+            Some("Getter") | Some("Setter") | Some("ArrowExpression") => {
+                self.make_eager(object);
             }
             Some("LabeledStatement") => {
                 // Rewrite type
@@ -304,6 +313,21 @@ impl FromShift {
 /// A data structure designed to convert from BinJS AST to Shift AST.
 
 struct ToShift;
+impl ToShift {
+    fn remove_eager_or_skippable(&self, obj: &mut json::object::Object) {
+        let kind = { obj["type"].as_str().unwrap().to_string()  };
+        const EAGER : &'static str = "Eager";
+        const SKIPPABLE : &'static str = "Skippable";
+
+        if kind.starts_with(EAGER) {
+            obj["type"] = json::from(&kind[EAGER.len()..])
+        } else if kind.starts_with(SKIPPABLE) {
+            obj["type"] = json::from(&kind[SKIPPABLE.len()..])
+        } else {
+            panic!()
+        }
+    }
+}
 impl MutASTVisitor for ToShift {
     fn exit_interface(&mut self, _path: &WalkPath, value: &mut JSON, interface: &Interface, name: &NodeName) -> Result<(), ASTError> {
         debug!(target: "Shift", "Should I rewrite {:?} at {:?}", interface.name(), name);
@@ -402,7 +426,7 @@ impl MutASTVisitor for ToShift {
                 //      VariableDeclarator {
                 //        init: null,
                 //        binding
-                //      } 
+                //      }
                 //    }]
                 // }
                 object["type"] = json::from("VariableDeclaration");
@@ -414,6 +438,21 @@ impl MutASTVisitor for ToShift {
                         "binding" => binding
                     }
                 ];
+            }
+            (_, "EagerFunctionExpression", &mut JSON::Object(ref mut object))
+            | (_, "SkippableFunctionExpression", &mut JSON::Object(ref mut object))
+            | (_, "EagerFunctionDeclaration", &mut JSON::Object(ref mut object))
+            | (_, "SkippableFunctionDeclaration", &mut JSON::Object(ref mut object))
+            | (_, "EagerMethod", &mut JSON::Object(ref mut object))
+            | (_, "SkippableMethod", &mut JSON::Object(ref mut object))
+            | (_, "EagerGetter", &mut JSON::Object(ref mut object))
+            | (_, "SkippableGetter", &mut JSON::Object(ref mut object))
+            | (_, "EagerSetter", &mut JSON::Object(ref mut object))
+            | (_, "SkippableSetter", &mut JSON::Object(ref mut object))
+            | (_, "EagerArrowExpression", &mut JSON::Object(ref mut object))
+            | (_, "SkippableArrowExpression", &mut JSON::Object(ref mut object))
+             => {
+                 self.remove_eager_or_skippable(object);
             }
             _ => {
                 // Nothing to do.
@@ -436,7 +475,7 @@ fn test_shift_basic() {
         "directives" => array![],
         "statements" => array![
             object!{
-                "type" => "FunctionDeclaration",
+                "type" => "EagerFunctionDeclaration",
                 "isGenerator" => false,
                 "isAsync" => false,
                 "scope" => JSON::Null,
