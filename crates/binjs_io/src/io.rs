@@ -62,6 +62,9 @@ pub trait TokenReader where Self::Error: Debug,
     /// Read a single `bool`.
     fn bool(&mut self) -> Result<Option<bool>, Self::Error>;
 
+    /// Read a single number of bytes.
+    fn offset(&mut self) -> Result<u32, Self::Error>;
+
     /// Start reading a list.
     ///
     /// Returns a guard for that list and the number of elements
@@ -146,6 +149,9 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
 
     /// Write single bool.
     fn bool(&mut self, Option<bool>) -> Result<Self::Tree, Self::Error>;
+
+    /// Write the number of bytes left in this tuple.
+    fn offset(&mut self) -> Result<Self::Tree, Self::Error>;
 }
 
 

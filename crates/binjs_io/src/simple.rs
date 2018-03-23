@@ -19,10 +19,6 @@ struct ReaderState<R> where R: Read + Seek {
     reader: R,
 }
 impl<R> ReaderState<R> where R: Read + Seek {
-    pub fn position(&mut self) -> u64 {
-        self.reader.pos() as u64
-    }
-
     pub fn read_u32(&mut self) -> Result<u32, TokenReaderError> {
         let mut buf : [u8; 4] = [0, 0, 0, 0];
         debug_assert!(std::mem::size_of::<u32>() == std::mem::size_of_val(&buf));
@@ -69,17 +65,13 @@ impl<R> Pos for PoisonLock<ReaderState<R>> where R: Read + Seek {
 
 pub struct ListGuard<R> where R: Read + Seek {
     finalized: bool,
-    expected_end: u64,
-    start: u64,
     owner: Rc<RefCell<PoisonLock<ReaderState<R>>>>,
 }
 
 impl<R> ListGuard<R> where R: Read + Seek {
-    fn new(owner: Rc<RefCell<PoisonLock<ReaderState<R>>>>, start: u64, byte_len: u64) -> Self {
+    fn new(owner: Rc<RefCell<PoisonLock<ReaderState<R>>>>) -> Self {
         ListGuard {
             finalized: false,
-            start,
-            expected_end: start + byte_len,
             owner
         }
     }
@@ -94,19 +86,9 @@ impl<R> Guard for ListGuard<R> where R: Read + Seek {
         }
 
         owner.try(|state| {
-            let found = state.reader.pos() as u64;
-            if found != self.expected_end {
-                return Err(TokenReaderError::EndOffsetError {
-                    start: self.start,
-                    expected: self.expected_end,
-                    found,
-                    description: "list".to_string()
-                })
-            }
             state.reader.read_const(b"</list>")
                 .map_err(TokenReaderError::ReadError)
         })?;
-
         Ok(())
     }
 }
@@ -225,7 +207,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
-        debug!("TreeTokenReader: bool");
+        debug!(target: "token_simple", "TreeTokenReader: bool");
         let mut buf : [u8; 1] = [0];
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -235,6 +217,13 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
                 Ok(x) => Ok(x),
                 Err(_) => Err(TokenReaderError::InvalidValue)
             }
+        })
+    }
+
+    fn offset(&mut self) -> Result<u32, Self::Error> {
+        let mut owner = self.owner.borrow_mut();
+        owner.try(|state| {
+            state.read_u32()
         })
     }
 
@@ -249,7 +238,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
-        debug!("TreeTokenReader: string");
+        debug!(target: "token_simple", "TreeTokenReader: string");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
             state.reader.read_const(b"<string>")
@@ -274,16 +263,15 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error> {
-        debug!("TreeTokenReader: list");
+        debug!(target: "token_simple", "TreeTokenReader: list");
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
             state.reader.read_const(b"<list>")
                 .map_err(TokenReaderError::ReadError)?;
-            let byte_len = state.read_u32()?;
 
-            let guard = ListGuard::new(clone, state.position() as u64, byte_len as u64);
+            let guard = ListGuard::new(clone);
             let list_len = state.read_u32()?;
-            debug!("TreeTokenReader: list has {} items, {} bytes", list_len, byte_len);
+            debug!(target: "token_simple", "TreeTokenReader: list has {} items", list_len);
             Ok((list_len, guard))
         })
     }
@@ -320,7 +308,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn untagged_tuple(&mut self) -> Result<Self::UntaggedGuard, Self::Error> {
-        debug!("TreeTokenReader: untagged_tuple");
+        debug!(target: "token_simple", "TreeTokenReader: untagged_tuple");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
             state.reader.read_const(b"<tuple>")
@@ -332,22 +320,25 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
 
 /// A trivial tree writer, without any kind of optimization.
 pub struct TreeTokenWriter {
-    root: Rc<Vec<u8>>
+    root: Rc<TreeItem>
 }
 impl TreeTokenWriter {
     pub fn new() -> Self {
         TreeTokenWriter {
-            root: Rc::new(Vec::new())
+            root: Rc::new(TreeItem::Bytes(Vec::new()))
         }
     }
-    pub fn data(&self) -> &[u8] {
-        self.root.as_ref()
+    pub fn data(&self) -> Option<&[u8]> {
+        match *self.root {
+            TreeItem::Bytes(ref bytes) => Some(bytes),
+            _ => None,
+        }
     }
 
-    fn register(&mut self, data: Vec<u8>) -> Rc<Vec<u8>> {
-        let result = Rc::new(data);
+    fn register(&mut self, data: Vec<u8>) -> AbstractTree {
+        let result = Rc::new(TreeItem::Bytes(data));
         self.root = result.clone();
-        result
+        AbstractTree(result)
     }
 }
 
@@ -379,15 +370,29 @@ impl std::ops::AddAssign for Statistics {
     }
 }
 
+#[derive(Clone)]
+enum TreeItem {
+    Bytes(Vec<u8>),
+    Offset,
+}
+
+/// Abstract type for the contents of the tree.
+#[derive(Clone)]
+pub struct AbstractTree(Rc<TreeItem>);
 
 impl TokenWriter for TreeTokenWriter {
-    type Tree = Rc<Vec<u8>>;
+    type Tree = AbstractTree;
     type Error = TokenWriterError;
-    type Data = Data;
+    type Data = Vec<u8>;
     type Statistics = Statistics;
 
     fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
-        Ok((Data(self.root), Statistics))
+        let unwrapped = Rc::try_unwrap(self.root)
+            .unwrap_or_else(|e| panic!("We still have {} references to the root", Rc::strong_count(&e)));
+        match unwrapped {
+            TreeItem::Bytes(bytes) => Ok((bytes, Statistics)),
+            TreeItem::Offset => Err(TokenWriterError::InvalidOffsetField),
+        }
     }
 
     fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
@@ -396,15 +401,21 @@ impl TokenWriter for TreeTokenWriter {
     }
 
     fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
-        debug!("TreeTokenWriter: bool");
+        debug!(target: "token_simple", "TreeTokenWriter: bool");
         let result = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
         Ok(self.register(result))
+    }
+
+    fn offset(&mut self) -> Result<Self::Tree, Self::Error> {
+        let tree = Rc::new(TreeItem::Offset);
+        self.root = tree.clone();
+        Ok(AbstractTree(tree))
     }
 
     // Strings are represented as len + UTF-8
     // The None string is represented as len + [255, 0]
     fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
-        debug!("TreeTokenWriter: string {:?}", data);
+        debug!(target: "token_simple", "TreeTokenWriter: string {:?}", data);
         const EMPTY_STRING: [u8; 2] = [255, 0];
         let byte_len = match data {
             None => EMPTY_STRING.len(),
@@ -428,7 +439,6 @@ impl TokenWriter for TreeTokenWriter {
 
     /// Lists are represented as:
     /// - "<list>"
-    /// - number of bytes (u32);
     /// - number of items (u32);
     /// - items
     /// - "</list>"
@@ -437,51 +447,47 @@ impl TokenWriter for TreeTokenWriter {
     /// - number of items;
     /// - items.
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
-        debug!("TreeTokenWriter: list");
+        debug!(target: "token_simple", "TreeTokenWriter: list");
         let prefix = "<list>";
         let suffix = "</list>";
         let mut result = Vec::new();
         result.extend_from_str(prefix);// Sole purpose of this constant is testing
 
         let number_of_items = items.len() as u32;
-        let mut buf : [u8; 4] = unsafe { std::mem::transmute(number_of_items) };
+        let buf : [u8; 4] = unsafe { std::mem::transmute(number_of_items) };
         assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&number_of_items));
-
-        // Placeholder for `byte_len`
-        result.extend_from_slice(&buf);
 
         // Actual number of items
         result.extend_from_slice(&buf);
 
         // Put actual data
         for item in items {
-            result.extend_from_slice(&*item)
+            match *item.0 {
+                TreeItem::Bytes(ref bytes) => result.extend_from_slice(bytes),
+                TreeItem::Offset => {
+                    // An offset field makes no sense in a list.
+                    return Err(TokenWriterError::InvalidOffsetField);
+                }
+            }
         }
-
-        // Now compute bytelength and put it back
-        let byte_len = (result.len() - prefix.len() - std::mem::size_of_val(&buf)) as u32;
-        assert!(std::mem::size_of_val(&buf) == std::mem::size_of_val(&byte_len));
-        buf = unsafe { std::mem::transmute(byte_len) };
 
         for i in 0..buf.len() {
             result[i + prefix.len()] = buf[i];
         }
 
         result.extend_from_str(suffix);// Sole purpose of this constant is testing
-        debug!("TreeTokenWriter: list has {} items, {} bytes", number_of_items, byte_len);
-        assert_eq!(byte_len as usize,
-            result.len() - prefix.len() - suffix.len() - std::mem::size_of_val(&number_of_items),
-            "TreeTokenWriter: incorrect byte_len");
+        debug!(target: "token_simple", "TreeTokenWriter: list has {} items", number_of_items);
         Ok(self.register(result))
     }
 
     /// For this example, we use a very, very, very suboptimal encoding.
-    /// - (if specified)
+    /// - <head>
     ///   - kind (string, \0 terminated)
     ///   - field names (string, \0 terminated)
+    /// - </head>
     /// - contents
     fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
-        debug!("TreeTokenWriter: tagged_tuple");
+        debug!(target: "token_simple", "TreeTokenWriter: tagged_tuple");
         let mut prefix = Vec::new();
         prefix.extend_from_str("<head>");
         prefix.extend_from_str(tag);
@@ -499,7 +505,7 @@ impl TokenWriter for TreeTokenWriter {
         prefix.extend_from_str("</head>");
 
         let mut untagged = Vec::new();
-        untagged.push(Rc::new(prefix));
+        untagged.push(AbstractTree(Rc::new(TreeItem::Bytes(prefix))));
         for &(_, ref child) in children.iter() {
             untagged.push(child.clone())
         }
@@ -507,13 +513,47 @@ impl TokenWriter for TreeTokenWriter {
         self.untagged_tuple(&untagged)
     }
     fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
-        debug!("TreeTokenWriter: untagged_tuple");
+        debug!(target: "token_simple", "TreeTokenWriter: untagged_tuple");
         let mut result = Vec::new();
         result.extend_from_str("<tuple>"); // Sole purpose of this constant is testing
-        for item in children {
-            result.extend_from_slice(&*item)
+
+        const FOOTER: &'static [u8; 8] = b"</tuple>";
+
+        // To be substituted to any Offset field.
+        let mut byte_len = FOOTER.len() as u32;
+
+        // First check if children[1] is Offset. If so, compute the length of the rest
+        // of the children and substitute that Length to Offset. Note that Offset at any
+        // other position than children[1] is an error.
+        for (i, item) in children.iter().enumerate() {
+            match *(item.0) {
+                TreeItem::Bytes(_) if i < 2 => {
+                    // That's before any instance of Offset, ignore it.
+                }
+                TreeItem::Bytes(ref bytes) => {
+                    byte_len += bytes.len() as u32;
+                }
+                TreeItem::Offset if i == 1 => {
+                    // Ok, that's the only place where `Offset` is valid.
+                }
+                TreeItem::Offset => {
+                    return Err(TokenWriterError::InvalidOffsetField)
+                }
+            }
         }
-        result.extend_from_str("</tuple>"); // Sole purpose of this constant is testing
+
+        for item in children {
+            match *(item.0) {
+                TreeItem::Bytes(ref bytes) => {
+                    result.extend_from_slice(bytes);
+                }
+                TreeItem::Offset => {
+                    let buf : [u8; 4] = unsafe { std::mem::transmute(byte_len) };
+                    result.extend_from_slice(&buf);
+                }
+            }
+        }
+        result.extend_from_slice(FOOTER); // Sole purpose of this constant is testing
         Ok(self.register(result))
     }
 }

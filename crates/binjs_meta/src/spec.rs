@@ -134,7 +134,11 @@ impl Field {
     }
 }
 
-/// A type, typically that of a field.
+/// The contents of a type, typically that of a field.
+///
+/// Note that we generally use `Type`, to represent
+/// the fact that some fields accept `null` while
+/// others do not.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeSpec {
     /// An array of values of the same type.
@@ -156,9 +160,19 @@ pub enum TypeSpec {
     /// A string.
     String,
 
-    /// A number.
+    /// A number, as per JavaScript specifications.
     Number,
 
+    /// A number of bytes in the binary file.
+    ///
+    /// This spec is used only internally, as a hidden
+    /// field injected by deanonymization, to represent
+    /// Skippable nodes.
+    Offset,
+
+    /// Nothing.
+    ///
+    /// For the moment, this spec is used only internally.
     Void,
 }
 
@@ -208,10 +222,14 @@ impl TypeSpec {
         }.required()
     }
 
-    pub fn optional(self) -> Type {
-        Type {
-            spec: self,
-            or_null: true
+    pub fn optional(self) -> Option<Type> {
+        if let TypeSpec::Offset = self {
+            None
+        }  else {
+            Some(Type {
+                spec: self,
+                or_null: true
+            })
         }
     }
 
@@ -246,7 +264,7 @@ impl TypeSpec {
         let mut result = HashSet::new();
         for spec in self.typespecs() {
             if let TypeSpec::NamedType(ref name) = *spec {
-                result.insert(name);                
+                result.insert(name);
             }
         }
         result
@@ -350,6 +368,11 @@ impl Type {
     }
     pub fn void() -> TypeSpec {
         TypeSpec::Void
+    }
+
+    /// An `offset` type, holding a number of bytes in the binary file.
+    pub fn offset() -> TypeSpec {
+        TypeSpec::Offset
     }
 
     pub fn array(self) -> TypeSpec {
@@ -649,7 +672,7 @@ impl SpecBuilder {
 
         let mut resolved_type_sums_by_name : HashMap<NodeName, HashSet<NodeName>> = HashMap::new();
         {
-            // 3. Check that node names are not duplicated.
+            // 3. Check that node names are used but not duplicated.
             for name in node_names.values() {
                 let mut instances = 0;
                 if interfaces_by_name.contains_key(name) {
@@ -661,7 +684,7 @@ impl SpecBuilder {
                 if typedefs_by_name.contains_key(name) {
                     instances += 1;
                 }
-                assert!(instances > 0);
+                assert!(instances > 0, "Type name {} is never used", name.to_str());
                 assert_eq!(instances, 1, "Duplicate type name {}", name.to_str());
             }
 
@@ -725,7 +748,7 @@ impl SpecBuilder {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Array
                     },
-                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => {
+                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void | TypeSpec::Offset => {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Primitive
                     }

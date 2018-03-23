@@ -80,11 +80,12 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 // 1. Get the the interface.
                 let (object_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
                     .map_err(Error::TokenReaderError)?;
-                debug!("decoder: found kind {:?}", object_name);
+                debug!(target: "decoder", "decoder: found kind {:?} while looking for {:?}", object_name, interface.name().to_str());
 
                 // 2. If necessary, substitute null to any interface.
                 // FIXME: Check above that `null` is acceptable.
                 if object_name == self.grammar.get_null_name().to_str() {
+                    debug!(target: "decoder", "decoder: substituted null => {}", interface.name().to_str());
                     guard.done()
                         .map_err(Error::TokenReaderError)?;
                     return Ok(self.register(JSON::Null))
@@ -172,7 +173,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
     }
     pub fn decode_from_type(&mut self, kind: &Type, is_optional: bool) -> Result<JSON, Error<E::Error>> {
         use binjs_meta::spec::TypeSpec::*;
-        debug!("decode: {:?}", kind);
+        debug!(target: "decoder", "decode: {:?}", kind);
         let is_optional = kind.is_optional() || is_optional;
         match *kind.spec() {
             Array { contents: ref kind, supports_empty } => {
@@ -211,7 +212,12 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                         Ok(self.register(json::from(b)))
                 }
             }
-            Number  => {
+            Offset => {
+                let offset = self.extractor.offset()
+                    .map_err(Error::TokenReaderError)?;
+                Ok(self.register(json::from(offset)))
+            }
+            Number => {
                 let extracted = self.extractor.float()
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
@@ -237,7 +243,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 // 1. Get the the interface.
                 let (interface_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
                     .map_err(Error::TokenReaderError)?;
-                debug!("decoder: found kind {:?}", interface_name);
+                debug!(target: "decoder", "decoder: found kind {:?}", interface_name);
                 let interface_node_name = self.grammar.get_node_name(&interface_name)
                     .ok_or_else(|| Error::NoSuchInterface(interface_name.to_string().clone()))?;
 

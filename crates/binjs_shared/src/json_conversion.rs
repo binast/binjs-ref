@@ -33,6 +33,17 @@ impl FromJSON for f64 {
         }
     }
 }
+impl FromJSON for u32 {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_u32() {
+            None => Err(FromJSONError {
+                expected: "Number".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(*s as u32)
+        }
+    }
+}
 impl FromJSON for String {
     fn import(value: &JSON) -> Result<Self, FromJSONError> {
         match value.as_str() {
@@ -96,13 +107,18 @@ impl ToJSON for f64 {
         json::from(self.clone())
     }
 }
+impl ToJSON for u32 {
+    fn export(&self) -> JSON {
+        json::from(self.clone())
+    }
+}
 impl<T> ToJSON for Vec<T> where T: ToJSON {
     fn export(&self) -> JSON {
         let vec = self.iter()
             .map(ToJSON::export)
             .collect();
         JSON::Array(vec)
-    }    
+    }
 }
 impl<T> ToJSON for Option<T> where T: ToJSON {
     fn export(&self) -> JSON {

@@ -147,6 +147,7 @@ impl Importer {
         };
         if t.nullable {
             spec.optional()
+                .unwrap_or_else(|| panic!("This type could not be made optional {:?}", t))
         } else {
             spec.required()
         }
