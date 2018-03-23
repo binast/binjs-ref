@@ -480,6 +480,9 @@ pub struct InterfaceDeclaration {
 
     /// The contents of this interface, excluding the contents of parent interfaces.
     contents: Obj,
+
+    /// If `true`, objects of this interface may be skipped during parsing.
+    is_skippable: bool,
 }
 
 impl InterfaceDeclaration {
@@ -498,6 +501,13 @@ impl InterfaceDeclaration {
         std::mem::swap(&mut self.contents, &mut contents);
         self.contents = contents.with_field_aux(name, type_, doc);
         self
+    }
+    pub fn with_skippable(&mut self, value: bool) -> &mut Self {
+        self.is_skippable = value;
+        self
+    }
+    pub fn is_skippable(&self) -> bool {
+        self.is_skippable
     }
 }
 
@@ -568,6 +578,7 @@ impl SpecBuilder {
         let result = RefCell::new(InterfaceDeclaration {
             name: name.clone(),
             contents: Obj::new(),
+            is_skippable: false,
         });
         self.interfaces_by_name.insert(name.clone(), result);
         self.interfaces_by_name.get(name)
@@ -809,8 +820,12 @@ impl SpecBuilder {
     }
 }
 
-/// An interface, once compiled through
-/// `SpecBuilder::into_spec`.
+/// Representation of an interface in a grammar declaration.
+///
+/// Interfaces represent nodes in the AST. Each interface
+/// has a name, a type, defines properties (also known as
+/// `attribute` in webidl) which hold values. Interfaces
+/// may also have meta-properties, such as their skippability.
 #[derive(Debug)]
 pub struct Interface {
     declaration: InterfaceDeclaration,
@@ -826,10 +841,14 @@ impl Interface {
         &self.declaration.contents
     }
 
+    /// Returns the name of the interface.
     pub fn name(&self) -> &NodeName {
         &self.declaration.name
     }
 
+    /// Returns a type specification for this interface.
+    ///
+    /// The result is a `NamedType` with this interface's name.
     pub fn spec(&self) -> TypeSpec {
         TypeSpec::NamedType(self.name().clone())
     }
@@ -845,6 +864,12 @@ impl Interface {
             }
         }
         None
+    }
+
+    /// `true` if parsers should have the ability to skip instances of this
+    /// interface.
+    pub fn is_skippable(&self) -> bool {
+        self.declaration.is_skippable
     }
 }
 
