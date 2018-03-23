@@ -220,6 +220,7 @@ impl TypeDeanonymizer {
                             Some(IsNullable { content: Primitive::String, .. }) => Type::string().required(),
                             Some(IsNullable { content: Primitive::Number, .. }) => Type::number().required(),
                             Some(IsNullable { content: Primitive::Boolean, .. }) => Type::bool().required(),
+                            Some(IsNullable { content: Primitive::Offset, .. }) => Type::offset().required(),
                             Some(IsNullable { content: Primitive::Void, .. }) => Type::void().required()
                         };
                         debug!(target: "export_utils", "import_typespec aliasing {:?} => {:?}",

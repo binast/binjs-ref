@@ -255,7 +255,7 @@ impl TypeSpec {
                     }
                 }
                 _ => {}
-            }            
+            }
         }
         result
     }
@@ -276,6 +276,7 @@ impl TypeSpec {
             TypeSpec::Void => Some(IsNullable::non_nullable(Primitive::Void)),
             TypeSpec::Number => Some(IsNullable::non_nullable(Primitive::Number)),
             TypeSpec::String => Some(IsNullable::non_nullable(Primitive::String)),
+            TypeSpec::Offset => Some(IsNullable::non_nullable(Primitive::Offset)),
             TypeSpec::NamedType(ref name) => {
                 match spec.get_type_by_name(name).unwrap() {
                     NamedType::Interface(ref interface) =>
@@ -310,6 +311,7 @@ pub enum Primitive {
     Boolean,
     Void,
     Number,
+    Offset,
     Interface(Rc<Interface>),
 }
 
