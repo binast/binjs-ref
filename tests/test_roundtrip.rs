@@ -16,6 +16,11 @@ use binjs::source::*;
 
 use std::io::*;
 
+fn progress() {
+    // Make sure that we see progress in the logs, without spamming these logs.
+    eprint!(".");
+}
+
 #[test]
 fn test_roundtrip() {
 
@@ -49,7 +54,7 @@ fn test_roundtrip() {
     };
 
     let path = format!("{}/tests/data/spidermonkey/ecma_2/**/*.js", env!("CARGO_MANIFEST_DIR"));
-    println!("Starting test_roundtrip from {}", path);
+    debug!(target: "test_roundtrip", "Starting test_roundtrip from {}", path);
 
     for entry in glob::glob(&path)
         .expect("Invalid glob pattern")
@@ -62,14 +67,15 @@ fn test_roundtrip() {
         let mut ast    = parser.parse_file(entry.clone())
             .expect("Could not parse source");
         debug!(target: "test_roundtrip", "Source: {}", ast.pretty(2));
-        println!("Annotating {:?}.", entry);
+        debug!(target: "test_roundtrip", "Annotating {:?}.", entry);
         library.annotate(&mut ast);
 
         {
-            println!("Starting simple round trip for {:?}", entry);
+            progress();
+            debug!(target: "test_roundtrip", "Starting simple round trip for {:?}", entry);
 
             // Roundtrip `simple`
-            println!("Encoding");
+            debug!(target: "test_roundtrip", "Encoding");
             let writer  = binjs::io::simple::TreeTokenWriter::new();
             let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
 
@@ -78,27 +84,30 @@ fn test_roundtrip() {
             let (data, _) = encoder.done()
                 .expect("Could not finalize AST encoding");
 
-            println!("Decoding.");
+            progress();
+            debug!(target: "test_roundtrip", "Decoding.");
             let source = Cursor::new(data.as_ref().clone());
             let reader = binjs::io::simple::TreeTokenReader::new(source);
             let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
 
             let decoded = decoder.decode()
                 .expect("Could not decode");
+            progress();
 
-            println!("Checking.");
+            debug!(target: "test_roundtrip", "Checking.");
             let equal = Comparator::compare(&spec, &ast, &decoded)
                 .expect("Could not compare ASTs");
             assert!(equal);
 
-            println!("Completed simple round trip for {:?}", entry);
+            debug!(target: "test_roundtrip", "Completed simple round trip for {:?}", entry);
         }
 
         // Roundtrip `multipart`
 
         for options in &all_options {
-            println!("Starting multipart round trip for {:?} with options {:?}", entry, options);
-            println!("Encoding.");
+            progress();
+            debug!(target: "test_roundtrip", "Starting multipart round trip for {:?} with options {:?}", entry, options);
+            debug!(target: "test_roundtrip", "Encoding.");
             let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());
             let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
 
@@ -106,8 +115,9 @@ fn test_roundtrip() {
                 .expect("Could not encode AST");
             let (data, _) = encoder.done()
                 .expect("Could not finalize AST encoding");
+            progress();
 
-            println!("Decoding.");
+            debug!(target: "test_roundtrip", "Decoding.");
             let source = Cursor::new(data.as_ref().clone());
             let reader = binjs::io::multipart::TreeTokenReader::new(source)
                 .expect("Could not decode AST container");
@@ -115,12 +125,14 @@ fn test_roundtrip() {
 
             let decoded = decoder.decode()
                 .expect("Could not decode");
+            progress();
 
-            println!("Checking.");
+            debug!(target: "test_roundtrip", "Checking.");
             let equal = Comparator::compare(&spec, &ast, &decoded)
                 .expect("Could not compare ASTs");
             assert!(equal);
-            println!("Completed multipart round trip for {:?} with options {:?}", entry, options);
+            debug!(target: "test_roundtrip", "Completed multipart round trip for {:?} with options {:?}", entry, options);
+            progress();
         }
     }
 }
