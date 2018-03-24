@@ -8,7 +8,7 @@ use multipart::*;
 use std;
 use std::collections::{ HashMap, HashSet };
 use std::cell::RefCell;
-use std::fmt::{ Display, Formatter };
+use std::fmt::{ Debug, Display, Formatter };
 use std::hash::Hash;
 use std::io::Write;
 use std::ops::{ Add, AddAssign };
@@ -100,7 +100,7 @@ impl Serializable for Option<String> {
 /// An entry in an WriterTable.
 ///
 /// This entry tracks the number of instances of the entry used in the table.
-struct TableEntry<T> where T: Clone { // We shouldn't need the `Clone`, sigh.
+struct TableEntry<T> where T: Clone + std::fmt::Debug { // We shouldn't need the `Clone`, sigh.
     /// Number of instances of this entry around.
     instances: RefCell<u32>,
 
@@ -110,22 +110,22 @@ struct TableEntry<T> where T: Clone { // We shouldn't need the `Clone`, sigh.
     /// The index, actually computed in `write()`.
     index: TableIndex<T>
 }
-impl<T> TableEntry<T> where T: Clone {
+impl<T> TableEntry<T> where T: Clone + std::fmt::Debug {
     fn new(data: T) -> Self {
         TableEntry {
             instances: RefCell::new(1),
+            index: TableIndex::new(&format!("{:?}", data)),
             data,
-            index: TableIndex::new()
         }
     }
 }
 
 /// A table, used to define a varnum-indexed header
-struct WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable {
+struct WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
     map: HashMap<Entry, TableEntry<Entry>>
 }
 
-impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable {
+impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
     pub fn new() -> Self {
         WriterTable {
             map: HashMap::new()
@@ -134,7 +134,7 @@ impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + F
 }
 
 
-impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable {
+impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
     /// Get an entry from the header.
     ///
     /// The number of entries is incremented by 1.
@@ -176,7 +176,7 @@ impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + F
 ///       -   byte length of entry (varnum);
 /// - for each entry,
 /// -   serialization of entry.
-impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable {
+impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
@@ -247,183 +247,220 @@ impl FormatInTable for NodeDescription {
     const HAS_LENGTH_INDEX : bool = false;
 }
 
-enum Nature {
-    ListHeader,
-    ListWhole,
-    TaggedTupleHeader,
-    TaggedTupleWhole,
-    UntaggedTuple,
-    Float,
-    Bool,
-    String,
-}
+/// The tree, as it is being built.
+enum UnresolvedTreeNode {
+    /// An index into the table of strings.
+    UnresolvedStringIndex(TableIndex<Option<String>>),
 
-enum Item {
-    String(TableIndex<Option<String>>),
-    NodeDescription(TableIndex<NodeDescription>),
+    /// An index into the table of nodes.
+    UnresolvedNodeIndex(TableIndex<NodeDescription>),
+
+    /// A subtree, preceded by the number of bytes it takes.
+    UnresolvedOffset(Option<Box<UnresolvedTree>>),
+    Tuple(Vec<Rc<UnresolvedTree>>),
     Encoded(Vec<u8>),
-    List(Vec<Rc<LabelledItem>>)
 }
-
-struct LabelledItem {
-    item: Item,
+struct UnresolvedTree {
     nature: Nature,
+    data: UnresolvedTreeNode
 }
 
-#[derive(Clone)]
-pub struct Tree(Rc<LabelledItem>);
+enum ResolvedTree {
+    Tuple(Vec<ResolvedTree>),
+    Encoded(Vec<u8>),
+}
 
-impl LabelledItem {
-    fn write<W: Write>(&self, out: &mut W, stats: &mut Statistics) -> Result<usize, std::io::Error> {
-        match self.item {
-            Item::String(ref index) => {
-                let result = index.write(out)?;
-                stats.string.entries += 1;
-                stats.string.own_bytes += result;
-                stats.string.total_bytes += result;
-                Ok(result)
+impl ResolvedTree {
+    fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
+        match *self {
+            ResolvedTree::Encoded(ref buf) => {
+                out.write_all(&*buf)?;
+                Ok(buf.len())
             }
-            Item::NodeDescription(ref index) => {
-                let result = index.write(out)?;
-                for stat in &mut [&mut stats.tagged_tuple, &mut stats.tagged_header] {
-                    stat.entries += 1;
-                    stat.own_bytes += result;
-                    stat.total_bytes += result;
+            ResolvedTree::Tuple(ref items) => {
+                let mut total = 0;
+                for item in items {
+                    total += item.write(out)?;
                 }
-                Ok(result)
-            },
-            Item::Encoded(ref vec) => {
-                out.write_all(&vec)?;
-                let result = vec.len();
-                let stats = match self.nature {
-                    Nature::Bool => Some(&mut stats.bool),
-                    Nature::Float => Some(&mut stats.float),
-                    Nature::ListHeader => Some(&mut stats.list_header),
-                    _ => None
-                };
-                if let Some(stats) = stats {
-                    stats.entries += 1;
-                    stats.own_bytes += result;
-                    stats.total_bytes += result;
-                    stats.shallow_bytes += result;
-                }
-                Ok(result)
-            },
-            Item::List(ref items) => {
-                let mut shallow_bytes = 0;
-                let mut total_bytes = 0;
-                match self.nature {
-                    Nature::ListWhole => {
-                        // Compute byte length
-                        let mut buf = Vec::with_capacity(1024);
-                        for item in items {
-                            let len = item.write(&mut buf, stats)?;
-                            if let Item::List(_) = item.item {
-                                // These bytes are not part of the shallow count.
-                            } else {
-                                shallow_bytes += len;
-                            }
-                        }
-                        // Write byte length
-                        let bytelen_len = out.write_varnum(buf.len() as u32)?;
-                        total_bytes += bytelen_len;
-                        // Write data
-                        out.write_all(&buf)?;
-                        total_bytes += buf.len();
-
-                        // Update statistics
-                        stats.list.entries += 1;
-                        stats.list.own_bytes += bytelen_len;
-                        stats.list.total_bytes += total_bytes;
-                        stats.list.shallow_bytes += shallow_bytes;
-
-                        stats.list_header.own_bytes += bytelen_len;
-                        stats.list_header.total_bytes += bytelen_len;
-                        stats.list_header.shallow_bytes += bytelen_len;
-
-                        match stats.list_lengths.entry(items.len()) {
-                            vec_map::Entry::Occupied(mut entry) => {
-                                let borrow = entry.get_mut();
-                                *borrow += 1;
-                            }
-                            vec_map::Entry::Vacant(entry) => {
-                                entry.insert(1);
-                            }
-                        }
-                    }
-                    Nature::TaggedTupleWhole => {
-                        assert!(items.len() > 0);
-
-                        // Size of the first element. Useful for statistics.
-                        let mut first_size = None;
-                        for item in items {
-                            let len = item.write(out, stats)?;
-                            if first_size.is_none() {
-                                first_size = Some(len);
-                            }
-                            total_bytes += len;
-                            if let Item::List(_) = item.item {
-                                // These bytes are not part of the shallow count.
-                            } else {
-                                shallow_bytes += len;
-                            }
-                        }
-                        let first_size = first_size.unwrap(); // We checked above that `items.len() > 0`.
-                        stats.tagged_tuple.entries += 1;
-                        stats.tagged_tuple.total_bytes += total_bytes;
-                        stats.tagged_tuple.shallow_bytes += shallow_bytes;
-
-                        // Update statistics.
-                        if let LabelledItem {
-                            nature: Nature::TaggedTupleHeader,
-                            item: Item::NodeDescription(ref index)
-                        } = *items[0] {
-                            let key = index.index.borrow()
-                                .expect("TableIndex hasn't been resolved");
-
-                            match stats.per_kind_index.entry(key as usize) {
-                                vec_map::Entry::Occupied(mut entry) => {
-                                    let borrow = entry.get_mut();
-                                    borrow.entries += 1;
-                                    borrow.total_bytes += total_bytes;
-                                    borrow.own_bytes += first_size;
-                                    borrow.shallow_bytes += shallow_bytes;
-                                }
-                                vec_map::Entry::Vacant(entry) => {
-                                    entry.insert(NodeStatistics {
-                                        entries: 1,
-                                        max_entries: 1,
-                                        shallow_bytes,
-                                        total_bytes,
-                                        own_bytes: first_size,
-                                    });
-                                }
-                            }
-                        } else {
-                            panic!("Internal error: Tagged tuple doesn't have the expected structure")
-                        }
-                    }
-                    _ => {
-                        for item in items {
-                            total_bytes += item.write(out, stats)?;
-                        }
-                    }
-                }
-                Ok(total_bytes)
+                Ok(total)
             }
         }
     }
 }
 
-impl Tree {
-    fn write<W: Write>(&self, out: &mut W, stats: &mut Statistics) -> Result<usize, std::io::Error> {
-        self.0.write(out, stats)
+impl UnresolvedTree {
+    fn resolve(self, stats: &mut Statistics) -> (u32, ResolvedTree) {
+        use self::UnresolvedTreeNode::*;
+        let (total_bytes, own_bytes, tree) = match self.data {
+            UnresolvedStringIndex(index) => {
+                let index = index.index()
+                    .expect("String index should have been resolved by now.");
+                let mut buf = Vec::with_capacity(4);
+                let byte_len : usize = buf.write_varnum(index).unwrap(); // This operation can't fail.
+
+                (byte_len as u32, byte_len as u32, ResolvedTree::Encoded(buf))
+            }
+            UnresolvedNodeIndex(index) => {
+                debug!(target: "multipart", "Rewriting node '{}'", index.description);
+
+                let index = index.index()
+                    .expect("Node index should have been resolved by now.");
+                let mut buf = Vec::with_capacity(4);
+                let byte_len : usize = buf.write_varnum(index).unwrap(); // This operation can't fail.
+
+
+                (byte_len as u32, byte_len as u32, ResolvedTree::Encoded(buf))
+            }
+            UnresolvedOffset(None) => {
+                panic!("UnresolvedOffset should have children");
+            }
+            UnresolvedOffset(Some(child)) => {
+                let (sub_byte_len, sub_resolved) = child.resolve(stats);
+                let mut buf = Vec::with_capacity(4);
+                let offset_byte_len = buf.write_varnum(sub_byte_len).unwrap(); // This operation can't fail.
+                let offset_resolved = ResolvedTree::Encoded(buf);
+
+                (sub_byte_len + offset_byte_len as u32, offset_byte_len as u32, ResolvedTree::Tuple(vec![offset_resolved, ResolvedTree::Tuple(vec![sub_resolved])]))
+            }
+            Tuple(mut subtrees) => {
+                let mut byte_len = 0;
+                let mut resolved = Vec::with_capacity(subtrees.len());
+                for tree in subtrees.drain(..) {
+                    let tree = std::rc::Rc::try_unwrap(tree)
+                        .unwrap_or_else(|e| panic!("Could not unwrap tree, it still has {} consumers", std::rc::Rc::strong_count(&e)));
+                    let (sub_byte_len, sub_resolved) = tree.resolve(stats);
+                    byte_len += sub_byte_len;
+                    resolved.push(sub_resolved);
+                }
+
+                (byte_len as u32, byte_len as u32, ResolvedTree::Tuple(resolved))
+            }
+            Encoded(vec) => {
+                let byte_len = vec.len() as u32;
+
+                (byte_len, byte_len, ResolvedTree::Encoded(vec))
+            }
+        };
+
+        let total = total_bytes as usize;
+        let own   = own_bytes as usize;
+        match self.nature {
+            Nature::String(_) => {
+                stats.string.entries += 1;
+                stats.string.own_bytes += own;
+                stats.string.total_bytes += total;
+            }
+            Nature::TaggedTuple(index) => {
+                stats.tagged_tuple.entries += 1;
+                for stat in &mut [&mut stats.tagged_tuple, &mut stats.tagged_header] {
+                    stat.own_bytes += own;
+                    stat.total_bytes += total;
+                }
+
+                let key = index.index.borrow()
+                    .expect("TableIndex hasn't been resolved");
+
+                debug!(target: "multipart", "Updating table for {}", key);
+                match stats.per_kind_index.entry(key as usize) {
+                    vec_map::Entry::Occupied(mut entry) => {
+                        let borrow = entry.get_mut();
+                        borrow.entries += 1;
+                        borrow.total_bytes += total;
+                        borrow.shallow_bytes += own;
+                        borrow.own_bytes += own;
+                    }
+                    vec_map::Entry::Vacant(entry) => {
+                        entry.insert(NodeStatistics {
+                            entries: 1,
+                            max_entries: 1,
+                            shallow_bytes: own,
+                            total_bytes: total,
+                            own_bytes: own,
+                        });
+                    }
+                }
+            }
+            Nature::TaggedTupleHeader(index) => {
+                stats.tagged_header.entries += 1;
+                stats.tagged_header.own_bytes += own;
+                stats.tagged_header.total_bytes += total;
+
+                let key = index.index.borrow()
+                    .expect("TableIndex hasn't been resolved");
+                debug!(target: "multipart", "Updating table for {}", key);
+                match stats.per_kind_index.entry(key as usize) {
+                    vec_map::Entry::Occupied(mut entry) => {
+                        let borrow = entry.get_mut();
+                        borrow.entries += 1;
+                        borrow.total_bytes += total;
+                        borrow.shallow_bytes += own;
+                        borrow.own_bytes += own;
+                    }
+                    vec_map::Entry::Vacant(entry) => {
+                        entry.insert(NodeStatistics {
+                            entries: 1,
+                            max_entries: 1,
+                            shallow_bytes: own,
+                            total_bytes: total,
+                            own_bytes: own,
+                        });
+                    }
+                }
+            }
+            Nature::List => {
+                stats.list.entries += 1;
+                stats.list.total_bytes += total;
+            }
+            Nature::ListHeader => {
+                stats.list.own_bytes += total;
+            }
+            Nature::Bool => {
+                stats.bool.entries += 1;
+                stats.bool.own_bytes += own;
+                stats.bool.total_bytes += total;
+                stats.bool.shallow_bytes += own;
+            }
+            Nature::Float => {
+                stats.float.entries += 1;
+                stats.float.own_bytes += own;
+                stats.float.total_bytes += total;
+                stats.float.shallow_bytes += own;
+            }
+            Nature::Offset => {
+                stats.offset.entries += 1;
+                stats.bool.own_bytes += own;
+                stats.bool.total_bytes += total;
+                stats.bool.shallow_bytes += own;
+            }
+            _ => {}
+        }
+
+        (total_bytes, tree)
     }
 }
+
+/// The nature of nodes. Used to collect statistics.
+#[derive(Debug)]
+enum Nature {
+    List,
+    ListHeader,
+    UntaggedTuple,
+    TaggedTuple(TableIndex<NodeDescription>),
+    TaggedTupleHeader(TableIndex<NodeDescription>),
+    Float,
+    Bool,
+    String(TableIndex<Option<String>>),
+    /// Internal data representing a number of bytes.
+    Offset,
+}
+
+#[derive(Clone)]
+pub struct Tree(Rc<UnresolvedTree>);
 
 #[derive(Debug)]
 struct TableIndex<T> {
     phantom: std::marker::PhantomData<T>,
+    description: Rc<String>, // For debugging purposes
     index: Rc<RefCell<Option<u32>>>,
 }
 
@@ -431,15 +468,23 @@ impl<T> Clone for TableIndex<T> {
     fn clone(&self) -> Self {
         TableIndex {
             phantom: std::marker::PhantomData,
+            description: self.description.clone(),
             index: self.index.clone()
         }
     }
 }
 impl<T> TableIndex<T> {
-    fn new() -> Self {
+    fn new(description: &str) -> Self {
         TableIndex {
             phantom: std::marker::PhantomData,
+            description: Rc::new(description.to_string()),
             index: Rc::new(RefCell::new(None))
+        }
+    }
+    pub fn index(&self) -> Option<u32> {
+        match *self.index.borrow() {
+            None => None,
+            Some(ref value) => Some(value.clone())
         }
     }
 }
@@ -467,7 +512,7 @@ impl TreeTokenWriter {
         }
     }
 
-    fn register(&mut self, data: LabelledItem) -> Tree {
+    fn register(&mut self, data: UnresolvedTree) -> Tree {
         let result = Rc::new(data);
         self.root = Some(Tree(result.clone()));
         Tree(result)
@@ -535,9 +580,12 @@ impl TreeTokenWriter {
         // Write tree itself to byte stream.
         self.data.write_all(HEADER_TREE.as_bytes())
             .map_err(TokenWriterError::WriteError)?;
-        if let Some(ref root) = self.root {
+        if let Some(root) = self.root {
             let mut buf = Vec::with_capacity(2048);
-            root.write(&mut buf, &mut self.statistics)
+            let root = std::rc::Rc::try_unwrap(root.0)
+                .unwrap_or_else(|e| panic!("Could not unwrap tree, it still has {} consumers", std::rc::Rc::strong_count(&e)));
+            let (_, resolved) = root.resolve(&mut self.statistics);
+            resolved.write(&mut buf)
                 .map_err(TokenWriterError::WriteError)?;
             let compression = buf.write_with_compression(&mut self.data, &self.options.tree)
                 .map_err(TokenWriterError::WriteError)?;
@@ -551,7 +599,7 @@ impl TreeTokenWriter {
             let index = value.index.index.borrow()
                 .expect("Table index hasn't been resolved yet");
             let stats = self.statistics.per_kind_index.get(index as usize)
-                .expect("Could not find entry per index");
+                .unwrap_or_else(|| panic!("Could not find stats entry for index {} ({}, {} occurrences)", index, key.kind, value.instances.borrow()));
             match self.statistics.per_kind_name.entry(key.kind.clone()) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
                     let borrow = entry.get_mut();
@@ -585,18 +633,25 @@ impl TokenWriter for TreeTokenWriter {
     fn float(&mut self, value: Option<f64>) -> Result<Self::Tree, Self::Error> {
         let bytes : Vec<_> = bytes::float::bytes_of_float(value).iter().cloned().collect();
         debug!(target: "multipart", "writing float {:?} => {:?}", value, bytes);
-        Ok(self.register(LabelledItem {
-            item: Item::Encoded(bytes),
+        Ok(self.register(UnresolvedTree {
             nature: Nature::Float,
+            data: UnresolvedTreeNode::Encoded(bytes),
         }))
     }
 
     fn bool(&mut self, data: Option<bool>)  -> Result<Self::Tree, Self::Error> {
         let bytes = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
         debug!(target: "multipart", "writing bool {:?} => {:?}", data, bytes);
-        Ok(self.register(LabelledItem {
-            item: Item::Encoded(bytes),
-            nature: Nature::Bool
+        Ok(self.register(UnresolvedTree {
+            nature: Nature::Bool,
+            data: UnresolvedTreeNode::Encoded(bytes),
+        }))
+    }
+
+    fn offset(&mut self) -> Result<Self::Tree, Self::Error> {
+        Ok(self.register(UnresolvedTree {
+            data: UnresolvedTreeNode::UnresolvedOffset(None), // This will be replaced later.
+            nature: Nature::Offset
         }))
     }
 
@@ -607,44 +662,44 @@ impl TokenWriter for TreeTokenWriter {
             .map(|entry| entry.index.clone());
 
         if let Some(index) = index {
-            return Ok(self.register(LabelledItem {
-                item: Item::String(index),
-                nature: Nature::String
+            return Ok(self.register(UnresolvedTree {
+                data: UnresolvedTreeNode::UnresolvedStringIndex(index.clone()),
+                nature: Nature::String(index)
             }));
         }
         let index = self.strings_table.insert(key);
         debug!(target: "multipart", "writing string {:?} => {:?}", data, index);
-        Ok(self.register(LabelledItem {
-            item: Item::String(index),
-            nature: Nature::String
+        Ok(self.register(UnresolvedTree {
+            data: UnresolvedTreeNode::UnresolvedStringIndex(index.clone()),
+            nature: Nature::String(index)
         }))
     }
     fn list(&mut self, mut children: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
-        let mut items : Vec<Rc<LabelledItem>> = Vec::with_capacity(children.len() + 1);
+        let mut items = Vec::with_capacity(children.len() + 1);
         // First child is the number of children.
-        let mut encoded_number_of_items = Vec::with_capacity(8);
+        let mut encoded_number_of_items = Vec::with_capacity(4);
         encoded_number_of_items.write_varnum(children.len() as u32)
             .map_err(TokenWriterError::WriteError)?;
-        items.push(Rc::new(LabelledItem {
-            item: Item::Encoded(encoded_number_of_items),
+        items.push(Rc::new(UnresolvedTree {
+            data: UnresolvedTreeNode::Encoded(encoded_number_of_items),
             nature: Nature::ListHeader,
         }));
 
         let len = children.len();
-        // Next, we have `children`.
+        // Next, move in the children.
         let children : Vec<_> = children.drain(..)
             .map(|tree| tree.0.clone())
             .collect();
         items.extend(children);
         debug!(target: "multipart", "writing list with {} => {} items", len, items.len());
-        Ok(self.register(LabelledItem {
-            item: Item::List(items),
-            nature: Nature::ListWhole,
+        Ok(self.register(UnresolvedTree {
+            data: UnresolvedTreeNode::Tuple(items),
+            nature: Nature::List,
         }))
     }
     fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
-        let result = LabelledItem {
-            item: Item::List(children.iter()
+        let result = UnresolvedTree {
+            data: UnresolvedTreeNode::Tuple(children.iter()
                 .map(|tree| tree.0.clone())
                 .collect()
             ),
@@ -662,31 +717,76 @@ impl TokenWriter for TreeTokenWriter {
     // - for each item, in the order specified
     //    - the item (see item)
     fn tagged_tuple(&mut self, name: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
-        let mut data : Vec<Rc<LabelledItem>> = Vec::with_capacity(children.len() + 1);
+        let data;
+        let description = NodeDescription {
+            kind: name.to_string(),
+        };
+        debug!(target: "multipart", "writing tagged tuple {} with {} children as {:?}",
+            name,
+            children.len(),
+            description,
+        );
+        let index : TableIndex<_> = self.grammar_table.insert(description);
         {
-            let description = NodeDescription {
-                kind: name.to_string(),
-            };
-            debug!(target: "multipart", "writing tagged tuple {} with {} children as {:?}",
-                name,
-                children.len(),
-                description,
-            );
-            let index = self.grammar_table.insert(description);
-            debug!(target: "multipart", "tagged tuple index: {:?}", index);
+            // Now, we determine if we should add an Offset
+            let inject_in_offset =
+                if let Some(&(_, ref tree)) = children.get(0)
+                {
+                    if let UnresolvedTree {
+                        nature: Nature::Offset,
+                        data: UnresolvedTreeNode::UnresolvedOffset(ref v)
+                    } = *tree.0 {
+                        assert!(v.is_none());
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
 
-            // Now add the prefix
-            data.push(Rc::new(LabelledItem {
-                item: Item::NodeDescription(index),
-                nature: Nature::TaggedTupleHeader,
-            }));
-            for &(_, ref child) in children {
-                data.push(child.0.clone())
+            debug!(target: "multipart", "tagged tuple index: {index:?}, with{has_offset} offset",
+                index = index,
+                has_offset = if inject_in_offset { "" } else { "OUT"});
+
+            // Sanity check
+            for (i, &(_, ref child)) in children.iter().enumerate() {
+                if let Nature::Offset = child.0.nature {
+                    if i == 0 {
+                        // No problem.
+                    } else {
+                        // Offsets may only appear as first child.
+                        return Err(TokenWriterError::InvalidOffsetField)
+                    }
+                }
+            }
+
+            let prefix = Rc::new(UnresolvedTree {
+                data: UnresolvedTreeNode::UnresolvedNodeIndex(index.clone()),
+                nature: Nature::TaggedTupleHeader(index.clone()),
+            });
+
+            let children = UnresolvedTree {
+                data: UnresolvedTreeNode::Tuple(children.iter()
+                    .skip(if inject_in_offset { 1 } else { 0 })
+                    .map(|c| (c.1).0.clone())
+                    .collect()),
+                nature: Nature::UntaggedTuple,
+            };
+
+            if inject_in_offset {
+                // Now inject in data.
+                data = vec![prefix, Rc::new(UnresolvedTree {
+                    data: UnresolvedTreeNode::UnresolvedOffset(Some(Box::new(children))),
+                    nature: Nature::Offset,
+                })];
+            } else {
+                data = vec![prefix, Rc::new(children)];
             }
         }
-        Ok(self.register(LabelledItem {
-            item: Item::List(data),
-            nature: Nature::TaggedTupleWhole,
+        Ok(self.register(UnresolvedTree {
+            data: UnresolvedTreeNode::Tuple(data),
+            nature: Nature::TaggedTuple(index),
         }))
     }
 }
@@ -810,6 +910,7 @@ pub struct Statistics {
     pub float: NodeStatistics,
     pub string: NodeStatistics,
     pub list: NodeStatistics,
+    pub offset: NodeStatistics,
     pub list_header: NodeStatistics,
     pub tagged_header: NodeStatistics,
     pub tagged_tuple: NodeStatistics,
@@ -1079,6 +1180,7 @@ Statistics
 \tTokens:
 {token_bool}
 {token_float}
+{token_offset}
 {token_string}
 {token_list}
 {token_tagged_tuple}
@@ -1132,6 +1234,13 @@ Statistics
         token_float = NodeAndStatistics {
             name: "Float",
             stats: &self.float,
+            total_number_of_entries: total_number_of_tokens,
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            header_bytes: 0,
+        },
+        token_offset = NodeAndStatistics {
+            name: "Offset",
+            stats: &self.offset,
             total_number_of_entries: total_number_of_tokens,
             total_uncompressed_bytes: self.uncompressed_bytes,
             header_bytes: 0,

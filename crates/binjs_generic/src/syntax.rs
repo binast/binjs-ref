@@ -270,6 +270,11 @@ macro_rules! make_ast_visitor {
                             return Ok(())
                         }
                     }
+                    &TypeSpec::Offset => {
+                        if let JSON::Number(_) = *value {
+                            return Ok(())
+                        }
+                    }
                     &TypeSpec::String => {
                         if value.as_str().is_some() {
                             return Ok(())

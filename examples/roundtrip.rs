@@ -148,7 +148,7 @@ fn main() {
                 simple_stats = simple_stats + stats;
 
                 println!("Decoding.");
-                let source = Cursor::new(data.as_ref().clone());
+                let source = Cursor::new(data);
                 let reader = binjs::io::simple::TreeTokenReader::new(source);
                 let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
 

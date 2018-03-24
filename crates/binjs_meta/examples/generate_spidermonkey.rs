@@ -105,6 +105,8 @@ impl ToWebidl {
                 format!("[NonEmpty] FrozenArray<{}>", Self::type_(&*contents, prefix, indent)),
             TypeSpec::Array { ref contents, supports_empty: true } =>
                 format!("FrozenArray<{}>", Self::type_(&*contents, prefix, indent)),
+            TypeSpec::Offset =>
+                "offset".to_string(),
             TypeSpec::Boolean =>
                 "bool".to_string(),
             TypeSpec::String =>
@@ -790,6 +792,15 @@ impl CPPExporter {
                     } else {
                         (None,
                         Some(format!("MOZ_TRY_DECL({var_name}, tokenizer_->readBool());", var_name = var_name)))
+                    }
+                }
+                Some(IsNullable { is_nullable: false, content: Primitive::Offset }) => {
+                    if needs_block {
+                        (Some(format!("uint32_t {var_name};", var_name = var_name)),
+                        Some(format!("MOZ_TRY_VAR({var_name}, tokenizer_->readOffset());", var_name = var_name)))
+                    } else {
+                        (None,
+                        Some(format!("MOZ_TRY_DECL({var_name}, tokenizer_->readOffset());", var_name = var_name)))
                     }
                 }
                 Some(IsNullable { content: Primitive::Void, .. }) => {

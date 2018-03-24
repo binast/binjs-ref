@@ -6,6 +6,42 @@ pub struct Importer {
     builder: SpecBuilder,
 }
 impl Importer {
+    /// Import an AST into a SpecBuilder.
+    ///
+    /// ```
+    /// extern crate binjs_meta;
+    /// extern crate webidl;
+    /// use webidl;
+    ///
+    /// let parser = webidl::Parser::new();
+    /// let ast = parser.parse_string("
+    ///    [Skippable] interface SkippableFoo {
+    ///       attribute EagerFoo eager;
+    ///    };
+    ///    interface EagerFoo {
+    ///       attribute bool value;
+    ///    };
+    /// ").expect("Could not parse");
+    ///
+    /// let mut builder = binjs_meta::import::Importer::import(&ast);
+    ///
+    /// let name_eager = builder.get_node_name("EagerFoo")
+    ///     .expect("Missing name EagerFoo");
+    /// let name_skippable = builder.get_node_name("SkippableFoo")
+    ///     .expect("Missing name SkippableFoo");
+    ///
+    /// {
+    ///     let interface_eager = builder.get_interface(&name_eager)
+    ///         .expect("Missing interface EagerFoo");
+    ///     assert_eq!(interface_eager.is_skippable(), false);
+    /// }
+    ///
+    /// {
+    ///     let interface_skippable = builder.get_interface(&name_skippable)
+    ///         .expect("Missing interface SkippableFoo");
+    ///     assert_eq!(interface_skippable.is_skippable(), true);
+    /// }
+    /// ```
     pub fn import(ast: &AST) -> SpecBuilder {
         let mut importer = Importer {
             builder: SpecBuilder::new()
@@ -49,6 +85,7 @@ impl Importer {
             panic!("Expected a non-partial interface, got {:?}", interface);
         };
         if interface.name == "Node" {
+            // We're not interested in the root interface.
             return;
         }
         if let Some(ref parent) = interface.inherits {
@@ -69,6 +106,16 @@ impl Importer {
             .expect("Name already present");
         for (field_name, field_type) in fields.drain(..) {
             node.with_field(&field_name, field_type);
+        }
+
+        for extended_attribute in &interface.extended_attributes {
+            use webidl::ast::ExtendedAttribute::NoArguments;
+            use webidl::ast::Other::Identifier;
+            if let &NoArguments(Identifier(ref id)) = extended_attribute.as_ref() {
+                if &*id == "Skippable" {
+                    node.with_skippable(true);
+                }
+            }
         }
     }
     fn convert_type(&mut self, t: &Type) -> spec::Type {
@@ -100,6 +147,7 @@ impl Importer {
         };
         if t.nullable {
             spec.optional()
+                .unwrap_or_else(|| panic!("This type could not be made optional {:?}", t))
         } else {
             spec.required()
         }

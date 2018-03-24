@@ -46,7 +46,7 @@ impl RustExporter {
             prefix = prefix,
             close =
                 if type_.is_optional() {
-                    ".optional()"
+                    ".optional().unwrap()"
                 } else {
                     ".required()"
                 }
@@ -68,6 +68,9 @@ impl RustExporter {
             }
             TypeSpec::Boolean =>
                 format!("{prefix}Type::bool()",
+                    prefix = prefix),
+            TypeSpec::Offset =>
+                format!("{prefix}Type::offset()",
                     prefix = prefix),
             TypeSpec::String =>
                 format!("{prefix}Type::string()",
@@ -344,6 +347,7 @@ impl Walker for {name} {{
                         TypeSpec::Boolean => "bool",
                         TypeSpec::Number => "f64",
                         TypeSpec::String => "std::string::String",
+                        TypeSpec::Offset => "u32",
                         TypeSpec::Void => "()",
                         _ => panic!("Unexpected type in alias to a primitive type: {name}",
                             name = name)
@@ -403,6 +407,7 @@ impl Walker for {name} {{
                                         TypeSpec::Number => "f64".to_string(),
                                         TypeSpec::String => "String".to_string(),
                                         TypeSpec::Void => "()".to_string(),
+                                        TypeSpec::Offset => "u32".to_string(),
                                         _ => TypeName::type_(field.type_())
                                     }
                                 };
@@ -534,6 +539,12 @@ impl Walker for f64 {{
         Ok(())
     }}
 }}
+impl Walker for u32 {{
+    fn walk<V, E>(&mut self, _: &mut Path, _: &mut V) -> Result<(), E> where V: Visitor<E> {{
+        // Do not inspect the contents of a u32.
+        Ok(())
+    }}
+}}
 impl<T> Walker for Option<T> where T: Walker {{
     fn walk<V, E>(&mut self, path: &mut Path, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {{
         // Do not callback on the `Option<>` itself, just on its contents.
@@ -603,8 +614,8 @@ impl<T> Walker for Vec<T> where T: Walker {{
                 fields.insert(field.name().to_string().clone());
             }
         }
-        let mut fields : Vec<_> = fields.drain().collect();
-        fields.sort();
+        fields.insert("Offset".to_string()); // Hardcoded Offset field.
+        let fields : Vec<_> = fields.drain().sorted();
         for name in fields {
             let snake = name.to_rust_identifier_case();
             let struct_source = format!("    pub field_{snake}: FieldName,\n",

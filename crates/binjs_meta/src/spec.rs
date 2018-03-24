@@ -134,7 +134,11 @@ impl Field {
     }
 }
 
-/// A type, typically that of a field.
+/// The contents of a type, typically that of a field.
+///
+/// Note that we generally use `Type`, to represent
+/// the fact that some fields accept `null` while
+/// others do not.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeSpec {
     /// An array of values of the same type.
@@ -156,9 +160,19 @@ pub enum TypeSpec {
     /// A string.
     String,
 
-    /// A number.
+    /// A number, as per JavaScript specifications.
     Number,
 
+    /// A number of bytes in the binary file.
+    ///
+    /// This spec is used only internally, as a hidden
+    /// field injected by deanonymization, to represent
+    /// Skippable nodes.
+    Offset,
+
+    /// Nothing.
+    ///
+    /// For the moment, this spec is used only internally.
     Void,
 }
 
@@ -208,10 +222,14 @@ impl TypeSpec {
         }.required()
     }
 
-    pub fn optional(self) -> Type {
-        Type {
-            spec: self,
-            or_null: true
+    pub fn optional(self) -> Option<Type> {
+        if let TypeSpec::Offset = self {
+            None
+        }  else {
+            Some(Type {
+                spec: self,
+                or_null: true
+            })
         }
     }
 
@@ -237,7 +255,7 @@ impl TypeSpec {
                     }
                 }
                 _ => {}
-            }            
+            }
         }
         result
     }
@@ -246,7 +264,7 @@ impl TypeSpec {
         let mut result = HashSet::new();
         for spec in self.typespecs() {
             if let TypeSpec::NamedType(ref name) = *spec {
-                result.insert(name);                
+                result.insert(name);
             }
         }
         result
@@ -258,6 +276,7 @@ impl TypeSpec {
             TypeSpec::Void => Some(IsNullable::non_nullable(Primitive::Void)),
             TypeSpec::Number => Some(IsNullable::non_nullable(Primitive::Number)),
             TypeSpec::String => Some(IsNullable::non_nullable(Primitive::String)),
+            TypeSpec::Offset => Some(IsNullable::non_nullable(Primitive::Offset)),
             TypeSpec::NamedType(ref name) => {
                 match spec.get_type_by_name(name).unwrap() {
                     NamedType::Interface(ref interface) =>
@@ -292,6 +311,7 @@ pub enum Primitive {
     Boolean,
     Void,
     Number,
+    Offset,
     Interface(Rc<Interface>),
 }
 
@@ -350,6 +370,11 @@ impl Type {
     }
     pub fn void() -> TypeSpec {
         TypeSpec::Void
+    }
+
+    /// An `offset` type, holding a number of bytes in the binary file.
+    pub fn offset() -> TypeSpec {
+        TypeSpec::Offset
     }
 
     pub fn array(self) -> TypeSpec {
@@ -480,6 +505,9 @@ pub struct InterfaceDeclaration {
 
     /// The contents of this interface, excluding the contents of parent interfaces.
     contents: Obj,
+
+    /// If `true`, objects of this interface may be skipped during parsing.
+    is_skippable: bool,
 }
 
 impl InterfaceDeclaration {
@@ -498,6 +526,13 @@ impl InterfaceDeclaration {
         std::mem::swap(&mut self.contents, &mut contents);
         self.contents = contents.with_field_aux(name, type_, doc);
         self
+    }
+    pub fn with_skippable(&mut self, value: bool) -> &mut Self {
+        self.is_skippable = value;
+        self
+    }
+    pub fn is_skippable(&self) -> bool {
+        self.is_skippable
     }
 }
 
@@ -568,6 +603,7 @@ impl SpecBuilder {
         let result = RefCell::new(InterfaceDeclaration {
             name: name.clone(),
             contents: Obj::new(),
+            is_skippable: false,
         });
         self.interfaces_by_name.insert(name.clone(), result);
         self.interfaces_by_name.get(name)
@@ -638,7 +674,7 @@ impl SpecBuilder {
 
         let mut resolved_type_sums_by_name : HashMap<NodeName, HashSet<NodeName>> = HashMap::new();
         {
-            // 3. Check that node names are not duplicated.
+            // 3. Check that node names are used but not duplicated.
             for name in node_names.values() {
                 let mut instances = 0;
                 if interfaces_by_name.contains_key(name) {
@@ -650,7 +686,7 @@ impl SpecBuilder {
                 if typedefs_by_name.contains_key(name) {
                     instances += 1;
                 }
-                assert!(instances > 0);
+                assert!(instances > 0, "Type name {} is never used", name.to_str());
                 assert_eq!(instances, 1, "Duplicate type name {}", name.to_str());
             }
 
@@ -714,7 +750,7 @@ impl SpecBuilder {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Array
                     },
-                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => {
+                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void | TypeSpec::Offset => {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Primitive
                     }
@@ -809,8 +845,12 @@ impl SpecBuilder {
     }
 }
 
-/// An interface, once compiled through
-/// `SpecBuilder::into_spec`.
+/// Representation of an interface in a grammar declaration.
+///
+/// Interfaces represent nodes in the AST. Each interface
+/// has a name, a type, defines properties (also known as
+/// `attribute` in webidl) which hold values. Interfaces
+/// may also have meta-properties, such as their skippability.
 #[derive(Debug)]
 pub struct Interface {
     declaration: InterfaceDeclaration,
@@ -826,10 +866,14 @@ impl Interface {
         &self.declaration.contents
     }
 
+    /// Returns the name of the interface.
     pub fn name(&self) -> &NodeName {
         &self.declaration.name
     }
 
+    /// Returns a type specification for this interface.
+    ///
+    /// The result is a `NamedType` with this interface's name.
     pub fn spec(&self) -> TypeSpec {
         TypeSpec::NamedType(self.name().clone())
     }
@@ -845,6 +889,12 @@ impl Interface {
             }
         }
         None
+    }
+
+    /// `true` if parsers should have the ability to skip instances of this
+    /// interface.
+    pub fn is_skippable(&self) -> bool {
+        self.declaration.is_skippable
     }
 }
 

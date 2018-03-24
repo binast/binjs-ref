@@ -73,7 +73,9 @@ impl Pick for TypeSpec {
                 json::from(rng.next_f64())
             }
             TypeSpec::Void =>
-                JSON::Null
+                JSON::Null,
+            TypeSpec::Offset =>
+                json::from(rng.gen_range(0, u32::max_value()))
         }
     }
 }

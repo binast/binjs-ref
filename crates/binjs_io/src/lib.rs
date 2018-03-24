@@ -8,6 +8,7 @@ extern crate vec_map;
 
 #[derive(Debug)]
 pub enum TokenWriterError {
+    InvalidOffsetField,
     WriteError(std::io::Error),
 }
 

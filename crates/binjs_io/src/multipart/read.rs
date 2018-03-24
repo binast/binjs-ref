@@ -112,6 +112,7 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
 }
 
 /// Description of a node in the table.
+#[derive(Debug)]
 pub struct NodeDescription {
     kind: String,
 }
@@ -150,12 +151,6 @@ pub struct ReaderState {
     pub grammar_table: Table<NodeDescription>,
 }
 
-impl ReaderState {
-    pub fn position(&mut self) -> u64 {
-        self.reader.position()
-    }
-}
-
 pub struct TreeTokenReader {
     // Shared with all children.
     owner: Rc<RefCell<PoisonLock<ReaderState>>>,
@@ -189,6 +184,8 @@ impl TreeTokenReader {
         };
         let grammar_table = Compression::decompress(&mut reader, &grammar_deserializer)
             .map_err(TokenReaderError::BadCompression)?;
+        debug!(target: "multipart", "Grammar table: {:?}",
+            grammar_table.map);
 
         // Read strings table
         reader.read_const(HEADER_STRINGS_TABLE.as_bytes())
@@ -247,17 +244,13 @@ impl Drop for SimpleGuard {
 }
 
 pub struct ListGuard {
-    expected_end: u64,
-    start: u64,
     parent: SimpleGuard
 }
 
 impl ListGuard {
-    fn new(owner: Rc<RefCell<PoisonLock<ReaderState>>>, start: u64, byte_len: u64) -> Self {
+    fn new(owner: Rc<RefCell<PoisonLock<ReaderState>>>) -> Self {
         ListGuard {
             parent: SimpleGuard::new(owner),
-            start,
-            expected_end: start + byte_len,
         }
     }
 }
@@ -266,22 +259,10 @@ impl Guard for ListGuard {
     fn done(mut self) -> Result<(), Self::Error> {
         self.parent.parent.finalized = true;
 
-        let mut owner = self.parent.owner.borrow_mut();
+        let owner = self.parent.owner.borrow_mut();
         if owner.is_poisoned() {
             return Ok(())
         }
-
-        let found = owner.try(|state| Ok(state.position()))?;
-        if found != self.expected_end {
-            owner.poison();
-            return Err(TokenReaderError::EndOffsetError {
-                start: self.start,
-                expected: self.expected_end,
-                found,
-                description: "list".to_string()
-            })
-        }
-
         Ok(())
     }
 }
@@ -342,6 +323,15 @@ impl TokenReader for TreeTokenReader {
         })
     }
 
+    /// Read a single `bool`.
+    fn offset(&mut self) -> Result<u32, Self::Error> {
+        self.owner.borrow_mut().try(|state| {
+            let byte_len = state.reader.read_varnum_2()
+                .map_err(TokenReaderError::ReadError)?;
+            Ok(byte_len)
+        })
+    }
+
     /// Start reading a list.
     ///
     /// Returns an extractor for that list and the number of elements
@@ -350,9 +340,7 @@ impl TokenReader for TreeTokenReader {
     fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(move |state| {
-            let byte_len = state.reader.read_varnum_2()
-                .map_err(TokenReaderError::ReadError)?;
-            let guard = ListGuard::new(clone, state.position(), byte_len as u64);
+            let guard = ListGuard::new(clone);
             let list_len = state.reader.read_varnum_2()
                 .map_err(TokenReaderError::ReadError)?;
             debug!(target: "multipart", "Reading list with {} items", list_len);

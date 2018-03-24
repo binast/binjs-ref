@@ -34,7 +34,7 @@ use itertools::Itertools;
 ///     attribute OptionalObjectOrStringOrNumberOrArrayOrBoolean value;
 /// }
 /// interface Object { // Deanonymized list
-///     attribute ListOfProperty properties; 
+///     attribute ListOfProperty properties;
 /// }
 /// interface Property { // No change
 ///     attribute DOMString name;
@@ -68,16 +68,33 @@ impl TypeDeanonymizer {
         let mut result = TypeDeanonymizer {
             builder: SpecBuilder::new(),
         };
-        // Copy names
+        // Copy field names
         for (_, name) in spec.field_names() {
             result.builder.import_field_name(name)
         }
+
+        // We may need to introduce name `offset`, we'll se.
+        let mut field_offset = None;
+
         // Copy and deanonymize interfaces.
         for (name, interface) in spec.interfaces_by_name() {
             result.builder.import_node_name(name);
             // Collect interfaces to copy them into the `builder`
             // and walk through their fields to deanonymize types.
+
             let mut fields = vec![];
+            // If the interface is skippable, introduce a first invisible field `_offset`.
+            if interface.is_skippable() {
+                let name = field_offset.get_or_insert_with(||
+                    result.builder.field_name("_offset")
+                );
+                fields.push(Field::new(
+                    name.clone(),
+                    Type::offset().required()
+                ))
+            }
+
+            // Copy other fields.
             for field in interface.contents().fields() {
                 result.import_type(spec, field.type_(), None);
                 fields.push(field.clone());
@@ -136,7 +153,8 @@ impl TypeDeanonymizer {
                     None => self.builder.node_name(&format!("Optional{}", spec_name)),
                     Some(ref name) => name.clone()
                 };
-            let deanonymized = Type::named(&spec_name).optional();
+            let deanonymized = Type::named(&spec_name).optional()
+                .unwrap(); // Named types can always be made optional.
             if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
                 debug!(target: "export_utils", "import_type introduced {:?}", my_name);
                 typedef.with_type(deanonymized.clone());
@@ -154,6 +172,7 @@ impl TypeDeanonymizer {
             TypeSpec::Boolean |
             TypeSpec::Number |
             TypeSpec::String |
+            TypeSpec::Offset |
             TypeSpec::Void    => {
                 if let Some(ref my_name) = public_name {
                     if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
@@ -201,6 +220,7 @@ impl TypeDeanonymizer {
                             Some(IsNullable { content: Primitive::String, .. }) => Type::string().required(),
                             Some(IsNullable { content: Primitive::Number, .. }) => Type::number().required(),
                             Some(IsNullable { content: Primitive::Boolean, .. }) => Type::bool().required(),
+                            Some(IsNullable { content: Primitive::Offset, .. }) => Type::offset().required(),
                             Some(IsNullable { content: Primitive::Void, .. }) => Type::void().required()
                         };
                         debug!(target: "export_utils", "import_typespec aliasing {:?} => {:?}",
@@ -310,6 +330,8 @@ impl TypeName {
                 format!("ListOf{}", Self::type_(contents)),
             TypeSpec::NamedType(ref name) =>
                 name.to_string().clone(),
+            TypeSpec::Offset =>
+                "_Offset".to_string(),
             TypeSpec::Boolean =>
                 "_Bool".to_string(),
             TypeSpec::Number =>
