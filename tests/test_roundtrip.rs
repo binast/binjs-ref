@@ -1,17 +1,15 @@
 //! Encode a BinJS, then decode it, ensure that we obtain the same AST.
 
 extern crate binjs;
-extern crate binjs_io;
 extern crate env_logger;
 extern crate glob;
 #[macro_use]
 extern crate log;
 
-use binjs::generic::io::encode::*;
-use binjs::generic::syntax::*;
+use binjs::generic::*;
 use binjs::io::bytes::compress::*;
 use binjs::io::multipart::*;
-use binjs::meta::spec::*;
+use binjs::io::*;
 use binjs::source::*;
 
 use std::io::*;
@@ -27,12 +25,6 @@ fn test_roundtrip() {
     env_logger::init();
 
     let parser = Shift::new();
-    let mut spec_builder = SpecBuilder::new();
-    let library = binjs::generic::es6::Library::new(&mut spec_builder);
-    let spec = spec_builder.into_spec(SpecOptions {
-        null: &library.null,
-        root: &library.program,
-    });
 
     // All combinations of options for compression.
     let all_options = {
@@ -68,7 +60,11 @@ fn test_roundtrip() {
             .expect("Could not parse source");
         debug!(target: "test_roundtrip", "Source: {}", ast.pretty(2));
         debug!(target: "test_roundtrip", "Annotating {:?}.", entry);
-        library.annotate(&mut ast);
+
+        let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
+            .expect("Could not import AST");
+        binjs::specialized::es6::scopes::AnnotationVisitor::new()
+            .annotate_script(&mut ast);
 
         {
             progress();
@@ -76,28 +72,25 @@ fn test_roundtrip() {
 
             // Roundtrip `simple`
             debug!(target: "test_roundtrip", "Encoding");
-            let writer  = binjs::io::simple::TreeTokenWriter::new();
-            let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
-
-            encoder.encode(&ast)
+            let mut writer = binjs::io::simple::TreeTokenWriter::new();
+            let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+            serializer.serialize(&ast)
                 .expect("Could not encode AST");
-            let (data, _) = encoder.done()
+            let (data, _) = serializer.done()
                 .expect("Could not finalize AST encoding");
 
             progress();
             debug!(target: "test_roundtrip", "Decoding.");
             let source = Cursor::new(data);
             let reader = binjs::io::simple::TreeTokenReader::new(source);
-            let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
+            let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-            let decoded = decoder.decode()
+            let decoded = deserializer.deserialize()
                 .expect("Could not decode");
             progress();
 
             debug!(target: "test_roundtrip", "Checking.");
-            let equal = Comparator::compare(&spec, &ast, &decoded)
-                .expect("Could not compare ASTs");
-            assert!(equal);
+            assert_eq!(ast, decoded);
 
             debug!(target: "test_roundtrip", "Completed simple round trip for {:?}", entry);
         }
@@ -109,28 +102,27 @@ fn test_roundtrip() {
             debug!(target: "test_roundtrip", "Starting multipart round trip for {:?} with options {:?}", entry, options);
             debug!(target: "test_roundtrip", "Encoding.");
             let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());
-            let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
-
-            encoder.encode(&ast)
+            let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+            serializer.serialize(&ast)
                 .expect("Could not encode AST");
-            let (data, _) = encoder.done()
+            let (data, _) = serializer.done()
                 .expect("Could not finalize AST encoding");
+
             progress();
 
             debug!(target: "test_roundtrip", "Decoding.");
-            let source = Cursor::new(data.as_ref().clone());
+            let source = Cursor::new(data);
             let reader = binjs::io::multipart::TreeTokenReader::new(source)
                 .expect("Could not decode AST container");
-            let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
+            let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-            let decoded = decoder.decode()
+            let decoded = deserializer.deserialize()
                 .expect("Could not decode");
             progress();
 
             debug!(target: "test_roundtrip", "Checking.");
-            let equal = Comparator::compare(&spec, &ast, &decoded)
-                .expect("Could not compare ASTs");
-            assert!(equal);
+            assert_eq!(ast, decoded);
+
             debug!(target: "test_roundtrip", "Completed multipart round trip for {:?} with options {:?}", entry, options);
             progress();
         }

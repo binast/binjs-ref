@@ -211,10 +211,17 @@ impl<Error> Drop for TrivialGuard<Error> {
     }
 }
 
-pub trait Serialization<W, T> where W: TokenWriter {
-    fn serialize(&self, writer: &mut W, data: T) -> Result<W::Tree, W::Error>;
+pub trait Serialization<W, T> where W: TokenWriter, T: Sized {
+    fn serialize(&mut self, data: T) -> Result<W::Tree, W::Error>;
+}
+pub trait TokenSerializer<W> where W: TokenWriter {
+    fn done(self) -> Result<(W::Data, W::Statistics), W::Error>;
 }
 
-pub trait Deserialization<R, T> where R: TokenReader {
-    fn deserialize(&self, reader: &mut R) -> Result<T, R::Error>;
+
+pub trait Deserialization<R, T> where R: TokenReader, T: Sized {
+    fn deserialize(&mut self) -> Result<T, R::Error>;
+}
+pub trait InnerDeserialization<R, T> where R: TokenReader, T: Sized {
+    fn deserialize_inner(&mut self) -> Result<T, R::Error>;
 }

@@ -207,7 +207,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
-        debug!(target: "token_simple", "TreeTokenReader: bool");
+        debug!(target: "simple_reader", "bool");
         let mut buf : [u8; 1] = [0];
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -221,6 +221,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn offset(&mut self) -> Result<u32, Self::Error> {
+        debug!(target: "simple_reader", "offset");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
             state.read_u32()
@@ -228,6 +229,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn float(&mut self) -> Result<Option<f64>, Self::Error> {
+        debug!(target: "simple_reader", "float");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
             let mut buf : [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
@@ -238,7 +240,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
-        debug!(target: "token_simple", "TreeTokenReader: string");
+        debug!(target: "simple_reader", "string");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
             state.reader.read_const(b"<string>")
@@ -263,7 +265,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     }
 
     fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error> {
-        debug!(target: "token_simple", "TreeTokenReader: list");
+        debug!(target: "simple_reader", "list");
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
             state.reader.read_const(b"<list>")
@@ -271,13 +273,13 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
 
             let guard = ListGuard::new(clone);
             let list_len = state.read_u32()?;
-            debug!(target: "token_simple", "TreeTokenReader: list has {} items", list_len);
+            debug!(target: "simple_writer", "TreeTokenReader: list has {} items", list_len);
             Ok((list_len, guard))
         })
     }
 
     fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
-        debug!("TreeTokenReader: tagged_tuple");
+        debug!(target: "simple_reader", "tagged tuple");
         let clone = self.owner.clone();
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -303,17 +305,19 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
             let guard = TaggedGuard::new(clone);
 
             debug!("TreeTokenReader: tagged_tuple has name {:?}, fields {:?}", kind_name, fields);
+            debug!(target: "simple_reader", "/tagged tuple");
             Ok((kind_name, Some(Rc::new(fields.into_boxed_slice())), guard))
         })
     }
 
     fn untagged_tuple(&mut self) -> Result<Self::UntaggedGuard, Self::Error> {
-        debug!(target: "token_simple", "TreeTokenReader: untagged_tuple");
+        debug!(target: "simple_reader", "untagged tuple");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
             state.reader.read_const(b"<tuple>")
                 .map_err(TokenReaderError::ReadError)
         })?;
+        debug!(target: "simple_reader", "/untagged tuple");
         Ok(UntaggedGuard::new(self.owner.clone()))
     }
 }
@@ -401,7 +405,7 @@ impl TokenWriter for TreeTokenWriter {
     }
 
     fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
-        debug!(target: "token_simple", "TreeTokenWriter: bool");
+        debug!(target: "simple_writer", "TreeTokenWriter: bool");
         let result = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
         Ok(self.register(result))
     }
@@ -415,7 +419,7 @@ impl TokenWriter for TreeTokenWriter {
     // Strings are represented as len + UTF-8
     // The None string is represented as len + [255, 0]
     fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
-        debug!(target: "token_simple", "TreeTokenWriter: string {:?}", data);
+        debug!(target: "simple_writer", "TreeTokenWriter: string {:?}", data);
         const EMPTY_STRING: [u8; 2] = [255, 0];
         let byte_len = match data {
             None => EMPTY_STRING.len(),
@@ -447,7 +451,7 @@ impl TokenWriter for TreeTokenWriter {
     /// - number of items;
     /// - items.
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
-        debug!(target: "token_simple", "TreeTokenWriter: list");
+        debug!(target: "simple_writer", "TreeTokenWriter: list");
         let prefix = "<list>";
         let suffix = "</list>";
         let mut result = Vec::new();
@@ -476,7 +480,7 @@ impl TokenWriter for TreeTokenWriter {
         }
 
         result.extend_from_str(suffix);// Sole purpose of this constant is testing
-        debug!(target: "token_simple", "TreeTokenWriter: list has {} items", number_of_items);
+        debug!(target: "simple_writer", "TreeTokenWriter: list has {} items", number_of_items);
         Ok(self.register(result))
     }
 
@@ -487,7 +491,7 @@ impl TokenWriter for TreeTokenWriter {
     /// - </head>
     /// - contents
     fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
-        debug!(target: "token_simple", "TreeTokenWriter: tagged_tuple");
+        debug!(target: "simple_writer", "TreeTokenWriter: tagged_tuple");
         let mut prefix = Vec::new();
         prefix.extend_from_str("<head>");
         prefix.extend_from_str(tag);
@@ -513,7 +517,7 @@ impl TokenWriter for TreeTokenWriter {
         self.untagged_tuple(&untagged)
     }
     fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
-        debug!(target: "token_simple", "TreeTokenWriter: untagged_tuple");
+        debug!(target: "simple_writer", "TreeTokenWriter: untagged_tuple");
         let mut result = Vec::new();
         result.extend_from_str("<tuple>"); // Sole purpose of this constant is testing
 
