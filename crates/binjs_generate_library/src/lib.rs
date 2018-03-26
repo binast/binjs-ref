@@ -107,7 +107,20 @@ impl RustExporter {
 
         // Buffer used to generate the strongly-typed data structure.
         let mut ast_buffer = String::new();
-        ast_buffer.push_str("use binjs_shared;\nuse binjs_shared::{ FromJSON, FromJSONError, ToJSON };\nuse std;\nuse json;\nuse json::JsonValue as JSON;\n\n");
+        ast_buffer.push_str("
+use binjs_shared;
+use binjs_shared::{ FromJSON, FromJSONError, Offset, ToJSON };
+use binjs_io::{ Deserialization, Guard, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter };
+
+use io::*;
+
+use std;
+use std::convert::From;
+
+use json;
+use json::JsonValue as JSON;
+
+");
 
         // Buffer used to generate the generic data structure (struct declaration).
         let mut struct_buffer = String::new();
@@ -171,6 +184,43 @@ impl ToJSON for {name} {{
                         .format(",\n"),
                     name = name);
 
+                let from_reader = format!("
+impl<R> Deserializer<R> where R: TokenReader {{
+    fn deserialize_variant_{lowercase_name}_aux(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
+        let key = self.reader.string()?;
+        match key {{
+            None => Err(From::from(TokenReaderError::EmptyVariant)),
+{variants}
+            _ => Err(From::from(TokenReaderError::InvalidValue)),
+        }}
+    }}
+    fn deserialize_variant_{lowercase_name}(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
+        let result = self.deserialize_variant_{lowercase_name}_aux();
+        if result.is_err() {{
+            self.reader.poison();
+        }}
+        result
+    }}
+}}
+
+impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
+    fn deserialize(&mut self) -> Result<{name}, R::Error> {{
+        debug!(target: \"deserialize_es6\", \"Deserializing variant {name}\");
+        self.deserialize_variant_{lowercase_name}()
+    }}
+}}
+",
+                    name = name,
+                    lowercase_name = name.to_rust_identifier_case(),
+                    variants = string_enum.strings()
+                        .iter()
+                        .map(|s| format!("            Some(ref s) if s == \"{string}\" => Ok({name}::{typed}),",
+                            name = name,
+                            typed = s.to_cpp_enum_case(),
+                            string = s))
+                        .format("\n")
+                    );
+
                 let from_json = format!("
 impl FromJSON for {name} {{
     fn import(source: &JSON) -> Result<Self, FromJSONError > {{
@@ -193,6 +243,28 @@ impl FromJSON for {name} {{
                         .format(",\n"),
                     name = name);
 
+                let to_writer = format!("
+impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, W::Error> {{
+        debug!(target: \"serialize_es6\", \"Serializing string enum {name}\");
+        let str = match *value {{
+{variants}
+        }};
+        (self as &mut Serialization<W, &'a str>).serialize(str)
+    }}
+}}
+",
+                    name = name,
+                    variants = string_enum.strings()
+                        .iter()
+                        .map(|s| format!("            {name}::{typed} => \"{string}\"",
+                            name = name,
+                            typed = s.to_cpp_enum_case(),
+                            string = s,
+                        ))
+                        .format(",\n")
+                );
+
                 let walker = format!("
 impl Walker for {name} {{
     fn walk<V, E>(&mut self, _: &mut Path, _: &mut V) -> Result<(), E> where V: Visitor<E> {{
@@ -204,11 +276,13 @@ impl Walker for {name} {{
                 buffer.push_str(&definition);
                 buffer.push_str(&from_json);
                 buffer.push_str(&to_json);
+                buffer.push_str(&from_reader);
+                buffer.push_str(&to_writer);
                 buffer.push_str(&walker);
                 buffer.push_str("\n\n\n");
             }
         }
-        fn print_ast_typedefs(buffer: &mut String, source: &HashMap<NodeName, Rc<Type>>) {
+        fn print_ast_typedefs(buffer: &mut String, source: &HashMap<NodeName, Rc<Type>>, null_name: &str) {
             let mut enums = vec![];
             let mut options = vec![];
             let mut lists = vec![];
@@ -249,6 +323,76 @@ impl Walker for {name} {{
                             })
                             .format(",\n"));
 
+                let from_reader = format!("
+impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
+    fn deserialize(&mut self) -> Result<{name}, R::Error> {{
+        debug!(target: \"deserialize_es6\", \"Deserializing sum {name}\");
+        let (kind, _, guard) = self.reader.tagged_tuple()?;
+        debug!(target: \"deserialize_es6\", \"Deserializing sum {name}, found {{}}\", kind);
+        let result = match kind.as_str() {{
+{variants}
+            _ => Err(From::from(TokenReaderError::BadEnumVariant))
+        }};
+        if result.is_err() {{
+            self.reader.poison();
+        }}
+        guard.done()?;
+        result
+    }}
+}}
+impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenReader {{
+    fn deserialize(&mut self) -> Result<Option<{name}>, R::Error> {{
+        debug!(target: \"deserialize_es6\", \"Deserializing optional sum {name}\");
+        let (kind, _, guard) = self.reader.tagged_tuple()?;
+        let result = match kind.as_str() {{
+{variants_some}
+            \"{null}\" => Ok(None),
+            _ => Err(From::from(TokenReaderError::BadEnumVariant))
+        }};
+        if result.is_err() {{
+            self.reader.poison();
+        }}
+        guard.done()?;
+        result
+    }}
+}}
+",
+                                name = name,
+                                variants = sum.types()
+                                    .iter()
+                                    .map(|t| {
+                                        if let TypeSpec::NamedType(ref case) = *t {
+                                            format!("           \"{case}\" => {{
+                self.deserialize_inner()
+                    .map(|r| {name}::{constructor}(Box::new(r)))
+            }}",
+                                                name = name,
+                                                case = case,
+                                                constructor = case.to_class_cases())
+                                        } else {
+                                            panic!("We should only have named types in sums at this stage");
+                                        }
+                                    })
+                                    .format("\n"),
+                                variants_some = sum.types()
+                                    .iter()
+                                    .map(|t| {
+                                        if let TypeSpec::NamedType(ref case) = *t {
+                                            format!("           \"{case}\" => {{
+            self.deserialize_inner()
+                .map(|r| Some({name}::{constructor}(Box::new(r))))
+        }}",
+                                                name = name,
+                                                case = case,
+                                                constructor = case.to_class_cases())
+                                        } else {
+                                            panic!("We should only have named types in sums at this stage");
+                                        }
+                                    })
+                                    .format("\n"),
+                                    null = null_name,
+                                );
+
                             let from_json = format!("
 impl FromJSON for {name} {{
     fn import(value: &JSON) -> Result<Self, FromJSONError> {{
@@ -272,7 +416,7 @@ impl FromJSON for {name} {{
                                                 case = case,
                                                 constructor = case.to_class_cases())
                                         } else {
-                                            panic!();
+                                            panic!("We should only have named types in sums at this stage");
                                         }
                                     })
                                     .format(",\n")
@@ -303,6 +447,41 @@ impl ToJSON for {name} {{
                                     .format(",\n")
                                 );
 
+                    let to_writer = format!("
+impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &'a Option<{name}>) -> Result<W::Tree, W::Error> {{
+        debug!(target: \"serialize_es6\", \"Serializing optional sum {name}\");
+        match *value {{
+            None => self.writer.tagged_tuple(\"{null}\", &[]),
+            Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum)
+        }}
+    }}
+}}
+impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, W::Error> {{
+        debug!(target: \"serialize_es6\", \"Serializing sum {name}\");
+        match *value {{
+{variants}
+        }}
+    }}
+}}
+",
+                        null = null_name,
+                        name = name,
+                        variants = sum.types()
+                            .iter()
+                            .map(|t| {
+                                if let TypeSpec::NamedType(ref case) = *t {
+                                    format!("          {name}::{constructor}(box ref value) => (self as &mut Serialization<W, &'a {constructor}>).serialize(value)",
+                                        name = name,
+                                        constructor = case.to_class_cases())
+                                } else {
+                                    panic!();
+                                }
+                            })
+                            .format(",\n")
+                        );
+
                     let walk = format!("
 impl Walker for {name} {{
     fn walk<V, E>(&mut self, path: &mut Path, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {{
@@ -328,6 +507,8 @@ impl Walker for {name} {{
                         );
 
                     buffer.push_str(&definition);
+                    buffer.push_str(&from_reader);
+                    buffer.push_str(&to_writer);
                     buffer.push_str(&from_json);
                     buffer.push_str(&to_json);
                     buffer.push_str(&walk);
@@ -347,7 +528,7 @@ impl Walker for {name} {{
                         TypeSpec::Boolean => "bool",
                         TypeSpec::Number => "f64",
                         TypeSpec::String => "std::string::String",
-                        TypeSpec::Offset => "u32",
+                        TypeSpec::Offset => "Offset",
                         TypeSpec::Void => "()",
                         _ => panic!("Unexpected type in alias to a primitive type: {name}",
                             name = name)
@@ -360,7 +541,18 @@ impl Walker for {name} {{
                 let typedef = source.get(name).unwrap();
                 if let TypeSpec::Array { ref contents, ref supports_empty } = *typedef.spec() {
                     if let TypeSpec::NamedType(ref contents) = *contents.spec() {
-                        let source = format!("{empty_check}pub type {name} = Vec<{contents}>;\n",
+                        let source = format!("{empty_check}pub type {name} = Vec<{contents}>;
+impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, W::Error> {{
+        debug!(target: \"serialize_es6\", \"Serializing list {name}\");
+        let mut children = Vec::with_capacity(value.len());
+        for child in value {{
+            children.push(self.serialize(child)?);
+        }}
+        self.writer.list(children)
+    }}
+}}
+",
                             empty_check = if *supports_empty { "" } else { "// FIXME: Should discard empty vectors.\n" },
                             name = name.to_class_cases(),
                             contents = contents.to_class_cases());
@@ -386,7 +578,7 @@ impl Walker for {name} {{
                 }
             }
         }
-        fn print_ast_interfaces(buffer: &mut String, source: &HashMap<NodeName, Rc<Interface>>) {
+        fn print_ast_interfaces(buffer: &mut String, source: &HashMap<NodeName, Rc<Interface>>, null_name: &str) {
             let mut names : Vec<_> = source.keys()
                 .collect();
             names.sort();
@@ -407,7 +599,7 @@ impl Walker for {name} {{
                                         TypeSpec::Number => "f64".to_string(),
                                         TypeSpec::String => "String".to_string(),
                                         TypeSpec::Void => "()".to_string(),
-                                        TypeSpec::Offset => "u32".to_string(),
+                                        TypeSpec::Offset => "Offset".to_string(),
                                         _ => TypeName::type_(field.type_())
                                     }
                                 };
@@ -417,6 +609,110 @@ impl Walker for {name} {{
                         })
                         .format(",\n"),
                     name = name);
+
+                let from_reader = format!("
+impl<R> Deserializer<R> where R: TokenReader {{
+    fn deserialize_tuple_{lowercase_name}(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
+        let (kind, _, guard) = self.reader.tagged_tuple()?;
+        let result =
+            if let \"{name}\" = kind.as_str() {{
+                debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: present\");
+                self.deserialize_inner()
+            }} else {{
+                debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: error\");
+                Err(From::from(TokenReaderError::BadEnumVariant))
+            }};
+        if result.is_err() {{
+            self.reader.poison();
+        }}
+        guard.done()?;
+        result
+    }}
+}}
+
+impl<R> InnerDeserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
+    fn deserialize_inner(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
+        Ok({name} {{
+{fields}
+        }})
+    }}
+}}
+
+impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
+    fn deserialize(&mut self) -> Result<{name}, R::Error> {{
+        debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}\");
+        self.deserialize_tuple_{lowercase_name}()
+    }}
+}}
+impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenReader {{
+    fn deserialize(&mut self) -> Result<Option<{name}>, R::Error> {{
+        debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}\");
+        let (kind, _, guard) = self.reader.tagged_tuple()?;
+        let result = match kind.as_str() {{
+            \"{name}\" => {{
+                debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}: present\");
+                self.deserialize_inner().map(Some)
+            }}
+            \"{null}\" => {{
+                debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}: absent\");
+                Ok(None)
+            }},
+            _ => Err(From::from(TokenReaderError::BadEnumVariant))
+        }};
+        if result.is_err() {{
+            self.reader.poison();
+        }}
+        guard.done()?;
+        result
+    }}
+}}
+",
+                    name = name,
+                    null = null_name,
+                    lowercase_name = name.to_rust_identifier_case()
+                        .trim_right_matches('_'),
+                    fields = interface.contents()
+                        .fields()
+                        .iter()
+                        .map(|field| format!("            {name}: (self.deserialize() as Result<_, R::Error>)?,",
+                            name = field.name().to_rust_identifier_case()))
+                        .format("\n")
+                    );
+                    let len = interface.contents()
+                        .fields()
+                        .len();
+                    let to_writer = format!("
+impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &'a Option<{name}>) -> Result<W::Tree, W::Error> {{
+        debug!(target: \"serialize_es6\", \"Serializing optional tagged tuple {name}\");
+        match *value {{
+            None => self.writer.tagged_tuple(\"{null}\", &[]),
+            Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum)
+        }}
+    }}
+}}
+impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, {value}: &'a {name}) -> Result<W::Tree, W::Error> {{
+        debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
+        let {mut} children = Vec::with_capacity({len});
+{fields}
+        self.writer.tagged_tuple(\"{name}\", &children)
+    }}
+}}
+",
+                        mut = if len > 0 { "mut" } else { "" },
+                        value = if len > 0 { "value" } else { "_" },
+                        null = null_name,
+                        name = name,
+                        len = len,
+                        fields = interface.contents()
+                            .fields()
+                            .iter()
+                            .map(|field| format!("        children.push((\"{field_name}\", (self as &mut Serialization<W, &'a _>).serialize(&value.{rust_field_name})?));",
+                                field_name = field.name().to_str(),
+                                rust_field_name = field.name().to_rust_identifier_case()))
+                            .format("\n")
+                    );
 
                 let from_json = format!("
 impl FromJSON for {name} {{
@@ -428,7 +724,9 @@ impl FromJSON for {name} {{
                 got: value.dump()
             }})
         }}
-        Ok({name} {{ {fields} }})
+        Ok({name} {{
+{fields}
+        }})
     }}
 }}\n\n",
                     kind = name,
@@ -436,10 +734,10 @@ impl FromJSON for {name} {{
                     fields = interface.contents()
                         .fields()
                         .iter()
-                        .map(|field| format!("{name}: FromJSON::import(&value[\"{key}\"])?",
+                        .map(|field| format!("            {name}: FromJSON::import(&value[\"{key}\"])?,\n",
                             key = field.name().to_str(),
                             name = field.name().to_rust_identifier_case()))
-                        .format(", ")
+                        .format("")
                     );
 
                 let to_json = format!("
@@ -489,6 +787,8 @@ impl Walker for {name} {{
                         .format("\n")
                     );
                 buffer.push_str(&definition);
+                buffer.push_str(&from_reader);
+                buffer.push_str(&to_writer);
                 buffer.push_str(&from_json);
                 buffer.push_str(&to_json);
                 buffer.push_str(&walk);
@@ -545,6 +845,12 @@ impl Walker for u32 {{
         Ok(())
     }}
 }}
+impl Walker for Offset {{
+    fn walk<V, E>(&mut self, _: &mut Path, _: &mut V) -> Result<(), E> where V: Visitor<E> {{
+        // Do not inspect the contents of a Offset.
+        Ok(())
+    }}
+}}
 impl<T> Walker for Option<T> where T: Walker {{
     fn walk<V, E>(&mut self, path: &mut Path, visitor: &mut V) -> Result<(), E> where V: Visitor<E> {{
         // Do not callback on the `Option<>` itself, just on its contents.
@@ -596,14 +902,14 @@ impl<T> Walker for Vec<T> where T: Walker {{
         impl_buffer.push_str("\n\n            // Typedef names (by lexicographical order)\n");
         print_struct_names(&mut struct_buffer, self.spec.typedefs_by_name().keys());
         print_impl_names(&mut impl_buffer, self.spec.typedefs_by_name().keys());
-        print_ast_typedefs(&mut ast_buffer, deanonymized.typedefs_by_name());
+        print_ast_typedefs(&mut ast_buffer, deanonymized.typedefs_by_name(), self.spec.get_null_name().to_str());
 
         struct_buffer.push_str("\n\n    // Interface names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n            // Interface names (by lexicographical order)\n");
         ast_buffer.push_str("\n\n// Interfaces and interface names (by lexicographical order)\n");
         print_struct_names(&mut struct_buffer, self.spec.interfaces_by_name().keys());
         print_impl_names(&mut impl_buffer, self.spec.interfaces_by_name().keys());
-        print_ast_interfaces(&mut ast_buffer, deanonymized.interfaces_by_name());
+        print_ast_interfaces(&mut ast_buffer, deanonymized.interfaces_by_name(), self.spec.get_null_name().to_str());
 
         struct_buffer.push_str("\n\n\n    // Field names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n\n            // Field names (by lexicographical order)\n");

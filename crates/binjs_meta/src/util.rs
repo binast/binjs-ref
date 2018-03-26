@@ -88,9 +88,14 @@ pub trait ToCases: ToStr {
 
 impl<T> ToCases for T where T: ToStr {
     fn to_class_cases(&self) -> String {
-        let result = inflector::cases::pascalcase::to_pascal_case(self.to_str());
-        assert!(result.to_str().len() != 0, "Could not convert {} to class case", self.to_str() );
-        result
+        match self.to_str() {
+            "" => "Null".to_string(),
+            other => {
+                let result = inflector::cases::pascalcase::to_pascal_case(other);
+                assert!(result.to_str().len() != 0, "Could not convert '{}' to class case", other );
+                result
+            }
+        }
     }
     fn to_cpp_enum_case(&self) -> String {
         match self.to_str() {
@@ -133,6 +138,7 @@ impl<T> ToCases for T where T: ToStr {
             "!" => "Not".to_string(),
             "++" => "Incr".to_string(),
             "--" => "Decr".to_string(),
+            "" => "_Null".to_string(),
             _ => {
                 let class_cased = self.to_class_cases();
                 assert!(&class_cased != "", "FIXME: `to_class_cases` does not handle {} yet", self.to_str());
@@ -163,6 +169,7 @@ impl<T> ToCases for T where T: ToStr {
             "self" => "self_".to_string(),
             "super" => "super_".to_string(),
             "type" => "type_".to_string(),
+            "" if self.to_str() == "" => "null".to_string(),
             "" => unimplemented!("FIXME: `to_rust_identifier_case` does not handle {} yet", self.to_str()),
             _ => snake
         }

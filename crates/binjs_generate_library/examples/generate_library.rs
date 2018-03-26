@@ -47,8 +47,8 @@ fn main() {
 
     println!("...verifying grammar");
     let mut builder = Importer::import(&ast);
-    let fake_root = builder.node_name(""); // Ignored.
-    let null = builder.node_name("_Null"); // Ignored.
+    let fake_root = builder.node_name("@@ROOT@@"); // Ignored.
+    let null = builder.node_name(""); // Used.
     builder.add_interface(&null)
         .unwrap();
     let spec = builder.into_spec(SpecOptions {

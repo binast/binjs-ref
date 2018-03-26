@@ -199,7 +199,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
                 result.push((field.name().to_str(), encoded))
             } else if field.type_().is_optional() {
                 let encoded = self.encode_from_type(&JSON::Null, field.type_(), node, false)?;
-                result.push((field.name().to_str(), encoded))                
+                result.push((field.name().to_str(), encoded))
             } else {
                 debug!("Error in {:?}", object);
                 return Err(Error::missing_field(field.name().to_string(), node));
@@ -227,3 +227,4 @@ impl<'a, B, Tree, E> Encode for Encoder<'a, B, Tree, E> where B: TokenWriter<Tre
             })
     }
 }
+
