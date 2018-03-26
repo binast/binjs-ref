@@ -1,11 +1,12 @@
 [package]
 name = "binjs"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 homepage = "https://binast.github.io/ecmascript-binary-ast/"
 repository = "https://github.com/binast/binjs-ref"
 description = "Set of tools to manipulate files in the JavaScript Binary AST format."
 license = "MIT"
+build = "build.rs"
 
 [dependencies]
 binjs_generic = { path = "crates/binjs_generic", version = "*" }
