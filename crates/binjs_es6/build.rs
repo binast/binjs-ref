@@ -27,13 +27,13 @@ fn main() {
     let ast = parser.parse_string(&source)
         .expect("Could not parse source");
 
-    // Check spec. We don't really need null/fake_root
+    // Check spec. We don't really need fake_root
     // for this operation. It may change in the future,
     // we'll see then.
 
     let mut builder = Importer::import(&ast);
-    let fake_root = builder.node_name(""); // Ignored.
-    let null = builder.node_name("_Null"); // Ignored.
+    let fake_root = builder.node_name("@@ROOT@@"); // Ignored.
+    let null = builder.node_name("");      // Actually used
     builder.add_interface(&null)
         .unwrap();
     let spec = builder.into_spec(SpecOptions {

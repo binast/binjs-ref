@@ -18,7 +18,7 @@ use std::rc::Rc;
 /// following token. Rather, the driver of the `TokenReader` must be able to
 /// deduce the nature of the following token from what it has previously
 /// read.
-pub trait TokenReader where Self::Error: Debug,
+pub trait TokenReader where Self::Error: Debug + From<::TokenReaderError>,
                             Self::ListGuard: Guard<Error = Self::Error>,
                             Self::TaggedGuard: Guard<Error = Self::Error>,
                             Self::UntaggedGuard: Guard<Error = Self::Error>,
@@ -209,4 +209,19 @@ impl<Error> Drop for TrivialGuard<Error> {
     fn drop(&mut self) {
         assert!(self.finalized)
     }
+}
+
+pub trait Serialization<W, T> where W: TokenWriter, T: Sized {
+    fn serialize(&mut self, data: T) -> Result<W::Tree, W::Error>;
+}
+pub trait TokenSerializer<W> where W: TokenWriter {
+    fn done(self) -> Result<(W::Data, W::Statistics), W::Error>;
+}
+
+
+pub trait Deserialization<R, T> where R: TokenReader, T: Sized {
+    fn deserialize(&mut self) -> Result<T, R::Error>;
+}
+pub trait InnerDeserialization<R, T> where R: TokenReader, T: Sized {
+    fn deserialize_inner(&mut self) -> Result<T, R::Error>;
 }

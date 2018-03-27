@@ -48,6 +48,7 @@ extern crate vec_map;
 /// of the JavaScript AST.
 pub mod generic {
     pub use binjs_generic::*;
+    pub use binjs_shared::*;
 }
 
 /// Working with a specialized (i.e. strongly-typed)

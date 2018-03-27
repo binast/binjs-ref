@@ -38,6 +38,10 @@ impl<T> ReadConst for T where T: std::io::Read {
         unsafe { buf.set_len(data.len()); }
         let bytes = self.read(&mut buf)?;
         if bytes != data.len() || &buf as &[u8] != data {
+            debug!(target: "read_const", "Invalid data {:?}, expected {:?}",
+                String::from_utf8(buf.to_vec()),
+                String::from_utf8(data.to_vec())
+            );
             let details = String::from_utf8(data.to_vec())
                 .unwrap_or_else(|_| "<invalid read_const string>".to_string());
             return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, details));

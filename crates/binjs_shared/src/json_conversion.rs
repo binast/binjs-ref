@@ -133,3 +133,15 @@ impl<T> ToJSON for Box<T> where T: ToJSON {
         (**self).export()
     }
 }
+
+impl FromJSON for ::Offset {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        u32::import(value)
+            .map(::Offset)
+    }
+}
+impl ToJSON for ::Offset {
+    fn export(&self) -> JSON {
+        self.0.export()
+    }
+}

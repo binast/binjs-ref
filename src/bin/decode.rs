@@ -1,16 +1,12 @@
 //! Decode a BinJS to a text source.
 
 extern crate binjs;
-extern crate binjs_es6;
-extern crate binjs_io;
-extern crate binjs_generic;
-extern crate binjs_meta;
 extern crate clap;
 extern crate env_logger;
 
-
+use binjs::io::Deserialization;
+use binjs::generic::ToJSON;
 use binjs::source::Shift;
-use binjs_meta::spec::{ SpecBuilder, SpecOptions };
 
 use std::fs::*;
 use std::io::*;
@@ -43,13 +39,7 @@ fn main() {
         .expect("Expected output file");
 
     // Setup.
-    let parser = Shift::new();
-    let mut spec_builder = SpecBuilder::new();
-    let library = binjs_generic::es6::Library::new(&mut spec_builder);
-    let spec = spec_builder.into_spec(SpecOptions {
-        null: &library.null,
-        root: &library.program,
-    });
+    let printer = Shift::new();
 
     println!("Reading.");
     let file = File::open(source_path)
@@ -57,9 +47,9 @@ fn main() {
     let stream = BufReader::new(file);
 
     println!("Attempting to decode as multipart.");
-    let tree = if let Ok(reader) = binjs_io::multipart::TreeTokenReader::new(stream) {
-        let mut decoder = binjs_generic::io::decode::Decoder::new(&spec, reader);
-        decoder.decode()
+    let tree : binjs::specialized::es6::ast::Script = if let Ok(reader) = binjs::io::multipart::TreeTokenReader::new(stream) {
+        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
+        deserializer.deserialize()
             .expect("Could not decode")
     } else {
         println!("... falling back to simple format.");
@@ -68,20 +58,28 @@ fn main() {
             .expect("Could not open source");
         let stream = BufReader::new(file);
 
-        let reader = binjs_io::simple::TreeTokenReader::new(stream);
-        let mut decoder = binjs_generic::io::decode::Decoder::new(&spec, reader);
-        decoder.decode()
+        let reader = binjs::io::simple::TreeTokenReader::new(stream);
+        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
+        deserializer.deserialize()
             .expect("Could not decode")
     };
 
+    let json = tree.export();
     if matches.is_present("print-json") {
         println!("Printing to screen...");
-        let pretty = tree.pretty(2);
+        let pretty = json.pretty(2);
         println!("{}", pretty);
     }
 
     println!("Pretty-printing");
-    let source = parser.to_source(&spec, &tree)
+    let mut builder = binjs::meta::spec::SpecBuilder::new();
+    let _ = binjs::generic::es6::Library::new(&mut builder);
+    let spec_options = binjs::meta::spec::SpecOptions {
+        null: &builder.node_name(""),
+        root: &builder.node_name("Script"),
+    };
+    let spec = builder.into_spec(spec_options);
+    let source = printer.to_source(&spec, &json)
         .expect("Could not pretty-print");
 
     println!("Writing.");

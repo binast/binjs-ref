@@ -1,17 +1,12 @@
 //! Encode a text source to a BinJS.
 
 extern crate binjs;
-extern crate binjs_generic;
-extern crate binjs_es6;
-extern crate binjs_io;
-extern crate binjs_meta;
 extern crate clap;
 extern crate env_logger;
 
+use binjs::io::TokenSerializer;
 use binjs::source::{ Shift, SourceParser };
-use binjs_generic::annotate::Annotator;
-use binjs_generic::io::encode::Encode;
-use binjs_meta::spec::{ Spec, SpecBuilder, SpecOptions };
+use binjs::generic::FromJSON;
 
 use std::cell::RefCell;
 use std::fs::*;
@@ -22,12 +17,9 @@ use clap::*;
 
 struct Options<'a> {
     parser: &'a Shift,
-    spec: &'a Spec,
-    annotator: &'a Annotator,
-    multipart_stats: RefCell<binjs_io::multipart::Statistics>,
-    simple_stats: RefCell<binjs_io::simple::Statistics>,
-    dump_ast: bool,
-    compression: Option<binjs_io::multipart::WriteOptions>,
+    multipart_stats: RefCell<binjs::io::multipart::Statistics>,
+    simple_stats: RefCell<binjs::io::simple::Statistics>,
+    compression: Option<binjs::io::multipart::WriteOptions>,
     dest_dir: Option<PathBuf>
 }
 
@@ -89,26 +81,24 @@ fn handle_path<'a>(options: &Options<'a>,
         .len();
 
     println!("Parsing.");
-    let mut ast    = options.parser.parse_file(source_path)
+    let ast = options.parser.parse_file(source_path)
         .expect("Could not parse source");
+    let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
+        .expect("Could not import AST");
 
     println!("Annotating.");
-    options.annotator.annotate(&mut ast);
-
-    if options.dump_ast {
-        println!("Dumping AST.\n{:2}", ast.pretty(2));
-    }
+    binjs::specialized::es6::scopes::AnnotationVisitor::new()
+        .annotate_script(&mut ast);
 
     println!("Encoding.");
     let data: Box<AsRef<[u8]>> = {
         match options.compression {
             None => {
-                let writer = binjs_io::simple::TreeTokenWriter::new();
-                let encoder = binjs_generic::io::encode::Encoder::new(options.spec, writer);
-                encoder
-                    .encode(&ast)
+                let writer = binjs::io::simple::TreeTokenWriter::new();
+                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                serializer.serialize(&ast)
                     .expect("Could not encode AST");
-                let (data, stats) = encoder.done()
+                let (data, stats) = serializer.done()
                     .expect("Could not finalize AST encoding");
 
                 let mut borrow = options.simple_stats.borrow_mut();
@@ -116,12 +106,11 @@ fn handle_path<'a>(options: &Options<'a>,
                 Box::new(data)
             }
             Some(ref compression) => {
-                let writer = binjs_io::multipart::TreeTokenWriter::new(compression.clone());
-                let encoder = binjs_generic::io::encode::Encoder::new(options.spec, writer);
-                encoder
-                    .encode(&ast)
+                let writer = binjs::io::multipart::TreeTokenWriter::new(compression.clone());
+                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                serializer.serialize(&ast)
                     .expect("Could not encode AST");
-                let (data, stats) = encoder.done()
+                let (data, stats) = serializer.done()
                     .expect("Could not finalize AST encoding");
 
                 let mut borrow = options.multipart_stats.borrow_mut();
@@ -199,9 +188,6 @@ fn main() {
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
-            Arg::with_name("dump")
-                .long("dump")
-                .help("Dup JSON AST tree"),
         ])
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
@@ -235,21 +221,21 @@ fn main() {
             };
         if is_compressed {
             if let Some(ref compression) = matches.value_of("sections") {
-                let compression = binjs_io::bytes::compress::Compression::parse(Some(compression))
+                let compression = binjs::io::bytes::compress::Compression::parse(Some(compression))
                     .expect("Could not parse sections compression format");
-                Some(binjs_io::multipart::WriteOptions {
+                Some(binjs::io::multipart::WriteOptions {
                     strings_table: compression.clone(),
                     grammar_table: compression.clone(),
                     tree: compression,
                 })
             } else {
-                let strings = binjs_io::bytes::compress::Compression::parse(matches.value_of("strings"))
+                let strings = binjs::io::bytes::compress::Compression::parse(matches.value_of("strings"))
                     .expect("Could not parse string compression format");
-                let grammar = binjs_io::bytes::compress::Compression::parse(matches.value_of("grammar"))
+                let grammar = binjs::io::bytes::compress::Compression::parse(matches.value_of("grammar"))
                     .expect("Could not parse grammar compression format");
-                let tree = binjs_io::bytes::compress::Compression::parse(matches.value_of("tree"))
+                let tree = binjs::io::bytes::compress::Compression::parse(matches.value_of("tree"))
                     .expect("Could not parse tree compression format");
-                Some(binjs_io::multipart::WriteOptions {
+                Some(binjs::io::multipart::WriteOptions {
                     strings_table: strings,
                     grammar_table: grammar,
                     tree
@@ -261,29 +247,18 @@ fn main() {
         }
     };
     let show_stats = matches.is_present("statistics");
-    let dump_ast = matches.is_present("dump");
 
     // Setup.
     let parser = Shift::new();
-    let mut spec_builder = SpecBuilder::new();
-    let library = binjs_generic::es6::Library::new(&mut spec_builder);
-    let spec = spec_builder.into_spec(SpecOptions {
-        null: &library.null,
-        root: &library.program,
-    });
-
-    let multipart_stats = binjs_io::multipart::Statistics::default()
+    let multipart_stats = binjs::io::multipart::Statistics::default()
         .with_source_bytes(0);
-    let simple_stats = binjs_io::simple::Statistics::default();
+    let simple_stats = binjs::io::simple::Statistics::default();
 
     let options = Options {
         parser: &parser,
-        spec: &spec,
         multipart_stats: RefCell::new(multipart_stats),
         simple_stats: RefCell::new(simple_stats),
-        annotator: &library,
         compression,
-        dump_ast,
         dest_dir,
     };
     for source_path in sources {

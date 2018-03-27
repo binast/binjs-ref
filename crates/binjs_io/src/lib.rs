@@ -30,6 +30,10 @@ pub enum TokenReaderError {
     Encoding(std::string::FromUtf8Error),
     EmptyNodeName,
     EmptyFieldName,
+    EmptyVariant,
+    EmptyBool,
+    EmptyString,
+    BadEnumVariant,
 }
 
 

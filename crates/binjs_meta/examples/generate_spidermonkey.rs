@@ -1103,8 +1103,8 @@ fn main() {
 
     println!("...verifying grammar");
     let mut builder = Importer::import(&ast);
-    let fake_root = builder.node_name("");
-    let null = builder.node_name("_Null");
+    let fake_root = builder.node_name("@@ROOT@@"); // Unused
+    let null = builder.node_name(""); // Used
     builder.add_interface(&null)
         .unwrap();
     let syntax = builder.into_spec(SpecOptions {
