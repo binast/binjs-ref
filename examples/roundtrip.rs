@@ -128,7 +128,7 @@ fn main() {
             .expect("Could not find source path")
             .len() as usize;
 
-        let mut ast    = parser.parse_file(source_path)
+        let mut ast = parser.parse_file(source_path)
             .expect("Could not parse source");
 
         println!("Annotating.");
