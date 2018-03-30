@@ -5,6 +5,7 @@ use json::object::Object;
 use json::JsonValue as JSON;
 
 use std;
+use std::env;
 use std::io::{ Write };
 use std::path::*;
 use std::process::*;
@@ -64,7 +65,14 @@ impl Shift {
         script);
 
         debug!(target: "Shift", "Launching script {}", script);
+
+        let node_memory = match env::var("NODE_MAX_OLD_SPACE_SIZE") {
+            Err(_) => String::from("--max_old_space_size=2048"),
+            Ok(v) => format!("--max_old_space_size={}", v)
+        };
+
         let mut child = Command::new(&*self.bin_path)
+            .arg(node_memory) 
             .env("NODE_PATH", "node_modules")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
