@@ -10,8 +10,12 @@
     <title>brotli::enc::metablock::ContextBlockSplitter - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct ContextBlockSplitter</p><div class="block items"><ul><li><a href="#fields">Fields</a></li></ul></div><p class='location'><a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>metablock</a></p><script>window.sidebarCurrent = {name: 'ContextBlockSplitter', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'>Struct ContextBlockSplitter</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#fields">Fields</a><div class="sidebar-links"><a href="#structfield.alphabet_size_">alphabet_size_</a><a href="#structfield.num_contexts_">num_contexts_</a><a href="#structfield.max_block_types_">max_block_types_</a><a href="#structfield.min_block_size_">min_block_size_</a><a href="#structfield.split_threshold_">split_threshold_</a><a href="#structfield.num_blocks_">num_blocks_</a><a href="#structfield.target_block_size_">target_block_size_</a><a href="#structfield.block_size_">block_size_</a><a href="#structfield.curr_histogram_ix_">curr_histogram_ix_</a><a href="#structfield.last_histogram_ix_">last_histogram_ix_</a><a href="#structfield.last_entropy_">last_entropy_</a><a href="#structfield.merge_last_count_">merge_last_count_</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>metablock</a></p><script>window.sidebarCurrent = {name: 'ContextBlockSplitter', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -48,19 +60,19 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/brotli/enc/metablock.rs.html#173-189' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../../src/brotli/enc/metablock.rs.html#182-198' title='goto source code'>[src]</a></span></h1>
 <pre class='rust struct'>pub struct ContextBlockSplitter {
     pub alphabet_size_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
     pub num_contexts_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
     pub max_block_types_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
     pub min_block_size_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
-    pub split_threshold_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a>,
+    pub split_threshold_: <a class="type" href="../../../brotli/enc/util/type.floatX.html" title="type brotli::enc::util::floatX">floatX</a>,
     pub num_blocks_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
     pub target_block_size_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
     pub block_size_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
     pub curr_histogram_ix_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
     pub last_histogram_ix_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 2]</a>,
-    pub last_entropy_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 6]</a>,
+    pub last_entropy_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="type" href="../../../brotli/enc/util/type.floatX.html" title="type brotli::enc::util::floatX">floatX</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 26]</a>,
     pub merge_last_count_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
 }</pre><h2 id='fields' class='fields small-section-header'>
                        Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.alphabet_size_" class="structfield small-section-header">
@@ -82,7 +94,7 @@
                            </span></span><span id="structfield.split_threshold_" class="structfield small-section-header">
                            <a href="#structfield.split_threshold_" class="anchor field"></a>
                            <span id="split_threshold_.v" class='invisible'>
-                           <code>split_threshold_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a></code>
+                           <code>split_threshold_: <a class="type" href="../../../brotli/enc/util/type.floatX.html" title="type brotli::enc::util::floatX">floatX</a></code>
                            </span></span><span id="structfield.num_blocks_" class="structfield small-section-header">
                            <a href="#structfield.num_blocks_" class="anchor field"></a>
                            <span id="num_blocks_.v" class='invisible'>
@@ -106,12 +118,24 @@
                            </span></span><span id="structfield.last_entropy_" class="structfield small-section-header">
                            <a href="#structfield.last_entropy_" class="anchor field"></a>
                            <span id="last_entropy_.v" class='invisible'>
-                           <code>last_entropy_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 6]</a></code>
+                           <code>last_entropy_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="type" href="../../../brotli/enc/util/type.floatX.html" title="type brotli::enc::util::floatX">floatX</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 26]</a></code>
                            </span></span><span id="structfield.merge_last_count_" class="structfield small-section-header">
                            <a href="#structfield.merge_last_count_" class="anchor field"></a>
                            <span id="merge_last_count_.v" class='invisible'>
                            <code>merge_last_count_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code>
-                           </span></span></section>
+                           </span></span>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+            <div id='implementations-list'>
+        </div>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../../brotli/enc/metablock/struct.ContextBlockSplitter.html" title="struct brotli::enc::metablock::ContextBlockSplitter">ContextBlockSplitter</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../../brotli/enc/metablock/struct.ContextBlockSplitter.html" title="struct brotli::enc::metablock::ContextBlockSplitter">ContextBlockSplitter</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>
@@ -124,18 +148,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

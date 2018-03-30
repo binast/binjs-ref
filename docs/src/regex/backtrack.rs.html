@@ -4,17 +4,21 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.2/src/backtrack.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.1.80/src/backtrack.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>backtrack.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
-    
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
     
 </head>
 <body class="rustdoc source">
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
-        
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../regex/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -361,7 +373,7 @@
 <span class="comment">// regexes on small inputs because of its memory requirements.</span>
 <span class="comment">//</span>
 <span class="comment">// In particular, this is a *bounded* backtracking engine. It retains worst</span>
-<span class="comment">// case linear time by keeping track of the states that it has visited (using a</span>
+<span class="comment">// case linear time by keeping track of the states that is has visited (using a</span>
 <span class="comment">// bitmap). Namely, once a state is visited, it is never visited again. Since a</span>
 <span class="comment">// state is keyed by `(instruction index, input index)`, we have that its time</span>
 <span class="comment">// complexity is `O(mn)` (i.e., linear in the size of the search text).</span>
@@ -392,7 +404,7 @@
     <span class="comment">//   ((len(insts) * (len(input) + 1) + bits - 1) / bits) * (size_of(u32))</span>
     <span class="comment">//</span>
     <span class="comment">// The actual limit picked is pretty much a heuristic.</span>
-    <span class="comment">// See: https://github.com/rust-lang/regex/issues/215</span>
+    <span class="comment">// See: https://github.com/rust-lang-nursery/regex/issues/215</span>
     <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> ((<span class="ident">num_insts</span> <span class="op">*</span> (<span class="ident">text_len</span> <span class="op">+</span> <span class="number">1</span>) <span class="op">+</span> <span class="ident">BIT_SIZE</span> <span class="op">-</span> <span class="number">1</span>) <span class="op">/</span> <span class="ident">BIT_SIZE</span>) <span class="op">*</span> <span class="number">4</span>;
     <span class="ident">size</span> <span class="op">&lt;=</span> <span class="ident">MAX_SIZE_BYTES</span>
 }
@@ -487,7 +499,7 @@
         <span class="kw">if</span> <span class="ident">visited_len</span> <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">m</span>.<span class="ident">visited</span>.<span class="ident">len</span>() {
             <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">m</span>.<span class="ident">visited</span>.<span class="ident">len</span>();
             <span class="self">self</span>.<span class="ident">m</span>.<span class="ident">visited</span>.<span class="ident">reserve_exact</span>(<span class="ident">visited_len</span> <span class="op">-</span> <span class="ident">len</span>);
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..(<span class="ident">visited_len</span> <span class="op">-</span> <span class="ident">len</span>) {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..(<span class="ident">visited_len</span> <span class="op">-</span> <span class="ident">len</span>) {
                 <span class="self">self</span>.<span class="ident">m</span>.<span class="ident">visited</span>.<span class="ident">push</span>(<span class="number">0</span>);
             }
         }
@@ -662,18 +674,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

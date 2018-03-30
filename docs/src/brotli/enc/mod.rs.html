@@ -4,14 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/brotli-1.0.8/src/enc/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/brotli-1.2.0/src/enc/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -323,41 +335,23 @@
 <span id="278">278</span>
 <span id="279">279</span>
 <span id="280">280</span>
-<span id="281">281</span>
-<span id="282">282</span>
-<span id="283">283</span>
-<span id="284">284</span>
-<span id="285">285</span>
-<span id="286">286</span>
-<span id="287">287</span>
-<span id="288">288</span>
-<span id="289">289</span>
-<span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
 </pre><pre class="rust ">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vectorization</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">input_pair</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">fast_log</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">command</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">block_split</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">brotli_bit_stream</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cluster</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">constants</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">entropy_encode</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">utf8_util</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">static_dict</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">static_dict_lut</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">dictionary_hash</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bit_cost</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">util</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">utf8_util</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bit_cost</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cluster</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">literal_cost</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">histogram</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">backward_references</span>;
@@ -368,10 +362,16 @@
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">encode</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">reader</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">writer</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">find_stride</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">interface</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">context_map_entropy</span>;
 <span class="kw">mod</span> <span class="ident">test</span>;
-
+<span class="kw">mod</span> <span class="ident">weights</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">util</span>::<span class="ident">floatX</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">backward_references</span>::<span class="ident">BrotliEncoderParams</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">encode</span>::{<span class="ident">BrotliEncoderInitParams</span>, <span class="ident">BrotliEncoderSetParameter</span>};
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">encode</span>::{<span class="ident">BrotliEncoderCreateInstance</span>, <span class="ident">BrotliEncoderDestroyInstance</span>,
-                   <span class="ident">BrotliEncoderParameter</span>, <span class="ident">BrotliEncoderSetParameter</span>,
+                   <span class="ident">BrotliEncoderParameter</span>,
                    <span class="ident">BrotliEncoderOperation</span>,
                    <span class="ident">BrotliEncoderCompressStream</span>, <span class="ident">BrotliEncoderIsFinished</span>};
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">cluster</span>::{<span class="ident">HistogramPair</span>};
@@ -379,6 +379,7 @@
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">command</span>::{<span class="ident">Command</span>};
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">entropy_encode</span>::{<span class="ident">HuffmanTree</span>};
 <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::{<span class="ident">CustomRead</span>, <span class="ident">CustomWrite</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">vectorization</span>::{<span class="ident">v128</span>,<span class="ident">v128i</span>,<span class="ident">v256</span>,<span class="ident">v256i</span>, <span class="ident">Mem256f</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Read</span>,<span class="ident">Write</span>, <span class="ident">Error</span>, <span class="ident">ErrorKind</span>};
@@ -386,19 +387,15 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">alloc</span>::<span class="ident">HeapAlloc</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unsafe&quot;</span>,<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>)))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">alloc</span>::<span class="ident">HeapAllocUninitialized</span>;
-
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">alloc</span>::{<span class="ident">AllocatedStackMemory</span>, <span class="ident">Allocator</span>, <span class="ident">SliceWrapper</span>, <span class="ident">SliceWrapperMut</span>, <span class="ident">StackAllocator</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::{<span class="ident">IntoIoReader</span>, <span class="ident">IoReaderWrapper</span>, <span class="ident">IoWriterWrapper</span>};
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unsafe&quot;</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>)))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>)))]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">BrotliCompress</span><span class="op">&lt;</span><span class="ident">InputType</span>, <span class="ident">OutputType</span><span class="op">&gt;</span>(<span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InputType</span>,
                                              <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">OutputType</span>,
-                                             <span class="ident">quality</span>: <span class="ident">u32</span>,
-                                             <span class="ident">lgwin</span>: <span class="ident">u32</span>)
+                                             <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">BrotliEncoderParams</span>)
                                                <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span>
   <span class="kw">where</span> <span class="ident">InputType</span>: <span class="ident">Read</span>,
         <span class="ident">OutputType</span>: <span class="ident">Write</span>
@@ -409,8 +406,7 @@
                             <span class="ident">w</span>,
                             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">input_buffer</span>[..],
                             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">output_buffer</span>[..],
-                            <span class="ident">quality</span>,
-                            <span class="ident">lgwin</span>,
+                            <span class="ident">params</span>,
                             <span class="ident">HeapAlloc</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> { <span class="ident">default_value</span>: <span class="number">0</span> },
                             <span class="ident">HeapAlloc</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span> { <span class="ident">default_value</span>: <span class="number">0</span> },
                             <span class="ident">HeapAlloc</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span> { <span class="ident">default_value</span>: <span class="number">0</span> },
@@ -418,7 +414,8 @@
                             <span class="ident">HeapAlloc</span>::<span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span> {
                                 <span class="ident">default_value</span>: <span class="ident">Command</span>::<span class="ident">default</span>(),
                             },
-                            <span class="ident">HeapAlloc</span>::<span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> { <span class="ident">default_value</span>: <span class="number">0.0f64</span> },
+                            <span class="ident">HeapAlloc</span>::<span class="op">&lt;</span><span class="ident">floatX</span><span class="op">&gt;</span> { <span class="ident">default_value</span>: <span class="number">0.0</span> <span class="kw">as</span> <span class="ident">floatX</span> },
+                            <span class="ident">HeapAlloc</span>::<span class="op">&lt;</span><span class="ident">Mem256f</span><span class="op">&gt;</span> { <span class="ident">default_value</span>: <span class="ident">Mem256f</span>::<span class="ident">default</span>() },
                             <span class="ident">HeapAlloc</span>::<span class="op">&lt;</span><span class="ident">HistogramLiteral</span><span class="op">&gt;</span>{
                                 <span class="ident">default_value</span>: <span class="ident">HistogramLiteral</span>::<span class="ident">default</span>(),
                             },
@@ -439,37 +436,6 @@
                             })
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unsafe&quot;</span>,<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>)))]</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">BrotliCompress</span><span class="op">&lt;</span><span class="ident">InputType</span>, <span class="ident">OutputType</span><span class="op">&gt;</span>(<span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InputType</span>,
-                                             <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">OutputType</span>,
-                                             <span class="ident">quality</span>:<span class="ident">u32</span>,
-                                             <span class="ident">lgwin</span>:<span class="ident">u32</span>)
-                                               <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-  <span class="kw">where</span> <span class="ident">InputType</span>: <span class="ident">Read</span>,
-        <span class="ident">OutputType</span>: <span class="ident">Write</span>
-{
-  <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">input_buffer</span>: [<span class="ident">u8</span>; <span class="number">4096</span>] <span class="op">=</span> [<span class="number">0</span>; <span class="number">4096</span>];
-  <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">output_buffer</span>: [<span class="ident">u8</span>; <span class="number">4096</span>] <span class="op">=</span> [<span class="number">0</span>; <span class="number">4096</span>];
-  <span class="ident">BrotliCompressCustomAlloc</span>(<span class="ident">r</span>,
-                            <span class="ident">w</span>,
-                            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">input_buffer</span>[..],
-                            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">output_buffer</span>[..],
-                            <span class="ident">quality</span>,
-                            <span class="ident">lgwin</span>,
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">HistogramLiteral</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">HistogramCommand</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">HistogramDistance</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">HistogramPair</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">ContextType</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-                            <span class="kw">unsafe</span> { <span class="ident">HeapAllocUninitialized</span>::<span class="op">&lt;</span><span class="ident">HuffmanTree</span><span class="op">&gt;</span>::<span class="ident">new</span>() },
-  )
-}
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">BrotliCompressCustomAlloc</span><span class="op">&lt;</span><span class="ident">InputType</span>,
                                  <span class="ident">OutputType</span>,
@@ -478,7 +444,8 @@
                                  <span class="ident">AllocI32</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>,
                                  <span class="ident">AllocU32</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
                                  <span class="ident">AllocCommand</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span>,
-                                 <span class="ident">AllocF64</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+                                 <span class="ident">AllocF64</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">util</span>::<span class="ident">floatX</span><span class="op">&gt;</span>,
+                                 <span class="ident">AllocFV</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">Mem256f</span><span class="op">&gt;</span>,
                                  <span class="ident">AllocHL</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HistogramLiteral</span><span class="op">&gt;</span>,
                                  <span class="ident">AllocHC</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HistogramCommand</span><span class="op">&gt;</span>,
                                  <span class="ident">AllocHD</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HistogramDistance</span><span class="op">&gt;</span>,
@@ -486,17 +453,17 @@
                                  <span class="ident">AllocCT</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">ContextType</span><span class="op">&gt;</span>,
                                  <span class="ident">AllocHT</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HuffmanTree</span><span class="op">&gt;&gt;</span>
   (<span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InputType</span>,
-   <span class="kw-2">mut</span> <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">OutputType</span>,
+   <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">OutputType</span>,
    <span class="ident">input_buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>],
    <span class="ident">output_buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>],
-   <span class="ident">quality</span>: <span class="ident">u32</span>,
-   <span class="ident">lgwin</span>: <span class="ident">u32</span>,
+   <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">BrotliEncoderParams</span>,
    <span class="ident">alloc_u8</span>: <span class="ident">AllocU8</span>,
    <span class="ident">alloc_u16</span>: <span class="ident">AllocU16</span>,
    <span class="ident">alloc_i32</span>: <span class="ident">AllocI32</span>,
    <span class="ident">alloc_u32</span>: <span class="ident">AllocU32</span>,
    <span class="ident">alloc_mc</span>: <span class="ident">AllocCommand</span>,
    <span class="ident">alloc_f64</span>: <span class="ident">AllocF64</span>,
+   <span class="ident">alloc_fv</span>: <span class="ident">AllocFV</span>,
    <span class="ident">alloc_hl</span>: <span class="ident">AllocHL</span>,
    <span class="ident">alloc_hc</span>: <span class="ident">AllocHC</span>,
    <span class="ident">alloc_hd</span>: <span class="ident">AllocHD</span>,
@@ -507,24 +474,26 @@
   <span class="kw">where</span> <span class="ident">InputType</span>: <span class="ident">Read</span>,
         <span class="ident">OutputType</span>: <span class="ident">Write</span>
 {
+  <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">nop_callback</span> <span class="op">=</span> <span class="op">|</span><span class="ident">_data</span>:<span class="kw-2">&amp;</span>[<span class="ident">interface</span>::<span class="ident">Command</span><span class="op">&lt;</span><span class="ident">input_pair</span>::<span class="ident">InputReference</span><span class="op">&gt;</span>]<span class="op">|</span>();
   <span class="ident">BrotliCompressCustomIo</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">IoReaderWrapper</span>::<span class="op">&lt;</span><span class="ident">InputType</span><span class="op">&gt;</span>(<span class="ident">r</span>),
                            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">IoWriterWrapper</span>::<span class="op">&lt;</span><span class="ident">OutputType</span><span class="op">&gt;</span>(<span class="ident">w</span>),
                            <span class="ident">input_buffer</span>,
                            <span class="ident">output_buffer</span>,
-                           <span class="ident">quality</span>,
-                           <span class="ident">lgwin</span>,
+                           <span class="ident">params</span>,
                            <span class="ident">alloc_u8</span>,
                            <span class="ident">alloc_u16</span>,
                            <span class="ident">alloc_i32</span>,
                            <span class="ident">alloc_u32</span>,
                            <span class="ident">alloc_mc</span>,
                            <span class="ident">alloc_f64</span>,
+                           <span class="ident">alloc_fv</span>,
                            <span class="ident">alloc_hl</span>,
                            <span class="ident">alloc_hc</span>,
                            <span class="ident">alloc_hd</span>,
                            <span class="ident">alloc_hp</span>,
                            <span class="ident">alloc_ct</span>,
                            <span class="ident">alloc_ht</span>,
+                           <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">nop_callback</span>,
                            <span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">ErrorKind</span>::<span class="ident">UnexpectedEof</span>, <span class="string">&quot;Unexpected EOF&quot;</span>))
 }
 
@@ -536,49 +505,49 @@
                               <span class="ident">AllocI32</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>,
                               <span class="ident">AllocU32</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
                               <span class="ident">AllocCommand</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span>,
-                              <span class="ident">AllocF64</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+                              <span class="ident">AllocF64</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">util</span>::<span class="ident">floatX</span><span class="op">&gt;</span>,
+                              <span class="ident">AllocFV</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">Mem256f</span><span class="op">&gt;</span>,
                               <span class="ident">AllocHL</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HistogramLiteral</span><span class="op">&gt;</span>,
                               <span class="ident">AllocHC</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HistogramCommand</span><span class="op">&gt;</span>,
                               <span class="ident">AllocHD</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HistogramDistance</span><span class="op">&gt;</span>,
                               <span class="ident">AllocHP</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HistogramPair</span><span class="op">&gt;</span>,
                               <span class="ident">AllocCT</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">ContextType</span><span class="op">&gt;</span>,
-                              <span class="ident">AllocHT</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HuffmanTree</span><span class="op">&gt;&gt;</span>
+                              <span class="ident">AllocHT</span>: <span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HuffmanTree</span><span class="op">&gt;</span>,
+                              <span class="ident">MetablockCallback</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span>[<span class="ident">interface</span>::<span class="ident">Command</span><span class="op">&lt;</span><span class="ident">input_pair</span>::<span class="ident">InputReference</span><span class="op">&gt;</span>])<span class="op">&gt;</span>
   (<span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InputType</span>,
-   <span class="kw-2">mut</span> <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">OutputType</span>,
+   <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">OutputType</span>,
    <span class="ident">input_buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>],
    <span class="ident">output_buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>],
-   <span class="ident">quality</span>: <span class="ident">u32</span>,
-   <span class="ident">lgwin</span>: <span class="ident">u32</span>,
+   <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">BrotliEncoderParams</span>,
    <span class="ident">mu8</span>: <span class="ident">AllocU8</span>,
    <span class="ident">mu16</span>: <span class="ident">AllocU16</span>,
    <span class="ident">mi32</span>: <span class="ident">AllocI32</span>,
    <span class="ident">mu32</span>: <span class="ident">AllocU32</span>,
    <span class="ident">mc</span>: <span class="ident">AllocCommand</span>,
    <span class="kw-2">mut</span> <span class="ident">mf64</span>: <span class="ident">AllocF64</span>,
+   <span class="kw-2">mut</span> <span class="ident">mfv</span>: <span class="ident">AllocFV</span>,
    <span class="kw-2">mut</span> <span class="ident">mhl</span>: <span class="ident">AllocHL</span>,
    <span class="kw-2">mut</span> <span class="ident">mhc</span>: <span class="ident">AllocHC</span>,
    <span class="kw-2">mut</span> <span class="ident">mhd</span>: <span class="ident">AllocHD</span>,
    <span class="kw-2">mut</span> <span class="ident">mhp</span>: <span class="ident">AllocHP</span>,
    <span class="kw-2">mut</span> <span class="ident">mct</span>: <span class="ident">AllocCT</span>,
    <span class="kw-2">mut</span> <span class="ident">mht</span>: <span class="ident">AllocHT</span>,
+   <span class="ident">metablock_callback</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MetablockCallback</span>,
    <span class="ident">unexpected_eof_error_constant</span>: <span class="ident">ErrType</span>)
    <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">ErrType</span><span class="op">&gt;</span>
   <span class="kw">where</span> <span class="ident">InputType</span>: <span class="ident">CustomRead</span><span class="op">&lt;</span><span class="ident">ErrType</span><span class="op">&gt;</span>,
         <span class="ident">OutputType</span>: <span class="ident">CustomWrite</span><span class="op">&lt;</span><span class="ident">ErrType</span><span class="op">&gt;</span>
 {
+  <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">input_buffer</span>.<span class="ident">len</span>() <span class="op">!=</span> <span class="number">0</span>);
+  <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">output_buffer</span>.<span class="ident">len</span>() <span class="op">!=</span> <span class="number">0</span>);
   <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s_orig</span> <span class="op">=</span> <span class="ident">BrotliEncoderCreateInstance</span>(<span class="ident">mu8</span>, <span class="ident">mu16</span>, <span class="ident">mi32</span>, <span class="ident">mu32</span>, <span class="ident">mc</span>);
+  <span class="ident">s_orig</span>.<span class="ident">params</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">clone</span>();
   <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">next_in_offset</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">0</span>;  
   <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">next_out_offset</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">0</span>;
   <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_out</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="number">0usize</span>);
   {
-      <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s_orig</span>;
+      <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s_orig</span>;
       
-      <span class="ident">BrotliEncoderSetParameter</span>(<span class="ident">s</span>,
-                                <span class="ident">BrotliEncoderParameter</span>::<span class="ident">BROTLI_PARAM_QUALITY</span>,
-                                <span class="ident">quality</span> <span class="kw">as</span> (<span class="ident">u32</span>));
-      <span class="ident">BrotliEncoderSetParameter</span>(<span class="ident">s</span>,
-                                <span class="ident">BrotliEncoderParameter</span>::<span class="ident">BROTLI_PARAM_LGWIN</span>,
-                                <span class="ident">lgwin</span> <span class="kw">as</span> (<span class="ident">u32</span>));
       <span class="ident">BrotliEncoderSetParameter</span>(<span class="ident">s</span>, <span class="ident">BrotliEncoderParameter</span>::<span class="ident">BROTLI_PARAM_MODE</span>, <span class="number">0</span> <span class="kw">as</span> (<span class="ident">u32</span>)); <span class="comment">// gen, text, font</span>
       <span class="comment">//BrotliEncoderSetParameter(s,</span>
       <span class="comment">//                          BrotliEncoderParameter::BROTLI_PARAM_SIZE_HINT,</span>
@@ -590,7 +559,7 @@
           <span class="kw">if</span> <span class="ident">available_in</span> <span class="op">==</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">eof</span> {
               <span class="ident">next_in_offset</span> <span class="op">=</span> <span class="number">0</span>;
               <span class="kw">match</span> <span class="ident">r</span>.<span class="ident">read</span>(<span class="ident">input_buffer</span>) {
-                  <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> {
+                  <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                       <span class="ident">available_in</span> <span class="op">=</span> <span class="number">0</span>;
                       <span class="ident">eof</span> <span class="op">=</span> <span class="bool-val">true</span>;
                   },
@@ -609,7 +578,7 @@
               <span class="ident">op</span> <span class="op">=</span> <span class="ident">BrotliEncoderOperation</span>::<span class="ident">BROTLI_OPERATION_PROCESS</span>;
           }
           <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">BrotliEncoderCompressStream</span>(<span class="ident">s</span>,
-                                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mf64</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mhl</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mhc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mhd</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mhp</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mct</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mht</span>,
+                                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mf64</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mfv</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mhl</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mhc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mhd</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mhp</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mct</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mht</span>,
                                                    <span class="ident">op</span>,
                                                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">available_in</span>,
                                                    <span class="ident">input_buffer</span>,
@@ -617,7 +586,8 @@
                                                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">available_out</span>,
                                                    <span class="ident">output_buffer</span>,
                                                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">next_out_offset</span>,
-                                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">total_out</span>);
+                                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">total_out</span>,
+                                                   <span class="ident">metablock_callback</span>);
           <span class="kw">let</span> <span class="ident">fin</span> <span class="op">=</span> <span class="ident">BrotliEncoderIsFinished</span>(<span class="ident">s</span>);
           <span class="kw">if</span> <span class="ident">available_out</span> <span class="op">==</span> <span class="number">0</span> <span class="op">||</span> <span class="ident">fin</span> <span class="op">!=</span> <span class="number">0</span> {
               <span class="kw">let</span> <span class="ident">lim</span> <span class="op">=</span> <span class="ident">output_buffer</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">available_out</span>;
@@ -660,18 +630,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

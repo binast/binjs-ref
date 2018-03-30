@@ -447,6 +447,50 @@
 <span id="402">402</span>
 <span id="403">403</span>
 <span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">json</span>;
 <span class="kw">use</span> <span class="ident">json</span>::<span class="ident">JsonValue</span> <span class="kw">as</span> <span class="ident">JSON</span>;
@@ -567,6 +611,10 @@
             &quot;##</span>,
             <span class="ident">data</span>);
         <span class="self">self</span>.<span class="ident">parse_script_output</span>(<span class="kw-2">&amp;</span><span class="ident">script</span>)
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+                <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Could not pretty-print {}&quot;</span>, <span class="ident">ast</span>.<span class="ident">pretty</span>(<span class="number">2</span>));
+                <span class="ident">err</span>
+            })
     }
 }
 
@@ -660,13 +708,36 @@
                 }
                 <span class="kw">match</span> <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>].<span class="ident">as_str</span>() {
                     <span class="prelude-val">Some</span>(<span class="string">&quot;ArrayExpression&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_array_expression</span>(<span class="ident">object</span>),
-                    <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectMethod&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_object_method</span>(<span class="ident">object</span>),
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectMethod&quot;</span>) <span class="op">=&gt;</span> {
+                        <span class="self">self</span>.<span class="ident">convert_object_member</span>(<span class="ident">object</span>);
+                        <span class="self">self</span>.<span class="ident">convert_directives</span>(<span class="ident">object</span>)
+                    },
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectProperty&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_object_member</span>(<span class="ident">object</span>),
                     <span class="prelude-val">Some</span>(<span class="string">&quot;MemberExpression&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_member_expression</span>(<span class="ident">object</span>),
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;FunctionDeclaration&quot;</span>)
+                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;FunctionExpression&quot;</span>)
+                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;Program&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_directives</span>(<span class="ident">object</span>),
                     _ <span class="op">=&gt;</span> { <span class="comment">/* No change */</span> }
                 }
             }
             _ <span class="op">=&gt;</span> {}
         }
+    }
+
+    <span class="kw">fn</span> <span class="ident">convert_directives</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">object</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
+        <span class="kw">let</span> <span class="ident">directives</span> <span class="op">=</span> <span class="ident">object</span>[<span class="string">&quot;body&quot;</span>].<span class="ident">remove</span>(<span class="string">&quot;directives&quot;</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="macro">array</span><span class="macro">!</span>[];
+        <span class="kw">for</span> <span class="ident">directive</span> <span class="kw">in</span> <span class="ident">directives</span>.<span class="ident">members</span>() {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;Directive&quot;</span>) <span class="op">=</span> <span class="ident">directive</span>[<span class="string">&quot;type&quot;</span>].<span class="ident">as_str</span>() {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;DirectiveLiteral&quot;</span>) <span class="op">=</span> <span class="ident">directive</span>[<span class="string">&quot;value&quot;</span>][<span class="string">&quot;type&quot;</span>].<span class="ident">as_str</span>() {
+                    <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">directive</span>[<span class="string">&quot;value&quot;</span>][<span class="string">&quot;value&quot;</span>].<span class="ident">as_str</span>()
+                        .<span class="ident">expect</span>(<span class="string">&quot;Expected a string directive&quot;</span>);
+                    <span class="ident">result</span>.<span class="ident">push</span>(<span class="ident">string</span>.<span class="ident">clone</span>())
+                        .<span class="ident">unwrap</span>(); <span class="comment">// Created just above as an array.</span>
+                }
+            }
+        }
+        <span class="ident">object</span>[<span class="string">&quot;directives&quot;</span>] <span class="op">=</span> <span class="ident">result</span>;
     }
 
     <span class="kw">fn</span> <span class="ident">convert_member_expression</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">object</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
@@ -679,19 +750,27 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">convert_object_method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">object</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
+    <span class="kw">fn</span> <span class="ident">convert_object_member</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">object</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
         <span class="comment">// In Babylon, `ObjectMethod::kind` is `&quot;get&quot; | &quot;set&quot; | &quot;init&quot;`.</span>
         <span class="comment">// In BinJS, there are three interfaces `ObjectMethod`, `ObjectGetter`, `ObjectSetter`.</span>
-        <span class="kw">match</span> (<span class="kw-2">&amp;</span><span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>], <span class="ident">object</span>[<span class="string">&quot;kind&quot;</span>].<span class="ident">as_str</span>()) {
-            (<span class="kw-2">&amp;</span><span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">true</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;get&quot;</span>)) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;BracketObjectGetter&quot;</span>); }
-            (<span class="kw-2">&amp;</span><span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">false</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;get&quot;</span>)) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectGetter&quot;</span>); }
-            (<span class="kw-2">&amp;</span><span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">true</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;set&quot;</span>)) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;BracketObjectSetter&quot;</span>); }
-            (<span class="kw-2">&amp;</span><span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">false</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;set&quot;</span>)) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectSetter&quot;</span>); }
-            (<span class="kw-2">&amp;</span><span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">true</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;init&quot;</span>)) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;BracketObjectMethod&quot;</span>); }
-            (<span class="kw-2">&amp;</span><span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">false</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;init&quot;</span>)) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectMethod&quot;</span>); }
-            _ <span class="op">=&gt;</span> {
-                <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unexpected `ObjectMethod` {:?}&quot;</span>, <span class="ident">object</span>.<span class="ident">dump</span>())
+        <span class="kw">match</span> <span class="ident">object</span>[<span class="string">&quot;kind&quot;</span>].<span class="ident">as_str</span>() {
+            <span class="prelude-val">Some</span>(<span class="string">&quot;get&quot;</span>) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectGetter&quot;</span>); }
+            <span class="prelude-val">Some</span>(<span class="string">&quot;set&quot;</span>) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectSetter&quot;</span>); }
+            <span class="prelude-val">Some</span>(<span class="string">&quot;init&quot;</span>) <span class="op">=&gt;</span> { <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectMethod&quot;</span>); }
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {}
+            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Invalid ObjectMethod kind&quot;</span>)
+        }
+        <span class="kw">match</span> <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] {
+            <span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">true</span>) <span class="op">=&gt;</span> {
+                <span class="ident">object</span>[<span class="string">&quot;key&quot;</span>] <span class="op">=</span> <span class="macro">object</span><span class="macro">!</span>{
+                    <span class="string">&quot;kind&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;ComputedPropertyName&quot;</span>,
+                    <span class="string">&quot;property&quot;</span> <span class="op">=&gt;</span> <span class="ident">object</span>.<span class="ident">remove</span>(<span class="string">&quot;key&quot;</span>)
+                }
             }
+            <span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">false</span>) <span class="op">=&gt;</span> {
+                <span class="comment">// Nothing to change.</span>
+            }
+            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Invalid ObjectMethod computed&quot;</span>)
         }
     }
 
@@ -732,18 +811,39 @@
                     <span class="prelude-val">Some</span>(<span class="string">&quot;ArrayExpression&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_array_expression</span>(<span class="ident">object</span>),
                     <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectMethod&quot;</span>)
                     <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectGetter&quot;</span>)
-                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectSetter&quot;</span>)
-                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;BracketObjectGetter&quot;</span>)
-                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;BracketObjectSetter&quot;</span>)
-                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;BracketObjectMethod&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_object_method</span>(<span class="ident">object</span>),
+                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectSetter&quot;</span>) <span class="op">=&gt;</span> {
+                        <span class="self">self</span>.<span class="ident">convert_object_member</span>(<span class="ident">object</span>);
+                        <span class="self">self</span>.<span class="ident">convert_directives</span>(<span class="ident">object</span>);
+                    }
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectProperty&quot;</span>) <span class="op">=&gt;</span>
+                        <span class="self">self</span>.<span class="ident">convert_object_member</span>(<span class="ident">object</span>),
                     <span class="prelude-val">Some</span>(<span class="string">&quot;DotExpression&quot;</span>)
                     <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;BracketExpression&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_member_expression</span>(<span class="ident">object</span>),
+                    <span class="prelude-val">Some</span>(<span class="string">&quot;FunctionDeclaration&quot;</span>)
+                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;FunctionExpression&quot;</span>)
+                    <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;Program&quot;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">convert_directives</span>(<span class="ident">object</span>),
                     _ <span class="op">=&gt;</span> { <span class="comment">/* No change */</span> }
                 }
             }
             _ <span class="op">=&gt;</span> {
                 <span class="comment">// Nothing to do.</span>
             }
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">convert_directives</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">object</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">directives</span>) <span class="op">=</span> <span class="ident">object</span>.<span class="ident">remove</span>(<span class="string">&quot;directives&quot;</span>) {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dest</span> <span class="op">=</span> <span class="ident">JSON</span>::<span class="ident">new_array</span>();
+            <span class="kw">for</span> <span class="ident">directive</span> <span class="kw">in</span> <span class="ident">directives</span>.<span class="ident">members</span>() {
+                <span class="ident">dest</span>.<span class="ident">push</span>(<span class="macro">object</span><span class="macro">!</span>{
+                    <span class="string">&quot;type&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;Directive&quot;</span>,
+                    <span class="string">&quot;value&quot;</span> <span class="op">=&gt;</span> <span class="macro">object</span><span class="macro">!</span>{
+                        <span class="string">&quot;type&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;DirectiveLiteral&quot;</span>,
+                        <span class="string">&quot;value&quot;</span> <span class="op">=&gt;</span> <span class="ident">directive</span>.<span class="ident">clone</span>() <span class="comment">// We should be able to `drain()`.</span>
+                    }
+                }).<span class="ident">unwrap</span>(); <span class="comment">// We just created it as an array.</span>
+            }
+            <span class="ident">object</span>[<span class="string">&quot;directives&quot;</span>] <span class="op">=</span> <span class="ident">dest</span>;
         }
     }
 
@@ -761,39 +861,27 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">convert_object_method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">object</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
-        <span class="comment">// In Babylon, `ObjectMethod::kind` is `&quot;get&quot; | &quot;set&quot; | &quot;init&quot;`.</span>
-        <span class="comment">// In BinJS, there are three interfaces `ObjectMethod`, `ObjectGetter`, `ObjectSetter`.</span>
+    <span class="kw">fn</span> <span class="ident">convert_object_member</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">object</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
         <span class="kw">match</span> <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>].<span class="ident">as_str</span>() {
             <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectMethod&quot;</span>) <span class="op">=&gt;</span> {
                 <span class="ident">object</span>[<span class="string">&quot;kind&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;init&quot;</span>);
-                <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="bool-val">false</span>);
-            }
-            <span class="prelude-val">Some</span>(<span class="string">&quot;BracketObjectMethod&quot;</span>) <span class="op">=&gt;</span> {
-                <span class="ident">object</span>[<span class="string">&quot;kind&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;init&quot;</span>);
-                <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="bool-val">true</span>);
             }
             <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectGetter&quot;</span>) <span class="op">=&gt;</span> {
                 <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectMethod&quot;</span>);
                 <span class="ident">object</span>[<span class="string">&quot;kind&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;get&quot;</span>);
-                <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="bool-val">false</span>);
-            }
-            <span class="prelude-val">Some</span>(<span class="string">&quot;BracketObjectGetter&quot;</span>) <span class="op">=&gt;</span> {
-                <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectMethod&quot;</span>);
-                <span class="ident">object</span>[<span class="string">&quot;kind&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;get&quot;</span>);
-                <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="bool-val">true</span>);
             }
             <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectSetter&quot;</span>) <span class="op">=&gt;</span> {
                 <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectMethod&quot;</span>);
                 <span class="ident">object</span>[<span class="string">&quot;kind&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;set&quot;</span>);
-                <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="bool-val">false</span>);
             }
-            <span class="prelude-val">Some</span>(<span class="string">&quot;BracketObjectSetter&quot;</span>) <span class="op">=&gt;</span> {
-                <span class="ident">object</span>[<span class="string">&quot;type&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;ObjectMethod&quot;</span>);
-                <span class="ident">object</span>[<span class="string">&quot;kind&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="string">&quot;set&quot;</span>);
-                <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] <span class="op">=</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="bool-val">true</span>);
-            }
+            <span class="prelude-val">Some</span>(<span class="string">&quot;ObjectProperty&quot;</span>) <span class="op">=&gt;</span> { }
             _ <span class="op">=&gt;</span> { <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Invalid member expression kind&quot;</span>); }
+        }
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;ComputedPropertyName&quot;</span>) <span class="op">=</span> <span class="ident">object</span>[<span class="string">&quot;key&quot;</span>][<span class="string">&quot;type&quot;</span>].<span class="ident">as_str</span>() {
+            <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] <span class="op">=</span> <span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">true</span>);
+            <span class="ident">object</span>[<span class="string">&quot;key&quot;</span>] <span class="op">=</span> <span class="ident">object</span>[<span class="string">&quot;key&quot;</span>].<span class="ident">remove</span>(<span class="string">&quot;property&quot;</span>);
+        } <span class="kw">else</span> {
+            <span class="ident">object</span>[<span class="string">&quot;computed&quot;</span>] <span class="op">=</span> <span class="ident">JSON</span>::<span class="ident">Boolean</span>(<span class="bool-val">false</span>);
         }
     }
 
@@ -824,9 +912,9 @@
     <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="macro">object</span><span class="macro">!</span>{
         <span class="string">&quot;body&quot;</span> <span class="op">=&gt;</span> <span class="macro">array</span><span class="macro">!</span>[<span class="macro">object</span><span class="macro">!</span>{
             <span class="string">&quot;type&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;FunctionDeclaration&quot;</span>,
+            <span class="string">&quot;directives&quot;</span> <span class="op">=&gt;</span> <span class="macro">array</span><span class="macro">!</span>[],
             <span class="string">&quot;body&quot;</span> <span class="op">=&gt;</span> <span class="macro">object</span><span class="macro">!</span>{
                 <span class="string">&quot;type&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;BlockStatement&quot;</span>,
-                <span class="string">&quot;directives&quot;</span> <span class="op">=&gt;</span> <span class="macro">array</span><span class="macro">!</span>[],
                 <span class="string">&quot;body&quot;</span> <span class="op">=&gt;</span> <span class="macro">array</span><span class="macro">!</span>[]
             },
             <span class="string">&quot;async&quot;</span> <span class="op">=&gt;</span>      <span class="bool-val">false</span>,

@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["AbstractTree","Abstract type for the contents of the tree."],["Data",""],["ListGuard",""],["Statistics","This encoder doesn't produce useful statistics."],["TaggedGuard",""],["TreeTokenReader",""],["TreeTokenWriter","A trivial tree writer, without any kind of optimization."],["UntaggedGuard",""]]});

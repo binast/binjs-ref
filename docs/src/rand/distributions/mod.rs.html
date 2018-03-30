@@ -4,14 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.3.17/src/distributions/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.4.2/src/distributions/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
     
 
     <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         <a href='../../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a>
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -443,6 +455,15 @@
 <span id="398">398</span>
 <span id="399">399</span>
 <span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2013 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -463,19 +484,28 @@
 <span class="doccomment">//! internally. The `IndependentSample` trait is for generating values</span>
 <span class="doccomment">//! that do not need to record state.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">marker</span>;
 
 <span class="kw">use</span> {<span class="ident">Rng</span>, <span class="ident">Rand</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">range</span>::<span class="ident">Range</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">gamma</span>::{<span class="ident">Gamma</span>, <span class="ident">ChiSquared</span>, <span class="ident">FisherF</span>, <span class="ident">StudentT</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">normal</span>::{<span class="ident">Normal</span>, <span class="ident">LogNormal</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">exponential</span>::<span class="ident">Exp</span>;
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">range</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">gamma</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">normal</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">exponential</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
+<span class="kw">mod</span> <span class="ident">ziggurat_tables</span>;
 
 <span class="doccomment">/// Types that can be used to create a random instance of `Support`.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">Support</span><span class="op">&gt;</span> {
@@ -569,7 +599,8 @@
     <span class="doccomment">/// Create a new `WeightedChoice`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Panics if:</span>
-    <span class="doccomment">/// - `v` is empty</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - `items` is empty</span>
     <span class="doccomment">/// - the total weight is 0</span>
     <span class="doccomment">/// - the total weight is larger than a `u32` can contain.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">items</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> [<span class="ident">Weighted</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>]) <span class="op">-&gt;</span> <span class="ident">WeightedChoice</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
@@ -648,8 +679,6 @@
     }
 }
 
-<span class="kw">mod</span> <span class="ident">ziggurat_tables</span>;
-
 <span class="doccomment">/// Sample a random number using the Ziggurat method (specifically the</span>
 <span class="doccomment">/// ZIGNOR variant from Doornik 2005). Most of the arguments are</span>
 <span class="doccomment">/// directly from the paper:</span>
@@ -665,6 +694,7 @@
 
 <span class="comment">// the perf improvement (25-50%) is definitely worth the extra code</span>
 <span class="comment">// size from force-inlining.</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
 <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
 <span class="kw">fn</span> <span class="ident">ziggurat</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span>, <span class="ident">P</span>, <span class="ident">Z</span><span class="op">&gt;</span>(
             <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>,
@@ -723,7 +753,7 @@
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>, <span class="ident">Debug</span>)]</span>
     <span class="kw">struct</span> <span class="ident">ConstRand</span>(<span class="ident">usize</span>);
     <span class="kw">impl</span> <span class="ident">Rand</span> <span class="kw">for</span> <span class="ident">ConstRand</span> {
-        <span class="kw">fn</span> <span class="ident">rand</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(_: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">ConstRand</span> {
+        <span class="kw">fn</span> <span class="ident">rand</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">ConstRand</span> {
             <span class="ident">ConstRand</span>(<span class="number">0</span>)
         }
     }
@@ -858,18 +888,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

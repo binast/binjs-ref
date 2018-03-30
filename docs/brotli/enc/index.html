@@ -10,8 +10,12 @@
     <title>brotli::enc - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Module enc</p><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>brotli</a></p><script>window.sidebarCurrent = {name: 'enc', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+        <p class='location'>Module enc</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>brotli</a></p><script>window.sidebarCurrent = {name: 'enc', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -48,8 +60,9 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/brotli/enc/mod.rs.html#1-300' title='goto source code'>[src]</a></span></h1>
-<h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+               </span><a class='srclink' href='../../src/brotli/enc/mod.rs.html#1-279' title='goto source code'>[src]</a></span></h1>
+<h2 id='reexports' class='section-header'><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub use self::util::<a class="type" href="../../brotli/enc/util/type.floatX.html" title="type brotli::enc::util::floatX">floatX</a>;</code></td></tr><tr><td><code>pub use self::backward_references::<a class="struct" href="../../brotli/enc/backward_references/struct.BrotliEncoderParams.html" title="struct brotli::enc::backward_references::BrotliEncoderParams">BrotliEncoderParams</a>;</code></td></tr><tr><td><code>pub use self::encode::<a class="fn" href="../../brotli/enc/encode/fn.BrotliEncoderInitParams.html" title="fn brotli::enc::encode::BrotliEncoderInitParams">BrotliEncoderInitParams</a>;</code></td></tr><tr><td><code>pub use self::encode::<a class="fn" href="../../brotli/enc/encode/fn.BrotliEncoderSetParameter.html" title="fn brotli::enc::encode::BrotliEncoderSetParameter">BrotliEncoderSetParameter</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.v128.html" title="struct brotli::enc::vectorization::v128">v128</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.v128i.html" title="struct brotli::enc::vectorization::v128i">v128i</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.v256.html" title="struct brotli::enc::vectorization::v256">v256</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.v256i.html" title="struct brotli::enc::vectorization::v256i">v256i</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.Mem256f.html" title="struct brotli::enc::vectorization::Mem256f">Mem256f</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>
                            <td><a class="mod" href="backward_references/index.html"
@@ -122,6 +135,13 @@
                            </td>
                        </tr>
                        <tr class=' module-item'>
+                           <td><a class="mod" href="context_map_entropy/index.html"
+                                  title='mod brotli::enc::context_map_entropy'>context_map_entropy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
                            <td><a class="mod" href="dictionary_hash/index.html"
                                   title='mod brotli::enc::dictionary_hash'>dictionary_hash</a></td>
                            <td class='docblock-short'>
@@ -150,8 +170,29 @@
                            </td>
                        </tr>
                        <tr class=' module-item'>
+                           <td><a class="mod" href="find_stride/index.html"
+                                  title='mod brotli::enc::find_stride'>find_stride</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
                            <td><a class="mod" href="histogram/index.html"
                                   title='mod brotli::enc::histogram'>histogram</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="input_pair/index.html"
+                                  title='mod brotli::enc::input_pair'>input_pair</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="interface/index.html"
+                                  title='mod brotli::enc::interface'>interface</a></td>
                            <td class='docblock-short'>
                                 
                            </td>
@@ -201,6 +242,13 @@
                        <tr class=' module-item'>
                            <td><a class="mod" href="util/index.html"
                                   title='mod brotli::enc::util'>util</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="vectorization/index.html"
+                                  title='mod brotli::enc::vectorization'>vectorization</a></td>
                            <td class='docblock-short'>
                                 
                            </td>
@@ -311,18 +359,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

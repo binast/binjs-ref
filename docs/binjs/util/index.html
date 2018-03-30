@@ -10,8 +10,12 @@
     <title>binjs::util - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Module util</p><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>binjs</a></p><script>window.sidebarCurrent = {name: 'util', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+        <p class='location'>Module util</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>binjs</a></p><script>window.sidebarCurrent = {name: 'util', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -48,26 +60,10 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/binjs/util/mod.rs.html#1-319' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/binjs/util/mod.rs.html#1-191' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Misc utilities.</p>
-</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+</div><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
 <table>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.PoisonLock.html"
-                                  title='struct binjs::util::PoisonLock'>PoisonLock</a></td>
-                           <td class='docblock-short'>
-                                <p>A structure used to make sure that every access to a state
-goes through <code>try</code> and that any error poisons the state.</p>
-                           </td>
-                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Dispose.html"
-                                  title='trait binjs::util::Dispose'>Dispose</a></td>
-                           <td class='docblock-short'>
-                                
-                           </td>
-                       </tr>
                        <tr class=' module-item'>
                            <td><a class="trait" href="trait.JSONAs.html"
                                   title='trait binjs::util::JSONAs'>JSONAs</a></td>
@@ -80,21 +76,7 @@ goes through <code>try</code> and that any error poisons the state.</p>
                                   title='trait binjs::util::JSONGetter'>JSONGetter</a></td>
                            <td class='docblock-short'>
                                 <p>Utilities to simplify dealing with JSON.</p>
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Pos.html"
-                                  title='trait binjs::util::Pos'>Pos</a></td>
-                           <td class='docblock-short'>
-                                <p>An object (typically a reader) that knows its position and size.</p>
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.ReadConst.html"
-                                  title='trait binjs::util::ReadConst'>ReadConst</a></td>
-                           <td class='docblock-short'>
-                                <p>An extension of <code>Read</code> that knows how to check that the following few bytes
-match some value.</p>
+
                            </td>
                        </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
 <table>
@@ -103,21 +85,6 @@ match some value.</p>
                                   title='fn binjs::util::get_temporary_file'>get_temporary_file</a></td>
                            <td class='docblock-short'>
                                 
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.strip.html"
-                                  title='fn binjs::util::strip'>strip</a></td>
-                           <td class='docblock-short'>
-                                <p>Strip a tree from meaningless information (location information, comments, ...)</p>
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.type_of.html"
-                                  title='fn binjs::util::type_of'>type_of</a></td>
-                           <td class='docblock-short'>
-                                <p>Utility: return a string describing a JSON value
-(e.g. <code>&quot;Object&quot;</code>, <code>&quot;Bool&quot;</code>, ...)</p>
                            </td>
                        </tr></table></section>
     <section id='search' class="content hidden"></section>
@@ -132,18 +99,22 @@ match some value.</p>
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

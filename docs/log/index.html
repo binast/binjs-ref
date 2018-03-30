@@ -10,8 +10,12 @@
     <title>log - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../main.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
     
 
     <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         <a href='../log/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
-        <p class='location'>Crate log</p><div class="block items"><ul><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'log', ty: 'mod', relpath: '../'};</script>
+        <p class='location'>Crate log</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'log', ty: 'mod', relpath: '../'};</script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -48,29 +60,24 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/log/lib.rs.html#11-1040' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../src/log/lib.rs.html#11-1091' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>A lightweight logging facade.</p>
-
-<p>The <code>log</code> crate provides a single logging API that abstracts over the
+<p>A logging facade provides a single logging API that abstracts over the
 actual logging implementation. Libraries can use the logging API provided
 by this crate, and the consumer of those libraries can choose the logging
 framework that is most suitable for its use case.</p>
-
 <p>If no logging implementation is selected, the facade falls back to a &quot;noop&quot;
 implementation that ignores all log messages. The overhead in this case
 is very small - just an integer load, comparison and jump.</p>
-
-<p>A log request consists of a <em>target</em>, a <em>level</em>, and a <em>body</em>. A target is a
-string which defaults to the module path of the location of the log request,
-though that default may be overridden. Logger implementations typically use
-the target to filter requests based on some user configuration.</p>
-
-<h1 id='use' class='section-header'><a href='#use'>Use</a></h1>
-<h2 id='in-libraries' class='section-header'><a href='#in-libraries'>In libraries</a></h2>
+<p>A log request consists of a target, a level, and a body. A target is a
+string which defaults to the module path of the location of the log
+request, though that default may be overridden. Logger implementations
+typically use the target to filter requests based on some user
+configuration.</p>
+<h1 id="use" class="section-header"><a href="#use">Use</a></h1><h2 id="in-libraries" class="section-header"><a href="#in-libraries">In libraries</a></h2>
 <p>Libraries should link only to the <code>log</code> crate, and use the provided
 macros to log whatever information will be useful to downstream consumers.</p>
-
-<h3 id='examples' class='section-header'><a href='#examples'>Examples</a></h3>
+<h3 id="examples" class="section-header"><a href="#examples">Examples</a></h3>
 <pre class="rust rust-example-rendered">
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
@@ -91,39 +98,30 @@ macros to log whatever information will be useful to downstream consumers.</p>
         }
     }
 }</pre>
-
-<h2 id='in-executables' class='section-header'><a href='#in-executables'>In executables</a></h2>
+<h2 id="in-executables" class="section-header"><a href="#in-executables">In executables</a></h2>
 <p>Executables should choose a logging framework and initialize it early in the
 runtime of the program. Logging frameworks will typically include a
 function to do this. Any log messages generated before the framework is
 initialized will be ignored.</p>
-
 <p>The executable itself may use the <code>log</code> crate to log as well.</p>
-
-<h3 id='warning' class='section-header'><a href='#warning'>Warning</a></h3>
+<h3 id="warning" class="section-header"><a href="#warning">Warning</a></h3>
 <p>The logging system may only be initialized once.</p>
-
-<h3 id='examples-1' class='section-header'><a href='#examples-1'>Examples</a></h3>
-<div class='information'><div class='tooltip ignore'>⚠<span class='tooltiptext'>Be careful when using this code, it's not being tested!</span></div></div><pre class="rust rust-example-rendered ignore">
+<h3 id="examples-1" class="section-header"><a href="#examples-1">Examples</a></h3>
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">env_logger</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">my_logger</span>;
 
 <span class="kw">fn</span> <span class="ident">main</span>() {
-    <span class="comment">// Select env_logger, one possible logger implementation</span>
-    <span class="comment">// (see https://doc.rust-lang.org/log/env_logger/index.html)</span>
-    <span class="ident">env_logger</span>::<span class="ident">init</span>().<span class="ident">unwrap</span>();
-     
+    <span class="ident">my_logger</span>::<span class="ident">init</span>();
+
     <span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;starting up&quot;</span>);
-    <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;error: {}&quot;</span>, <span class="number">404</span>);
-     
+
     <span class="comment">// ...</span>
 }</pre>
-
-<h1 id='logger-implementations' class='section-header'><a href='#logger-implementations'>Logger implementations</a></h1>
-<p>Loggers implement the <a href="trait.Log.html"><code>Log</code></a> trait. Here&#39;s a very basic example that simply
-logs all messages at the <a href="enum.LogLevel.html"><code>Error</code></a>, <a href="enum.LogLevel.html"><code>Warn</code></a> or
-<a href="enum.LogLevel.html"><code>Info</code></a> levels to stdout:</p>
+<h1 id="logger-implementations" class="section-header"><a href="#logger-implementations">Logger implementations</a></h1>
+<p>Loggers implement the <code>Log</code> trait. Here's a very basic example that simply
+logs all messages at the <code>Error</code>, <code>Warn</code> or <code>Info</code> levels to stdout:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
@@ -144,17 +142,15 @@ logs all messages at the <a href="enum.LogLevel.html"><code>Error</code></a>, <a
     }
 }
 </pre>
-
-<p>Loggers are installed by calling the <a href="fn.set_logger.html"><code>set_logger</code></a> function. It takes a
-closure which is provided a <a href="struct.MaxLogLevelFilter.html"><code>MaxLogLevelFilter</code></a> token and returns a
-<a href="trait.Log.html"><code>Log</code></a> trait object. The <a href="struct.MaxLogLevelFilter.html"><code>MaxLogLevelFilter</code></a> token controls the global
-maximum log level. The logging facade uses this as an optimization to
-improve performance of log messages at levels that are disabled. In the
-case of our example logger, we&#39;ll want to set the maximum log level to
-<a href="enum.LogLevel.html"><code>Info</code></a>, since we ignore any <a href="enum.LogLevel.html"><code>Debug</code></a> or
-<a href="enum.LogLevel.html"><code>Trace</code></a> level log messages. A logging framework should
-provide a function that wraps a call to <a href="fn.set_logger.html"><code>set_logger</code></a>, handling
-initialization of the logger:</p>
+<p>Loggers are installed by calling the <code>set_logger</code> function. It takes a
+closure which is provided a <code>MaxLogLevel</code> token and returns a <code>Log</code> trait
+object. The <code>MaxLogLevel</code> token controls the global maximum log level. The
+logging facade uses this as an optimization to improve performance of log
+messages at levels that are disabled. In the case of our example logger,
+we'll want to set the maximum log level to <code>Info</code>, since we ignore any
+<code>Debug</code> or <code>Trace</code> level log messages. A logging framework should provide a
+function that wraps a call to <code>set_logger</code>, handling initialization of the
+logger:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">SetLoggerError</span><span class="op">&gt;</span> {
@@ -163,13 +159,12 @@ initialization of the logger:</p>
         <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">SimpleLogger</span>)
     })
 }</pre>
-
-<h1 id='use-with-no_std' class='section-header'><a href='#use-with-no_std'>Use with <code>no_std</code></a></h1>
+<h1 id="use-with-no_std" class="section-header"><a href="#use-with-no_std">Use with <code>no_std</code></a></h1>
 <p>To use the <code>log</code> crate without depending on <code>libstd</code>, you need to specify
 <code>default-features = false</code> when specifying the dependency in <code>Cargo.toml</code>.
 This makes no difference to libraries using <code>log</code> since the logging API
-remains the same. However executables will need to use the <a href="fn.set_logger_raw.html"><code>set_logger_raw</code></a>
-function to initialize a logger and the <a href="fn.shutdown_logger_raw.html"><code>shutdown_logger_raw</code></a> function to
+remains the same. However executables will need to use the <code>set_logger_raw</code>
+function to initialize a logger and the <code>shutdown_logger_raw</code> function to
 shut down the global logger before exiting:</p>
 
 <pre class="rust rust-example-rendered">
@@ -195,6 +190,7 @@ shut down the global logger before exiting:</p>
                                   title='macro log::debug'>debug</a></td>
                            <td class='docblock-short'>
                                 <p>Logs a message at the debug level.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -202,6 +198,7 @@ shut down the global logger before exiting:</p>
                                   title='macro log::error'>error</a></td>
                            <td class='docblock-short'>
                                 <p>Logs a message at the error level.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -209,6 +206,7 @@ shut down the global logger before exiting:</p>
                                   title='macro log::info'>info</a></td>
                            <td class='docblock-short'>
                                 <p>Logs a message at the info level.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -216,6 +214,7 @@ shut down the global logger before exiting:</p>
                                   title='macro log::log'>log</a></td>
                            <td class='docblock-short'>
                                 <p>The standard logging macro.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -224,6 +223,7 @@ shut down the global logger before exiting:</p>
                            <td class='docblock-short'>
                                 <p>Determines if a message logged at the specified level in that module will
 be logged.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -231,6 +231,7 @@ be logged.</p>
                                   title='macro log::trace'>trace</a></td>
                            <td class='docblock-short'>
                                 <p>Logs a message at the trace level.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -238,6 +239,7 @@ be logged.</p>
                                   title='macro log::warn'>warn</a></td>
                            <td class='docblock-short'>
                                 <p>Logs a message at the warn level.</p>
+
                            </td>
                        </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
@@ -246,6 +248,7 @@ be logged.</p>
                                   title='struct log::LogLocation'>LogLocation</a></td>
                            <td class='docblock-short'>
                                 <p>The location of a log message.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -253,14 +256,15 @@ be logged.</p>
                                   title='struct log::LogMetadata'>LogMetadata</a></td>
                            <td class='docblock-short'>
                                 <p>Metadata about a log message.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.LogRecord.html"
                                   title='struct log::LogRecord'>LogRecord</a></td>
                            <td class='docblock-short'>
-                                <p>The &quot;payload&quot; of a log message. This structure is primarily used as a
-parameter in the <a href="trait.Log.html"><code>log</code></a> method of the <a href="trait.Log.html"><code>Log</code></a> trait.</p>
+                                <p>The &quot;payload&quot; of a log message.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -269,6 +273,7 @@ parameter in the <a href="trait.Log.html"><code>log</code></a> method of the <a 
                            <td class='docblock-short'>
                                 <p>A token providing read and write access to the global maximum log level
 filter.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -276,6 +281,7 @@ filter.</p>
                                   title='struct log::SetLoggerError'>SetLoggerError</a></td>
                            <td class='docblock-short'>
                                 <p>The type returned by <code>set_logger</code> if <code>set_logger</code> has already been called.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -284,6 +290,7 @@ filter.</p>
                            <td class='docblock-short'>
                                 <p>The type returned by <code>shutdown_logger_raw</code> if <code>shutdown_logger_raw</code> has
 already been called or if <code>set_logger_raw</code> has not been called yet.</p>
+
                            </td>
                        </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
@@ -291,7 +298,8 @@ already been called or if <code>set_logger_raw</code> has not been called yet.</
                            <td><a class="enum" href="enum.LogLevel.html"
                                   title='enum log::LogLevel'>LogLevel</a></td>
                            <td class='docblock-short'>
-                                <p>An enum representing the available verbosity levels of the logging framework.</p>
+                                <p>An enum representing the available verbosity levels of the logging framework</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -300,6 +308,7 @@ already been called or if <code>set_logger_raw</code> has not been called yet.</
                            <td class='docblock-short'>
                                 <p>An enum representing the available verbosity level filters of the logging
 framework.</p>
+
                            </td>
                        </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
 <table>
@@ -308,6 +317,7 @@ framework.</p>
                                   title='trait log::Log'>Log</a></td>
                            <td class='docblock-short'>
                                 <p>A trait encapsulating the operations required of a logger</p>
+
                            </td>
                        </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
 <table>
@@ -316,6 +326,7 @@ framework.</p>
                                   title='fn log::max_log_level'>max_log_level</a></td>
                            <td class='docblock-short'>
                                 <p>Returns the current maximum log level.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -323,6 +334,7 @@ framework.</p>
                                   title='fn log::set_logger'>set_logger</a></td>
                            <td class='docblock-short'>
                                 <p>Sets the global logger.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -330,6 +342,7 @@ framework.</p>
                                   title='fn log::set_logger_raw'>set_logger_raw</a><a title='unsafe function' href='#'><sup>⚠</sup></a></td>
                            <td class='docblock-short'>
                                 <p>Sets the global logger from a raw pointer.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -337,6 +350,7 @@ framework.</p>
                                   title='fn log::shutdown_logger'>shutdown_logger</a></td>
                            <td class='docblock-short'>
                                 <p>Shuts down the global logger.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -344,6 +358,7 @@ framework.</p>
                                   title='fn log::shutdown_logger_raw'>shutdown_logger_raw</a></td>
                            <td class='docblock-short'>
                                 <p>Shuts down the global logger.</p>
+
                            </td>
                        </tr></table></section>
     <section id='search' class="content hidden"></section>
@@ -358,18 +373,22 @@ framework.</p>
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

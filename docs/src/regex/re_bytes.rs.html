@@ -4,17 +4,21 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.2/src/re_bytes.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.1.80/src/re_bytes.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>re_bytes.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
-    
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
     
 </head>
 <body class="rustdoc source">
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
-        
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../regex/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -1060,20 +1072,6 @@
 <span id="1015">1015</span>
 <span id="1016">1016</span>
 <span id="1017">1017</span>
-<span id="1018">1018</span>
-<span id="1019">1019</span>
-<span id="1020">1020</span>
-<span id="1021">1021</span>
-<span id="1022">1022</span>
-<span id="1023">1023</span>
-<span id="1024">1024</span>
-<span id="1025">1025</span>
-<span id="1026">1026</span>
-<span id="1027">1027</span>
-<span id="1028">1028</span>
-<span id="1029">1029</span>
-<span id="1030">1030</span>
-<span id="1031">1031</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -1087,6 +1085,7 @@
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">hash_map</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Index</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
@@ -1095,50 +1094,10 @@
 <span class="kw">use</span> <span class="ident">memchr</span>::<span class="ident">memchr</span>;
 
 <span class="kw">use</span> <span class="ident">exec</span>::{<span class="ident">Exec</span>, <span class="ident">ExecNoSync</span>};
-<span class="kw">use</span> <span class="ident">expand</span>::<span class="ident">expand_bytes</span>;
+<span class="kw">use</span> <span class="ident">expand</span>::<span class="ident">expand</span>;
 <span class="kw">use</span> <span class="ident">error</span>::<span class="ident">Error</span>;
 <span class="kw">use</span> <span class="ident">re_builder</span>::<span class="ident">bytes</span>::<span class="ident">RegexBuilder</span>;
-<span class="kw">use</span> <span class="ident">re_trait</span>::{<span class="self">self</span>, <span class="ident">RegularExpression</span>, <span class="ident">Locations</span>, <span class="ident">SubCapturesPosIter</span>};
-
-<span class="doccomment">/// Match represents a single match of a regex in a haystack.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The lifetime parameter `&#39;t` refers to the lifetime of the matched text.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-    <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
-    <span class="ident">start</span>: <span class="ident">usize</span>,
-    <span class="ident">end</span>: <span class="ident">usize</span>,
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Returns the starting byte offset of the match in the haystack.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">start</span>
-    }
-
-    <span class="doccomment">/// Returns the ending byte offset of the match in the haystack.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">end</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">end</span>
-    }
-
-    <span class="doccomment">/// Returns the matched text.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">text</span>[<span class="self">self</span>.<span class="ident">start</span>..<span class="self">self</span>.<span class="ident">end</span>]
-    }
-
-    <span class="doccomment">/// Creates a new match from the given haystack and byte offsets.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">haystack</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>], <span class="ident">start</span>: <span class="ident">usize</span>, <span class="ident">end</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-        <span class="ident">Match</span> {
-            <span class="ident">text</span>: <span class="ident">haystack</span>,
-            <span class="ident">start</span>: <span class="ident">start</span>,
-            <span class="ident">end</span>: <span class="ident">end</span>,
-        }
-    }
-}
+<span class="kw">use</span> <span class="ident">re_trait</span>::{<span class="self">self</span>, <span class="ident">RegularExpression</span>, <span class="ident">Slot</span>};
 
 <span class="doccomment">/// A compiled regular expression for matching arbitrary bytes.</span>
 <span class="doccomment">///</span>
@@ -1187,14 +1146,22 @@
     }
 }
 
-<span class="doccomment">/// Core regular expression methods.</span>
 <span class="kw">impl</span> <span class="ident">Regex</span> {
     <span class="doccomment">/// Compiles a regular expression. Once compiled, it can be used repeatedly</span>
     <span class="doccomment">/// to search, split or replace text in a string.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If an invalid expression is given, then an error is returned.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">re</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Regex</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="ident">RegexBuilder</span>::<span class="ident">new</span>(<span class="ident">re</span>).<span class="ident">build</span>()
+        <span class="ident">Regex</span>::<span class="ident">with_size_limit</span>(<span class="number">10</span> <span class="op">*</span> (<span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">20</span>), <span class="ident">re</span>)
+    }
+
+    <span class="doccomment">/// Compiles a regular expression with the given size limit.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The size limit is applied to the size of the *compiled* data structure.</span>
+    <span class="doccomment">/// If the data structure exceeds the size given, then an error is</span>
+    <span class="doccomment">/// returned.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_size_limit</span>(<span class="ident">size</span>: <span class="ident">usize</span>, <span class="ident">re</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Regex</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="ident">RegexBuilder</span>::<span class="ident">new</span>(<span class="ident">re</span>).<span class="ident">size_limit</span>(<span class="ident">size</span>).<span class="ident">compile</span>()
     }
 
     <span class="doccomment">/// Returns true if and only if the regex matches the string given.</span>
@@ -1219,6 +1186,17 @@
         <span class="self">self</span>.<span class="ident">is_match_at</span>(<span class="ident">text</span>, <span class="number">0</span>)
     }
 
+    <span class="doccomment">/// Returns the same as is_match, but starts the search at the given</span>
+    <span class="doccomment">/// offset.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
+    <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
+    <span class="doccomment">/// match when `start == 0`.</span>
+    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_match_at</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">start</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">shortest_match_at</span>(<span class="ident">text</span>, <span class="ident">start</span>).<span class="ident">is_some</span>()
+    }
+
     <span class="doccomment">/// Returns the start and end byte range of the leftmost-first match in</span>
     <span class="doccomment">/// `text`. If no match exists, then `None` is returned.</span>
     <span class="doccomment">///</span>
@@ -1235,12 +1213,27 @@
     <span class="doccomment">/// # extern crate regex; use regex::bytes::Regex;</span>
     <span class="doccomment">/// # fn main() {</span>
     <span class="doccomment">/// let text = b&quot;I categorically deny having triskaidekaphobia.&quot;;</span>
-    <span class="doccomment">/// let mat = Regex::new(r&quot;\b\w{13}\b&quot;).unwrap().find(text).unwrap();</span>
-    <span class="doccomment">/// assert_eq!((mat.start(), mat.end()), (2, 15));</span>
+    <span class="doccomment">/// let pos = Regex::new(r&quot;\b\w{13}\b&quot;).unwrap().find(text);</span>
+    <span class="doccomment">/// assert_eq!(pos, Some((2, 15)));</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">find_at</span>(<span class="ident">text</span>, <span class="number">0</span>)
+    }
+
+    <span class="doccomment">/// Returns the same as find, but starts the search at the given</span>
+    <span class="doccomment">/// offset.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
+    <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
+    <span class="doccomment">/// match when `start == 0`.</span>
+    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find_at</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">start</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">find_at</span>(<span class="ident">text</span>, <span class="ident">start</span>)
     }
 
     <span class="doccomment">/// Returns an iterator for each successive non-overlapping match in</span>
@@ -1256,22 +1249,27 @@
     <span class="doccomment">/// # extern crate regex; use regex::bytes::Regex;</span>
     <span class="doccomment">/// # fn main() {</span>
     <span class="doccomment">/// let text = b&quot;Retroactively relinquishing remunerations is reprehensible.&quot;;</span>
-    <span class="doccomment">/// for mat in Regex::new(r&quot;\b\w{13}\b&quot;).unwrap().find_iter(text) {</span>
-    <span class="doccomment">///     println!(&quot;{:?}&quot;, mat);</span>
+    <span class="doccomment">/// for pos in Regex::new(r&quot;\b\w{13}\b&quot;).unwrap().find_iter(text) {</span>
+    <span class="doccomment">///     println!(&quot;{:?}&quot;, pos);</span>
     <span class="doccomment">/// }</span>
+    <span class="doccomment">/// // Output:</span>
+    <span class="doccomment">/// // (0, 13)</span>
+    <span class="doccomment">/// // (14, 27)</span>
+    <span class="doccomment">/// // (28, 41)</span>
+    <span class="doccomment">/// // (45, 58)</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find_iter</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">Matches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-        <span class="ident">Matches</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">find_iter</span>(<span class="ident">text</span>))
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find_iter</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">FindMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+        <span class="ident">FindMatches</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">find_iter</span>(<span class="ident">text</span>))
     }
 
     <span class="doccomment">/// Returns the capture groups corresponding to the leftmost-first</span>
     <span class="doccomment">/// match in `text`. Capture group `0` always corresponds to the entire</span>
     <span class="doccomment">/// match. If no match is found, then `None` is returned.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// You should only use `captures` if you need access to the location of</span>
-    <span class="doccomment">/// capturing group matches. Otherwise, `find` is faster for discovering</span>
-    <span class="doccomment">/// the location of the overall match.</span>
+    <span class="doccomment">/// You should only use `captures` if you need access to submatches.</span>
+    <span class="doccomment">/// Otherwise, `find` is faster for discovering the location of the overall</span>
+    <span class="doccomment">/// match.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Examples</span>
     <span class="doccomment">///</span>
@@ -1286,9 +1284,9 @@
     <span class="doccomment">/// let re = Regex::new(r&quot;&#39;([^&#39;]+)&#39;\s+\((\d{4})\)&quot;).unwrap();</span>
     <span class="doccomment">/// let text = b&quot;Not my favorite movie: &#39;Citizen Kane&#39; (1941).&quot;;</span>
     <span class="doccomment">/// let caps = re.captures(text).unwrap();</span>
-    <span class="doccomment">/// assert_eq!(&amp;caps[1], &amp;b&quot;Citizen Kane&quot;[..]);</span>
-    <span class="doccomment">/// assert_eq!(&amp;caps[2], &amp;b&quot;1941&quot;[..]);</span>
-    <span class="doccomment">/// assert_eq!(&amp;caps[0], &amp;b&quot;&#39;Citizen Kane&#39; (1941)&quot;[..]);</span>
+    <span class="doccomment">/// assert_eq!(caps.at(1), Some(&amp;b&quot;Citizen Kane&quot;[..]));</span>
+    <span class="doccomment">/// assert_eq!(caps.at(2), Some(&amp;b&quot;1941&quot;[..]));</span>
+    <span class="doccomment">/// assert_eq!(caps.at(0), Some(&amp;b&quot;&#39;Citizen Kane&#39; (1941)&quot;[..]));</span>
     <span class="doccomment">/// // You can also access the groups by index using the Index notation.</span>
     <span class="doccomment">/// // Note that this will panic on an invalid index.</span>
     <span class="doccomment">/// assert_eq!(&amp;caps[1], b&quot;Citizen Kane&quot;);</span>
@@ -1309,9 +1307,9 @@
     <span class="doccomment">///                .unwrap();</span>
     <span class="doccomment">/// let text = b&quot;Not my favorite movie: &#39;Citizen Kane&#39; (1941).&quot;;</span>
     <span class="doccomment">/// let caps = re.captures(text).unwrap();</span>
-    <span class="doccomment">/// assert_eq!(&amp;caps[&quot;title&quot;], &amp;b&quot;Citizen Kane&quot;[..]);</span>
-    <span class="doccomment">/// assert_eq!(&amp;caps[&quot;year&quot;], &amp;b&quot;1941&quot;[..]);</span>
-    <span class="doccomment">/// assert_eq!(&amp;caps[0], &amp;b&quot;&#39;Citizen Kane&#39; (1941)&quot;[..]);</span>
+    <span class="doccomment">/// assert_eq!(caps.name(&quot;title&quot;), Some(&amp;b&quot;Citizen Kane&quot;[..]));</span>
+    <span class="doccomment">/// assert_eq!(caps.name(&quot;year&quot;), Some(&amp;b&quot;1941&quot;[..]));</span>
+    <span class="doccomment">/// assert_eq!(caps.at(0), Some(&amp;b&quot;&#39;Citizen Kane&#39; (1941)&quot;[..]));</span>
     <span class="doccomment">/// // You can also access the groups by name using the Index notation.</span>
     <span class="doccomment">/// // Note that this will panic on an invalid group name.</span>
     <span class="doccomment">/// assert_eq!(&amp;caps[&quot;title&quot;], b&quot;Citizen Kane&quot;);</span>
@@ -1323,23 +1321,39 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Here we name the capture groups, which we can access with the `name`</span>
     <span class="doccomment">/// method or the `Index` notation with a `&amp;str`. Note that the named</span>
-    <span class="doccomment">/// capture groups are still accessible with `get` or the `Index` notation</span>
+    <span class="doccomment">/// capture groups are still accessible with `at` or the `Index` notation</span>
     <span class="doccomment">/// with a `usize`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The `0`th capture group is always unnamed, so it must always be</span>
     <span class="doccomment">/// accessed with `at(0)` or `[0]`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">locs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">locations</span>();
-        <span class="self">self</span>.<span class="ident">read_captures_at</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">locs</span>, <span class="ident">text</span>, <span class="number">0</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">Captures</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">slots</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">None</span>; <span class="number">2</span> <span class="op">*</span> <span class="self">self</span>.<span class="ident">captures_len</span>()];
+        <span class="self">self</span>.<span class="ident">read_captures_at</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slots</span>, <span class="ident">text</span>, <span class="number">0</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Captures</span> {
             <span class="ident">text</span>: <span class="ident">text</span>,
-            <span class="ident">locs</span>: <span class="ident">locs</span>,
+            <span class="ident">slots</span>: <span class="ident">slots</span>,
             <span class="ident">named_groups</span>: <span class="self">self</span>.<span class="number">0</span>.<span class="ident">capture_name_idx</span>().<span class="ident">clone</span>(),
         })
     }
 
+    <span class="doccomment">/// Returns the same as captures, but starts the search at the given</span>
+    <span class="doccomment">/// offset and populates the capture locations given.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
+    <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
+    <span class="doccomment">/// match when `start == 0`.</span>
+    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_captures_at</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">slots</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">Slot</span>],
+        <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">start</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">read_captures_at</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>)
+    }
+
     <span class="doccomment">/// Returns an iterator over all the non-overlapping capture groups matched</span>
     <span class="doccomment">/// in `text`. This is operationally the same as `find_iter`, except it</span>
-    <span class="doccomment">/// yields information about capturing group matches.</span>
+    <span class="doccomment">/// yields information about submatches.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Example</span>
     <span class="doccomment">///</span>
@@ -1366,8 +1380,8 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">captures_iter</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="self">self</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
-    ) <span class="op">-&gt;</span> <span class="ident">CaptureMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-        <span class="ident">CaptureMatches</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">captures_iter</span>(<span class="ident">text</span>))
+    ) <span class="op">-&gt;</span> <span class="ident">FindCaptures</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+        <span class="ident">FindCaptures</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">captures_iter</span>(<span class="ident">text</span>))
     }
 
     <span class="doccomment">/// Returns an iterator of substrings of `text` delimited by a match of the</span>
@@ -1390,8 +1404,8 @@
     <span class="doccomment">/// ]);</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">split</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">Split</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-        <span class="ident">Split</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">split</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">Splits</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+        <span class="ident">Splits</span> {
             <span class="ident">finder</span>: <span class="self">self</span>.<span class="ident">find_iter</span>(<span class="ident">text</span>),
             <span class="ident">last</span>: <span class="number">0</span>,
         }
@@ -1421,8 +1435,8 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="self">self</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
         <span class="ident">limit</span>: <span class="ident">usize</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">SplitN</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-        <span class="ident">SplitN</span> {
+    ) <span class="op">-&gt;</span> <span class="ident">SplitsN</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+        <span class="ident">SplitsN</span> {
             <span class="ident">splits</span>: <span class="self">self</span>.<span class="ident">split</span>(<span class="ident">text</span>),
             <span class="ident">n</span>: <span class="ident">limit</span>,
         }
@@ -1436,25 +1450,6 @@
     <span class="doccomment">/// If no match is found, then a copy of the byte string is returned</span>
     <span class="doccomment">/// unchanged.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # Replacement string syntax</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// All instances of `$name` in the replacement text is replaced with the</span>
-    <span class="doccomment">/// corresponding capture group `name`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// `name` may be an integer corresponding to the index of the</span>
-    <span class="doccomment">/// capture group (counted by order of opening parenthesis where `0` is the</span>
-    <span class="doccomment">/// entire match) or it can be a name (consisting of letters, digits or</span>
-    <span class="doccomment">/// underscores) corresponding to a named capture group.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If `name` isn&#39;t a valid capture group (whether the name doesn&#39;t exist</span>
-    <span class="doccomment">/// or isn&#39;t a valid index), then it is replaced with the empty string.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The longest possible name is used. e.g., `$1a` looks up the capture</span>
-    <span class="doccomment">/// group named `1a` and not the capture group at index `1`. To exert more</span>
-    <span class="doccomment">/// precise control over the name, use braces, e.g., `${1}a`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// To write a literal `$` use `$$`.</span>
-    <span class="doccomment">///</span>
     <span class="doccomment">/// # Examples</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that this function is polymorphic with respect to the replacement.</span>
@@ -1464,14 +1459,14 @@
     <span class="doccomment">/// # extern crate regex; use regex::bytes::Regex;</span>
     <span class="doccomment">/// # fn main() {</span>
     <span class="doccomment">/// let re = Regex::new(&quot;[^01]+&quot;).unwrap();</span>
-    <span class="doccomment">/// assert_eq!(re.replace(b&quot;1078910&quot;, &amp;b&quot;&quot;[..]), &amp;b&quot;1010&quot;[..]);</span>
+    <span class="doccomment">/// assert_eq!(re.replace(b&quot;1078910&quot;, &amp;b&quot;&quot;[..]), b&quot;1010&quot;);</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// But anything satisfying the `Replacer` trait will work. For example, a</span>
     <span class="doccomment">/// closure of type `|&amp;Captures| -&gt; Vec&lt;u8&gt;` provides direct access to the</span>
-    <span class="doccomment">/// captures corresponding to a match. This allows one to access capturing</span>
-    <span class="doccomment">/// group matches easily:</span>
+    <span class="doccomment">/// captures corresponding to a match. This allows one to access submatches</span>
+    <span class="doccomment">/// easily:</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// ```rust</span>
     <span class="doccomment">/// # extern crate regex; use regex::bytes::Regex;</span>
@@ -1483,7 +1478,7 @@
     <span class="doccomment">///     replacement.extend(&amp;caps[1]);</span>
     <span class="doccomment">///     replacement</span>
     <span class="doccomment">/// });</span>
-    <span class="doccomment">/// assert_eq!(result, &amp;b&quot;Bruce Springsteen&quot;[..]);</span>
+    <span class="doccomment">/// assert_eq!(result, b&quot;Bruce Springsteen&quot;);</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
     <span class="doccomment">///</span>
@@ -1497,34 +1492,23 @@
     <span class="doccomment">/// # fn main() {</span>
     <span class="doccomment">/// let re = Regex::new(r&quot;(?P&lt;last&gt;[^,\s]+),\s+(?P&lt;first&gt;\S+)&quot;).unwrap();</span>
     <span class="doccomment">/// let result = re.replace(b&quot;Springsteen, Bruce&quot;, &amp;b&quot;$first $last&quot;[..]);</span>
-    <span class="doccomment">/// assert_eq!(result, &amp;b&quot;Bruce Springsteen&quot;[..]);</span>
+    <span class="doccomment">/// assert_eq!(result, b&quot;Bruce Springsteen&quot;);</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that using `$2` instead of `$first` or `$1` instead of `$last`</span>
     <span class="doccomment">/// would produce the same result. To write a literal `$` use `$$`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// Sometimes the replacement string requires use of curly braces to</span>
-    <span class="doccomment">/// delineate a capture group replacement and surrounding literal text.</span>
-    <span class="doccomment">/// For example, if we wanted to join two words together with an</span>
-    <span class="doccomment">/// underscore:</span>
+    <span class="doccomment">/// If `$name` isn&#39;t a valid capture group (whether the name doesn&#39;t exist</span>
+    <span class="doccomment">/// or isn&#39;t a valid index), then it is replaced with the empty string.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # extern crate regex; use regex::bytes::Regex;</span>
-    <span class="doccomment">/// # fn main() {</span>
-    <span class="doccomment">/// let re = Regex::new(r&quot;(?P&lt;first&gt;\w+)\s+(?P&lt;second&gt;\w+)&quot;).unwrap();</span>
-    <span class="doccomment">/// let result = re.replace(b&quot;deep fried&quot;, &amp;b&quot;${first}_$second&quot;[..]);</span>
-    <span class="doccomment">/// assert_eq!(result, &amp;b&quot;deep_fried&quot;[..]);</span>
-    <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Without the curly braces, the capture group name `first_` would be</span>
-    <span class="doccomment">/// used, and since it doesn&#39;t exist, it would be replaced with the empty</span>
-    <span class="doccomment">/// string.</span>
+    <span class="doccomment">/// The longest possible name is used. e.g., `$1a` looks up the capture</span>
+    <span class="doccomment">/// group named `1a` and not the capture group at index `1`. To exert more</span>
+    <span class="doccomment">/// precise control over the name, use braces, e.g., `${1}a`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Finally, sometimes you just want to replace a literal string with no</span>
-    <span class="doccomment">/// regard for capturing group expansion. This can be done by wrapping a</span>
-    <span class="doccomment">/// byte string with `NoExpand`:</span>
+    <span class="doccomment">/// submatch expansion. This can be done by wrapping a byte string with</span>
+    <span class="doccomment">/// `NoExpand`:</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// ```rust</span>
     <span class="doccomment">/// # extern crate regex; use regex::bytes::Regex;</span>
@@ -1533,14 +1517,10 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// let re = Regex::new(r&quot;(?P&lt;last&gt;[^,\s]+),\s+(\S+)&quot;).unwrap();</span>
     <span class="doccomment">/// let result = re.replace(b&quot;Springsteen, Bruce&quot;, NoExpand(b&quot;$2 $last&quot;));</span>
-    <span class="doccomment">/// assert_eq!(result, &amp;b&quot;$2 $last&quot;[..]);</span>
+    <span class="doccomment">/// assert_eq!(result, b&quot;$2 $last&quot;);</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">R</span>: <span class="ident">Replacer</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
-        <span class="ident">rep</span>: <span class="ident">R</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Replacer</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">rep</span>: <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">replacen</span>(<span class="ident">text</span>, <span class="number">1</span>, <span class="ident">rep</span>)
     }
 
@@ -1549,12 +1529,8 @@
     <span class="doccomment">/// `0`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// See the documentation for `replace` for details on how to access</span>
-    <span class="doccomment">/// capturing group matches in the replacement text.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_all</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">R</span>: <span class="ident">Replacer</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
-        <span class="ident">rep</span>: <span class="ident">R</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+    <span class="doccomment">/// submatches in the replacement text.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_all</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Replacer</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">rep</span>: <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">replacen</span>(<span class="ident">text</span>, <span class="number">0</span>, <span class="ident">rep</span>)
     }
 
@@ -1563,56 +1539,46 @@
     <span class="doccomment">/// are replaced.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// See the documentation for `replace` for details on how to access</span>
-    <span class="doccomment">/// capturing group matches in the replacement text.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replacen</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">R</span>: <span class="ident">Replacer</span><span class="op">&gt;</span>(
+    <span class="doccomment">/// submatches in the replacement text.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replacen</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Replacer</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
+        <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">limit</span>: <span class="ident">usize</span>,
         <span class="kw-2">mut</span> <span class="ident">rep</span>: <span class="ident">R</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+    ) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rep</span>) <span class="op">=</span> <span class="ident">rep</span>.<span class="ident">no_expansion</span>() {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">text</span>.<span class="ident">len</span>());
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_match</span> <span class="op">=</span> <span class="number">0</span>;
-            <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">m</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">find_iter</span>(<span class="ident">text</span>).<span class="ident">enumerate</span>() {
+            <span class="kw">for</span> (<span class="ident">i</span>, (<span class="ident">s</span>, <span class="ident">e</span>)) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">find_iter</span>(<span class="ident">text</span>).<span class="ident">enumerate</span>() {
                 <span class="kw">if</span> <span class="ident">limit</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="ident">i</span> <span class="op">&gt;=</span> <span class="ident">limit</span> {
                     <span class="kw">break</span>
                 }
-                <span class="ident">new</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_match</span>..<span class="ident">m</span>.<span class="ident">start</span>()]);
-                <span class="ident">new</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">rep</span>);
-                <span class="ident">last_match</span> <span class="op">=</span> <span class="ident">m</span>.<span class="ident">end</span>();
+                <span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">new</span>, <span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_match</span>..<span class="ident">s</span>]);
+                <span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">new</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">rep</span>);
+                <span class="ident">last_match</span> <span class="op">=</span> <span class="ident">e</span>;
             }
-            <span class="kw">if</span> <span class="ident">last_match</span> <span class="op">==</span> <span class="number">0</span> {
-                <span class="kw">return</span> <span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="ident">text</span>);
-            }
-            <span class="ident">new</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_match</span>..]);
-            <span class="kw">return</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">new</span>);
+            <span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">new</span>, <span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_match</span>..]);
+            <span class="kw">return</span> <span class="ident">new</span>;
         }
 
         <span class="comment">// The slower path, which we use if the replacement needs access to</span>
         <span class="comment">// capture groups.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">it</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">captures_iter</span>(<span class="ident">text</span>).<span class="ident">enumerate</span>().<span class="ident">peekable</span>();
-        <span class="kw">if</span> <span class="ident">it</span>.<span class="ident">peek</span>().<span class="ident">is_none</span>() {
-            <span class="kw">return</span> <span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="ident">text</span>);
-        }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">text</span>.<span class="ident">len</span>());
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_match</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">cap</span>) <span class="kw">in</span> <span class="ident">it</span> {
+        <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">cap</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">captures_iter</span>(<span class="ident">text</span>).<span class="ident">enumerate</span>() {
             <span class="kw">if</span> <span class="ident">limit</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="ident">i</span> <span class="op">&gt;=</span> <span class="ident">limit</span> {
                 <span class="kw">break</span>
             }
             <span class="comment">// unwrap on 0 is OK because captures only reports matches</span>
-            <span class="kw">let</span> <span class="ident">m</span> <span class="op">=</span> <span class="ident">cap</span>.<span class="ident">get</span>(<span class="number">0</span>).<span class="ident">unwrap</span>();
-            <span class="ident">new</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_match</span>..<span class="ident">m</span>.<span class="ident">start</span>()]);
+            <span class="kw">let</span> (<span class="ident">s</span>, <span class="ident">e</span>) <span class="op">=</span> <span class="ident">cap</span>.<span class="ident">pos</span>(<span class="number">0</span>).<span class="ident">unwrap</span>();
+            <span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">new</span>, <span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_match</span>..<span class="ident">s</span>]);
             <span class="ident">rep</span>.<span class="ident">replace_append</span>(<span class="kw-2">&amp;</span><span class="ident">cap</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">new</span>);
-            <span class="ident">last_match</span> <span class="op">=</span> <span class="ident">m</span>.<span class="ident">end</span>();
+            <span class="ident">last_match</span> <span class="op">=</span> <span class="ident">e</span>;
         }
-        <span class="ident">new</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_match</span>..]);
-        <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">new</span>)
+        <span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">new</span>, <span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_match</span>..]);
+        <span class="ident">new</span>
     }
-}
 
-<span class="doccomment">/// Advanced or &quot;lower level&quot; search methods.</span>
-<span class="kw">impl</span> <span class="ident">Regex</span> {
     <span class="doccomment">/// Returns the end location of a match in the text given.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This method may have the same performance characteristics as</span>
@@ -1653,53 +1619,6 @@
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">shortest_match_at</span>(<span class="ident">text</span>, <span class="ident">start</span>)
     }
 
-    <span class="doccomment">/// Returns the same as is_match, but starts the search at the given</span>
-    <span class="doccomment">/// offset.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
-    <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
-    <span class="doccomment">/// match when `start == 0`.</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_match_at</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">start</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">shortest_match_at</span>(<span class="ident">text</span>, <span class="ident">start</span>).<span class="ident">is_some</span>()
-    }
-
-    <span class="doccomment">/// Returns the same as find, but starts the search at the given</span>
-    <span class="doccomment">/// offset.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
-    <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
-    <span class="doccomment">/// match when `start == 0`.</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find_at</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
-        <span class="ident">start</span>: <span class="ident">usize</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">find_at</span>(<span class="ident">text</span>, <span class="ident">start</span>)
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> <span class="ident">Match</span>::<span class="ident">new</span>(<span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>))
-    }
-
-    <span class="doccomment">/// Returns the same as captures, but starts the search at the given</span>
-    <span class="doccomment">/// offset and populates the capture locations given.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
-    <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
-    <span class="doccomment">/// match when `start == 0`.</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_captures_at</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">locs</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Locations</span>,
-        <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
-        <span class="ident">start</span>: <span class="ident">usize</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">read_captures_at</span>(<span class="ident">locs</span>, <span class="ident">text</span>, <span class="ident">start</span>)
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> <span class="ident">Match</span>::<span class="ident">new</span>(<span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>))
-    }
-}
-
-<span class="doccomment">/// Auxiliary methods.</span>
-<span class="kw">impl</span> <span class="ident">Regex</span> {
     <span class="doccomment">/// Returns the original string of this regex.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.<span class="ident">regex_strings</span>()[<span class="number">0</span>]
@@ -1714,13 +1633,6 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">captures_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">capture_names</span>().<span class="ident">len</span>()
     }
-
-    <span class="doccomment">/// Returns an empty set of locations that can be reused in multiple calls</span>
-    <span class="doccomment">/// to `read_captures`.</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">locations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Locations</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher</span>().<span class="ident">locations</span>()
-    }
 }
 
 <span class="doccomment">/// An iterator over all non-overlapping matches for a particular string.</span>
@@ -1731,14 +1643,13 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// `&#39;r` is the lifetime of the compiled regular expression and `&#39;t` is the</span>
 <span class="doccomment">/// lifetime of the matched byte string.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Matches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="ident">re_trait</span>::<span class="ident">Matches</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">ExecNoSync</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;&gt;</span>);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FindMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="ident">re_trait</span>::<span class="ident">FindMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">ExecNoSync</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;&gt;</span>);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">Matches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">FindMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> (<span class="ident">usize</span>, <span class="ident">usize</span>);
 
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">let</span> <span class="ident">text</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">text</span>();
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> <span class="ident">Match</span>::<span class="ident">new</span>(<span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>))
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next</span>()
     }
 }
 
@@ -1749,15 +1660,15 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// `&#39;r` is the lifetime of the compiled regular expression and `&#39;t` is the</span>
 <span class="doccomment">/// lifetime of the matched byte string.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CaptureMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="ident">re_trait</span>::<span class="ident">CaptureMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">ExecNoSync</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;&gt;</span>);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FindCaptures</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="ident">re_trait</span>::<span class="ident">FindCaptures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">ExecNoSync</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;&gt;</span>);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">CaptureMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">FindCaptures</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">locs</span><span class="op">|</span> <span class="ident">Captures</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">slots</span><span class="op">|</span> <span class="ident">Captures</span> {
             <span class="ident">text</span>: <span class="self">self</span>.<span class="number">0</span>.<span class="ident">text</span>(),
-            <span class="ident">locs</span>: <span class="ident">locs</span>,
+            <span class="ident">slots</span>: <span class="ident">slots</span>,
             <span class="ident">named_groups</span>: <span class="self">self</span>.<span class="number">0</span>.<span class="ident">regex</span>().<span class="ident">capture_name_idx</span>().<span class="ident">clone</span>(),
         })
     }
@@ -1767,12 +1678,12 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// `&#39;r` is the lifetime of the compiled regular expression and `&#39;t` is the</span>
 <span class="doccomment">/// lifetime of the byte string being split.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Split</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-    <span class="ident">finder</span>: <span class="ident">Matches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Splits</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+    <span class="ident">finder</span>: <span class="ident">FindMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
     <span class="ident">last</span>: <span class="ident">usize</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">Split</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">Splits</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>];
 
     <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
@@ -1787,9 +1698,9 @@
                     <span class="prelude-val">Some</span>(<span class="ident">s</span>)
                 }
             }
-            <span class="prelude-val">Some</span>(<span class="ident">m</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">matched</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="self">self</span>.<span class="ident">last</span>..<span class="ident">m</span>.<span class="ident">start</span>()];
-                <span class="self">self</span>.<span class="ident">last</span> <span class="op">=</span> <span class="ident">m</span>.<span class="ident">end</span>();
+            <span class="prelude-val">Some</span>((<span class="ident">s</span>, <span class="ident">e</span>)) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">matched</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="self">self</span>.<span class="ident">last</span>..<span class="ident">s</span>];
+                <span class="self">self</span>.<span class="ident">last</span> <span class="op">=</span> <span class="ident">e</span>;
                 <span class="prelude-val">Some</span>(<span class="ident">matched</span>)
             }
         }
@@ -1802,12 +1713,12 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// `&#39;r` is the lifetime of the compiled regular expression and `&#39;t` is the</span>
 <span class="doccomment">/// lifetime of the byte string being split.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SplitN</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-    <span class="ident">splits</span>: <span class="ident">Split</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SplitsN</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+    <span class="ident">splits</span>: <span class="ident">Splits</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
     <span class="ident">n</span>: <span class="ident">usize</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">SplitN</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">SplitsN</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>];
 
     <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
@@ -1851,56 +1762,67 @@
 <span class="doccomment">/// index corresponds to the next capture group in the regex. If a capture</span>
 <span class="doccomment">/// group is named, then the matched byte string is *also* available via the</span>
 <span class="doccomment">/// `name` method. (Note that the 0th capture is always unnamed and so must be</span>
-<span class="doccomment">/// accessed with the `get` method.)</span>
+<span class="doccomment">/// accessed with the `at` method.)</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Positions returned from a capture group are always byte indices.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// `&#39;t` is the lifetime of the matched text.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
     <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>],
-    <span class="ident">locs</span>: <span class="ident">Locations</span>,
+    <span class="ident">slots</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;&gt;</span>,
     <span class="ident">named_groups</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">usize</span><span class="op">&gt;&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Returns the match associated with the capture group at index `i`. If</span>
-    <span class="doccomment">/// `i` does not correspond to a capture group, or if the capture group</span>
-    <span class="doccomment">/// did not participate in the match, then `None` is returned.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Examples</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Get the text of the match with a default of an empty string if this</span>
-    <span class="doccomment">/// group didn&#39;t participate in the match:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # use regex::bytes::Regex;</span>
-    <span class="doccomment">/// let re = Regex::new(r&quot;[a-z]+(?:([0-9]+)|([A-Z]+))&quot;).unwrap();</span>
-    <span class="doccomment">/// let caps = re.captures(b&quot;abc123&quot;).unwrap();</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// let text1 = caps.get(1).map_or(&amp;b&quot;&quot;[..], |m| m.as_bytes());</span>
-    <span class="doccomment">/// let text2 = caps.get(2).map_or(&amp;b&quot;&quot;[..], |m| m.as_bytes());</span>
-    <span class="doccomment">/// assert_eq!(text1, &amp;b&quot;123&quot;[..]);</span>
-    <span class="doccomment">/// assert_eq!(text2, &amp;b&quot;&quot;[..]);</span>
-    <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="ident">locs</span>.<span class="ident">pos</span>(<span class="ident">i</span>).<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> <span class="ident">Match</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>))
+    <span class="doccomment">/// Returns the start and end positions of the Nth capture group. Returns</span>
+    <span class="doccomment">/// `None` if `i` is not a valid capture group or if the capture group did</span>
+    <span class="doccomment">/// not match anything. The positions returned are *always* byte indices</span>
+    <span class="doccomment">/// with respect to the original byte string matched.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pos</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+        <span class="kw">let</span> (<span class="ident">s</span>, <span class="ident">e</span>) <span class="op">=</span> (<span class="ident">i</span> <span class="op">*</span> <span class="number">2</span>, <span class="ident">i</span> <span class="op">*</span> <span class="number">2</span> <span class="op">+</span> <span class="number">1</span>);
+        <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">slots</span>.<span class="ident">get</span>(<span class="ident">s</span>), <span class="self">self</span>.<span class="ident">slots</span>.<span class="ident">get</span>(<span class="ident">e</span>)) {
+            (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="ident">s</span>)), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="ident">e</span>))) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">s</span>, <span class="ident">e</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        }
     }
 
-    <span class="doccomment">/// Returns the match for the capture group named `name`. If `name` isn&#39;t a</span>
-    <span class="doccomment">/// valid capture group or didn&#39;t match anything, then `None` is returned.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="ident">named_groups</span>.<span class="ident">get</span>(<span class="ident">name</span>).<span class="ident">and_then</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">i</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">get</span>(<span class="ident">i</span>))
+    <span class="doccomment">/// Returns the matched string for the capture group `i`.  If `i` isn&#39;t</span>
+    <span class="doccomment">/// a valid capture group or didn&#39;t match anything, then `None` is</span>
+    <span class="doccomment">/// returned.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">at</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">pos</span>(<span class="ident">i</span>) {
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>((<span class="ident">s</span>, <span class="ident">e</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">text</span>[<span class="ident">s</span>..<span class="ident">e</span>])
+        }
     }
 
-    <span class="doccomment">/// An iterator that yields all capturing matches in the order in which</span>
-    <span class="doccomment">/// they appear in the regex. If a particular capture group didn&#39;t</span>
-    <span class="doccomment">/// participate in the match, then `None` is yielded for that capture.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The first match always corresponds to the overall match of the regex.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;c</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SubCaptureMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-        <span class="ident">SubCaptureMatches</span> {
+    <span class="doccomment">/// Returns the matched string for the capture group named `name`.  If</span>
+    <span class="doccomment">/// `name` isn&#39;t a valid capture group or didn&#39;t match anything, then</span>
+    <span class="doccomment">/// `None` is returned.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">named_groups</span>.<span class="ident">get</span>(<span class="ident">name</span>).<span class="ident">and_then</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">i</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">at</span>(<span class="ident">i</span>))
+    }
+
+    <span class="doccomment">/// Creates an iterator of all the capture groups in order of appearance</span>
+    <span class="doccomment">/// in the regular expression.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SubCaptures</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+        <span class="ident">SubCaptures</span> { <span class="ident">idx</span>: <span class="number">0</span>, <span class="ident">caps</span>: <span class="self">self</span> }
+    }
+
+    <span class="doccomment">/// Creates an iterator of all the capture group positions in order of</span>
+    <span class="doccomment">/// appearance in the regular expression. Positions are byte indices</span>
+    <span class="doccomment">/// in terms of the original string matched.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter_pos</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SubCapturesPos</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+        <span class="ident">SubCapturesPos</span> { <span class="ident">idx</span>: <span class="number">0</span>, <span class="ident">slots</span>: <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">slots</span> }
+    }
+
+    <span class="doccomment">/// Creates an iterator of all named groups as an tuple with the group</span>
+    <span class="doccomment">/// name and the value. The iterator returns these values in arbitrary</span>
+    <span class="doccomment">/// order.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter_named</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SubCapturesNamed</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+        <span class="ident">SubCapturesNamed</span> {
             <span class="ident">caps</span>: <span class="self">self</span>,
-            <span class="ident">it</span>: <span class="self">self</span>.<span class="ident">locs</span>.<span class="ident">iter</span>(),
+            <span class="ident">names</span>: <span class="self">self</span>.<span class="ident">named_groups</span>.<span class="ident">iter</span>()
         }
     }
 
@@ -1921,16 +1843,19 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// To write a literal `$` use `$$`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">replacement</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) {
-        <span class="ident">expand_bytes</span>(<span class="self">self</span>, <span class="ident">replacement</span>, <span class="ident">dst</span>)
+        <span class="ident">expand</span>(<span class="self">self</span>, <span class="ident">replacement</span>, <span class="ident">dst</span>)
     }
 
     <span class="doccomment">/// Returns the number of captured groups.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is always at least `1`, since every regex has at least one capture</span>
-    <span class="doccomment">/// group that corresponds to the full match.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">locs</span>.<span class="ident">len</span>()
+        <span class="self">self</span>.<span class="ident">slots</span>.<span class="ident">len</span>() <span class="op">/</span> <span class="number">2</span>
+    }
+
+    <span class="doccomment">/// Returns true if and only if there are no captured groups.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">0</span>
     }
 }
 
@@ -1964,7 +1889,7 @@
         <span class="kw">let</span> <span class="ident">slot_to_name</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">usize</span>, <span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="op">=</span>
             <span class="self">self</span>.<span class="number">0</span>.<span class="ident">named_groups</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">a</span>, <span class="ident">b</span>)<span class="op">|</span> (<span class="ident">b</span>, <span class="ident">a</span>)).<span class="ident">collect</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">debug_map</span>();
-        <span class="kw">for</span> (<span class="ident">slot</span>, <span class="ident">m</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">locs</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
+        <span class="kw">for</span> (<span class="ident">slot</span>, <span class="ident">m</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter_pos</span>().<span class="ident">enumerate</span>() {
             <span class="kw">let</span> <span class="ident">m</span> <span class="op">=</span> <span class="ident">m</span>.<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> <span class="ident">escape_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.<span class="ident">text</span>[<span class="ident">s</span>..<span class="ident">e</span>]));
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=</span> <span class="ident">slot_to_name</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">slot</span>) {
                 <span class="ident">map</span>.<span class="ident">entry</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>);
@@ -1982,7 +1907,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// The text can&#39;t outlive the `Captures` object if this method is</span>
 <span class="doccomment">/// used, because of how `Index` is defined (normally `a[i]` is part</span>
-<span class="doccomment">/// of `a` and can&#39;t outlive it); to do that, use `get()` instead.</span>
+<span class="doccomment">/// of `a` and can&#39;t outlive it); to do that, use `at()` instead.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Panics</span>
 <span class="doccomment">///</span>
@@ -1991,8 +1916,7 @@
     <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> [<span class="ident">u8</span>];
 
     <span class="kw">fn</span> <span class="ident">index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-        <span class="self">self</span>.<span class="ident">get</span>(<span class="ident">i</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_bytes</span>())
-            .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;no group at index &#39;{}&#39;&quot;</span>, <span class="ident">i</span>))
+        <span class="self">self</span>.<span class="ident">at</span>(<span class="ident">i</span>).<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;no group at index &#39;{}&#39;&quot;</span>, <span class="ident">i</span>))
     }
 }
 
@@ -2012,31 +1936,75 @@
     <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> [<span class="ident">u8</span>];
 
     <span class="kw">fn</span> <span class="ident">index</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;i</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>] {
-        <span class="self">self</span>.<span class="ident">name</span>(<span class="ident">name</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_bytes</span>())
-            .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;no group named &#39;{}&#39;&quot;</span>, <span class="ident">name</span>))
+        <span class="self">self</span>.<span class="ident">name</span>(<span class="ident">name</span>).<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;no group named &#39;{}&#39;&quot;</span>, <span class="ident">name</span>))
     }
 }
 
-<span class="doccomment">/// An iterator that yields all capturing matches in the order in which they</span>
-<span class="doccomment">/// appear in the regex.</span>
+<span class="doccomment">/// An iterator over capture groups for a particular match of a regular</span>
+<span class="doccomment">/// expression.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// If a particular capture group didn&#39;t participate in the match, then `None`</span>
-<span class="doccomment">/// is yielded for that capture. The first match always corresponds to the</span>
-<span class="doccomment">/// overall match of the regex.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The lifetime `&#39;c` corresponds to the lifetime of the `Captures` value, and</span>
-<span class="doccomment">/// the lifetime `&#39;t` corresponds to the originally matched text.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SubCaptureMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span>: <span class="lifetime">&#39;c</span><span class="op">&gt;</span> {
+<span class="doccomment">/// `&#39;c` is the lifetime of the captures and `&#39;t` is the lifetime of the</span>
+<span class="doccomment">/// matched text.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SubCaptures</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span>: <span class="lifetime">&#39;c</span><span class="op">&gt;</span> {
+    <span class="ident">idx</span>: <span class="ident">usize</span>,
     <span class="ident">caps</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;c</span> <span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
-    <span class="ident">it</span>: <span class="ident">SubCapturesPosIter</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">SubCaptureMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">SubCaptures</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">it</span>.<span class="ident">next</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">cap</span><span class="op">|</span> <span class="ident">cap</span>.<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> <span class="ident">Match</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">caps</span>.<span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)))
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]<span class="op">&gt;&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">idx</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">caps</span>.<span class="ident">len</span>() {
+            <span class="self">self</span>.<span class="ident">idx</span> <span class="op">+=</span> <span class="number">1</span>;
+            <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">caps</span>.<span class="ident">at</span>(<span class="self">self</span>.<span class="ident">idx</span> <span class="op">-</span> <span class="number">1</span>))
+        } <span class="kw">else</span> {
+            <span class="prelude-val">None</span>
+        }
+    }
+}
+
+<span class="doccomment">/// An iterator over capture group positions for a particular match of a</span>
+<span class="doccomment">/// regular expression.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Positions are byte indices in terms of the original byte string matched.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `&#39;c` is the lifetime of the captures.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SubCapturesPos</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span><span class="op">&gt;</span> {
+    <span class="ident">idx</span>: <span class="ident">usize</span>,
+    <span class="ident">slots</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;c</span> [<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>]
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">SubCapturesPos</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span>;
+
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">idx</span> <span class="op">&gt;=</span> <span class="self">self</span>.<span class="ident">slots</span>.<span class="ident">len</span>() {
+            <span class="kw">return</span> <span class="prelude-val">None</span>
+        }
+        <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">slots</span>[<span class="self">self</span>.<span class="ident">idx</span>], <span class="self">self</span>.<span class="ident">slots</span>[<span class="self">self</span>.<span class="ident">idx</span> <span class="op">+</span> <span class="number">1</span>]) {
+            (<span class="prelude-val">Some</span>(<span class="ident">s</span>), <span class="prelude-val">Some</span>(<span class="ident">e</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">s</span>, <span class="ident">e</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        };
+        <span class="self">self</span>.<span class="ident">idx</span> <span class="op">+=</span> <span class="number">2</span>;
+        <span class="prelude-val">Some</span>(<span class="ident">r</span>)
+    }
+}
+
+<span class="doccomment">/// An Iterator over named capture groups as a tuple with the group name and</span>
+<span class="doccomment">/// the value.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `&#39;c` is the lifetime of the captures and `&#39;t` is the lifetime of the</span>
+<span class="doccomment">/// matched text.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SubCapturesNamed</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span>: <span class="lifetime">&#39;c</span><span class="op">&gt;</span> {
+    <span class="ident">caps</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;c</span> <span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
+    <span class="ident">names</span>: <span class="ident">hash_map</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="ident">String</span>, <span class="ident">usize</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">SubCapturesNamed</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="lifetime">&#39;c</span> <span class="ident">str</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>);
+
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;c</span> <span class="ident">str</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>)<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">names</span>.<span class="ident">next</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">name</span>, <span class="kw-2">&amp;</span><span class="ident">pos</span>)<span class="op">|</span> (<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">name</span>, <span class="self">self</span>.<span class="ident">caps</span>.<span class="ident">at</span>(<span class="ident">pos</span>)))
     }
 }
 
@@ -2053,7 +2021,7 @@
     <span class="doccomment">/// have a match at capture group `0`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// For example, a no-op replacement would be</span>
-    <span class="doccomment">/// `dst.extend(&amp;caps[0])`.</span>
+    <span class="doccomment">/// `dst.extend(caps.at(0).unwrap())`.</span>
     <span class="kw">fn</span> <span class="ident">replace_append</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">caps</span>: <span class="kw-2">&amp;</span><span class="ident">Captures</span>, <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>);
 
     <span class="doccomment">/// Return a fixed unchanging replacement byte string.</span>
@@ -2075,7 +2043,7 @@
 
     <span class="kw">fn</span> <span class="ident">no_expansion</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, [<span class="ident">u8</span>]<span class="op">&gt;&gt;</span> {
         <span class="kw">match</span> <span class="ident">memchr</span>(<span class="string">b&#39;$&#39;</span>, <span class="kw-2">*</span><span class="self">self</span>) {
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="kw-2">*</span><span class="self">self</span>)),
         }
     }
@@ -2083,7 +2051,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> <span class="ident">Replacer</span> <span class="kw">for</span> <span class="ident">F</span> <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Captures</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">replace_append</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">caps</span>: <span class="kw-2">&amp;</span><span class="ident">Captures</span>, <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) {
-        <span class="ident">dst</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="self">self</span>)(<span class="ident">caps</span>));
+        <span class="ident">extend_from_slice</span>(<span class="ident">dst</span>, <span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="self">self</span>)(<span class="ident">caps</span>));
     }
 }
 
@@ -2095,15 +2063,31 @@
 <span class="doccomment">/// and performant (since capture groups don&#39;t need to be found).</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// `&#39;t` is the lifetime of the literal text.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NoExpand</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> [<span class="ident">u8</span>]);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NoExpand</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> [<span class="ident">u8</span>]);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Replacer</span> <span class="kw">for</span> <span class="ident">NoExpand</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">replace_append</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, _: <span class="kw-2">&amp;</span><span class="ident">Captures</span>, <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) {
-        <span class="ident">dst</span>.<span class="ident">extend_from_slice</span>(<span class="self">self</span>.<span class="number">0</span>);
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Replacer</span> <span class="kw">for</span> <span class="ident">NoExpand</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">replace_append</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">Captures</span>, <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) {
+        <span class="ident">extend_from_slice</span>(<span class="ident">dst</span>, <span class="self">self</span>.<span class="number">0</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">no_expansion</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, [<span class="ident">u8</span>]<span class="op">&gt;&gt;</span> {
         <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="self">self</span>.<span class="number">0</span>))
+    }
+}
+
+<span class="doccomment">/// This hopefully has the same performance characteristics as</span>
+<span class="doccomment">/// Vec::extend_from_slice (which was introduced in Rust 1.6), but works on</span>
+<span class="doccomment">/// Rust 1.3.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// N.B. Remove this once we do a semver bump. At that point, we&#39;ll bump</span>
+<span class="doccomment">/// required Rust version to at least 1.6.</span>
+<span class="kw">fn</span> <span class="ident">extend_from_slice</span>(<span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
+    <span class="ident">dst</span>.<span class="ident">reserve</span>(<span class="ident">src</span>.<span class="ident">len</span>());
+    <span class="kw">let</span> <span class="ident">dst_len</span> <span class="op">=</span> <span class="ident">dst</span>.<span class="ident">len</span>();
+    <span class="kw">unsafe</span> { <span class="ident">dst</span>.<span class="ident">set_len</span>(<span class="ident">dst_len</span> <span class="op">+</span> <span class="ident">src</span>.<span class="ident">len</span>()); }
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">dst</span>[<span class="ident">dst_len</span>..<span class="ident">dst_len</span> <span class="op">+</span> <span class="ident">src</span>.<span class="ident">len</span>()];
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">src</span>.<span class="ident">len</span>() {
+        <span class="ident">dst</span>[<span class="ident">i</span>] <span class="op">=</span> <span class="ident">src</span>[<span class="ident">i</span>];
     }
 }
 </pre>
@@ -2120,18 +2104,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

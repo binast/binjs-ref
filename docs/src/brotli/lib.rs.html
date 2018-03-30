@@ -4,14 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/brotli-1.0.8/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/brotli-1.2.0/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -124,6 +136,7 @@
 <span id="79">79</span>
 <span id="80">80</span>
 <span id="81">81</span>
+<span id="82">82</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">no_std</span>]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">non_snake_case</span>)]</span>
@@ -145,15 +158,15 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">alloc</span>::<span class="ident">HeapAlloc</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unsafe&quot;</span>,<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>)))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">alloc</span>::<span class="ident">HeapAllocUninitialized</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">enc</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">transform</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">dictionary</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">reader</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">writer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">BrotliState</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">reader</span>::{<span class="ident">DecompressorCustomIo</span>};
-
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">HuffmanCode</span>; <span class="comment">// so we can make custom allocator for decompression</span>
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">transform</span>::<span class="ident">TransformDictionaryWord</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">reader</span>::{<span class="ident">Decompressor</span>};
 
@@ -166,7 +179,8 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;no-stdlib&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">brotli_decompressor</span>::<span class="ident">io_wrappers</span>::{<span class="ident">IntoIoReader</span>, <span class="ident">IoReaderWrapper</span>, <span class="ident">IoWriterWrapper</span>};
-
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">enc</span>::<span class="ident">interface</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">enc</span>::<span class="ident">input_pair</span>::<span class="ident">InputReference</span>;
 <span class="comment">// interface</span>
 <span class="comment">// pub fn BrotliDecompressStream(mut available_in: &amp;mut usize,</span>
 <span class="comment">//                               input_offset: &amp;mut usize,</span>
@@ -220,18 +234,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

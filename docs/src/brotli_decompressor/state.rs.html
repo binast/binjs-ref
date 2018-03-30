@@ -4,14 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/brotli-decompressor-1.1.0/src/state.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/brotli-decompressor-1.2.1/src/state.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>state.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -480,6 +492,20 @@
 <span id="435">435</span>
 <span id="436">436</span>
 <span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">non_camel_case_types</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">non_snake_case</span>)]</span>
@@ -491,6 +517,7 @@
 <span class="kw">use</span> <span class="ident">bit_reader</span>::{<span class="ident">BrotliBitReader</span>, <span class="ident">BrotliGetAvailableBits</span>, <span class="ident">BrotliInitBitReader</span>};
 <span class="kw">use</span> <span class="ident">huffman</span>::{<span class="ident">BROTLI_HUFFMAN_MAX_CODE_LENGTH</span>, <span class="ident">BROTLI_HUFFMAN_MAX_CODE_LENGTHS_SIZE</span>,
               <span class="ident">BROTLI_HUFFMAN_MAX_TABLE_SIZE</span>, <span class="ident">HuffmanCode</span>, <span class="ident">HuffmanTreeGroup</span>};
+<span class="kw">use</span> <span class="ident">alloc</span>::<span class="ident">SliceWrapper</span>;
 
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">WhichTreeGroup</span> {
@@ -702,24 +729,14 @@
   <span class="kw">pub</span> <span class="ident">context_modes</span>: <span class="ident">AllocU8</span>::<span class="ident">AllocatedMemory</span>,
   <span class="kw">pub</span> <span class="ident">trivial_literal_contexts</span>: [<span class="ident">u32</span>; <span class="number">8</span>],
 }
-
-<span class="kw">impl</span> <span class="op">&lt;</span><span class="lifetime">&#39;brotli_state</span>,
-      <span class="ident">AllocU8</span> : <span class="ident">alloc</span>::<span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-      <span class="ident">AllocU32</span> : <span class="ident">alloc</span>::<span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
-      <span class="ident">AllocHC</span> : <span class="ident">alloc</span>::<span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HuffmanCode</span><span class="op">&gt;</span> <span class="op">&gt;</span> <span class="ident">BrotliState</span><span class="op">&lt;</span><span class="ident">AllocU8</span>, <span class="ident">AllocU32</span>, <span class="ident">AllocHC</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">alloc_u8</span> : <span class="ident">AllocU8</span>,
-           <span class="ident">alloc_u32</span> : <span class="ident">AllocU32</span>,
-           <span class="ident">alloc_hc</span> : <span class="ident">AllocHC</span>) <span class="op">-&gt;</span> <span class="self">Self</span>{
-        <span class="kw">let</span> <span class="ident">MB_HEADER_NONE</span> <span class="op">=</span> <span class="ident">BrotliRunningMetablockHeaderState</span>::<span class="ident">BROTLI_STATE_METABLOCK_HEADER_NONE</span>;
-        <span class="kw">let</span> <span class="ident">READ_BLOCK_LENGTH_NONE</span> <span class="op">=</span>
-          <span class="ident">BrotliRunningReadBlockLengthState</span>::<span class="ident">BROTLI_STATE_READ_BLOCK_LENGTH_NONE</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">retval</span> <span class="op">=</span> <span class="ident">BrotliState</span>::<span class="op">&lt;</span><span class="ident">AllocU8</span>, <span class="ident">AllocU32</span>, <span class="ident">AllocHC</span><span class="op">&gt;</span>{
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">make_brotli_state</span> {
+ (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">alloc_u8</span> : <span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">alloc_u32</span> : <span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">alloc_hc</span> : <span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">custom_dict</span> : <span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">custom_dict_len</span>: <span class="ident">expr</span>) <span class="op">=&gt;</span> (<span class="ident">BrotliState</span>::<span class="op">&lt;</span><span class="ident">AllocU8</span>, <span class="ident">AllocU32</span>, <span class="ident">AllocHC</span><span class="op">&gt;</span>{
             <span class="ident">state</span> : <span class="ident">BrotliRunningState</span>::<span class="ident">BROTLI_STATE_UNINITED</span>,
             <span class="ident">loop_counter</span> : <span class="number">0</span>,
             <span class="ident">br</span> : <span class="ident">BrotliBitReader</span>::<span class="ident">default</span>(),
-            <span class="ident">alloc_u8</span> : <span class="ident">alloc_u8</span>,
-            <span class="ident">alloc_u32</span> : <span class="ident">alloc_u32</span>,
-            <span class="ident">alloc_hc</span> : <span class="ident">alloc_hc</span>,
+            <span class="ident">alloc_u8</span> : <span class="macro-nonterminal">$</span><span class="macro-nonterminal">alloc_u8</span>,
+            <span class="ident">alloc_u32</span> : <span class="macro-nonterminal">$</span><span class="macro-nonterminal">alloc_u32</span>,
+            <span class="ident">alloc_hc</span> : <span class="macro-nonterminal">$</span><span class="macro-nonterminal">alloc_hc</span>,
             <span class="ident">buffer</span> : [<span class="number">0u8</span>; <span class="number">8</span>],
             <span class="ident">buffer_length</span> : <span class="number">0</span>,
             <span class="ident">pos</span> : <span class="number">0</span>,
@@ -749,7 +766,7 @@
               <span class="ident">block_length</span> : [<span class="number">0</span>; <span class="number">3</span>],
               <span class="ident">num_block_types</span> : [<span class="number">0</span>;<span class="number">3</span>],
               <span class="ident">block_type_rb</span>: [<span class="number">0</span>;<span class="number">6</span>],
-              <span class="ident">substate_read_block_length</span> : <span class="ident">READ_BLOCK_LENGTH_NONE</span>,
+              <span class="ident">substate_read_block_length</span> : <span class="ident">BrotliRunningReadBlockLengthState</span>::<span class="ident">BROTLI_STATE_READ_BLOCK_LENGTH_NONE</span>,
               <span class="ident">block_type_trees</span> : <span class="ident">AllocHC</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>(),
               <span class="ident">block_len_trees</span> : <span class="ident">AllocHC</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>(),
             },
@@ -792,12 +809,12 @@
            <span class="ident">mtf</span> : [<span class="number">0</span>; <span class="number">256</span>],
 
            <span class="comment">/* For custom dictionaries */</span>
-           <span class="ident">custom_dict</span> : <span class="ident">AllocU8</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>(),
-           <span class="ident">custom_dict_size</span> : <span class="number">0</span>,
+           <span class="ident">custom_dict</span> : <span class="macro-nonterminal">$</span><span class="macro-nonterminal">custom_dict</span>,
+           <span class="ident">custom_dict_size</span> : <span class="macro-nonterminal">$</span><span class="macro-nonterminal">custom_dict_len</span> <span class="kw">as</span> <span class="ident">i32</span>,
 
            <span class="comment">/* less used attributes are in the end of this struct */</span>
            <span class="comment">/* States inside function calls */</span>
-           <span class="ident">substate_metablock_header</span> : <span class="ident">MB_HEADER_NONE</span>,
+           <span class="ident">substate_metablock_header</span> : <span class="ident">BrotliRunningMetablockHeaderState</span>::<span class="ident">BROTLI_STATE_METABLOCK_HEADER_NONE</span>,
            <span class="ident">substate_tree_group</span> : <span class="ident">BrotliRunningTreeGroupState</span>::<span class="ident">BROTLI_STATE_TREE_GROUP_NONE</span>,
            <span class="ident">substate_context_map</span> : <span class="ident">BrotliRunningContextMapState</span>::<span class="ident">BROTLI_STATE_CONTEXT_MAP_NONE</span>,
            <span class="ident">substate_uncompressed</span> : <span class="ident">BrotliRunningUncompressedState</span>::<span class="ident">BROTLI_STATE_UNCOMPRESSED_NONE</span>,
@@ -814,7 +831,28 @@
            <span class="ident">context_map</span> : <span class="ident">AllocU8</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>(),
            <span class="ident">context_modes</span> : <span class="ident">AllocU8</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>(),
            <span class="ident">trivial_literal_contexts</span> : [<span class="number">0u32</span>; <span class="number">8</span>],
-        };
+        }
+    );
+}
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="lifetime">&#39;brotli_state</span>,
+      <span class="ident">AllocU8</span> : <span class="ident">alloc</span>::<span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+      <span class="ident">AllocU32</span> : <span class="ident">alloc</span>::<span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
+      <span class="ident">AllocHC</span> : <span class="ident">alloc</span>::<span class="ident">Allocator</span><span class="op">&lt;</span><span class="ident">HuffmanCode</span><span class="op">&gt;</span> <span class="op">&gt;</span> <span class="ident">BrotliState</span><span class="op">&lt;</span><span class="ident">AllocU8</span>, <span class="ident">AllocU32</span>, <span class="ident">AllocHC</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">alloc_u8</span> : <span class="ident">AllocU8</span>,
+           <span class="ident">alloc_u32</span> : <span class="ident">AllocU32</span>,
+           <span class="ident">alloc_hc</span> : <span class="ident">AllocHC</span>) <span class="op">-&gt;</span> <span class="self">Self</span>{
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">retval</span> <span class="op">=</span> <span class="macro">make_brotli_state</span><span class="macro">!</span>(<span class="ident">alloc_u8</span>, <span class="ident">alloc_u32</span>, <span class="ident">alloc_hc</span>, <span class="ident">AllocU8</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>(), <span class="number">0</span>);
+        <span class="ident">retval</span>.<span class="ident">context_map_table</span> <span class="op">=</span> <span class="ident">retval</span>.<span class="ident">alloc_hc</span>.<span class="ident">alloc_cell</span>(
+          <span class="ident">BROTLI_HUFFMAN_MAX_TABLE_SIZE</span> <span class="kw">as</span> <span class="ident">usize</span>);
+        <span class="ident">BrotliInitBitReader</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">retval</span>.<span class="ident">br</span>);
+        <span class="ident">retval</span>
+    }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_with_custom_dictionary</span>(<span class="ident">alloc_u8</span> : <span class="ident">AllocU8</span>,
+           <span class="ident">alloc_u32</span> : <span class="ident">AllocU32</span>,
+           <span class="ident">alloc_hc</span> : <span class="ident">AllocHC</span>,
+           <span class="ident">custom_dict</span>: <span class="ident">AllocU8</span>::<span class="ident">AllocatedMemory</span>) <span class="op">-&gt;</span> <span class="self">Self</span>{
+        <span class="kw">let</span> <span class="ident">custom_dict_len</span> <span class="op">=</span> <span class="ident">custom_dict</span>.<span class="ident">slice</span>().<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">retval</span> <span class="op">=</span> <span class="macro">make_brotli_state</span><span class="macro">!</span>(<span class="ident">alloc_u8</span>, <span class="ident">alloc_u32</span>, <span class="ident">alloc_hc</span>, <span class="ident">custom_dict</span>, <span class="ident">custom_dict_len</span>);
         <span class="ident">retval</span>.<span class="ident">context_map_table</span> <span class="op">=</span> <span class="ident">retval</span>.<span class="ident">alloc_hc</span>.<span class="ident">alloc_cell</span>(
           <span class="ident">BROTLI_HUFFMAN_MAX_TABLE_SIZE</span> <span class="kw">as</span> <span class="ident">usize</span>);
         <span class="ident">BrotliInitBitReader</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">retval</span>.<span class="ident">br</span>);
@@ -874,6 +912,8 @@
                               <span class="ident">AllocHC</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>()));
       <span class="self">self</span>.<span class="ident">alloc_hc</span>.<span class="ident">free_cell</span>(<span class="ident">core</span>::<span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">context_map_table</span>,
                               <span class="ident">AllocHC</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>()));
+      <span class="self">self</span>.<span class="ident">alloc_u8</span>.<span class="ident">free_cell</span>(<span class="ident">core</span>::<span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">custom_dict</span>,
+                              <span class="ident">AllocU8</span>::<span class="ident">AllocatedMemory</span>::<span class="ident">default</span>()));
 
       <span class="comment">//FIXME??  BROTLI_FREE(s, s-&gt;legacy_input_buffer);</span>
       <span class="comment">//FIXME??  BROTLI_FREE(s, s-&gt;legacy_output_buffer);</span>
@@ -883,14 +923,14 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
             <span class="ident">BrotliRunningState</span>::<span class="ident">BROTLI_STATE_UNINITED</span> <span class="op">=&gt;</span>
                 <span class="ident">BrotliGetAvailableBits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">br</span>) <span class="op">==</span> <span class="number">0</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">BrotliStateIsStreamEnd</span>(<span class="self">self</span> : <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
             <span class="ident">BrotliRunningState</span>::<span class="ident">BROTLI_STATE_DONE</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>
         }
     }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">BrotliHuffmanTreeGroupInit</span>(<span class="self">self</span> :<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>, <span class="ident">group</span> : <span class="ident">WhichTreeGroup</span>,
@@ -932,18 +972,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

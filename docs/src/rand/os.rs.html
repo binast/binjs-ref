@@ -4,14 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.3.17/src/os.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.4.2/src/os.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>os.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
     <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         <a href='../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a>
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -643,6 +655,23 @@
 <span id="598">598</span>
 <span id="599">599</span>
 <span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2013-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -676,8 +705,8 @@
 <span class="doccomment">/// Max OS X, and modern Linux) this may block very early in the init</span>
 <span class="doccomment">/// process, if the CSPRNG has not been seeded yet.[1]</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// [1] See https://www.python.org/dev/peps/pep-0524/ for a more in-depth</span>
-<span class="doccomment">///     discussion.</span>
+<span class="doccomment">/// [1] See &lt;https://www.python.org/dev/peps/pep-0524/&gt; for a more</span>
+<span class="doccomment">///     in-depth discussion.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OsRng</span>(<span class="ident">imp</span>::<span class="ident">OsRng</span>);
 
 <span class="kw">impl</span> <span class="ident">OsRng</span> {
@@ -699,13 +728,13 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">next_u32</span>(<span class="kw-2">mut</span> <span class="ident">fill_buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>])) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+<span class="kw">fn</span> <span class="ident">next_u32</span>(<span class="ident">fill_buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>])) <span class="op">-&gt;</span> <span class="ident">u32</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span>: [<span class="ident">u8</span>; <span class="number">4</span>] <span class="op">=</span> [<span class="number">0</span>; <span class="number">4</span>];
     <span class="ident">fill_buf</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>);
     <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span>[<span class="ident">u8</span>; <span class="number">4</span>], <span class="ident">u32</span><span class="op">&gt;</span>(<span class="ident">buf</span>) }
 }
 
-<span class="kw">fn</span> <span class="ident">next_u64</span>(<span class="kw-2">mut</span> <span class="ident">fill_buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>])) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+<span class="kw">fn</span> <span class="ident">next_u64</span>(<span class="ident">fill_buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>])) <span class="op">-&gt;</span> <span class="ident">u64</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span>: [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> [<span class="number">0</span>; <span class="number">8</span>];
     <span class="ident">fill_buf</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>);
     <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span>[<span class="ident">u8</span>; <span class="number">8</span>], <span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">buf</span>) }
@@ -941,7 +970,7 @@
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s_len</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">len</span>();
                 <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> {
                     <span class="ident">libc</span>::<span class="ident">sysctl</span>(<span class="ident">mib</span>.<span class="ident">as_ptr</span>(), <span class="ident">mib</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-                                 <span class="ident">s</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s_len</span>,
+                                 <span class="ident">s</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s_len</span>,
                                  <span class="ident">ptr</span>::<span class="ident">null</span>(), <span class="number">0</span>)
                 };
                 <span class="kw">if</span> <span class="ident">ret</span> <span class="op">==</span> <span class="op">-</span><span class="number">1</span> <span class="op">||</span> <span class="ident">s_len</span> <span class="op">!=</span> <span class="ident">s</span>.<span class="ident">len</span>() {
@@ -1053,7 +1082,7 @@
             <span class="ident">next_u64</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">fill_bytes</span>(<span class="ident">v</span>))
         }
         <span class="kw">fn</span> <span class="ident">fill_bytes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
-            <span class="kw">for</span> <span class="ident">s</span> <span class="kw">in</span> <span class="ident">v</span>.<span class="ident">chunks_mut</span>(<span class="ident">fuchsia_zircon</span>::<span class="ident">ZX_CPRNG_DRAW_MAX_LEN</span>) {
+            <span class="kw">for</span> <span class="ident">s</span> <span class="kw">in</span> <span class="ident">v</span>.<span class="ident">chunks_mut</span>(<span class="ident">fuchsia_zircon</span>::<span class="ident">sys</span>::<span class="ident">ZX_CPRNG_DRAW_MAX_LEN</span>) {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">filled</span> <span class="op">=</span> <span class="number">0</span>;
                 <span class="kw">while</span> <span class="ident">filled</span> <span class="op">&lt;</span> <span class="ident">s</span>.<span class="ident">len</span>() {
                     <span class="kw">match</span> <span class="ident">fuchsia_zircon</span>::<span class="ident">cprng_draw</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s</span>[<span class="ident">filled</span>..]) {
@@ -1068,19 +1097,16 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
 <span class="kw">mod</span> <span class="ident">imp</span> {
+    <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">winapi</span>;
+
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
     <span class="kw">use</span> <span class="ident">Rng</span>;
 
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">next_u32</span>, <span class="ident">next_u64</span>};
 
-    <span class="kw">type</span> <span class="ident">BOOLEAN</span> <span class="op">=</span> <span class="ident">u8</span>;
-    <span class="kw">type</span> <span class="ident">ULONG</span> <span class="op">=</span> <span class="ident">u32</span>;
-
-    <span class="attribute">#[<span class="ident">link</span>(<span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;advapi32&quot;</span>)]</span>
-    <span class="kw">extern</span> <span class="string">&quot;system&quot;</span> {
-        <span class="comment">// This function&#39;s real name is `RtlGenRandom`.</span>
-        <span class="kw">fn</span> <span class="ident">SystemFunction036</span>(<span class="ident">RandomBuffer</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>, <span class="ident">RandomBufferLength</span>: <span class="ident">ULONG</span>) <span class="op">-&gt;</span> <span class="ident">BOOLEAN</span>;
-    }
+    <span class="kw">use</span> <span class="self">self</span>::<span class="ident">winapi</span>::<span class="ident">shared</span>::<span class="ident">minwindef</span>::<span class="ident">ULONG</span>;
+    <span class="kw">use</span> <span class="self">self</span>::<span class="ident">winapi</span>::<span class="ident">um</span>::<span class="ident">ntsecapi</span>::<span class="ident">RtlGenRandom</span>;
+    <span class="kw">use</span> <span class="self">self</span>::<span class="ident">winapi</span>::<span class="ident">um</span>::<span class="ident">winnt</span>::<span class="ident">PVOID</span>;
 
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OsRng</span>;
@@ -1103,7 +1129,7 @@
             <span class="comment">// split up the buffer.</span>
             <span class="kw">for</span> <span class="ident">slice</span> <span class="kw">in</span> <span class="ident">v</span>.<span class="ident">chunks_mut</span>(<span class="op">&lt;</span><span class="ident">ULONG</span><span class="op">&gt;</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">usize</span>) {
                 <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-                    <span class="ident">SystemFunction036</span>(<span class="ident">slice</span>.<span class="ident">as_mut_ptr</span>(), <span class="ident">slice</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">ULONG</span>)
+                    <span class="ident">RtlGenRandom</span>(<span class="ident">slice</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="ident">PVOID</span>, <span class="ident">slice</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">ULONG</span>)
                 };
                 <span class="kw">if</span> <span class="ident">ret</span> <span class="op">==</span> <span class="number">0</span> {
                     <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;couldn&#39;t generate random bytes: {}&quot;</span>,
@@ -1150,7 +1176,7 @@
                 <span class="ident">get_random_bytes</span>: <span class="prelude-val">None</span>,
             };
             <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-                <span class="ident">nacl_interface_query</span>(<span class="ident">INTERFACE</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _,
+                <span class="ident">nacl_interface_query</span>(<span class="ident">INTERFACE</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span>,
                                      <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">iface</span>),
                                      <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">NaClIRTRandom</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">size_t</span>)
             };
@@ -1178,9 +1204,9 @@
             <span class="kw">loop</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">r</span>: <span class="ident">libc</span>::<span class="ident">size_t</span> <span class="op">=</span> <span class="number">0</span>;
                 <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">v</span>.<span class="ident">len</span>();
-                <span class="kw">let</span> <span class="ident">error</span> <span class="op">=</span> (<span class="self">self</span>.<span class="number">0</span>)(<span class="ident">v</span>[<span class="ident">read</span>..].<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+                <span class="kw">let</span> <span class="ident">error</span> <span class="op">=</span> (<span class="self">self</span>.<span class="number">0</span>)(<span class="ident">v</span>[<span class="ident">read</span>..].<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                                      (<span class="ident">len</span> <span class="op">-</span> <span class="ident">read</span>) <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">size_t</span>,
-                                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">r</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _);
+                                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">r</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>);
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">error</span> <span class="op">==</span> <span class="number">0</span>, <span class="string">&quot;`get_random_bytes` failed!&quot;</span>);
                 <span class="ident">read</span> <span class="op">+=</span> <span class="ident">r</span> <span class="kw">as</span> <span class="ident">usize</span>;
 
@@ -1190,6 +1216,26 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;wasm32&quot;</span>, <span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>)))]</span>
+<span class="kw">mod</span> <span class="ident">imp</span> {
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+    <span class="kw">use</span> <span class="ident">Rng</span>;
+
+    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OsRng</span>;
+
+    <span class="kw">impl</span> <span class="ident">OsRng</span> {
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">OsRng</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Err</span>(<span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">Other</span>, <span class="string">&quot;Not supported&quot;</span>))
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Rng</span> <span class="kw">for</span> <span class="ident">OsRng</span> {
+        <span class="kw">fn</span> <span class="ident">next_u32</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+            <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Not supported&quot;</span>)
+        }
+    }
+}
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {
@@ -1213,7 +1259,7 @@
     <span class="kw">fn</span> <span class="ident">test_os_rng_tasks</span>() {
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">txs</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>();
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">20</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">20</span> {
             <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">channel</span>();
             <span class="ident">txs</span>.<span class="ident">push</span>(<span class="ident">tx</span>);
 
@@ -1227,7 +1273,7 @@
                 <span class="ident">thread</span>::<span class="ident">yield_now</span>();
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">1000</span>];
 
-                <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+                <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
                     <span class="ident">r</span>.<span class="ident">next_u32</span>();
                     <span class="ident">thread</span>::<span class="ident">yield_now</span>();
                     <span class="ident">r</span>.<span class="ident">next_u64</span>();
@@ -1258,18 +1304,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

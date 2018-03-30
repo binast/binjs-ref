@@ -10,8 +10,12 @@
     <title>brotli::enc::HeapAlloc - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct HeapAlloc</p><div class="block items"><ul><li><a href="#fields">Fields</a></li><li><a href="#methods">Methods</a></li><li><a href="#implementations">Trait Implementations</a></li></ul></div><p class='location'><a href='../index.html'>brotli</a>::<wbr><a href='index.html'>enc</a></p><script>window.sidebarCurrent = {name: 'HeapAlloc', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'>Struct HeapAlloc</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#fields">Fields</a><div class="sidebar-links"><a href="#structfield.default_value">default_value</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Allocator%3CT%3E">Allocator&lt;T&gt;</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>brotli</a>::<wbr><a href='index.html'>enc</a></p><script>window.sidebarCurrent = {name: 'HeapAlloc', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -61,16 +73,24 @@
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
                 <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="struct" href="../../brotli/enc/writer/struct.HeapAlloc.html" title="struct brotli::enc::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#51-55' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>fn <a href='#method.new' class='fnname'>new</a>(data: T) -&gt; <a class="struct" href="../../brotli/enc/writer/struct.HeapAlloc.html" title="struct brotli::enc::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#52-54' title='goto source code'>[src]</a></span></h4>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(data: T) -&gt; <a class="struct" href="../../brotli/enc/writer/struct.HeapAlloc.html" title="struct brotli::enc::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#52-54' title='goto source code'>[src]</a></span></h4>
 </div>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
-        <h3 id='impl-Allocator&lt;T&gt;' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="trait" href="../../brotli/enc/writer/trait.Allocator.html" title="trait brotli::enc::writer::Allocator">Allocator</a>&lt;T&gt; for <a class="struct" href="../../brotli/enc/writer/struct.HeapAlloc.html" title="struct brotli::enc::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span></code><a href='#impl-Allocator&lt;T&gt;' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#57-68' title='goto source code'>[src]</a></span></h3>
+            <div id='implementations-list'>
+        <h3 id='impl-Allocator%3CT%3E' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="trait" href="../../brotli/enc/writer/trait.Allocator.html" title="trait brotli::enc::writer::Allocator">Allocator</a>&lt;T&gt; for <a class="struct" href="../../brotli/enc/writer/struct.HeapAlloc.html" title="struct brotli::enc::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span></code><a href='#impl-Allocator%3CT%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#57-68' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='associatedtype.AllocatedMemory' class="type"><span id='AllocatedMemory.t' class='invisible'><code>type <a href='../../brotli/enc/writer/trait.Allocator.html#associatedtype.AllocatedMemory' class="type">AllocatedMemory</a> = WrapBox&lt;T&gt;</code></span></h4>
 <h4 id='method.alloc_cell' class="method"><span id='alloc_cell.v' class='invisible'><code>fn <a href='../../brotli/enc/writer/trait.Allocator.html#tymethod.alloc_cell' class='fnname'>alloc_cell</a>(&amp;mut self, len: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; WrapBox&lt;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#59-64' title='goto source code'>[src]</a></span></h4>
 <h4 id='method.free_cell' class="method"><span id='free_cell.v' class='invisible'><code>fn <a href='../../brotli/enc/writer/trait.Allocator.html#tymethod.free_cell' class='fnname'>free_cell</a>(&amp;mut self, _data: WrapBox&lt;T&gt;)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/alloc_no_stdlib/heap_alloc.rs.html#65-67' title='goto source code'>[src]</a></span></h4>
-</div></section>
+</div></div>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../brotli/enc/writer/struct.HeapAlloc.html" title="struct brotli::enc::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../brotli/enc/writer/struct.HeapAlloc.html" title="struct brotli::enc::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,&nbsp;</span></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>
@@ -83,18 +103,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

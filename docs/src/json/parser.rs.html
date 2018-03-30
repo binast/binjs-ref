@@ -4,14 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/json-0.11.10/src/parser.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/json-0.11.13/src/parser.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>parser.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -817,13 +829,6 @@
 <span id="772">772</span>
 <span id="773">773</span>
 <span id="774">774</span>
-<span id="775">775</span>
-<span id="776">776</span>
-<span id="777">777</span>
-<span id="778">778</span>
-<span id="779">779</span>
-<span id="780">780</span>
-<span id="781">781</span>
 </pre><pre class="rust ">
 <span class="comment">// HERE BE DRAGONS!</span>
 <span class="comment">// ================</span>
@@ -908,7 +913,7 @@
         $(
             <span class="kw">match</span> <span class="macro">expect_byte</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>) {
                 <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ch</span> <span class="op">=&gt;</span> {},
-                _   <span class="op">=&gt;</span> <span class="kw">return</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">unexpected_character</span>(),
+                <span class="kw">_</span>   <span class="op">=&gt;</span> <span class="kw">return</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">unexpected_character</span>(),
             }
         )<span class="op">*</span>
     }
@@ -935,7 +940,7 @@
                     }
                 }
             },
-            _ <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
 
         <span class="ident">ch</span>
@@ -948,7 +953,7 @@
         <span class="kw">while</span> <span class="op">!</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">is_eof</span>() {
             <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">read_byte</span>() {
                 <span class="number">9</span> ... <span class="number">13</span> <span class="op">|</span> <span class="number">32</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">bump</span>(),
-                _             <span class="op">=&gt;</span> {
+                <span class="kw">_</span>             <span class="op">=&gt;</span> {
                     <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">bump</span>();
                     <span class="kw">return</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">unexpected_character</span>();
                 }
@@ -975,7 +980,7 @@
             $(
                 <span class="macro-nonterminal">$</span><span class="macro-nonterminal">byte</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">then</span>,
             )<span class="op">*</span>
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">unexpected_character</span>()
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">unexpected_character</span>()
         }
 
     })
@@ -1074,7 +1079,7 @@
                     <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">bump</span>();
                     <span class="ident">num</span> <span class="op">=</span> <span class="ident">num</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> (<span class="ident">ch</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>) <span class="kw">as</span> <span class="ident">u64</span>;
                 },
-                _             <span class="op">=&gt;</span> {
+                <span class="kw">_</span>             <span class="op">=&gt;</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">e</span> <span class="op">=</span> <span class="number">0</span>;
                     <span class="ident">result</span> <span class="op">=</span> <span class="macro">allow_number_extensions</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>, <span class="ident">num</span>, <span class="ident">e</span>, <span class="ident">ch</span>);
                     <span class="kw">break</span>;
@@ -1100,7 +1105,7 @@
                 <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">bump</span>();
                 <span class="macro">try</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">expect_exponent</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">num</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">e</span>))
             },
-            _  <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">num</span>.<span class="ident">into</span>()
+            <span class="kw">_</span>  <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">num</span>.<span class="ident">into</span>()
         }
     });
 
@@ -1145,7 +1150,7 @@
                     }
                 }
             },
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">unexpected_character</span>()
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">unexpected_character</span>()
         }
 
         <span class="kw">loop</span> {
@@ -1178,7 +1183,7 @@
                     <span class="ident">result</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>.<span class="ident">expect_exponent</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">num</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">e</span>));
                     <span class="kw">break</span>;
                 }
-                _ <span class="op">=&gt;</span> {
+                <span class="kw">_</span> <span class="op">=&gt;</span> {
                     <span class="ident">result</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">Number</span>::<span class="ident">from_parts_unchecked</span>(<span class="bool-val">true</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">num</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">e</span>) };
                     <span class="kw">break</span>;
                 }
@@ -1258,7 +1263,7 @@
             <span class="string">b&#39;0&#39;</span> ... <span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> (<span class="ident">ch</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>),
             <span class="string">b&#39;a&#39;</span> ... <span class="string">b&#39;f&#39;</span> <span class="op">=&gt;</span> (<span class="ident">ch</span> <span class="op">+</span> <span class="number">10</span> <span class="op">-</span> <span class="string">b&#39;a&#39;</span>),
             <span class="string">b&#39;A&#39;</span> ... <span class="string">b&#39;F&#39;</span> <span class="op">=&gt;</span> (<span class="ident">ch</span> <span class="op">+</span> <span class="number">10</span> <span class="op">-</span> <span class="string">b&#39;A&#39;</span>),
-            _             <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>(),
+            <span class="kw">_</span>             <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>(),
         } <span class="kw">as</span> <span class="ident">u32</span>)
     }
 
@@ -1295,7 +1300,7 @@
                 }
             },
             <span class="number">0xE000</span> ... <span class="number">0xFFFF</span> <span class="op">=&gt;</span> {},
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">FailedUtf8Parsing</span>)
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">FailedUtf8Parsing</span>)
         }
 
         <span class="kw">match</span> <span class="ident">codepoint</span> {
@@ -1315,7 +1320,7 @@
                 (((<span class="ident">codepoint</span> <span class="op">&gt;&gt;</span> <span class="number">6</span>)  <span class="kw">as</span> <span class="ident">u8</span>) <span class="op">&amp;</span> <span class="number">0x3F</span>) <span class="op">|</span> <span class="number">0x80</span>,
                 ((<span class="ident">codepoint</span>         <span class="kw">as</span> <span class="ident">u8</span>) <span class="op">&amp;</span> <span class="number">0x3F</span>) <span class="op">|</span> <span class="number">0x80</span>
             ]),
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">FailedUtf8Parsing</span>)
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">FailedUtf8Parsing</span>)
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1360,11 +1365,11 @@
                         <span class="string">b&#39;t&#39;</span>  <span class="op">=&gt;</span> <span class="string">b&#39;\t&#39;</span>,
                         <span class="string">b&#39;r&#39;</span>  <span class="op">=&gt;</span> <span class="string">b&#39;\r&#39;</span>,
                         <span class="string">b&#39;n&#39;</span>  <span class="op">=&gt;</span> <span class="string">b&#39;\n&#39;</span>,
-                        _     <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
+                        <span class="kw">_</span>     <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
                     };
                     <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">push</span>(<span class="ident">escaped</span>);
                 },
-                _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
             }
             <span class="ident">ch</span> <span class="op">=</span> <span class="macro">expect_byte</span><span class="macro">!</span>(<span class="self">self</span>);
         }
@@ -1405,7 +1410,7 @@
                         <span class="ident">num</span>.<span class="ident">checked_add</span>((<span class="ident">ch</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>) <span class="kw">as</span> <span class="ident">u64</span>)
                     }) {
                         <span class="prelude-val">Some</span>(<span class="ident">result</span>) <span class="op">=&gt;</span> <span class="ident">num</span> <span class="op">=</span> <span class="ident">result</span>,
-                        <span class="prelude-val">None</span>         <span class="op">=&gt;</span> <span class="ident">e</span> <span class="op">+=</span> <span class="number">1</span> ,
+                        <span class="prelude-val">None</span>         <span class="op">=&gt;</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">e</span>.<span class="ident">checked_add</span>(<span class="number">1</span>).<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">Error</span>::<span class="ident">ExceededDepthLimit</span>)<span class="question-mark">?</span>,
                     }
                 },
                 <span class="string">b&#39;.&#39;</span> <span class="op">=&gt;</span> {
@@ -1416,7 +1421,7 @@
                     <span class="self">self</span>.<span class="ident">bump</span>();
                     <span class="kw">return</span> <span class="self">self</span>.<span class="ident">expect_exponent</span>(<span class="ident">num</span>, <span class="ident">e</span>);
                 }
-                _  <span class="op">=&gt;</span> <span class="kw">break</span>
+                <span class="kw">_</span>  <span class="op">=&gt;</span> <span class="kw">break</span>
             }
         }
 
@@ -1436,12 +1441,12 @@
                 <span class="ident">ch</span> <span class="op">=</span> <span class="macro">expect_byte</span><span class="macro">!</span>(<span class="self">self</span>);
                 <span class="number">1</span>
             },
-            _    <span class="op">=&gt;</span> <span class="number">1</span>
+            <span class="kw">_</span>    <span class="op">=&gt;</span> <span class="number">1</span>
         };
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">e</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">ch</span> {
             <span class="string">b&#39;0&#39;</span> ... <span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> (<span class="ident">ch</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>) <span class="kw">as</span> <span class="ident">i16</span>,
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>(),
         };
 
         <span class="kw">loop</span> {
@@ -1454,7 +1459,7 @@
                     <span class="self">self</span>.<span class="ident">bump</span>();
                     <span class="ident">e</span> <span class="op">=</span> <span class="ident">e</span>.<span class="ident">saturating_mul</span>(<span class="number">10</span>).<span class="ident">saturating_add</span>((<span class="ident">ch</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>) <span class="kw">as</span> <span class="ident">i16</span>);
                 },
-                _  <span class="op">=&gt;</span> <span class="kw">break</span>
+                <span class="kw">_</span>  <span class="op">=&gt;</span> <span class="kw">break</span>
             }
         }
 
@@ -1476,7 +1481,7 @@
                             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">ExceededDepthLimit</span>);
                         }
 
-                        <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">StackBlock</span>::<span class="ident">Array</span>(<span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">2</span>)));
+                        <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">StackBlock</span>(<span class="ident">JsonValue</span>::<span class="ident">Array</span>(<span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">2</span>)), <span class="number">0</span>));
                         <span class="kw">continue</span> <span class="lifetime">&#39;parsing</span>;
                     }
 
@@ -1496,10 +1501,10 @@
                             <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
                         }
 
-                        <span class="ident">object</span>.<span class="ident">insert</span>(<span class="macro">expect_string</span><span class="macro">!</span>(<span class="self">self</span>), <span class="ident">JsonValue</span>::<span class="ident">Null</span>);
+                        <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">object</span>.<span class="ident">insert_index</span>(<span class="macro">expect_string</span><span class="macro">!</span>(<span class="self">self</span>), <span class="ident">JsonValue</span>::<span class="ident">Null</span>);
                         <span class="macro">expect</span><span class="macro">!</span>(<span class="self">self</span>, <span class="string">b&#39;:&#39;</span>);
 
-                        <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">StackBlock</span>::<span class="ident">Object</span>(<span class="ident">object</span>));
+                        <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">StackBlock</span>(<span class="ident">JsonValue</span>::<span class="ident">Object</span>(<span class="ident">object</span>), <span class="ident">index</span>));
 
                         <span class="ident">ch</span> <span class="op">=</span> <span class="macro">expect_byte_ignore_whitespace</span><span class="macro">!</span>(<span class="self">self</span>);
 
@@ -1518,7 +1523,7 @@
                     <span class="ident">JsonValue</span>::<span class="ident">Number</span>(<span class="op">-</span> <span class="kw">match</span> <span class="ident">ch</span> {
                         <span class="string">b&#39;0&#39;</span> <span class="op">=&gt;</span> <span class="macro">allow_number_extensions</span><span class="macro">!</span>(<span class="self">self</span>),
                         <span class="string">b&#39;1&#39;</span> ... <span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="macro">expect_number</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">ch</span>),
-                        _    <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
+                        <span class="kw">_</span>    <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
                     })
                 }
                 <span class="string">b&#39;t&#39;</span> <span class="op">=&gt;</span> {
@@ -1533,73 +1538,66 @@
                     <span class="macro">expect_sequence</span><span class="macro">!</span>(<span class="self">self</span>, <span class="string">b&#39;u&#39;</span>, <span class="string">b&#39;l&#39;</span>, <span class="string">b&#39;l&#39;</span>);
                     <span class="ident">JsonValue</span>::<span class="ident">Null</span>
                 },
-                _    <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
+                <span class="kw">_</span>    <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
             };
 
             <span class="lifetime">&#39;popping</span>: <span class="kw">loop</span> {
-                <span class="kw">match</span> <span class="ident">stack</span>.<span class="ident">pop</span>() {
+                <span class="kw">match</span> <span class="ident">stack</span>.<span class="ident">last_mut</span>() {
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
                         <span class="macro">expect_eof</span><span class="macro">!</span>(<span class="self">self</span>);
 
                         <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>);
                     },
 
-                    <span class="prelude-val">Some</span>(<span class="ident">StackBlock</span>::<span class="ident">Array</span>(<span class="kw-2">mut</span> <span class="ident">array</span>)) <span class="op">=&gt;</span> {
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StackBlock</span>(<span class="ident">JsonValue</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">array</span>), <span class="kw">_</span>)) <span class="op">=&gt;</span> {
                         <span class="ident">array</span>.<span class="ident">push</span>(<span class="ident">value</span>);
 
                         <span class="ident">ch</span> <span class="op">=</span> <span class="macro">expect_byte_ignore_whitespace</span><span class="macro">!</span>(<span class="self">self</span>);
 
                         <span class="kw">match</span> <span class="ident">ch</span> {
                             <span class="string">b&#39;,&#39;</span> <span class="op">=&gt;</span> {
-                                <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">StackBlock</span>::<span class="ident">Array</span>(<span class="ident">array</span>));
-
                                 <span class="ident">ch</span> <span class="op">=</span> <span class="macro">expect_byte_ignore_whitespace</span><span class="macro">!</span>(<span class="self">self</span>);
 
                                 <span class="kw">continue</span> <span class="lifetime">&#39;parsing</span>;
                             },
-                            <span class="string">b&#39;]&#39;</span> <span class="op">=&gt;</span> {
-                                <span class="ident">value</span> <span class="op">=</span> <span class="ident">JsonValue</span>::<span class="ident">Array</span>(<span class="ident">array</span>);
-                                <span class="kw">continue</span> <span class="lifetime">&#39;popping</span>;
-                            },
-                            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
+                            <span class="string">b&#39;]&#39;</span> <span class="op">=&gt;</span> {},
+                            <span class="kw">_</span>    <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
                         }
                     },
 
-                    <span class="prelude-val">Some</span>(<span class="ident">StackBlock</span>::<span class="ident">Object</span>(<span class="kw-2">mut</span> <span class="ident">object</span>)) <span class="op">=&gt;</span> {
-                        <span class="ident">object</span>.<span class="ident">override_last</span>(<span class="ident">value</span>);
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StackBlock</span>(<span class="ident">JsonValue</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">object</span>), <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">index</span> )) <span class="op">=&gt;</span> {
+                        <span class="ident">object</span>.<span class="ident">override_at</span>(<span class="kw-2">*</span><span class="ident">index</span>, <span class="ident">value</span>);
 
                         <span class="ident">ch</span> <span class="op">=</span> <span class="macro">expect_byte_ignore_whitespace</span><span class="macro">!</span>(<span class="self">self</span>);
 
                         <span class="kw">match</span> <span class="ident">ch</span> {
                             <span class="string">b&#39;,&#39;</span> <span class="op">=&gt;</span> {
                                 <span class="macro">expect</span><span class="macro">!</span>(<span class="self">self</span>, <span class="string">b&#39;&quot;&#39;</span>);
-                                <span class="ident">object</span>.<span class="ident">insert</span>(<span class="macro">expect_string</span><span class="macro">!</span>(<span class="self">self</span>), <span class="ident">JsonValue</span>::<span class="ident">Null</span>);
+                                <span class="kw-2">*</span><span class="ident">index</span> <span class="op">=</span> <span class="ident">object</span>.<span class="ident">insert_index</span>(<span class="macro">expect_string</span><span class="macro">!</span>(<span class="self">self</span>), <span class="ident">JsonValue</span>::<span class="ident">Null</span>);
                                 <span class="macro">expect</span><span class="macro">!</span>(<span class="self">self</span>, <span class="string">b&#39;:&#39;</span>);
-
-                                <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">StackBlock</span>::<span class="ident">Object</span>(<span class="ident">object</span>));
 
                                 <span class="ident">ch</span> <span class="op">=</span> <span class="macro">expect_byte_ignore_whitespace</span><span class="macro">!</span>(<span class="self">self</span>);
 
                                 <span class="kw">continue</span> <span class="lifetime">&#39;parsing</span>;
                             },
-                            <span class="string">b&#39;}&#39;</span> <span class="op">=&gt;</span> {
-                                <span class="ident">value</span> <span class="op">=</span> <span class="ident">JsonValue</span>::<span class="ident">Object</span>(<span class="ident">object</span>);
-
-                                <span class="kw">continue</span> <span class="lifetime">&#39;popping</span>;
-                            },
-                            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
+                            <span class="string">b&#39;}&#39;</span> <span class="op">=&gt;</span> {},
+                            <span class="kw">_</span>    <span class="op">=&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">unexpected_character</span>()
                         }
                     },
+
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                }
+
+                <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">stack</span>.<span class="ident">pop</span>() {
+                    <span class="prelude-val">Some</span>(<span class="ident">StackBlock</span>(<span class="ident">value</span>, <span class="kw">_</span>)) <span class="op">=&gt;</span> <span class="ident">value</span>,
+                    <span class="prelude-val">None</span>                       <span class="op">=&gt;</span> <span class="kw">break</span> <span class="lifetime">&#39;popping</span>
                 }
             }
         }
     }
 }
 
-<span class="kw">enum</span> <span class="ident">StackBlock</span> {
-    <span class="ident">Array</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">JsonValue</span><span class="op">&gt;</span>),
-    <span class="ident">Object</span>(<span class="ident">Object</span>),
-}
+<span class="kw">struct</span> <span class="ident">StackBlock</span>(<span class="ident">JsonValue</span>, <span class="ident">usize</span>);
 
 <span class="comment">// All that hard work, and in the end it&#39;s just a single function in the API.</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -1620,18 +1618,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

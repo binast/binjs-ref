@@ -10,8 +10,12 @@
     <title>miniz_sys::mz_stream - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../main.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct mz_stream</p><div class="block items"><ul><li><a href="#fields">Fields</a></li></ul></div><p class='location'><a href='index.html'>miniz_sys</a></p><script>window.sidebarCurrent = {name: 'mz_stream', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'>Struct mz_stream</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#fields">Fields</a><div class="sidebar-links"><a href="#structfield.next_in">next_in</a><a href="#structfield.avail_in">avail_in</a><a href="#structfield.total_in">total_in</a><a href="#structfield.next_out">next_out</a><a href="#structfield.avail_out">avail_out</a><a href="#structfield.total_out">total_out</a><a href="#structfield.msg">msg</a><a href="#structfield.state">state</a><a href="#structfield.zalloc">zalloc</a><a href="#structfield.zfree">zfree</a><a href="#structfield.opaque">opaque</a><a href="#structfield.data_type">data_type</a><a href="#structfield.adler">adler</a><a href="#structfield.reserved">reserved</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">!Send</a><a href="#impl-Sync">!Sync</a></div></div><p class='location'><a href='index.html'>miniz_sys</a></p><script>window.sidebarCurrent = {name: 'mz_stream', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -57,7 +69,7 @@
     pub next_out: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>,
     pub avail_out: <a class="type" href="../libc/type.c_uint.html" title="type libc::c_uint">c_uint</a>,
     pub total_out: <a class="type" href="../libc/unix/bsd/apple/b64/type.c_ulong.html" title="type libc::unix::bsd::apple::b64::c_ulong">c_ulong</a>,
-    pub msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const </a><a class="type" href="../libc/unix/bsd/type.c_char.html" title="type libc::unix::bsd::c_char">c_char</a>,
+    pub msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const </a><a class="type" href="../libc/unix/bsd/apple/type.c_char.html" title="type libc::unix::bsd::apple::c_char">c_char</a>,
     pub state: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="enum" href="../miniz_sys/enum.mz_internal_state.html" title="enum miniz_sys::mz_internal_state">mz_internal_state</a>,
     pub zalloc: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../miniz_sys/type.mz_alloc_func.html" title="type miniz_sys::mz_alloc_func">mz_alloc_func</a>&gt;,
     pub zfree: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../miniz_sys/type.mz_free_func.html" title="type miniz_sys::mz_free_func">mz_free_func</a>&gt;,
@@ -93,7 +105,7 @@
                            </span></span><span id="structfield.msg" class="structfield small-section-header">
                            <a href="#structfield.msg" class="anchor field"></a>
                            <span id="msg.v" class='invisible'>
-                           <code>msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const </a><a class="type" href="../libc/unix/bsd/type.c_char.html" title="type libc::unix::bsd::c_char">c_char</a></code>
+                           <code>msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const </a><a class="type" href="../libc/unix/bsd/apple/type.c_char.html" title="type libc::unix::bsd::apple::c_char">c_char</a></code>
                            </span></span><span id="structfield.state" class="structfield small-section-header">
                            <a href="#structfield.state" class="anchor field"></a>
                            <span id="state.v" class='invisible'>
@@ -122,7 +134,19 @@
                            <a href="#structfield.reserved" class="anchor field"></a>
                            <span id="reserved.v" class='invisible'>
                            <code>reserved: <a class="type" href="../libc/unix/bsd/apple/b64/type.c_ulong.html" title="type libc::unix::bsd::apple::b64::c_ulong">c_ulong</a></code>
-                           </span></span></section>
+                           </span></span>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+            <div id='implementations-list'>
+        </div>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../miniz_sys/struct.mz_stream.html" title="struct miniz_sys::mz_stream">mz_stream</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../miniz_sys/struct.mz_stream.html" title="struct miniz_sys::mz_stream">mz_stream</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>
@@ -135,18 +159,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

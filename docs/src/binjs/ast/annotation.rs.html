@@ -712,23 +712,11 @@
 <span id="667">667</span>
 <span id="668">668</span>
 <span id="669">669</span>
-<span id="670">670</span>
-<span id="671">671</span>
-<span id="672">672</span>
-<span id="673">673</span>
-<span id="674">674</span>
-<span id="675">675</span>
-<span id="676">676</span>
-<span id="677">677</span>
-<span id="678">678</span>
-<span id="679">679</span>
-<span id="680">680</span>
-<span id="681">681</span>
 </pre><pre class="rust ">
 <span class="comment">// FIXME: Too much copy&amp;paste in this file.</span>
 
-<span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">grammar</span>::{ <span class="ident">ASTError</span>, <span class="ident">FieldName</span>, <span class="ident">Kind</span>, <span class="ident">Syntax</span> };
-<span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">library</span>::{ <span class="ident">BINJS_CONST_NAME</span>, <span class="ident">BINJS_LET_NAME</span>, <span class="ident">BINJS_VAR_NAME</span>, <span class="ident">BINJS_DIRECT_EVAL</span>, <span class="ident">BINJS_CAPTURED_NAME</span>, <span class="ident">SCOPE_NAME</span> };
+<span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">grammar</span>::{ <span class="ident">ASTError</span>, <span class="ident">FieldName</span>, <span class="ident">NodeName</span>, <span class="ident">Syntax</span> };
+<span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">library</span>::{ <span class="ident">BINJS_LET_NAME</span>, <span class="ident">BINJS_VAR_NAME</span>, <span class="ident">BINJS_DIRECT_EVAL</span>, <span class="ident">BINJS_CAPTURED_NAME</span>, <span class="ident">SCOPE_NAME</span> };
 <span class="kw">use</span> <span class="ident">util</span>::{ <span class="ident">Dispose</span>, <span class="ident">JSONGetter</span> };
 
 <span class="kw">use</span> <span class="ident">json</span>;
@@ -744,13 +732,13 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Position</span> {
     <span class="doccomment">/// The kind of object currently being examined.</span>
-    <span class="ident">kind</span>: <span class="ident">Kind</span>,
+    <span class="ident">kind</span>: <span class="ident">NodeName</span>,
 
     <span class="doccomment">/// If a field is being examined, its name.</span>
     <span class="ident">field</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FieldName</span><span class="op">&gt;</span>
 }
 <span class="kw">impl</span> <span class="ident">Position</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">kind</span>: <span class="kw-2">&amp;</span><span class="ident">Kind</span>, <span class="ident">field</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">FieldName</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">kind</span>: <span class="kw-2">&amp;</span><span class="ident">NodeName</span>, <span class="ident">field</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">FieldName</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Position</span> {
             <span class="ident">kind</span>: <span class="ident">kind</span>.<span class="ident">clone</span>(),
             <span class="ident">field</span>: <span class="ident">field</span>.<span class="ident">map</span>(<span class="ident">FieldName</span>::<span class="ident">clone</span>)
@@ -767,7 +755,7 @@
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">x</span>.<span class="ident">to_str</span>())
         }
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Kind</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">NodeName</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">kind</span>
     }
 }
@@ -861,8 +849,8 @@
         <span class="kw">let</span> <span class="ident">position</span> <span class="op">=</span> {
             <span class="kw">let</span> <span class="ident">grammar</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">contents</span>.<span class="ident">borrow</span>()
                 .<span class="ident">grammar</span>;
-            <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="ident">grammar</span>.<span class="ident">get_kind</span>(<span class="ident">kind</span>)
-                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">ASTError</span>::<span class="ident">InvalidKind</span>(<span class="ident">kind</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="ident">grammar</span>.<span class="ident">get_node_name</span>(<span class="ident">kind</span>)
+                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">ASTError</span>::<span class="ident">InvalidType</span>(<span class="ident">kind</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
             <span class="ident">Position</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">kind</span>, <span class="prelude-val">None</span>)
         };
         <span class="kw">let</span> <span class="ident">lex_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">contents</span>.<span class="ident">borrow</span>().<span class="ident">lex_scope</span>.<span class="ident">clone</span>();
@@ -909,11 +897,13 @@
     <span class="doccomment">/// at the default position.</span>
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">syntax</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Syntax</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">syntax</span>.<span class="ident">get_root</span>()
-            .<span class="ident">kind</span>()
+            .<span class="ident">as_interface</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Could not extract kind of syntax root&quot;</span>);
+        <span class="kw">let</span> <span class="ident">root_name</span> <span class="op">=</span> <span class="ident">root</span>
+            .<span class="ident">name</span>();
         <span class="ident">ContextContents</span> {
             <span class="ident">grammar</span>: <span class="ident">syntax</span>,
-            <span class="ident">position</span>: <span class="ident">Position</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">root</span>, <span class="prelude-val">None</span>),
+            <span class="ident">position</span>: <span class="ident">Position</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">root_name</span>, <span class="prelude-val">None</span>),
             <span class="ident">parent</span>: <span class="prelude-val">None</span>,
             <span class="ident">lex_scope</span>: <span class="prelude-val">None</span>,
             <span class="ident">var_scope</span>: <span class="prelude-val">None</span>,
@@ -1070,7 +1060,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">store</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">parent</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span>) {
         <span class="kw">let</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">get_object_mut</span>(<span class="ident">SCOPE_NAME</span>, <span class="string">&quot;Scope field&quot;</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Could not store captured names, etc.&quot;</span>);
-        <span class="kw">for</span> <span class="ident">name</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="ident">BINJS_VAR_NAME</span>, <span class="ident">BINJS_LET_NAME</span>, <span class="ident">BINJS_CONST_NAME</span>] {
+        <span class="kw">for</span> <span class="ident">name</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="ident">BINJS_VAR_NAME</span>, <span class="ident">BINJS_LET_NAME</span>] {
             <span class="kw">if</span> <span class="ident">object</span>[<span class="kw-2">*</span><span class="ident">name</span>].<span class="ident">is_null</span>() {
                 <span class="ident">object</span>.<span class="ident">insert</span>(<span class="ident">name</span>, <span class="macro">array</span><span class="macro">!</span>[]);
             }
@@ -1112,15 +1102,6 @@
                 .<span class="ident">to_string</span>();
             <span class="ident">borrow</span>.<span class="ident">data</span>.<span class="ident">binding</span>.<span class="ident">insert</span>(<span class="ident">item</span>);
         }
-
-        <span class="kw">let</span> <span class="ident">const_names</span> <span class="op">=</span> <span class="ident">object</span>.<span class="ident">get_array</span>(<span class="ident">BINJS_CONST_NAME</span>, <span class="string">&quot;Repository of LexDecl bindings&quot;</span>)
-            .<span class="ident">expect</span>(<span class="string">&quot;Could not fetch LexDecl repository&quot;</span>);
-        <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">const_names</span> {
-            <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">as_str</span>()
-                .<span class="ident">expect</span>(<span class="string">&quot;Item should be a string&quot;</span>)
-                .<span class="ident">to_string</span>();
-            <span class="ident">borrow</span>.<span class="ident">data</span>.<span class="ident">binding</span>.<span class="ident">insert</span>(<span class="ident">item</span>);
-        }
     }
 }
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
@@ -1150,20 +1131,20 @@
     <span class="ident">let_names</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">var_names</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">unknown_names</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">scope_kind</span>: <span class="ident">ScopeKind</span>,
+    <span class="ident">scope_kind</span>: <span class="ident">ScopeNodeName</span>,
     <span class="ident">uses_strict</span>: <span class="ident">bool</span>,
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ScopeKind</span> {
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ScopeNodeName</span> {
     <span class="ident">VarDecl</span>,
     <span class="ident">LetDecl</span>,
     <span class="ident">ConstDecl</span>,
     <span class="ident">Nothing</span>
 }
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ScopeKind</span> {
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ScopeNodeName</span> {
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">ScopeKind</span>::<span class="ident">Nothing</span>
+        <span class="ident">ScopeNodeName</span>::<span class="ident">Nothing</span>
     }
 }
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">ContextContents</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">DeclContents</span><span class="op">&gt;</span> {
@@ -1191,12 +1172,12 @@
         }
         <span class="bool-val">false</span>
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope_kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ScopeKind</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">ScopeKind</span>::<span class="ident">Nothing</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">scope_kind</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope_kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ScopeNodeName</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">ScopeNodeName</span>::<span class="ident">Nothing</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">scope_kind</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">parent</span> {
                 <span class="kw">return</span> <span class="ident">parent</span>.<span class="ident">borrow</span>().<span class="ident">scope_kind</span>()
             }
-            <span class="kw">return</span> <span class="ident">ScopeKind</span>::<span class="ident">Nothing</span>
+            <span class="kw">return</span> <span class="ident">ScopeNodeName</span>::<span class="ident">Nothing</span>
         }
         <span class="kw">return</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">scope_kind</span>
     }
@@ -1244,10 +1225,10 @@
         <span class="kw">let</span> <span class="ident">borrow</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">contents</span>.<span class="ident">borrow</span>();
         <span class="ident">borrow</span>.<span class="ident">is_lex_bound</span>(<span class="ident">name</span>)
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope_kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ScopeKind</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope_kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ScopeNodeName</span> {
         <span class="self">self</span>.<span class="ident">contents</span>.<span class="ident">borrow</span>().<span class="ident">scope_kind</span>()
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_scope_kind</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">kind</span>: <span class="ident">ScopeKind</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_scope_kind</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">kind</span>: <span class="ident">ScopeNodeName</span>) {
         <span class="self">self</span>.<span class="ident">contents</span>.<span class="ident">borrow_mut</span>().<span class="ident">data</span>.<span class="ident">scope_kind</span> <span class="op">=</span> <span class="ident">kind</span>
     }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">promote_unknown_names_to_var</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
@@ -1300,17 +1281,12 @@
         <span class="ident">let_decl_names</span>.<span class="ident">sort</span>(); <span class="comment">// To simplify testing (and hopefully improve compression)</span>
         <span class="kw">let</span> <span class="ident">let_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">let_decl_names</span>.<span class="ident">drain</span>(..).<span class="ident">map</span>(<span class="op">|</span><span class="ident">name</span><span class="op">|</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">name</span> <span class="kw">as</span> <span class="kw-2">&amp;</span><span class="ident">str</span>)).<span class="ident">collect</span>();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">const_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">borrow</span>.<span class="ident">data</span>.<span class="ident">const_names</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
-        <span class="ident">const_decl_names</span>.<span class="ident">sort</span>();
-        <span class="kw">let</span> <span class="ident">const_decl_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">const_decl_names</span>.<span class="ident">drain</span>(..).<span class="ident">map</span>(<span class="op">|</span><span class="ident">name</span><span class="op">|</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">name</span> <span class="kw">as</span> <span class="kw-2">&amp;</span><span class="ident">str</span>)).<span class="ident">collect</span>();
-
         <span class="comment">// Ignore overwrites: we may be overwriting an existing &quot;BINJS:Scope&quot; object,</span>
         <span class="comment">// in case we are used to re-annotate an existing tree.</span>
         <span class="kw">let</span> <span class="ident">object</span> : <span class="ident">JSON</span> <span class="op">=</span> <span class="macro">object</span><span class="macro">!</span>{
             <span class="string">&quot;type&quot;</span> <span class="op">=&gt;</span> <span class="ident">SCOPE_NAME</span>,
             <span class="ident">BINJS_VAR_NAME</span> <span class="op">=&gt;</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">var_decl_names</span>),
             <span class="ident">BINJS_LET_NAME</span> <span class="op">=&gt;</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">let_decl_names</span>),
-            <span class="ident">BINJS_CONST_NAME</span> <span class="op">=&gt;</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="ident">const_decl_names</span>),
             <span class="ident">BINJS_CAPTURED_NAME</span> <span class="op">=&gt;</span> <span class="macro">array</span><span class="macro">!</span>[],
             <span class="ident">BINJS_DIRECT_EVAL</span> <span class="op">=&gt;</span> <span class="ident">json</span>::<span class="ident">from</span>(<span class="bool-val">false</span>)
         };
@@ -1424,13 +1400,15 @@
                     <dd>Show this help dialog</dd>
                     <dt>S</dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt>↑</dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt>↓</dt>
                     <dd>Move down in search results</dd>
+                    <dt>↹</dt>
+                    <dd>Switch tab</dd>
                     <dt>&#9166;</dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
+                    <dt style="width:31px;">+ / -</dt>
                     <dd>Collapse/expand all sections</dd>
                 </dl>
             </div>

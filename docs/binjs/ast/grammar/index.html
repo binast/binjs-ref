@@ -48,7 +48,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/binjs/ast/grammar.rs.html#1-1414' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../../src/binjs/ast/grammar.rs.html#1-1029' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Definition of a grammar, tools for describing the grammar.
 Grammars for specifying an AST that this tool can manipulate.</p>
 
@@ -59,251 +59,20 @@ of the language.</p>
 
 <p>To ensure this, we define not only the AST of EcmaScript as the language is today, but
 the mechanism to define and evolve this AST, without incurring breaking changes in BinJS.</p>
-
-<p>This abstracts away the concepts of <a href="https://github.com/estree/estree">ESTree</a>.</p>
-
-<h1 id='specifications' class='section-header'><a href='#specifications'>Specifications</a></h1>
-<p>A Grammar is composed of Interfaces and Enumerations, which may be <em>declared</em>
-and <em>amended</em>.</p>
-
-<h2 id='declarations' class='section-header'><a href='#declarations'>Declarations</a></h2>
-<h3 id='interface-declaration' class='section-header'><a href='#interface-declaration'>Interface Declaration</a></h3>
-<p>FIXME: Order of fields inside a declaration is specified.
-FIXME: Order of inherited fields is unspecified.</p>
-
-<p>Interfaces represent nodes in the AST. Interfaces are related to each other through
-inheritance (e.g. an <code>Identifier</code> is also a <code>Pattern</code>, so <code>Identifier</code> inherits from
-<code>Pattern</code>) or properties (e.g. a <code>BinaryExpression</code> has several properties, including <code>left</code>
-and <code>right</code>, both of which are <code>Expression</code>s).</p>
-
-<p>Each Interface Declaration consists in <em>all</em> of:</p>
-
-<ul>
-<li><em>name</em>: <code>InterfaceName</code> (e.g. <code>Expression</code>, <code>ExpressionStatement</code>, ...);</li>
-<li><em>virtual</em>: boolean;</li>
-<li><em>parents</em>: <code>[InterfaceName]</code> a (possibly empty) list of <code>InterfaceName</code>.</li>
-<li><em>own_structure</em>: <code>Structure</code></li>
-</ul>
-
-<p>Property <em>name</em> is used to represent relationships between Interfaces.</p>
-
-<p>Some interfaces are purely virtual, insofar as there exist no nodes with their name
-(e.g. <code>Expression</code>). Other interfaces are concrete, insofar as there may be nodes with
-their name (e.g. <code>BinaryOperation</code>).</p>
-
-<p>Property <em>own_structure</em> determines the list of properties defined by this interface.
-This does not include properties defined by parent interfaces.</p>
-
-<h3 id='structure-declarations' class='section-header'><a href='#structure-declarations'>Structure Declarations</a></h3>
-<p>Each <code>Structure</code> is:
-- properties: <code>[Property]</code>, a (possibly empty) list of properties;</p>
-
-<p>Each <code>Property</code> consists in <em>all</em> of:</p>
-
-<ul>
-<li><em>name</em>: <code>PropertyName</code> (e.g. <code>body</code>);</li>
-<li><em>type</em>: <code>Type</code> (e.g. <code>Number</code>).</li>
-</ul>
-
-<h3 id='enumeration-declarations' class='section-header'><a href='#enumeration-declarations'>Enumeration Declarations</a></h3>
-<p>Each Enumeration Declaration consists in <em>all</em> of:</p>
-
-<ul>
-<li><em>name</em>: <code>EnumerationName</code>;</li>
-<li><em>cases</em>: <code>[String]</code> (a non empty list);</li>
-</ul>
-
-<p>Enumerations describe one of several possible strings, e.g.: <code>&quot;+&quot; | &quot;-&quot; | &quot;/&quot; | &quot;-&quot;</code>. Value<code></code>null` is never an acceptable string.</p>
-
-<h3 id='type-declarations' class='section-header'><a href='#type-declarations'>Type Declarations</a></h3>
-<p>Each <code>Type</code> is <em>one</em> of:</p>
-
-<ul>
-<li><code>Enumeration</code>: <code>EnumerationName</code>; or</li>
-<li><code>Interfaces</code>: <code>([InterfaceName], Nullability)</code>;</li>
-<li><code>Boolean</code>: Nullability; or</li>
-<li><code>String</code>: Nullability; or</li>
-<li><code>Number</code>: Nullability; or</li>
-<li><code>Array</code>: <code>Type</code></li>
-</ul>
-
-<p><code>Nullability</code> is <em>one</em> of:
-- <code>CanBeNull</code>: empty; or
-- <code>CannotBeNull</code>: empty.</p>
-
-<h2 id='amendments' class='section-header'><a href='#amendments'>Amendments</a></h2>
-<p>Amendments are used to modify existing Interfaces and Enumerations, to let them handle more
-sophisticated cases.</p>
-
-<h2 id='interface-amendment' class='section-header'><a href='#interface-amendment'>Interface Amendment</a></h2>
-<p>An Interface Amendment modifies an existing Interface. The most common use of an Interface
-Amendment is to extend an Interface with new properties or to make an existing property
-accept values that it previously didn&#39;t accept.</p>
-
-<p>Interface Amendments CANNOT:
-- remove properties;
-- remove parent interfaces;
-- make a property reject any AST that would previously have been accepted (FIXME: Specify this).</p>
-
-<p>An Interface Amendment consists in <em>all</em> of:</p>
-
-<ul>
-<li><code>name</code>: an <code>InterfaceName</code>;</li>
-<li><code>structure</code>: a <code>StructureAmendment</code>.</li>
-</ul>
-
-<h2 id='structure-amendment' class='section-header'><a href='#structure-amendment'>Structure Amendment</a></h2>
-<p>Each <code>StructureAmendment</code> is:
-- properties: <code>[Property | PropertyAmendment]</code>, a (possibly empty) list of properties;</p>
-
-<p>If a property is an instance of <code>Property</code>, it MUST be a property that appears neither in
-- <code>own_structure</code> of the interface; nor in
-- <code>own_structure</code> of any of its ancestors.</p>
-
-<p>Conversely, if a property is an instance of <code>PropertyAmendment</code>, it MUST be a property that
-appears either in
-- <code>own_structure</code> of the interface; or in
-- <code>own_structure</code> of any of its ancestors.</p>
-
-<p>FIXME: Specify this as an algorithm.</p>
-
-<h2 id='property-amendment' class='section-header'><a href='#property-amendment'>Property Amendment</a></h2>
-<p>Each <code>PropertyAmendment</code> consists in <em>all</em> of:</p>
-
-<ul>
-<li><em>name</em>: <code>PropertyName</code> (e.g. <code>body</code>);</li>
-<li><em>type</em>: <code>TypeAmendment</code> (e.g. <code>Number</code>).</li>
-</ul>
-
-<h2 id='type-amendment' class='section-header'><a href='#type-amendment'>Type Amendment</a></h2>
-<p>Each <code>TypeAmendment</code> is <em>one</em> of:</p>
-
-<ul>
-<li><code>Interfaces</code>: <code>([InterfaceName], Nullability)</code> (a list of new interfaces supported by the property);</li>
-<li><code>Boolean</code>: CanBeNull; or</li>
-<li><code>String</code>: CanBeNull; or</li>
-<li><code>Number</code>: CanBeNull; or</li>
-<li><code>Array</code>: <code>TypeAmendment</code></li>
-</ul>
-
-<p>A Type Amendment MUST NOT make an existing value be rejected.</p>
-
-<p>FIXME: Specify this as an algorithm.</p>
-
-<h2 id='enumeration-amendment' class='section-header'><a href='#enumeration-amendment'>Enumeration Amendment</a></h2>
-<p>An Enumeration Amendment adds new possible values to an enumeration.</p>
-
-<p>An <code>EnumerationAmendment</code> is:
-- <em>name</em>: <code>EnumerationName</code>;
-- <em>cases</em>: <code>[String]</code> (a non empty list of new accepted values).</p>
-
-<h2 id='grammar-start' class='section-header'><a href='#grammar-start'>Grammar start</a></h2>
-<p>The Grammar start specifies the root node of an AST.</p>
-
-<ul>
-<li><code>root</code>: <code>InterfaceName</code>.</li>
-</ul>
-
-<h1 id='inhabiting-a-grammar' class='section-header'><a href='#inhabiting-a-grammar'>Inhabiting a grammar</a></h1>
-<p><strong>Warning</strong> The AST described here may be more expressive in places than the JavaScript source
-grammar. Therefore, it is possible that not all the inhabitants of the grammar are correct
-(or even syntactically-correct) JavaScript ASTs.</p>
-
-<p>For instance, it is unlikely that any variant of the grammar can detect that the following
-snippets are syntactically incorrect:</p>
-
-<pre><code class="language-javascript">let x;
-let x;
-</code></pre>
-
-<h2 id='algorithm' class='section-header'><a href='#algorithm'>Algorithm</a></h2>
-<pre><code class="language-javascript">
-Grammar.prototype.inhabits = function(ast) {
-  return inhabitsType(ast, new Type.Interfaces([this.root()]), grammar);
-};
-
-Grammar.prototype.inhabitsType = function(ast, type) {
-  if (type.isString()) {
-    return typeof ast == &quot;string&quot; || (type.canBeNull() &amp;&amp; ast == null);
-  } else if (type.isBoolean()) {
-    return typeof ast == &quot;boolean&quot; || (type.canBeNull() &amp;&amp; ast == null);
-  } else if (type.isNumber()) {
-    return typeof ast == &quot;number&quot; || (type.canBeNull() &amp;&amp; ast == null);
-  } else if (type.isArray()) {
-    if (!Array.isArray(ast)) {
-      return false;
-    }
-    let wrapped = type.wrapped();
-    for (let subtree of ast) {
-      if (!this.inhabitsType(subtree, wrapped)) {
-        return false;
-      }
-    }
-    return true;
-  } else if (type.isEnumeration()) {
-    let name = type.enumerationName;
-    let enumeration = self.grammar.resolveEnumeration(name); // FIXME: Specify (affected by amendments)
-    if (typeof ast != &quot;string&quot;) {
-      return false;
-    }
-    for (let candidate of enumeration) {
-      if (candidate == ast) {
-        return true;
-      }
-    }
-    return false;
-  } else if (type.isInterfaceList()) {
-    if (type.canBeNull() &amp;&amp; ast == null) {
-       return true;
-    }
-    if (typeof ast != &quot;object&quot;) {
-      return false;
-    }
-    let interface  = self.grammar.resolveInterface(ast.name());   // FIXME: Specify
-    let list = type.interfaceList;
-    for (let candidateName of list) {
-      let parentInterface = self.grammar.resolveInterface(candidateName); // FIXME: Specify
-      if (interface.isInstanceOf(parentInterface)) {             // FIXME: Specify
-        // At this stage, `ast` has the right name.
-        // Now check that the contents of `ast` match the structure.
-        for (let property of interface.properties()) {           // FIXME: Specify (affected by inheritance and amendments)
-          // Determine whether `ast` has a property with the right type.
-          let value = ast.getProperty(property.name());
-          if (typeof value == &quot;undefined&quot;) {
-            return false;
-          }
-          if (!this.inhabitsType(value, property.type())) {        // FIXME: Specify (affected by amendments).
-            return false;
-          }
-        }
-        return true;
-      }
-    }
-    return false;
-  }
-};
-</code></pre>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Enum.html"
-                                  title='struct binjs::ast::grammar::Enum'>Enum</a></td>
-                           <td class='docblock-short'>
-                                <p>Structure of an enum of strings. <code>null</code> is never an acceptable value.</p>
-                           </td>
-                       </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.Field.html"
                                   title='struct binjs::ast::grammar::Field'>Field</a></td>
                            <td class='docblock-short'>
-                                <p>Representation of a field in an object.</p>
+                                <p>Representation of a field in an interface.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.FieldName.html"
                                   title='struct binjs::ast::grammar::FieldName'>FieldName</a></td>
                            <td class='docblock-short'>
-                                <p>The name of a field.</p>
+                                <p>The name of a field in an interface.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -322,14 +91,6 @@ Grammar.prototype.inhabitsType = function(ast, type) {
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Kind.html"
-                                  title='struct binjs::ast::grammar::Kind'>Kind</a></td>
-                           <td class='docblock-short'>
-                                <p>The kind attached to an actual AST node, representing the interface
-it inhabits (aka &quot;dynamic type&quot;).</p>
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
                            <td><a class="struct" href="struct.NodeName.html"
                                   title='struct binjs::ast::grammar::NodeName'>NodeName</a></td>
                            <td class='docblock-short'>
@@ -341,6 +102,13 @@ it inhabits (aka &quot;dynamic type&quot;).</p>
                                   title='struct binjs::ast::grammar::Obj'>Obj</a></td>
                            <td class='docblock-short'>
                                 <p>Representation of an object, i.e. a set of fields.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.StringEnum.html"
+                                  title='struct binjs::ast::grammar::StringEnum'>StringEnum</a></td>
+                           <td class='docblock-short'>
+                                <p>An enumeration of strings.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -370,11 +138,25 @@ it inhabits (aka &quot;dynamic type&quot;).</p>
                            <td class='docblock-short'>
                                 
                            </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TypeSum.html"
+                                  title='struct binjs::ast::grammar::TypeSum'>TypeSum</a></td>
+                           <td class='docblock-short'>
+                                <p>An enumeration of interfaces.</p>
+                           </td>
                        </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
                        <tr class=' module-item'>
                            <td><a class="enum" href="enum.ASTError.html"
                                   title='enum binjs::ast::grammar::ASTError'>ASTError</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.NamedType.html"
+                                  title='enum binjs::ast::grammar::NamedType'>NamedType</a></td>
                            <td class='docblock-short'>
                                 
                            </td>
@@ -402,13 +184,15 @@ it inhabits (aka &quot;dynamic type&quot;).</p>
                     <dd>Show this help dialog</dd>
                     <dt>S</dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt>↑</dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt>↓</dt>
                     <dd>Move down in search results</dd>
+                    <dt>↹</dt>
+                    <dd>Switch tab</dd>
                     <dt>&#9166;</dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
+                    <dt style="width:31px;">+ / -</dt>
                     <dd>Collapse/expand all sections</dd>
                 </dl>
             </div>

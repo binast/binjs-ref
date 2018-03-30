@@ -10,8 +10,12 @@
     <title>brotli_decompressor::BrotliDecompressCustomAlloc - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../main.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='index.html'>brotli_decompressor</a></p><script>window.sidebarCurrent = {name: 'BrotliDecompressCustomAlloc', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='index.html'>brotli_decompressor</a></p><script>window.sidebarCurrent = {name: 'BrotliDecompressCustomAlloc', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -48,8 +60,8 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/brotli_decompressor/lib.rs.html#111-135' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn BrotliDecompressCustomAlloc&lt;InputType, OutputType, AllocU8:&nbsp;<a class="trait" href="../brotli_decompressor/writer/trait.Allocator.html" title="trait brotli_decompressor::writer::Allocator">Allocator</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;, AllocU32:&nbsp;<a class="trait" href="../brotli_decompressor/writer/trait.Allocator.html" title="trait brotli_decompressor::writer::Allocator">Allocator</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;, AllocHC:&nbsp;<a class="trait" href="../brotli_decompressor/writer/trait.Allocator.html" title="trait brotli_decompressor::writer::Allocator">Allocator</a>&lt;<a class="struct" href="../brotli_decompressor/struct.HuffmanCode.html" title="struct brotli_decompressor::HuffmanCode">HuffmanCode</a>&gt;&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;r: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>InputType, <br>&nbsp;&nbsp;&nbsp;&nbsp;w: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>OutputType, <br>&nbsp;&nbsp;&nbsp;&nbsp;input_buffer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;output_buffer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;alloc_u8: AllocU8, <br>&nbsp;&nbsp;&nbsp;&nbsp;alloc_u32: AllocU32, <br>&nbsp;&nbsp;&nbsp;&nbsp;alloc_hc: AllocHC<br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">()</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html" title="struct std::io::error::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;InputType: <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;OutputType: <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>,&nbsp;</span></pre></section>
+               </span><a class='srclink' href='../src/brotli_decompressor/lib.rs.html#149-173' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn BrotliDecompressCustomAlloc&lt;InputType, OutputType, AllocU8:&nbsp;<a class="trait" href="../brotli_decompressor/writer/trait.Allocator.html" title="trait brotli_decompressor::writer::Allocator">Allocator</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;, AllocU32:&nbsp;<a class="trait" href="../brotli_decompressor/writer/trait.Allocator.html" title="trait brotli_decompressor::writer::Allocator">Allocator</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;, AllocHC:&nbsp;<a class="trait" href="../brotli_decompressor/writer/trait.Allocator.html" title="trait brotli_decompressor::writer::Allocator">Allocator</a>&lt;<a class="struct" href="../brotli_decompressor/struct.HuffmanCode.html" title="struct brotli_decompressor::HuffmanCode">HuffmanCode</a>&gt;&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;r: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>InputType, <br>&nbsp;&nbsp;&nbsp;&nbsp;w: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>OutputType, <br>&nbsp;&nbsp;&nbsp;&nbsp;input_buffer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;output_buffer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;alloc_u8: AllocU8, <br>&nbsp;&nbsp;&nbsp;&nbsp;alloc_u32: AllocU32, <br>&nbsp;&nbsp;&nbsp;&nbsp;alloc_hc: AllocHC<br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html" title="struct std::io::error::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;InputType: <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;OutputType: <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>,&nbsp;</span></pre></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>
@@ -62,18 +74,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

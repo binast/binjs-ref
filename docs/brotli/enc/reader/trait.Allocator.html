@@ -10,8 +10,12 @@
     <title>brotli::enc::reader::Allocator - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Trait Allocator</p><div class="block items"><ul><li><a href="#associated-types">Associated Types</a></li><li><a href="#required-methods">Required Methods</a></li><li><a href="#implementors">Implementors</a></li></ul></div><p class='location'><a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>reader</a></p><script>window.sidebarCurrent = {name: 'Allocator', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'>Trait Allocator</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#associated-types">Associated Types</a><div class="sidebar-links"><a href="#associatedtype.AllocatedMemory">AllocatedMemory</a></div><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.alloc_cell">alloc_cell</a><a href="#tymethod.free_cell">free_cell</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../../index.html'>brotli</a>::<wbr><a href='../index.html'>enc</a>::<wbr><a href='index.html'>reader</a></p><script>window.sidebarCurrent = {name: 'Allocator', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -70,7 +82,7 @@
         <ul class='item-list' id='implementors-list'>
     <li><div class='out-of-band'><a class='srclink' href='../../../src/alloc_no_stdlib/stack_allocator.rs.html#34-100' title='goto source code'>[src]</a></div><code>impl&lt;'a, T, U&gt; Allocator&lt;T&gt; for <a class="struct" href="../../../brotli/enc/writer/struct.StackAllocator.html" title="struct brotli::enc::writer::StackAllocator">StackAllocator</a>&lt;'a, T, U&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: 'a,<br>&nbsp;&nbsp;&nbsp;&nbsp;U: <a class="trait" href="../../../alloc_no_stdlib/allocated_memory/trait.AllocatedSlice.html" title="trait alloc_no_stdlib::allocated_memory::AllocatedSlice">AllocatedSlice</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [T]</a>&gt;,&nbsp;</span><span class="where fmt-newline">  type <a href='#associatedtype.AllocatedMemory' class="type">AllocatedMemory</a> = <a class="struct" href="../../../brotli/enc/writer/struct.AllocatedStackMemory.html" title="struct brotli::enc::writer::AllocatedStackMemory">AllocatedStackMemory</a>&lt;'a, T&gt;;</span></code></li>
 <li><div class='out-of-band'><a class='srclink' href='../../../src/alloc_no_stdlib/heap_alloc.rs.html#57-68' title='goto source code'>[src]</a></div><code>impl&lt;T&gt; Allocator&lt;T&gt; for <a class="struct" href="../../../brotli/enc/writer/struct.HeapAlloc.html" title="struct brotli::enc::writer::HeapAlloc">HeapAlloc</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span><span class="where fmt-newline">  type <a href='#associatedtype.AllocatedMemory' class="type">AllocatedMemory</a> = WrapBox&lt;T&gt;;</span></code></li>
-</ul><script type="text/javascript" async
+</ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../../implementors/alloc_no_stdlib/stack_allocator/trait.Allocator.js">
                  </script></section>
     <section id='search' class="content hidden"></section>
@@ -85,18 +97,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

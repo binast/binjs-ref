@@ -4,14 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/david/.cargo/registry/src/github.com-1ecc6299db9ec823/log-0.3.8/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/log-0.3.9/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
     
 
     <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         <a href='../../log/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
         
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -1083,6 +1095,57 @@
 <span id="1038">1038</span>
 <span id="1039">1039</span>
 <span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
+<span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -1096,7 +1159,7 @@
 
 <span class="doccomment">//! A lightweight logging facade.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! The `log` crate provides a single logging API that abstracts over the</span>
+<span class="doccomment">//! A logging facade provides a single logging API that abstracts over the</span>
 <span class="doccomment">//! actual logging implementation. Libraries can use the logging API provided</span>
 <span class="doccomment">//! by this crate, and the consumer of those libraries can choose the logging</span>
 <span class="doccomment">//! framework that is most suitable for its use case.</span>
@@ -1105,10 +1168,11 @@
 <span class="doccomment">//! implementation that ignores all log messages. The overhead in this case</span>
 <span class="doccomment">//! is very small - just an integer load, comparison and jump.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! A log request consists of a _target_, a _level_, and a _body_. A target is a</span>
-<span class="doccomment">//! string which defaults to the module path of the location of the log request,</span>
-<span class="doccomment">//! though that default may be overridden. Logger implementations typically use</span>
-<span class="doccomment">//! the target to filter requests based on some user configuration.</span>
+<span class="doccomment">//! A log request consists of a target, a level, and a body. A target is a</span>
+<span class="doccomment">//! string which defaults to the module path of the location of the log</span>
+<span class="doccomment">//! request, though that default may be overridden. Logger implementations</span>
+<span class="doccomment">//! typically use the target to filter requests based on some user</span>
+<span class="doccomment">//! configuration.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Use</span>
 <span class="doccomment">//!</span>
@@ -1164,25 +1228,21 @@
 <span class="doccomment">//! ```rust,ignore</span>
 <span class="doccomment">//! #[macro_use]</span>
 <span class="doccomment">//! extern crate log;</span>
-<span class="doccomment">//! extern crate env_logger;</span>
+<span class="doccomment">//! extern crate my_logger;</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! fn main() {</span>
-<span class="doccomment">//!     // Select env_logger, one possible logger implementation</span>
-<span class="doccomment">//!     // (see https://doc.rust-lang.org/log/env_logger/index.html)</span>
-<span class="doccomment">//!     env_logger::init().unwrap();</span>
-<span class="doccomment">//!     </span>
+<span class="doccomment">//!     my_logger::init();</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//!     info!(&quot;starting up&quot;);</span>
-<span class="doccomment">//!     error!(&quot;error: {}&quot;, 404);</span>
-<span class="doccomment">//!     </span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//!     // ...</span>
 <span class="doccomment">//! }</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Logger implementations</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! Loggers implement the [`Log`] trait. Here&#39;s a very basic example that simply</span>
-<span class="doccomment">//! logs all messages at the [`Error`][level_link], [`Warn`][level_link] or</span>
-<span class="doccomment">//! [`Info`][level_link] levels to stdout:</span>
+<span class="doccomment">//! Loggers implement the `Log` trait. Here&#39;s a very basic example that simply</span>
+<span class="doccomment">//! logs all messages at the `Error`, `Warn` or `Info` levels to stdout:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust</span>
 <span class="doccomment">//! extern crate log;</span>
@@ -1206,16 +1266,15 @@
 <span class="doccomment">//! # fn main() {}</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! Loggers are installed by calling the [`set_logger`] function. It takes a</span>
-<span class="doccomment">//! closure which is provided a [`MaxLogLevelFilter`] token and returns a</span>
-<span class="doccomment">//! [`Log`] trait object. The [`MaxLogLevelFilter`] token controls the global</span>
-<span class="doccomment">//! maximum log level. The logging facade uses this as an optimization to</span>
-<span class="doccomment">//! improve performance of log messages at levels that are disabled. In the</span>
-<span class="doccomment">//! case of our example logger, we&#39;ll want to set the maximum log level to</span>
-<span class="doccomment">//! [`Info`][level_link], since we ignore any [`Debug`][level_link] or</span>
-<span class="doccomment">//! [`Trace`][level_link] level log messages. A logging framework should</span>
-<span class="doccomment">//! provide a function that wraps a call to [`set_logger`], handling</span>
-<span class="doccomment">//! initialization of the logger:</span>
+<span class="doccomment">//! Loggers are installed by calling the `set_logger` function. It takes a</span>
+<span class="doccomment">//! closure which is provided a `MaxLogLevel` token and returns a `Log` trait</span>
+<span class="doccomment">//! object. The `MaxLogLevel` token controls the global maximum log level. The</span>
+<span class="doccomment">//! logging facade uses this as an optimization to improve performance of log</span>
+<span class="doccomment">//! messages at levels that are disabled. In the case of our example logger,</span>
+<span class="doccomment">//! we&#39;ll want to set the maximum log level to `Info`, since we ignore any</span>
+<span class="doccomment">//! `Debug` or `Trace` level log messages. A logging framework should provide a</span>
+<span class="doccomment">//! function that wraps a call to `set_logger`, handling initialization of the</span>
+<span class="doccomment">//! logger:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust</span>
 <span class="doccomment">//! # extern crate log;</span>
@@ -1240,8 +1299,8 @@
 <span class="doccomment">//! To use the `log` crate without depending on `libstd`, you need to specify</span>
 <span class="doccomment">//! `default-features = false` when specifying the dependency in `Cargo.toml`.</span>
 <span class="doccomment">//! This makes no difference to libraries using `log` since the logging API</span>
-<span class="doccomment">//! remains the same. However executables will need to use the [`set_logger_raw`]</span>
-<span class="doccomment">//! function to initialize a logger and the [`shutdown_logger_raw`] function to</span>
+<span class="doccomment">//! remains the same. However executables will need to use the `set_logger_raw`</span>
+<span class="doccomment">//! function to initialize a logger and the `shutdown_logger_raw` function to</span>
 <span class="doccomment">//! shut down the global logger before exiting:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust</span>
@@ -1273,19 +1332,11 @@
 <span class="doccomment">//!     })</span>
 <span class="doccomment">//! }</span>
 <span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! [`Log`]: trait.Log.html</span>
-<span class="doccomment">//! [level_link]: enum.LogLevel.html</span>
-<span class="doccomment">//! [`set_logger`]: fn.set_logger.html</span>
-<span class="doccomment">//! [`MaxLogLevelFilter`]: struct.MaxLogLevelFilter.html</span>
-<span class="doccomment">//! [`set_logger_raw`]: fn.set_logger_raw.html</span>
-<span class="doccomment">//! [`shutdown_logger_raw`]: fn.shutdown_logger_raw.html</span>
 
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png&quot;</span>,
        <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://www.rust-lang.org/favicon.ico&quot;</span>,
        <span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://doc.rust-lang.org/log/&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_debug_implementations</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>, <span class="ident">feature</span>(<span class="ident">panic_handler</span>))]</span>
 
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>), <span class="ident">no_std</span>)]</span>
@@ -1297,6 +1348,7 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>))]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">core</span> <span class="kw">as</span> <span class="ident">std</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
@@ -1333,23 +1385,17 @@
 <span class="kw">static</span> <span class="ident">STATE</span>: <span class="ident">AtomicUsize</span> <span class="op">=</span> <span class="ident">ATOMIC_USIZE_INIT</span>;
 <span class="kw">static</span> <span class="ident">REFCOUNT</span>: <span class="ident">AtomicUsize</span> <span class="op">=</span> <span class="ident">ATOMIC_USIZE_INIT</span>;
 
-<span class="kw">const</span> <span class="ident">UNINITIALIZED</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">const</span> <span class="ident">INITIALIZING</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">const</span> <span class="ident">INITIALIZED</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">2</span>;
-
-<span class="kw">static</span> <span class="ident">MAX_LOG_LEVEL_FILTER</span>: <span class="ident">AtomicUsize</span> <span class="op">=</span> <span class="ident">ATOMIC_USIZE_INIT</span>;
 
 <span class="kw">static</span> <span class="ident">LOG_LEVEL_NAMES</span>: [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>; <span class="number">6</span>] <span class="op">=</span> [<span class="string">&quot;OFF&quot;</span>, <span class="string">&quot;ERROR&quot;</span>, <span class="string">&quot;WARN&quot;</span>, <span class="string">&quot;INFO&quot;</span>,
                                              <span class="string">&quot;DEBUG&quot;</span>, <span class="string">&quot;TRACE&quot;</span>];
 
-<span class="doccomment">/// An enum representing the available verbosity levels of the logging framework.</span>
+<span class="doccomment">/// An enum representing the available verbosity levels of the logging framework</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Typical usage includes: checking if a certain `LogLevel` is enabled with</span>
-<span class="doccomment">/// [`log_enabled!`](macro.log_enabled.html), specifying the `LogLevel` of</span>
-<span class="doccomment">/// [`log!`](macro.log.html), and comparing a `LogLevel` directly to a</span>
-<span class="doccomment">/// [`LogLevelFilter`](enum.LogLevelFilter.html).</span>
+<span class="doccomment">/// A `LogLevel` may be compared directly to a `LogLevelFilter`.</span>
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">usize</span>)]</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>, <span class="ident">Hash</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LogLevel</span> {
     <span class="doccomment">/// The &quot;error&quot; level.</span>
     <span class="doccomment">///</span>
@@ -1467,7 +1513,27 @@
             <span class="number">3</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Info</span>),
             <span class="number">4</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Debug</span>),
             <span class="number">5</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Trace</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">from_new</span>(<span class="ident">level</span>: <span class="ident">log</span>::<span class="ident">Level</span>) <span class="op">-&gt;</span> <span class="ident">LogLevel</span> {
+        <span class="kw">match</span> <span class="ident">level</span> {
+            <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Error</span> <span class="op">=&gt;</span> <span class="ident">LogLevel</span>::<span class="ident">Error</span>,
+            <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Warn</span> <span class="op">=&gt;</span> <span class="ident">LogLevel</span>::<span class="ident">Warn</span>,
+            <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Info</span> <span class="op">=&gt;</span> <span class="ident">LogLevel</span>::<span class="ident">Info</span>,
+            <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Debug</span> <span class="op">=&gt;</span> <span class="ident">LogLevel</span>::<span class="ident">Debug</span>,
+            <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Trace</span> <span class="op">=&gt;</span> <span class="ident">LogLevel</span>::<span class="ident">Trace</span>,
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">to_new</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">log</span>::<span class="ident">Level</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">LogLevel</span>::<span class="ident">Error</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Error</span>,
+            <span class="ident">LogLevel</span>::<span class="ident">Warn</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Warn</span>,
+            <span class="ident">LogLevel</span>::<span class="ident">Info</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Info</span>,
+            <span class="ident">LogLevel</span>::<span class="ident">Debug</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Debug</span>,
+            <span class="ident">LogLevel</span>::<span class="ident">Trace</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">Level</span>::<span class="ident">Trace</span>,
         }
     }
 
@@ -1487,13 +1553,9 @@
 <span class="doccomment">/// An enum representing the available verbosity level filters of the logging</span>
 <span class="doccomment">/// framework.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// A `LogLevelFilter` may be compared directly to a [`LogLevel`](enum.LogLevel.html).</span>
-<span class="doccomment">/// Use this type to [`get()`](struct.MaxLogLevelFilter.html#method.get) and</span>
-<span class="doccomment">/// [`set()`](struct.MaxLogLevelFilter.html#method.set) the</span>
-<span class="doccomment">/// [`MaxLogLevelFilter`](struct.MaxLogLevelFilter.html), or to match with the getter</span>
-<span class="doccomment">/// [`max_log_level()`](fn.max_log_level.html).</span>
+<span class="doccomment">/// A `LogLevelFilter` may be compared directly to a `LogLevel`.</span>
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">usize</span>)]</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>, <span class="ident">Hash</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LogLevelFilter</span> {
     <span class="doccomment">/// A level lower than all log levels.</span>
     <span class="ident">Off</span>,
@@ -1577,9 +1639,32 @@
             <span class="number">3</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevelFilter</span>::<span class="ident">Info</span>),
             <span class="number">4</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevelFilter</span>::<span class="ident">Debug</span>),
             <span class="number">5</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevelFilter</span>::<span class="ident">Trace</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         }
     }
+
+    <span class="kw">fn</span> <span class="ident">from_new</span>(<span class="ident">filter</span>: <span class="ident">log</span>::<span class="ident">LevelFilter</span>) <span class="op">-&gt;</span> <span class="ident">LogLevelFilter</span> {
+        <span class="kw">match</span> <span class="ident">filter</span> {
+            <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Off</span> <span class="op">=&gt;</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Off</span>,
+            <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Error</span> <span class="op">=&gt;</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Error</span>,
+            <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Warn</span> <span class="op">=&gt;</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Warn</span>,
+            <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Info</span> <span class="op">=&gt;</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Info</span>,
+            <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Debug</span> <span class="op">=&gt;</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Debug</span>,
+            <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Trace</span> <span class="op">=&gt;</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Trace</span>,
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">to_new</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">log</span>::<span class="ident">LevelFilter</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">LogLevelFilter</span>::<span class="ident">Off</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Off</span>,
+            <span class="ident">LogLevelFilter</span>::<span class="ident">Error</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Error</span>,
+            <span class="ident">LogLevelFilter</span>::<span class="ident">Warn</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Warn</span>,
+            <span class="ident">LogLevelFilter</span>::<span class="ident">Info</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Info</span>,
+            <span class="ident">LogLevelFilter</span>::<span class="ident">Debug</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Debug</span>,
+            <span class="ident">LogLevelFilter</span>::<span class="ident">Trace</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="ident">LevelFilter</span>::<span class="ident">Trace</span>,
+        }
+    }
+
     <span class="doccomment">/// Returns the most verbose logging level filter.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max</span>() <span class="op">-&gt;</span> <span class="ident">LogLevelFilter</span> {
@@ -1595,12 +1680,7 @@
     }
 }
 
-<span class="doccomment">/// The &quot;payload&quot; of a log message. This structure is primarily used as a</span>
-<span class="doccomment">/// parameter in the [`log`] method of the [`Log`] trait.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [`log`]: trait.Log.html#tymethod.log</span>
-<span class="doccomment">/// [`Log`]: trait.Log.html</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="doccomment">/// The &quot;payload&quot; of a log message.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LogRecord</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="ident">metadata</span>: <span class="ident">LogMetadata</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
     <span class="ident">location</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LogLocation</span>,
@@ -1635,7 +1715,6 @@
 }
 
 <span class="doccomment">/// Metadata about a log message.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>, <span class="ident">Hash</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LogMetadata</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="ident">level</span>: <span class="ident">LogLevel</span>,
     <span class="ident">target</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
@@ -1675,9 +1754,9 @@
 <span class="kw">struct</span> <span class="ident">NopLogger</span>;
 
 <span class="kw">impl</span> <span class="ident">Log</span> <span class="kw">for</span> <span class="ident">NopLogger</span> {
-    <span class="kw">fn</span> <span class="ident">enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, _: <span class="kw-2">&amp;</span><span class="ident">LogMetadata</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">false</span> }
+    <span class="kw">fn</span> <span class="ident">enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">LogMetadata</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">false</span> }
 
-    <span class="kw">fn</span> <span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, _: <span class="kw-2">&amp;</span><span class="ident">LogRecord</span>) {}
+    <span class="kw">fn</span> <span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">LogRecord</span>) {}
 }
 
 <span class="doccomment">/// The location of a log message.</span>
@@ -1687,7 +1766,7 @@
 <span class="doccomment">/// The fields of this struct are public so that they may be initialized by the</span>
 <span class="doccomment">/// `log!` macro. They are subject to change at any time and should never be</span>
 <span class="doccomment">/// accessed directly.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>, <span class="ident">Hash</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LogLocation</span> {
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="kw">pub</span> <span class="ident">__module_path</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
@@ -1722,7 +1801,6 @@
 <span class="doccomment">/// higher than the maximum log level filter will be ignored. A logger should</span>
 <span class="doccomment">/// make sure to keep the maximum log level filter in sync with its current</span>
 <span class="doccomment">/// configuration.</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_copy_implementations</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MaxLogLevelFilter</span>(());
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">MaxLogLevelFilter</span> {
@@ -1739,7 +1817,7 @@
 
     <span class="doccomment">/// Sets the maximum log level.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">level</span>: <span class="ident">LogLevelFilter</span>) {
-        <span class="ident">MAX_LOG_LEVEL_FILTER</span>.<span class="ident">store</span>(<span class="ident">level</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>)
+        <span class="ident">log</span>::<span class="ident">set_max_level</span>(<span class="ident">level</span>.<span class="ident">to_new</span>())
     }
 }
 
@@ -1750,7 +1828,7 @@
 <span class="doccomment">/// log level is set by the `MaxLogLevel` token passed to loggers.</span>
 <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_log_level</span>() <span class="op">-&gt;</span> <span class="ident">LogLevelFilter</span> {
-    <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">MAX_LOG_LEVEL_FILTER</span>.<span class="ident">load</span>(<span class="ident">Ordering</span>::<span class="ident">Relaxed</span>)) }
+    <span class="ident">LogLevelFilter</span>::<span class="ident">from_new</span>(<span class="ident">log</span>::<span class="ident">max_level</span>())
 }
 
 <span class="doccomment">/// Sets the global logger.</span>
@@ -1798,14 +1876,15 @@
 <span class="doccomment">/// addition, `shutdown_logger` *must not* be called after this function.</span>
 <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">set_logger_raw</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>(<span class="ident">make_logger</span>: <span class="ident">M</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">SetLoggerError</span><span class="op">&gt;</span>
         <span class="kw">where</span> <span class="ident">M</span>: <span class="ident">FnOnce</span>(<span class="ident">MaxLogLevelFilter</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Log</span> {
-    <span class="kw">if</span> <span class="ident">STATE</span>.<span class="ident">compare_and_swap</span>(<span class="ident">UNINITIALIZED</span>, <span class="ident">INITIALIZING</span>,
-                              <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>) <span class="op">!=</span> <span class="ident">UNINITIALIZED</span> {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">SetLoggerError</span>(()));
+    <span class="kw">static</span> <span class="ident">ADAPTOR</span>: <span class="ident">LoggerAdaptor</span> <span class="op">=</span> <span class="ident">LoggerAdaptor</span>;
+    <span class="kw">match</span> <span class="ident">log</span>::<span class="ident">set_logger</span>(<span class="kw-2">&amp;</span><span class="ident">ADAPTOR</span>) {
+        <span class="prelude-val">Ok</span>(()) <span class="op">=&gt;</span> {
+            <span class="ident">LOGGER</span> <span class="op">=</span> <span class="ident">make_logger</span>(<span class="ident">MaxLogLevelFilter</span>(()));
+            <span class="ident">STATE</span>.<span class="ident">store</span>(<span class="ident">INITIALIZED</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>);
+            <span class="prelude-val">Ok</span>(())
+        }
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">SetLoggerError</span>(())),
     }
-
-    <span class="ident">LOGGER</span> <span class="op">=</span> <span class="ident">make_logger</span>(<span class="ident">MaxLogLevelFilter</span>(()));
-    <span class="ident">STATE</span>.<span class="ident">store</span>(<span class="ident">INITIALIZED</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>);
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Shuts down the global logger.</span>
@@ -1838,9 +1917,6 @@
 <span class="doccomment">/// success. At that point it is guaranteed that no other threads are</span>
 <span class="doccomment">/// concurrently accessing the logger object.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">shutdown_logger_raw</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Log</span>, <span class="ident">ShutdownLoggerError</span><span class="op">&gt;</span> {
-    <span class="comment">// Set the global log level to stop other thread from logging</span>
-    <span class="ident">MAX_LOG_LEVEL_FILTER</span>.<span class="ident">store</span>(<span class="number">0</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>);
-
     <span class="comment">// Set to INITIALIZING to prevent re-initialization after</span>
     <span class="kw">if</span> <span class="ident">STATE</span>.<span class="ident">compare_and_swap</span>(<span class="ident">INITIALIZED</span>, <span class="ident">INITIALIZING</span>,
                               <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>) <span class="op">!=</span> <span class="ident">INITIALIZED</span> {
@@ -1959,15 +2035,66 @@
     }
 }
 
+<span class="kw">struct</span> <span class="ident">LoggerAdaptor</span>;
+
+<span class="kw">impl</span> <span class="ident">log</span>::<span class="ident">Log</span> <span class="kw">for</span> <span class="ident">LoggerAdaptor</span> {
+    <span class="kw">fn</span> <span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">record</span>: <span class="kw-2">&amp;</span><span class="ident">log</span>::<span class="ident">Record</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">logger</span>) <span class="op">=</span> <span class="ident">logger</span>() {
+            <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">LogRecord</span> {
+                <span class="ident">metadata</span>: <span class="ident">LogMetadata</span> {
+                    <span class="ident">level</span>: <span class="ident">LogLevel</span>::<span class="ident">from_new</span>(<span class="ident">record</span>.<span class="ident">level</span>()),
+                    <span class="ident">target</span>: <span class="ident">record</span>.<span class="ident">target</span>(),
+                },
+                <span class="comment">// file and module path aren&#39;t static in 0.4 so we can&#39;t forward them.</span>
+                <span class="ident">location</span>: <span class="kw-2">&amp;</span><span class="ident">LogLocation</span> {
+                    <span class="ident">__file</span>: <span class="string">&quot;&lt;unknown&gt;&quot;</span>,
+                    <span class="ident">__line</span>: <span class="ident">record</span>.<span class="ident">line</span>().<span class="ident">unwrap_or</span>(<span class="number">0</span>),
+                    <span class="ident">__module_path</span>: <span class="string">&quot;&lt;unknown&gt;&quot;</span>,
+                },
+                <span class="ident">args</span>: <span class="kw-2">*</span><span class="ident">record</span>.<span class="ident">args</span>(),
+            };
+            <span class="ident">logger</span>.<span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="ident">record</span>);
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">metadata</span>: <span class="kw-2">&amp;</span><span class="ident">log</span>::<span class="ident">Metadata</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="ident">logger</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">logger</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">metadata</span> <span class="op">=</span> <span class="ident">LogMetadata</span> {
+                    <span class="ident">level</span>: <span class="ident">LogLevel</span>::<span class="ident">from_new</span>(<span class="ident">metadata</span>.<span class="ident">level</span>()),
+                    <span class="ident">target</span>: <span class="ident">metadata</span>.<span class="ident">target</span>(),
+                };
+                <span class="ident">logger</span>.<span class="ident">enabled</span>(<span class="kw-2">&amp;</span><span class="ident">metadata</span>)
+            }
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {}
+}
+
 <span class="comment">// WARNING</span>
 <span class="comment">// This is not considered part of the crate&#39;s public API. It is subject to</span>
 <span class="comment">// change at any time.</span>
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">__enabled</span>(<span class="ident">level</span>: <span class="ident">LogLevel</span>, <span class="ident">target</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">logger</span>) <span class="op">=</span> <span class="ident">logger</span>() {
-        <span class="ident">logger</span>.<span class="ident">enabled</span>(<span class="kw-2">&amp;</span><span class="ident">LogMetadata</span> { <span class="ident">level</span>: <span class="ident">level</span>, <span class="ident">target</span>: <span class="ident">target</span> })
-    } <span class="kw">else</span> {
-        <span class="bool-val">false</span>
+    <span class="kw">match</span> <span class="ident">logger</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">logger</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">metadata</span> <span class="op">=</span> <span class="ident">LogMetadata</span> {
+                <span class="ident">level</span>: <span class="ident">level</span>,
+                <span class="ident">target</span>: <span class="ident">target</span>,
+            };
+            <span class="ident">logger</span>.<span class="ident">enabled</span>(<span class="kw-2">&amp;</span><span class="ident">metadata</span>)
+        }
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+            <span class="ident">log</span>::<span class="ident">Log</span>::<span class="ident">enabled</span>(
+                <span class="ident">log</span>::<span class="ident">logger</span>(),
+                <span class="kw-2">&amp;</span><span class="ident">log</span>::<span class="ident">Metadata</span>::<span class="ident">builder</span>()
+                    .<span class="ident">level</span>(<span class="ident">level</span>.<span class="ident">to_new</span>())
+                    .<span class="ident">target</span>(<span class="ident">target</span>)
+                    .<span class="ident">build</span>()
+            )
+        }
     }
 }
 
@@ -1977,16 +2104,31 @@
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">__log</span>(<span class="ident">level</span>: <span class="ident">LogLevel</span>, <span class="ident">target</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">loc</span>: <span class="kw-2">&amp;</span><span class="ident">LogLocation</span>,
              <span class="ident">args</span>: <span class="ident">fmt</span>::<span class="ident">Arguments</span>) {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">logger</span>) <span class="op">=</span> <span class="ident">logger</span>() {
-        <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">LogRecord</span> {
-            <span class="ident">metadata</span>: <span class="ident">LogMetadata</span> {
-                <span class="ident">level</span>: <span class="ident">level</span>,
-                <span class="ident">target</span>: <span class="ident">target</span>,
-            },
-            <span class="ident">location</span>: <span class="ident">loc</span>,
-            <span class="ident">args</span>: <span class="ident">args</span>
-        };
-        <span class="ident">logger</span>.<span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="ident">record</span>)
+    <span class="kw">match</span> <span class="ident">logger</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">logger</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">LogRecord</span> {
+                <span class="ident">metadata</span>: <span class="ident">LogMetadata</span> {
+                    <span class="ident">level</span>: <span class="ident">level</span>,
+                    <span class="ident">target</span>: <span class="ident">target</span>,
+                },
+                <span class="ident">location</span>: <span class="ident">loc</span>,
+                <span class="ident">args</span>: <span class="ident">args</span>,
+            };
+            <span class="ident">logger</span>.<span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="ident">record</span>);
+        }
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+            <span class="ident">log</span>::<span class="ident">Log</span>::<span class="ident">log</span>(
+                <span class="ident">log</span>::<span class="ident">logger</span>(),
+                <span class="kw-2">&amp;</span><span class="ident">log</span>::<span class="ident">Record</span>::<span class="ident">builder</span>()
+                    .<span class="ident">level</span>(<span class="ident">level</span>.<span class="ident">to_new</span>())
+                    .<span class="ident">target</span>(<span class="ident">target</span>)
+                    .<span class="ident">file</span>(<span class="prelude-val">Some</span>(<span class="ident">loc</span>.<span class="ident">__file</span>))
+                    .<span class="ident">line</span>(<span class="prelude-val">Some</span>(<span class="ident">loc</span>.<span class="ident">__line</span>))
+                    .<span class="ident">module_path</span>(<span class="prelude-val">Some</span>(<span class="ident">loc</span>.<span class="ident">__module_path</span>))
+                    .<span class="ident">args</span>(<span class="ident">args</span>)
+                    .<span class="ident">build</span>()
+            )
+        }
     }
 }
 
@@ -1996,35 +2138,7 @@
 <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">__static_max_level</span>() <span class="op">-&gt;</span> <span class="ident">LogLevelFilter</span> {
-    <span class="kw">if</span> <span class="op">!</span><span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">debug_assertions</span>) {
-        <span class="comment">// This is a release build. Check `release_max_level_*` first.</span>
-        <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;release_max_level_off&quot;</span>) {
-            <span class="kw">return</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Off</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;release_max_level_error&quot;</span>) {
-            <span class="kw">return</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Error</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;release_max_level_warn&quot;</span>) {
-            <span class="kw">return</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Warn</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;release_max_level_info&quot;</span>) {
-            <span class="kw">return</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Info</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;release_max_level_debug&quot;</span>) {
-            <span class="kw">return</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Debug</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;release_max_level_trace&quot;</span>) {
-            <span class="kw">return</span> <span class="ident">LogLevelFilter</span>::<span class="ident">Trace</span>
-        }
-    }
-    <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;max_level_off&quot;</span>) {
-        <span class="ident">LogLevelFilter</span>::<span class="ident">Off</span>
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;max_level_error&quot;</span>) {
-        <span class="ident">LogLevelFilter</span>::<span class="ident">Error</span>
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;max_level_warn&quot;</span>) {
-        <span class="ident">LogLevelFilter</span>::<span class="ident">Warn</span>
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;max_level_info&quot;</span>) {
-        <span class="ident">LogLevelFilter</span>::<span class="ident">Info</span>
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;max_level_debug&quot;</span>) {
-        <span class="ident">LogLevelFilter</span>::<span class="ident">Debug</span>
-    } <span class="kw">else</span> {
-        <span class="ident">LogLevelFilter</span>::<span class="ident">Trace</span>
-    }
+    <span class="ident">LogLevelFilter</span>::<span class="ident">from_new</span>(<span class="ident">log</span>::<span class="ident">STATIC_MAX_LEVEL</span>)
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
@@ -2138,18 +2252,22 @@
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

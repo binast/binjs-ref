@@ -10,8 +10,12 @@
     <title>flate2::FlateWriteExt - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../main.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Trait FlateWriteExt</p><div class="block items"><ul><li><a href="#provided-methods">Provided Methods</a></li><li><a href="#implementors">Implementors</a></li></ul></div><p class='location'><a href='index.html'>flate2</a></p><script>window.sidebarCurrent = {name: 'FlateWriteExt', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'>Trait FlateWriteExt</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.gz_encode">gz_encode</a><a href="#method.zlib_encode">zlib_encode</a><a href="#method.zlib_decode">zlib_decode</a><a href="#method.deflate_encode">deflate_encode</a><a href="#method.deflate_decode">deflate_decode</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>flate2</a></p><script>window.sidebarCurrent = {name: 'FlateWriteExt', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -61,21 +73,21 @@
               Provided Methods<a href='#provided-methods' class='anchor'></a>
             </h2>
             <div class='methods'>
-        <h3 id='method.gz_encode' class='method'><span id='gz_encode.v' class='invisible'><code>fn <a href='#method.gz_encode' class='fnname'>gz_encode</a>(self, lvl: <a class="enum" href="../flate2/enum.Compression.html" title="enum flate2::Compression">Compression</a>) -&gt; <a class="struct" href="../flate2/write/struct.GzEncoder.html" title="struct flate2::write::GzEncoder">GzEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a compression stream at the specified
+        <div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../flate2/write/struct.GzEncoder.html" title="struct flate2::write::GzEncoder">GzEncoder</a>&lt;W&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../flate2/write/struct.GzEncoder.html" title="struct flate2::write::GzEncoder">GzEncoder</a>&lt;W&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a> for <a class="struct" href="../flate2/write/struct.GzEncoder.html" title="struct flate2::write::GzEncoder">GzEncoder</a>&lt;W&gt;</span><span class="where fmt-newline">impl&lt;R:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> for <a class="struct" href="../flate2/write/struct.GzEncoder.html" title="struct flate2::write::GzEncoder">GzEncoder</a>&lt;R&gt;</span></code></div></div><h3 id='method.gz_encode' class='method'><span id='gz_encode.v' class='invisible'><code>fn <a href='#method.gz_encode' class='fnname'>gz_encode</a>(self, lvl: <a class="enum" href="../flate2/enum.Compression.html" title="enum flate2::Compression">Compression</a>) -&gt; <a class="struct" href="../flate2/write/struct.GzEncoder.html" title="struct flate2::write::GzEncoder">GzEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a compression stream at the specified
 compression level.</p>
-</div><h3 id='method.zlib_encode' class='method'><span id='zlib_encode.v' class='invisible'><code>fn <a href='#method.zlib_encode' class='fnname'>zlib_encode</a>(self, lvl: <a class="enum" href="../flate2/enum.Compression.html" title="enum flate2::Compression">Compression</a>) -&gt; <a class="struct" href="../flate2/write/struct.ZlibEncoder.html" title="struct flate2::write::ZlibEncoder">ZlibEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a compression stream at the specified
+</div><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../flate2/write/struct.ZlibEncoder.html" title="struct flate2::write::ZlibEncoder">ZlibEncoder</a>&lt;W&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../flate2/write/struct.ZlibEncoder.html" title="struct flate2::write::ZlibEncoder">ZlibEncoder</a>&lt;W&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a> for <a class="struct" href="../flate2/write/struct.ZlibEncoder.html" title="struct flate2::write::ZlibEncoder">ZlibEncoder</a>&lt;W&gt;</span><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> for <a class="struct" href="../flate2/write/struct.ZlibEncoder.html" title="struct flate2::write::ZlibEncoder">ZlibEncoder</a>&lt;W&gt;</span></code></div></div><h3 id='method.zlib_encode' class='method'><span id='zlib_encode.v' class='invisible'><code>fn <a href='#method.zlib_encode' class='fnname'>zlib_encode</a>(self, lvl: <a class="enum" href="../flate2/enum.Compression.html" title="enum flate2::Compression">Compression</a>) -&gt; <a class="struct" href="../flate2/write/struct.ZlibEncoder.html" title="struct flate2::write::ZlibEncoder">ZlibEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a compression stream at the specified
 compression level.</p>
-</div><h3 id='method.zlib_decode' class='method'><span id='zlib_decode.v' class='invisible'><code>fn <a href='#method.zlib_decode' class='fnname'>zlib_decode</a>(self) -&gt; <a class="struct" href="../flate2/write/struct.ZlibDecoder.html" title="struct flate2::write::ZlibDecoder">ZlibDecoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a decompression stream of this stream.</p>
-</div><h3 id='method.deflate_encode' class='method'><span id='deflate_encode.v' class='invisible'><code>fn <a href='#method.deflate_encode' class='fnname'>deflate_encode</a>(self, lvl: <a class="enum" href="../flate2/enum.Compression.html" title="enum flate2::Compression">Compression</a>) -&gt; <a class="struct" href="../flate2/write/struct.DeflateEncoder.html" title="struct flate2::write::DeflateEncoder">DeflateEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a compression stream at the specified
+</div><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../flate2/write/struct.ZlibDecoder.html" title="struct flate2::write::ZlibDecoder">ZlibDecoder</a>&lt;W&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../flate2/write/struct.ZlibDecoder.html" title="struct flate2::write::ZlibDecoder">ZlibDecoder</a>&lt;W&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a> for <a class="struct" href="../flate2/write/struct.ZlibDecoder.html" title="struct flate2::write::ZlibDecoder">ZlibDecoder</a>&lt;W&gt;</span><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> for <a class="struct" href="../flate2/write/struct.ZlibDecoder.html" title="struct flate2::write::ZlibDecoder">ZlibDecoder</a>&lt;W&gt;</span></code></div></div><h3 id='method.zlib_decode' class='method'><span id='zlib_decode.v' class='invisible'><code>fn <a href='#method.zlib_decode' class='fnname'>zlib_decode</a>(self) -&gt; <a class="struct" href="../flate2/write/struct.ZlibDecoder.html" title="struct flate2::write::ZlibDecoder">ZlibDecoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a decompression stream of this stream.</p>
+</div><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../flate2/write/struct.DeflateEncoder.html" title="struct flate2::write::DeflateEncoder">DeflateEncoder</a>&lt;W&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../flate2/write/struct.DeflateEncoder.html" title="struct flate2::write::DeflateEncoder">DeflateEncoder</a>&lt;W&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a> for <a class="struct" href="../flate2/write/struct.DeflateEncoder.html" title="struct flate2::write::DeflateEncoder">DeflateEncoder</a>&lt;W&gt;</span><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> for <a class="struct" href="../flate2/write/struct.DeflateEncoder.html" title="struct flate2::write::DeflateEncoder">DeflateEncoder</a>&lt;W&gt;</span></code></div></div><h3 id='method.deflate_encode' class='method'><span id='deflate_encode.v' class='invisible'><code>fn <a href='#method.deflate_encode' class='fnname'>deflate_encode</a>(self, lvl: <a class="enum" href="../flate2/enum.Compression.html" title="enum flate2::Compression">Compression</a>) -&gt; <a class="struct" href="../flate2/write/struct.DeflateEncoder.html" title="struct flate2::write::DeflateEncoder">DeflateEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a compression stream at the specified
 compression level.</p>
-</div><h3 id='method.deflate_decode' class='method'><span id='deflate_decode.v' class='invisible'><code>fn <a href='#method.deflate_decode' class='fnname'>deflate_decode</a>(self) -&gt; <a class="struct" href="../flate2/write/struct.DeflateDecoder.html" title="struct flate2::write::DeflateDecoder">DeflateDecoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a decompression stream of this stream.</p>
+</div><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../flate2/write/struct.DeflateDecoder.html" title="struct flate2::write::DeflateDecoder">DeflateDecoder</a>&lt;W&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../flate2/write/struct.DeflateDecoder.html" title="struct flate2::write::DeflateDecoder">DeflateDecoder</a>&lt;W&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a> for <a class="struct" href="../flate2/write/struct.DeflateDecoder.html" title="struct flate2::write::DeflateDecoder">DeflateDecoder</a>&lt;W&gt;</span><span class="where fmt-newline">impl&lt;W:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> for <a class="struct" href="../flate2/write/struct.DeflateDecoder.html" title="struct flate2::write::DeflateDecoder">DeflateDecoder</a>&lt;W&gt;</span></code></div></div><h3 id='method.deflate_decode' class='method'><span id='deflate_decode.v' class='invisible'><code>fn <a href='#method.deflate_decode' class='fnname'>deflate_decode</a>(self) -&gt; <a class="struct" href="../flate2/write/struct.DeflateDecoder.html" title="struct flate2::write::DeflateDecoder">DeflateDecoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this writer to create a decompression stream of this stream.</p>
 </div></div>
         <h2 id='implementors' class='small-section-header'>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><code>impl&lt;T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; FlateWriteExt for T</code></li>
-</ul><script type="text/javascript" async
+    <li><div class='out-of-band'><a class='srclink' href='../src/flate2/lib.rs.html#286' title='goto source code'>[src]</a></div><code>impl&lt;T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a>&gt; FlateWriteExt for T</code></li>
+</ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../implementors/flate2/trait.FlateWriteExt.js">
                  </script></section>
     <section id='search' class="content hidden"></section>
@@ -90,18 +102,22 @@ compression level.</p>
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 

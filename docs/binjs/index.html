@@ -10,8 +10,12 @@
     <title>binjs - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../main.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
     
 
     
@@ -28,10 +32,18 @@
     
 
     <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Crate binjs</p><div class="block items"><ul><li><a href="#modules">Modules</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'binjs', ty: 'mod', relpath: '../'};</script>
+        <p class='location'>Crate binjs</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'binjs', ty: 'mod', relpath: '../'};</script></div>
     </nav>
 
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
     <nav class="sub">
         <form class="search-form js-only">
             <div class="search-container">
@@ -48,51 +60,48 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/binjs/lib.rs.html#1-60' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../src/binjs/lib.rs.html#1-82' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>A reference implementation for the BinJS binary source format for JavaScript.</p>
-
-<h1 id='about-binjs' class='section-header'><a href='#about-binjs'>About BinJS</a></h1>
+<h1 id="about-binjs" class="section-header"><a href="#about-binjs">About BinJS</a></h1>
 <p>As websites become more sophisticated, the amount of JavaScript source code keeps
 increasing. By itself, this is not a problem. However, with the amount of code
-loaded by large websites such as Facebook&#39;s chat, it is now common to witness
+loaded by large websites such as Facebook's chat, it is now common to witness
 page loads during which both the loading and the parsing of JS code can take
 several seconds each – this is assuming a fast connection, and taking into
 account that the code is both compressed and optimized for loading and parsing
 speed.</p>
-
 <p>There is no reason to believe that the size of JS code will decrease or will
 even stop increasing, nor that every large webdev team has the means to profile
 loading and parsing speed of all their code.</p>
-
 <p>This crate offers a (WIP) reference implementation for BinJS, a vendor-neutral
 JavaScript format designed to optimize parsing speed and, when possible,
 loading speed.</p>
-
-<h1 id='the-format' class='section-header'><a href='#the-format'>The format</a></h1>
-<p>To simplify reading, specifications of the format are cut in three layers:</p>
-
-<ul>
-<li>the AST (see module <code>ast</code>);</li>
-<li>the Token Streams (see module <code>token</code>);</li>
-<li>the Byte Streams (see module <code>bytes</code>).</li>
-</ul>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>
-                           <td><a class="mod" href="ast/index.html"
-                                  title='mod binjs::ast'>ast</a></td>
+                           <td><a class="mod" href="generic/index.html"
+                                  title='mod binjs::generic'>generic</a></td>
                            <td class='docblock-short'>
-                                <p>Manipulating the AST.
-This module defines the AST grammar and provides tools for manipulating
-representations of this AST.</p>
+                                <p>Working with a generic (i.e. JSON-based) representation
+of the JavaScript AST.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="mod" href="bytes/index.html"
-                                  title='mod binjs::bytes'>bytes</a></td>
+                           <td><a class="mod" href="io/index.html"
+                                  title='mod binjs::io'>io</a></td>
                            <td class='docblock-short'>
-                                <p>Encoding/decoding a stream of tokens to/from a stream of bytes.
-Tools for manipulating byte-level data.</p>
+                                <p>Language-agnostic and representation-agnostic primitives for
+tokenization and detokenization of ASTs, including (de)compression.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="meta/index.html"
+                                  title='mod binjs::meta'>meta</a></td>
+                           <td class='docblock-short'>
+                                <p>Dynamic manipulation of the specifications.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -101,15 +110,16 @@ Tools for manipulating byte-level data.</p>
                            <td class='docblock-short'>
                                 <p>Parsing source JavaScript.
 Source-level operations.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="mod" href="token/index.html"
-                                  title='mod binjs::token'>token</a></td>
+                           <td><a class="mod" href="specialized/index.html"
+                                  title='mod binjs::specialized'>specialized</a></td>
                            <td class='docblock-short'>
-                                <p>Encoding/decoding an AST to/from a stream of tokens.
-Transformations between an AST (as defined in <code>ast::*</code>) and stream of tokens
-(as defined in <code>io::*</code>).</p>
+                                <p>Working with a specialized (i.e. strongly-typed)
+representation of the JavaScript AST.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -117,6 +127,7 @@ Transformations between an AST (as defined in <code>ast::*</code>) and stream of
                                   title='mod binjs::util'>util</a></td>
                            <td class='docblock-short'>
                                 <p>Misc utilities.</p>
+
                            </td>
                        </tr></table></section>
     <section id='search' class="content hidden"></section>
@@ -131,18 +142,22 @@ Transformations between an AST (as defined in <code>ast::*</code>) and stream of
                 <h2>Keyboard Shortcuts</h2>
 
                 <dl>
-                    <dt>?</dt>
+                    <dt><kbd>?</kbd></dt>
                     <dd>Show this help dialog</dd>
-                    <dt>S</dt>
+                    <dt><kbd>S</kbd></dt>
                     <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
+                    <dt><kbd>↑</kbd></dt>
                     <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
+                    <dt><kbd>↓</kbd></dt>
                     <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
                     <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
                 </dl>
             </div>
 
