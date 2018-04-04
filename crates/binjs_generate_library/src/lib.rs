@@ -331,7 +331,10 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}, found {{}}\", kind);
         let result = match kind.as_str() {{
 {variants}
-            _ => Err(From::from(TokenReaderError::BadEnumVariant))
+            _ => {{
+                error!(target: \"deserialize_es6\", \"Deserializing sum {name}, found invalid {{}}\", kind);
+                Err(From::from(TokenReaderError::BadEnumVariant))
+            }}
         }};
         if result.is_err() {{
             self.reader.poison();
@@ -347,7 +350,10 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
         let result = match kind.as_str() {{
 {variants_some}
             \"{null}\" => Ok(None),
-            _ => Err(From::from(TokenReaderError::BadEnumVariant))
+            _ => {{
+                error!(target: \"deserialize_es6\", \"Deserializing sum Option<{name}>, found invalid {{}}\", kind);
+                Err(From::from(TokenReaderError::BadEnumVariant))
+            }}
         }};
         if result.is_err() {{
             self.reader.poison();
@@ -619,7 +625,7 @@ impl<R> Deserializer<R> where R: TokenReader {{
                 debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: present\");
                 self.deserialize_inner()
             }} else {{
-                debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: error\");
+                debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: found invalid {{}}\", kind.as_str());
                 Err(From::from(TokenReaderError::BadEnumVariant))
             }};
         if result.is_err() {{
@@ -657,7 +663,10 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                 debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}: absent\");
                 Ok(None)
             }},
-            _ => Err(From::from(TokenReaderError::BadEnumVariant))
+            _ => {{
+                error!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}, found invalid {{}}\", kind.as_str());
+                Err(From::from(TokenReaderError::BadEnumVariant))
+            }}
         }};
         if result.is_err() {{
             self.reader.poison();
