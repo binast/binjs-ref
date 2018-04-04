@@ -1,6 +1,6 @@
 [package]
 name = "binjs_meta"
-version = "0.3.4"
+version = "0.3.5"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 description = "Part of binjs-ref. Tools for manipulating grammars. You probably do not want to use this crate directly unless you're writing an encoder, decoder or parser generator for binjs."
 homepage = "https://binast.github.io/ecmascript-binary-ast/"

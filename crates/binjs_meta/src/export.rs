@@ -248,7 +248,7 @@ impl TypeDeanonymizer {
                 ref supports_empty
             } => {
                 let (_, contents_name) = self.import_type(spec, contents, None);
-                let my_name = 
+                let my_name =
                     match public_name {
                         None => self.builder.node_name(&format!("{non_empty}ListOf{content}",
                             non_empty =
@@ -347,5 +347,85 @@ impl TypeName {
                     .format("Or"))
             }
         }
+    }
+}
+
+/// Export a type specification as webidl.
+///
+/// Designed for generating documentation.
+pub struct ToWebidl;
+impl ToWebidl {
+    /// Export a TypeSpec.
+    pub fn spec(spec: &TypeSpec, prefix: &str, indent: &str) -> Option<String> {
+        let result = match *spec {
+            TypeSpec::Offset => {
+                return None;
+            }
+            TypeSpec::Array { ref contents, ref supports_empty } => {
+                match Self::type_(&*contents, prefix, indent) {
+                    None => { return None; }
+                    Some(description) => format!("{emptiness}FrozenArray<{}>",
+                        description,
+                        emptiness = if *supports_empty { "" } else {"[NonEmpty] "} ),
+                }
+            }
+            TypeSpec::Boolean =>
+                "bool".to_string(),
+            TypeSpec::String =>
+                "string".to_string(),
+            TypeSpec::Number =>
+                "number".to_string(),
+            TypeSpec::NamedType(ref name) =>
+                name.to_str().to_string(),
+            TypeSpec::TypeSum(ref sum) => {
+                format!("({})", sum.types()
+                    .iter()
+                    .filter_map(|x| Self::spec(x, "", indent))
+                    .format(" or "))
+            }
+            TypeSpec::Void => "void".to_string()
+        };
+        Some(result)
+    }
+
+    /// Export a Type
+    pub fn type_(type_: &Type, prefix: &str, indent: &str) -> Option<String> {
+        let pretty_type = Self::spec(type_.spec(), prefix, indent);
+        match pretty_type {
+            None => None,
+            Some(pretty_type) => Some(format!("{}{}",
+                pretty_type,
+                if type_.is_optional() { "?" } else { "" }))
+        }
+    }
+
+    /// Export an Interface
+    pub fn interface(interface: &Interface, prefix: &str, indent: &str) -> String {
+        let mut result = format!("{prefix} interface {name} : Node {{\n", prefix=prefix, name=interface.name().to_str());
+        {
+            let prefix = format!("{prefix}{indent}",
+                prefix=prefix,
+                indent=indent);
+            for field in interface.contents().fields() {
+                match Self::type_(field.type_(), &prefix, indent) {
+                    None => /* generated field, ignore */ {},
+                    Some(description) => {
+                        if let Some(ref doc) = field.doc() {
+                            result.push_str(&format!("{prefix}// {doc}\n", prefix = prefix, doc = doc));
+                        }
+                        result.push_str(&format!("{prefix}{description} {name};\n",
+                            prefix = prefix,
+                            name = field.name().to_str(),
+                            description = description
+                        ));
+                        if field.doc().is_some() {
+                            result.push_str("\n");
+                        }
+                    }
+                }
+            }
+        }
+        result.push_str(&format!("{prefix} }}\n", prefix=prefix));
+        result
     }
 }
