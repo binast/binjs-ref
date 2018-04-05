@@ -1,6 +1,6 @@
 [package]
 name = "binjs_meta"
-version = "0.3.5"
+version = "0.3.6"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 description = "Part of binjs-ref. Tools for manipulating grammars. You probably do not want to use this crate directly unless you're writing an encoder, decoder or parser generator for binjs."
 homepage = "https://binast.github.io/ecmascript-binary-ast/"
@@ -17,7 +17,7 @@ travis-ci = { repository = "https://github.com/binast/binjs-ref", branch = "mast
 Inflector = "^0.11"
 itertools = "^0.6"
 log = "^0.4"
-webidl = "^0.5"
+webidl = "^0.6"
 
 [dev-dependencies]
 clap = "^2"
