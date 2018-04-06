@@ -23,8 +23,7 @@ fn main() {
     file.read_to_string(&mut source)
         .expect("Could not read source");
 
-    let parser = webidl::Parser::new();
-    let ast = parser.parse_string(&source)
+    let ast = webidl::parse_string(&source)
         .expect("Could not parse source");
 
     // Check spec. We don't really need fake_root
