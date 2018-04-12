@@ -6,7 +6,7 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 [dependencies]
 binjs_meta = { path = "../binjs_meta/", version = "*" }
 env_logger = "*"
-itertools = "^0.6"
+itertools = "^0.7"
 log = "^0.4"
 
 [dev-dependencies]
