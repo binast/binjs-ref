@@ -1,7 +1,7 @@
 use spec::*;
 use util::*;
 
-use std::collections::{ HashSet };
+use std::collections::{ HashMap, HashSet };
 
 use itertools::Itertools;
 
@@ -61,19 +61,28 @@ use itertools::Itertools;
 /// implementing the webidl specification.
 pub struct TypeDeanonymizer {
     builder: SpecBuilder,
+
+    /// When we encounter `typedef (A or B) C`
+    /// and `typedef (C or D) E`, we deanonymize into
+    /// `typedef (A or B or D) E`.
+    ///
+    /// This maintains the relationship that `E` (value)
+    /// contains `C` (key).
+    supersums_of: HashMap<NodeName, HashSet<NodeName>>,
 }
 impl TypeDeanonymizer {
     /// Create an empty TypeDeanonymizer.
     pub fn new(spec: &Spec) -> Self {
         let mut result = TypeDeanonymizer {
             builder: SpecBuilder::new(),
+            supersums_of: HashMap::new(),
         };
         // Copy field names
         for (_, name) in spec.field_names() {
             result.builder.import_field_name(name)
         }
 
-        // We may need to introduce name `offset`, we'll se.
+        // We may need to introduce name `offset`, we'll see.
         let mut field_offset = None;
 
         // Copy and deanonymize interfaces.
@@ -131,6 +140,10 @@ impl TypeDeanonymizer {
         debug!(target: "export_utils", "Names: {:?}", result.builder.names().keys().format(", "));
 
         result
+    }
+
+    pub fn supersums(&self) -> &HashMap<NodeName, HashSet<NodeName>> {
+        &self.supersums_of
     }
 
     /// Convert into a new specification.
@@ -278,11 +291,16 @@ impl TypeDeanonymizer {
             TypeSpec::TypeSum(ref sum) => {
                 let mut full_sum = HashSet::new();
                 let mut names = vec![];
+                let mut subsums = vec![];
                 for sub_type in sum.types() {
                     let (mut sub_sum, name) = self.import_typespec(spec, sub_type, None);
                     let mut sub_sum = sub_sum.unwrap_or_else(
                         || panic!("While treating {:?}, attempting to create a sum containing {}, which isn't an interface or a sum of interfaces", type_spec, name)
                     );
+                    if sub_sum.len() > 1 {
+                        // The subtype is itself a sum.
+                        subsums.push(name.clone())
+                    }
                     names.push(name);
                     for item in sub_sum.drain() {
                         full_sum.insert(item);
@@ -291,9 +309,16 @@ impl TypeDeanonymizer {
                 let my_name =
                     match public_name {
                         None => self.builder.node_name(&format!("{}",
-                            names.drain(..).format("Or"))),
+                            names.drain(..)
+                                .format("Or"))),
                         Some(ref name) => name.clone()
                     };
+                for subsum_name in subsums {
+                    // So, `my_name` is a superset of `subsum_name`.
+                    let mut supersum_entry = self.supersums_of.entry(subsum_name.clone())
+                        .or_insert_with(|| HashSet::new());
+                    supersum_entry.insert(my_name.clone());
+                }
                 let sum : Vec<_> = full_sum.iter()
                     .map(Type::named)
                     .collect();
