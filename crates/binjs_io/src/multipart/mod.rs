@@ -57,6 +57,7 @@
 //!      - byte length of entry (`varnum`);
 //!    - for each entry,
 //!      - byte length of node name (`varnum`);
+//!      - node name (utf-8 encoded string);
 //!      - number of fields (`varnum`);
 //!      - for each field
 //!        - byte length of field name (`varnum`);
