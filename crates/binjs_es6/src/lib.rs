@@ -1,6 +1,7 @@
 //! Strongly-typed implementation of the ES6 AST.
 
 #![feature(box_patterns)]
+#![recursion_limit="128"] // We have deeply nested data structures...
 
 extern crate binjs_io;
 extern crate binjs_shared;
@@ -15,7 +16,11 @@ extern crate json;
 /// A strongly-typed AST for ES6.
 pub mod ast;
 
+/// Serialization/deserialization utilities.
 pub mod io;
 
 /// Computing scope information from a strongly-typed AST.
 pub mod scopes;
+
+/// Introducing laziness in an AST.
+pub mod skip;

@@ -7,6 +7,7 @@ extern crate env_logger;
 use binjs::io::TokenSerializer;
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
+use binjs::specialized::es6::ast::Walker;
 
 use std::cell::RefCell;
 use std::fs::*;
@@ -20,7 +21,8 @@ struct Options<'a> {
     multipart_stats: RefCell<binjs::io::multipart::Statistics>,
     simple_stats: RefCell<binjs::io::simple::Statistics>,
     compression: Option<binjs::io::multipart::WriteOptions>,
-    dest_dir: Option<PathBuf>
+    dest_dir: Option<PathBuf>,
+    lazification: u32,
 }
 
 fn handle_path<'a>(options: &Options<'a>,
@@ -89,6 +91,14 @@ fn handle_path<'a>(options: &Options<'a>,
     println!("Annotating.");
     binjs::specialized::es6::scopes::AnnotationVisitor::new()
         .annotate_script(&mut ast);
+
+    if options.lazification > 0 {
+        println!("Introducing laziness.");
+        let mut path = binjs::specialized::es6::ast::Path::new();
+        let mut visitor = binjs::specialized::es6::skip::LazifierVisitor::new(options.lazification);
+        ast.walk(&mut path, &mut visitor)
+            .expect("Could not introduce laziness");
+    }
 
     println!("Encoding.");
     let data: Box<AsRef<[u8]>> = {
@@ -188,6 +198,13 @@ fn main() {
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
+            Arg::with_name("lazify")
+                .takes_value(true)
+                .default_value("0")
+                .validator(|s| s.parse::<u32>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid number {}", e)))
+                .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
         ])
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
@@ -254,13 +271,18 @@ fn main() {
         .with_source_bytes(0);
     let simple_stats = binjs::io::simple::Statistics::default();
 
+    let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
+        .expect("Invalid number");
+
     let options = Options {
         parser: &parser,
         multipart_stats: RefCell::new(multipart_stats),
         simple_stats: RefCell::new(simple_stats),
         compression,
         dest_dir,
+        lazification,
     };
+
     for source_path in sources {
         handle_path(&options, source_path, PathBuf::new().as_path());
     }

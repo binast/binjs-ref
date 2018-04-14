@@ -35,7 +35,7 @@ pub enum Compression {
 impl Rand for Compression {
     fn rand<R: Rng>(rng: &mut R) -> Self {
         use self::Compression::*;
-        rng.choose(&[Identity, Gzip, Deflate, Brotli /*, Lzw doesn't work yet */])
+        rng.choose(&[Identity, Gzip, /* Deflate is apprently broken https://github.com/alexcrichton/flate2-rs/issues/151 , */ Brotli /*, Lzw doesn't work yet */])
             .unwrap() // The array is not empty.
             .clone()
     }

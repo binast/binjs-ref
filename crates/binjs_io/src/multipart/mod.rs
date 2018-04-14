@@ -55,13 +55,9 @@
 //!    - the number of entries (`varnum`);
 //!    - for each entry,
 //!      - byte length of entry (`varnum`);
-//!    - for each entry,
-//!      - byte length of node name (`varnum`);
-//!      - node name (utf-8 encoded string);
-//!      - number of fields (`varnum`);
-//!      - for each field
-//!        - byte length of field name (`varnum`);
-//!        - field name (utf-8 encoded string).
+//!      - one of
+//!        - the invalid strings [255, 0] (representing the null interface, only valid if byte length is 2);
+//!        - a utf-8 encoded string (utf-8 encoded, `bytelen` bytes, no terminator).
 //!
 //! ## Strings table
 //!

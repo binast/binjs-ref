@@ -19,7 +19,6 @@
 //! loading speed.
 
 #![feature(box_patterns)]
-#![feature(conservative_impl_trait, universal_impl_trait)]
 #![feature(iter_rfind)]
 
 extern crate binjs_generic;
