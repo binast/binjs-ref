@@ -16,7 +16,11 @@ extern crate json;
 /// A strongly-typed AST for ES6.
 pub mod ast;
 
+/// Serialization/deserialization utilities.
 pub mod io;
 
 /// Computing scope information from a strongly-typed AST.
 pub mod scopes;
+
+/// Introducing laziness in an AST.
+pub mod skip;
