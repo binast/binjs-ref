@@ -11,20 +11,69 @@ use binjs::io::bytes::compress::*;
 use binjs::io::multipart::*;
 use binjs::io::*;
 use binjs::source::*;
-use binjs::specialized::es6::ast::Walker;
+use binjs::specialized::es6::ast::{ Path, Script, Visitor, Walker };
 
-use std::io::*;
+use std::io::Cursor;
+use std::thread;
 
-const PATHS : [&'static str; 1] = [/* "tests/data/facebook/single/**/*.js", */ "tests/data/spidermonkey/ecma_2/**/*.js"];
+const PATHS : [&'static str; 2] = ["tests/data/facebook/single/**/*.js", "tests/data/spidermonkey/ecma_2/**/*.js"];
 
 fn progress() {
     // Make sure that we see progress in the logs, without spamming these logs.
     eprint!(".");
 }
 
+/// A visitor designed to resent offsets to 0.
+struct OffsetCleanerVisitor;
+impl Visitor<()> for OffsetCleanerVisitor {
+    fn visit_offset(&mut self, _path: &Path, node: &mut Offset) -> Result<(), ()> {
+        *node = binjs::generic::Offset(0);
+        Ok(())
+    }
+}
+
+/*
+fn make_async_function<F, T, U>(name: &str, f: F) -> impl Fn(T) -> U
+    where F: 'static + Fn(T) -> U + Sized + Send,
+          T: 'static + Send,
+          U: 'static + Send
+{
+    let (send_input, recv_input) = std::sync::mpsc::channel();
+    let (send_output, recv_output) = std::sync::mpsc::channel();
+    thread::Builder::new()
+        .name(name.to_string())
+        .stack_size(20 * 1024 * 1024)
+        .spawn(move || {
+            for input in recv_input {
+                let output = f(input);
+                send_output.send(output)
+                    .expect("Could not send response");
+            }
+        })
+        .expect("Could not launch dedicated thread");
+    move |input| {
+        send_input.send(input)
+            .expect("Could not send to dedicated thread");
+        recv_output.recv()
+            .expect("Could not receive from dedicated thread")
+    }
+}
+*/
+
 #[test]
 fn test_roundtrip() {
+    thread::Builder::new()
+        .name("test_roundtrip large stack dedicated thread".to_string())
+        .stack_size(20 * 1024 * 1024)
+        .spawn(|| {
+            main();
+        })
+        .expect("Could not launch dedicated thread")
+        .join()
+        .expect("Error in dedicated thread");
+}
 
+fn main() {
     env_logger::init();
 
     let parser = Shift::new();
@@ -49,7 +98,6 @@ fn test_roundtrip() {
     };
 
     print!("\nTesting roundtrip with laziness");
-
     for path_suffix in &PATHS {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting laziness test_roundtrip from {}", path);
@@ -57,27 +105,22 @@ fn test_roundtrip() {
         for entry in glob::glob(&path)
             .expect("Invalid glob pattern")
         {
+            let mut path = binjs::specialized::es6::ast::Path::new();
             let entry = entry.expect("Invalid entry");
 
             // Parse and preprocess file.
 
-            print!("\nPreparing laziness test for {:?}.", entry);
-            let mut ast    = parser.parse_file(entry.clone())
+            let json = parser.parse_file(entry.clone())
                 .expect("Could not parse source");
-
-            let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
+            let mut ast = binjs::specialized::es6::ast::Script::import(&json)
                 .expect("Could not import AST");
             binjs::specialized::es6::scopes::AnnotationVisitor::new()
                 .annotate_script(&mut ast);
 
-            // Keep immutable.
+            // Immutable copy.
             let reference_ast = ast;
             for level in &[0, 1, 2, 3, 4, 5] {
                 let mut ast = reference_ast.clone();
-                print!("\nLaziness level: {}", level);
-                debug!(target: "test_roundtrip", "Laziness level {}", level);
-
-                let mut path = binjs::specialized::es6::ast::Path::new();
                 let mut visitor = binjs::specialized::es6::skip::LazifierVisitor::new(*level);
                 ast.walk(&mut path, &mut visitor)
                     .expect("Could not introduce laziness");
@@ -103,11 +146,16 @@ fn test_roundtrip() {
                     .expect("Could not decode AST container");
                 let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-                let decoded = deserializer.deserialize()
+                let mut decoded : Script = deserializer.deserialize()
                     .expect("Could not decode");
                 progress();
 
                 debug!(target: "test_roundtrip", "Checking.");
+                // At this stage, we have a problem: offsets are 0 in `ast`, but not 0
+                // in `decoded`.
+                decoded.walk(&mut path, &mut OffsetCleanerVisitor)
+                    .expect("Could not cleanup offsets");
+                progress();
                 assert_eq!(ast, decoded);
             }
         }
@@ -125,12 +173,9 @@ fn test_roundtrip() {
             // Parse and preprocess file.
 
             print!("\nParsing {:?}.", entry);
-            let mut ast    = parser.parse_file(entry.clone())
+            let json    = parser.parse_file(entry.clone())
                 .expect("Could not parse source");
-            debug!(target: "test_roundtrip", "Source: {}", ast.pretty(2));
-            debug!(target: "test_roundtrip", "Annotating {:?}.", entry);
-
-            let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
+            let mut ast = binjs::specialized::es6::ast::Script::import(&json)
                 .expect("Could not import AST");
             binjs::specialized::es6::scopes::AnnotationVisitor::new()
                 .annotate_script(&mut ast);

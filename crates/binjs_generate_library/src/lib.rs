@@ -1153,6 +1153,9 @@ pub type Path = binjs_shared::ast::Path<ASTNode, ASTField>;
 pub trait Visitor<E, G=()> where G: Default {{
 {interfaces}
 {sums}
+    fn visit_offset(&mut self, _path: &Path, _node: &mut Offset) -> Result<(), E> {{
+        Ok(())
+    }}
 }}\n
 pub trait Walker<'a>: Sized {{
     type Output;
@@ -1202,16 +1205,16 @@ impl<'a> Walker<'a> for u32 {{
         Ok(None)
     }}
 }}
-type ViewMutOffset = ViewMutNothing<Offset>;
-impl<'a> From<&'a mut Offset> for ViewMutNothing<Offset> {{
-    fn from(_: &'a mut Offset) -> Self {{
-        ViewMutNothing::default()
+pub struct ViewMutOffset<'a>(&'a mut Offset);
+impl<'a> From<&'a mut Offset> for ViewMutOffset<'a> {{
+    fn from(value: &'a mut Offset) -> Self {{
+        ViewMutOffset(value)
     }}
 }}
-impl<'a> Walker<'a> for Offset {{
-    type Output = Self;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
-        // Do not inspect the contents of a Offset.
+impl<'a> Walker<'a> for ViewMutOffset<'a> {{
+    type Output = Offset;
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+        visitor.visit_offset(path, &mut self.0)?;
         Ok(None)
     }}
 }}

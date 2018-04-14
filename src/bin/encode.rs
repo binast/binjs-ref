@@ -12,6 +12,7 @@ use binjs::specialized::es6::ast::Walker;
 use std::cell::RefCell;
 use std::fs::*;
 use std::io::*;
+use std::thread;
 use std::path::{ Path, PathBuf };
 
 use clap::*;
@@ -83,12 +84,10 @@ fn handle_path<'a>(options: &Options<'a>,
         .len();
 
     println!("Parsing.");
-    let ast = options.parser.parse_file(source_path)
+    let json = options.parser.parse_file(source_path)
         .expect("Could not parse source");
-    let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
+    let mut ast = binjs::specialized::es6::ast::Script::import(&json)
         .expect("Could not import AST");
-
-    println!("Annotating.");
     binjs::specialized::es6::scopes::AnnotationVisitor::new()
         .annotate_script(&mut ast);
 
@@ -150,7 +149,20 @@ fn handle_path<'a>(options: &Options<'a>,
 
     println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
 }
+
 fn main() {
+    thread::Builder::new()
+        .name("large stack dedicated thread".to_string())
+        .stack_size(20 * 1024 * 1024)
+        .spawn(|| {
+            main_aux();
+        })
+        .expect("Could not launch dedicated thread")
+        .join()
+        .expect("Error in dedicated thread");
+}
+
+fn main_aux() {
     env_logger::init();
 
     let matches = App::new("BinJS encoder")
