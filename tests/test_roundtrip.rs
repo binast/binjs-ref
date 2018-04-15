@@ -5,27 +5,62 @@ extern crate env_logger;
 extern crate glob;
 #[macro_use]
 extern crate log;
+extern crate rand;
 
 use binjs::generic::*;
 use binjs::io::bytes::compress::*;
 use binjs::io::multipart::*;
 use binjs::io::*;
 use binjs::source::*;
-use binjs::specialized::es6::ast::Walker;
+use binjs::specialized::es6::ast::{ Path, Script, Visitor, Walker };
 
-use std::io::*;
+use std::io::Cursor;
+use std::thread;
 
-const PATHS : [&'static str; 1] = [/* "tests/data/facebook/single/**/*.js", */ "tests/data/spidermonkey/ecma_2/**/*.js"];
+use rand::Rng;
+
+/// This test takes 1h+ on Travis, which is too long, so we need to
+/// reduce it. So each individual file + options combination has
+/// a `CHANCES_TO_SKIP` probability of being skipped.
+const CHANCES_TO_SKIP : f64 = 0.8;
+
+const PATHS : [&'static str; 2] = ["tests/data/facebook/single/**/*.js", "tests/data/spidermonkey/ecma_2/**/*.js"];
 
 fn progress() {
     // Make sure that we see progress in the logs, without spamming these logs.
     eprint!(".");
 }
 
+fn should_skip(rng: &mut Rng) -> bool {
+    let float = rng.next_f64();
+    float < CHANCES_TO_SKIP
+}
+
+/// A visitor designed to resent offsets to 0.
+struct OffsetCleanerVisitor;
+impl Visitor<()> for OffsetCleanerVisitor {
+    fn visit_offset(&mut self, _path: &Path, node: &mut Offset) -> Result<(), ()> {
+        *node = binjs::generic::Offset(0);
+        Ok(())
+    }
+}
+
 #[test]
 fn test_roundtrip() {
+    thread::Builder::new()
+        .name("test_roundtrip large stack dedicated thread".to_string())
+        .stack_size(20 * 1024 * 1024)
+        .spawn(|| {
+            main();
+        })
+        .expect("Could not launch dedicated thread")
+        .join()
+        .expect("Error in dedicated thread");
+}
 
+fn main() {
     env_logger::init();
+    let mut rng = rand::thread_rng();
 
     let parser = Shift::new();
 
@@ -48,36 +83,38 @@ fn test_roundtrip() {
         vec
     };
 
-    print!("\nTesting roundtrip with laziness");
-
+    eprint!("\nTesting roundtrip with laziness");
     for path_suffix in &PATHS {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting laziness test_roundtrip from {}", path);
 
-        for entry in glob::glob(&path)
+        'per_entry: for entry in glob::glob(&path)
             .expect("Invalid glob pattern")
         {
+            // Randomly skip instances.
+            if should_skip(&mut rng) {
+                continue 'per_entry;
+            }
+
+
+            let mut path = binjs::specialized::es6::ast::Path::new();
             let entry = entry.expect("Invalid entry");
+            eprint!("\n{:?}.", entry);
 
             // Parse and preprocess file.
 
-            print!("\nPreparing laziness test for {:?}.", entry);
-            let mut ast    = parser.parse_file(entry.clone())
+            let json = parser.parse_file(entry.clone())
                 .expect("Could not parse source");
-
-            let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
+            let mut ast = binjs::specialized::es6::ast::Script::import(&json)
                 .expect("Could not import AST");
             binjs::specialized::es6::scopes::AnnotationVisitor::new()
                 .annotate_script(&mut ast);
 
-            // Keep immutable.
+            // Immutable copy.
             let reference_ast = ast;
-            for level in &[0, 1, 2, 3, 4, 5] {
-                let mut ast = reference_ast.clone();
-                print!("\nLaziness level: {}", level);
-                debug!(target: "test_roundtrip", "Laziness level {}", level);
+            'per_level: for level in &[0, 1, 2, 3, 4, 5] {
 
-                let mut path = binjs::specialized::es6::ast::Path::new();
+                let mut ast = reference_ast.clone();
                 let mut visitor = binjs::specialized::es6::skip::LazifierVisitor::new(*level);
                 ast.walk(&mut path, &mut visitor)
                     .expect("Could not introduce laziness");
@@ -103,34 +140,41 @@ fn test_roundtrip() {
                     .expect("Could not decode AST container");
                 let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-                let decoded = deserializer.deserialize()
+                let mut decoded : Script = deserializer.deserialize()
                     .expect("Could not decode");
                 progress();
 
                 debug!(target: "test_roundtrip", "Checking.");
+                // At this stage, we have a problem: offsets are 0 in `ast`, but not 0
+                // in `decoded`.
+                decoded.walk(&mut path, &mut OffsetCleanerVisitor)
+                    .expect("Could not cleanup offsets");
+                progress();
                 assert_eq!(ast, decoded);
             }
         }
     }
 
+    eprint!("\nCompression tests");
     for path_suffix in &PATHS {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting test_roundtrip from {}", path);
 
-        for entry in glob::glob(&path)
+        'per_entry: for entry in glob::glob(&path)
             .expect("Invalid glob pattern")
         {
+            // Randomly skip instances.
+            if should_skip(&mut rng) {
+                continue 'per_entry;
+            }
             let entry = entry.expect("Invalid entry");
 
             // Parse and preprocess file.
 
-            print!("\nParsing {:?}.", entry);
-            let mut ast    = parser.parse_file(entry.clone())
+            eprint!("\n{:?}.", entry);
+            let json    = parser.parse_file(entry.clone())
                 .expect("Could not parse source");
-            debug!(target: "test_roundtrip", "Source: {}", ast.pretty(2));
-            debug!(target: "test_roundtrip", "Annotating {:?}.", entry);
-
-            let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
+            let mut ast = binjs::specialized::es6::ast::Script::import(&json)
                 .expect("Could not import AST");
             binjs::specialized::es6::scopes::AnnotationVisitor::new()
                 .annotate_script(&mut ast);
@@ -166,7 +210,11 @@ fn test_roundtrip() {
 
             // Roundtrip `multipart`
 
-            for options in &all_options {
+            'per_option: for options in &all_options {
+                // Randomly skip instances.
+                if should_skip(&mut rng) {
+                    continue 'per_option;
+                }
                 progress();
                 debug!(target: "test_roundtrip", "Starting multipart round trip for {:?} with options {:?}", entry, options);
                 debug!(target: "test_roundtrip", "Encoding.");
