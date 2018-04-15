@@ -157,6 +157,11 @@ to determine the nature of next token. Rather, this must be led by the grammar.<
 <h3 id="tree-token" class="section-header"><a href="#tree-token">Tree token</a></h3>
 <p>A tree token is defined as one of</p>
 <ul>
+<li>a number of bytes (aka Offset), represented as:
+<ul>
+<li>a <code>varnum</code>;</li>
+</ul>
+</li>
 <li>a null float, represented as:
 <ul>
 <li>a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),</li>
@@ -184,15 +189,10 @@ to determine the nature of next token. Rather, this must be led by the grammar.<
 </li>
 <li>a list, represented as
 <ul>
-<li>byte length (<code>varnum</code>);</li>
-<li><code>bytelen</code> bytes representing:
-<ul>
 <li>number of items (<code>varnum</code>);</li>
 <li>for each item
 <ul>
 <li>the token;</li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>

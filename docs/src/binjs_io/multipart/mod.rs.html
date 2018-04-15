@@ -549,6 +549,8 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//!  A tree token is defined as one of</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//!   - a number of bytes (aka Offset), represented as:</span>
+<span class="doccomment">//!     - a `varnum`;</span>
 <span class="doccomment">//!   - a null float, represented as:</span>
 <span class="doccomment">//!     - a low-endian IEEE764 64-bit floating point value signalling NaN (8 bytes),</span>
 <span class="doccomment">//!   - a non-null float, represented as:</span>
@@ -560,8 +562,6 @@
 <span class="doccomment">//!   - a string, representing as</span>
 <span class="doccomment">//!     - an entry in the table of strings (`varnum`);</span>
 <span class="doccomment">//!   - a list, represented as</span>
-<span class="doccomment">//!     - byte length (`varnum`);</span>
-<span class="doccomment">//!     - `bytelen` bytes representing:</span>
 <span class="doccomment">//!       - number of items (`varnum`);</span>
 <span class="doccomment">//!       - for each item</span>
 <span class="doccomment">//!          - the token;</span>
