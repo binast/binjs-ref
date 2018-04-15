@@ -5,6 +5,7 @@ extern crate env_logger;
 extern crate glob;
 #[macro_use]
 extern crate log;
+extern crate rand;
 
 use binjs::generic::*;
 use binjs::io::bytes::compress::*;
@@ -16,11 +17,23 @@ use binjs::specialized::es6::ast::{ Path, Script, Visitor, Walker };
 use std::io::Cursor;
 use std::thread;
 
+use rand::Rng;
+
+/// This test takes 1h+ on Travis, which is too long, so we need to
+/// reduce it. So each individual file + options combination has
+/// a `CHANCES_TO_SKIP` probability of being skipped.
+const CHANCES_TO_SKIP : f64 = 0.8;
+
 const PATHS : [&'static str; 2] = ["tests/data/facebook/single/**/*.js", "tests/data/spidermonkey/ecma_2/**/*.js"];
 
 fn progress() {
     // Make sure that we see progress in the logs, without spamming these logs.
     eprint!(".");
+}
+
+fn should_skip(rng: &mut Rng) -> bool {
+    let float = rng.next_f64();
+    float < CHANCES_TO_SKIP
 }
 
 /// A visitor designed to resent offsets to 0.
@@ -31,34 +44,6 @@ impl Visitor<()> for OffsetCleanerVisitor {
         Ok(())
     }
 }
-
-/*
-fn make_async_function<F, T, U>(name: &str, f: F) -> impl Fn(T) -> U
-    where F: 'static + Fn(T) -> U + Sized + Send,
-          T: 'static + Send,
-          U: 'static + Send
-{
-    let (send_input, recv_input) = std::sync::mpsc::channel();
-    let (send_output, recv_output) = std::sync::mpsc::channel();
-    thread::Builder::new()
-        .name(name.to_string())
-        .stack_size(20 * 1024 * 1024)
-        .spawn(move || {
-            for input in recv_input {
-                let output = f(input);
-                send_output.send(output)
-                    .expect("Could not send response");
-            }
-        })
-        .expect("Could not launch dedicated thread");
-    move |input| {
-        send_input.send(input)
-            .expect("Could not send to dedicated thread");
-        recv_output.recv()
-            .expect("Could not receive from dedicated thread")
-    }
-}
-*/
 
 #[test]
 fn test_roundtrip() {
@@ -75,6 +60,7 @@ fn test_roundtrip() {
 
 fn main() {
     env_logger::init();
+    let mut rng = rand::thread_rng();
 
     let parser = Shift::new();
 
@@ -97,16 +83,23 @@ fn main() {
         vec
     };
 
-    print!("\nTesting roundtrip with laziness");
+    eprint!("\nTesting roundtrip with laziness");
     for path_suffix in &PATHS {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting laziness test_roundtrip from {}", path);
 
-        for entry in glob::glob(&path)
+        'per_entry: for entry in glob::glob(&path)
             .expect("Invalid glob pattern")
         {
+            // Randomly skip instances.
+            if should_skip(&mut rng) {
+                continue 'per_entry;
+            }
+
+
             let mut path = binjs::specialized::es6::ast::Path::new();
             let entry = entry.expect("Invalid entry");
+            eprint!("\n{:?}.", entry);
 
             // Parse and preprocess file.
 
@@ -119,7 +112,8 @@ fn main() {
 
             // Immutable copy.
             let reference_ast = ast;
-            for level in &[0, 1, 2, 3, 4, 5] {
+            'per_level: for level in &[0, 1, 2, 3, 4, 5] {
+
                 let mut ast = reference_ast.clone();
                 let mut visitor = binjs::specialized::es6::skip::LazifierVisitor::new(*level);
                 ast.walk(&mut path, &mut visitor)
@@ -161,18 +155,23 @@ fn main() {
         }
     }
 
+    eprint!("\nCompression tests");
     for path_suffix in &PATHS {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting test_roundtrip from {}", path);
 
-        for entry in glob::glob(&path)
+        'per_entry: for entry in glob::glob(&path)
             .expect("Invalid glob pattern")
         {
+            // Randomly skip instances.
+            if should_skip(&mut rng) {
+                continue 'per_entry;
+            }
             let entry = entry.expect("Invalid entry");
 
             // Parse and preprocess file.
 
-            print!("\nParsing {:?}.", entry);
+            eprint!("\n{:?}.", entry);
             let json    = parser.parse_file(entry.clone())
                 .expect("Could not parse source");
             let mut ast = binjs::specialized::es6::ast::Script::import(&json)
@@ -211,7 +210,11 @@ fn main() {
 
             // Roundtrip `multipart`
 
-            for options in &all_options {
+            'per_option: for options in &all_options {
+                // Randomly skip instances.
+                if should_skip(&mut rng) {
+                    continue 'per_option;
+                }
                 progress();
                 debug!(target: "test_roundtrip", "Starting multipart round trip for {:?} with options {:?}", entry, options);
                 debug!(target: "test_roundtrip", "Encoding.");

@@ -72,7 +72,7 @@ impl Shift {
         };
 
         let mut child = Command::new(&*self.bin_path)
-            .arg(node_memory) 
+            .arg(node_memory)
             .env("NODE_PATH", "node_modules")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
