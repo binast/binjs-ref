@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/webidl-0.5.0/src/parser/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/webidl-0.6.0/src/parser/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -109,13 +109,22 @@
 <span id="52">52</span>
 <span id="53">53</span>
 <span id="54">54</span>
-<span id="55">55</span>
-<span id="56">56</span>
 </pre><pre class="rust ">
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">rustfmt</span>, <span class="ident">rustfmt_skip</span>)]</span>
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unknown_lints</span>)]</span>
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>)]</span>
-<span class="kw">mod</span> <span class="ident">grammar</span>;
+<span class="kw">mod</span> <span class="ident">grammar</span> {
+    <span class="comment">// During the build step, `build.rs` will output the generated parser to `OUT_DIR` to avoid</span>
+    <span class="comment">// adding it to the source directory, so we just directly include the generated parser here.</span>
+    <span class="comment">//</span>
+    <span class="comment">// Even with `.gitignore` and the `exclude` in the `Cargo.toml`, the generated parser can still</span>
+    <span class="comment">// end up in the source directory. This could happen when `cargo build` builds the file out of</span>
+    <span class="comment">// the Cargo cache (`$HOME/.cargo/registrysrc`), and the build script would then put its output</span>
+    <span class="comment">// in that cached source directory because of https://github.com/lalrpop/lalrpop/issues/280.</span>
+    <span class="comment">// Later runs of `cargo vendor` then copy the source from that directory, including the </span>
+    <span class="comment">// generated file.</span>
+    <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/parser/grammar.rs&quot;</span>));
+}
 
 <span class="doccomment">/// Contains all structures related to the AST for the WebIDL grammar.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">ast</span>;
@@ -132,41 +141,28 @@
 <span class="doccomment">/// be either an error from the lexer or the parser.</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">ParseResult</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ast</span>::<span class="ident">AST</span>, <span class="ident">ParseError</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">Token</span>, <span class="ident">LexicalError</span><span class="op">&gt;&gt;</span>;
 
-<span class="doccomment">/// The parser that is used to parse WebIDL. It really serves as a wrapper around the parse</span>
-<span class="doccomment">/// function exposed by lalrpop.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Parser</span>;
-
-<span class="kw">impl</span> <span class="ident">Parser</span> {
-    <span class="doccomment">/// Creates a new parser.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Parser</span>
-    }
-
-    <span class="doccomment">/// Parses a given input string and returns an AST.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Example</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```</span>
-    <span class="doccomment">/// use webidl::*;</span>
-    <span class="doccomment">/// use webidl::ast::*;</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// let parser = Parser::new();</span>
-    <span class="doccomment">/// let result = parser.parse_string(&quot;[Attribute] interface Node { };&quot;);</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// assert_eq!(result,</span>
-    <span class="doccomment">///            Ok(vec![Definition::Interface(Interface::NonPartial(NonPartialInterface {</span>
-    <span class="doccomment">///                 extended_attributes: vec![</span>
-    <span class="doccomment">///                     Box::new(ExtendedAttribute::NoArguments(</span>
-    <span class="doccomment">///                         Other::Identifier(&quot;Attribute&quot;.to_string())))],</span>
-    <span class="doccomment">///                 inherits: None,</span>
-    <span class="doccomment">///                 members: vec![],</span>
-    <span class="doccomment">///                 name: &quot;Node&quot;.to_string()</span>
-    <span class="doccomment">///            }))]));</span>
-    <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">ParseResult</span> {
-        <span class="ident">grammar</span>::<span class="ident">parse_Definitions</span>(::<span class="ident">Lexer</span>::<span class="ident">new</span>(<span class="ident">input</span>))
-    }
+<span class="doccomment">/// Parses a given input string and returns an AST.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use webidl::*;</span>
+<span class="doccomment">/// use webidl::ast::*;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let result = parse_string(&quot;[Attribute] interface Node { };&quot;);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// assert_eq!(result,</span>
+<span class="doccomment">///            Ok(vec![Definition::Interface(Interface::NonPartial(NonPartialInterface {</span>
+<span class="doccomment">///                 extended_attributes: vec![</span>
+<span class="doccomment">///                     Box::new(ExtendedAttribute::NoArguments(</span>
+<span class="doccomment">///                         Other::Identifier(&quot;Attribute&quot;.to_string())))],</span>
+<span class="doccomment">///                 inherits: None,</span>
+<span class="doccomment">///                 members: vec![],</span>
+<span class="doccomment">///                 name: &quot;Node&quot;.to_string()</span>
+<span class="doccomment">///            }))]));</span>
+<span class="doccomment">/// ```</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_string</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">ParseResult</span> {
+    <span class="ident">grammar</span>::<span class="ident">DefinitionsParser</span>::<span class="ident">new</span>().<span class="ident">parse</span>(::<span class="ident">Lexer</span>::<span class="ident">new</span>(<span class="ident">input</span>))
 }
 </pre>
 </section>

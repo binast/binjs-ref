@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>webidl</a>::<wbr><a href='index.html'>ast</a>::<wbr><a class="fn" href=''>flatten_asts</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/webidl/parser/ast.rs.html#591-593' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn flatten_asts(asts: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="../../webidl/ast/type.AST.html" title="type webidl::ast::AST">AST</a>&gt;) -&gt; <a class="type" href="../../webidl/ast/type.AST.html" title="type webidl::ast::AST">AST</a></pre><div class='docblock'><p>Consumes a vector of ASTs that are flattened into a single AST. This is helpful if you want to
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>webidl</a>::<wbr><a href='index.html'>ast</a>::<wbr><a class="fn" href=''>flatten_asts</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/webidl/parser/ast.rs.html#604-606' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn flatten_asts(asts: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="../../webidl/ast/type.AST.html" title="type webidl::ast::AST">AST</a>&gt;) -&gt; <a class="type" href="../../webidl/ast/type.AST.html" title="type webidl::ast::AST">AST</a></pre><div class='docblock'><p>Consumes a vector of ASTs that are flattened into a single AST. This is helpful if you want to
 merge ASTs from multiple files and be able to use the visitor pattern across all of them.</p>
 </div></section>
     <section id='search' class="content hidden"></section>

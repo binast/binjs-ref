@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["is_class_cases","Determines if a `&str` is `ClassCase` `bool`"],["to_class_cases","Converts a `&str` to `ClassCase` `String`"]]});

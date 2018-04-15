@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -457,9 +457,6 @@
 <span id="400">400</span>
 <span id="401">401</span>
 <span id="402">402</span>
-<span id="403">403</span>
-<span id="404">404</span>
-<span id="405">405</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A multipart format, in which each part can be compressed independently.</span>
 <span class="doccomment">//!</span>
@@ -518,12 +515,9 @@
 <span class="doccomment">//!    - the number of entries (`varnum`);</span>
 <span class="doccomment">//!    - for each entry,</span>
 <span class="doccomment">//!      - byte length of entry (`varnum`);</span>
-<span class="doccomment">//!    - for each entry,</span>
-<span class="doccomment">//!      - byte length of node name (`varnum`);</span>
-<span class="doccomment">//!      - number of fields (`varnum`);</span>
-<span class="doccomment">//!      - for each field</span>
-<span class="doccomment">//!        - byte length of field name (`varnum`);</span>
-<span class="doccomment">//!        - field name (utf-8 encoded string).</span>
+<span class="doccomment">//!      - one of</span>
+<span class="doccomment">//!        - the invalid strings [255, 0] (representing the null interface, only valid if byte length is 2);</span>
+<span class="doccomment">//!        - a utf-8 encoded string (utf-8 encoded, `bytelen` bytes, no terminator).</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ## Strings table</span>
 <span class="doccomment">//!</span>

@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,16 +55,10 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>binjs_io</a>::<wbr><a class="struct" href=''>TrivialGuard</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/binjs_io/io.rs.html#173-178' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct TrivialGuard&lt;Error&gt; {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>binjs_io</a>::<wbr><a class="struct" href=''>TrivialGuard</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/binjs_io/io.rs.html#173-178' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct TrivialGuard&lt;Error&gt; {
     pub finalized: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
     // some fields omitted
-}</pre><div class='docblock'><p>Trivial implementation of a guard.</p>
+}</pre></div><div class='docblock'><p>Trivial implementation of a guard.</p>
 <p>This implementation serves as a placeholder or as a building block for
 more sophisticated implementations: it does not check anything
 meaningful in <code>done()</code> but ensures that <code>done()</code> is eventually called.</p>
@@ -78,25 +72,18 @@ meaningful in <code>done()</code> but ensures that <code>done()</code> is eventu
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;E&gt; <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;E&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#179-191' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>() -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#185-190' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Create a <code>TrivialGuard</code>.</p>
+                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;E&gt; <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;E&gt;</code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#179-191' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.new' class='fnname'>new</a>() -&gt; Self</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#185-190' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Create a <code>TrivialGuard</code>.</p>
 <p>If the <code>TrivialGuard</code> is dropped before <code>done()</code> is called
 or <code>self.finalized</code> is set to <code>true</code>, the drop will cause
 an assertion failure.</p>
 </div></div>
-            <h2 id='implementations' class='small-section-header'>
-              Trait Implementations<a href='#implementations' class='anchor'></a>
-            </h2>
-            <div id='implementations-list'>
-        <h3 id='impl-Guard' class='impl'><span class='in-band'><code>impl&lt;Error&gt; <a class="trait" href="../binjs_io/trait.Guard.html" title="trait binjs_io::Guard">Guard</a> for <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;Error&gt;</code><a href='#impl-Guard' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#193-201' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='associatedtype.Error' class="type"><span id='Error.t' class='invisible'><code>type <a href='../binjs_io/trait.Guard.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
+                <h2 id='implementations' class='small-section-header'>
+                  Trait Implementations<a href='#implementations' class='anchor'></a>
+                </h2>
+                <div id='implementations-list'><h3 id='impl-Guard' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;Error&gt; <a class="trait" href="../binjs_io/trait.Guard.html" title="trait binjs_io::Guard">Guard</a> for <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;Error&gt;</code><a href='#impl-Guard' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#193-201' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='associatedtype.Error' class="type"><span id='Error.t' class='invisible'><code>type <a href='../binjs_io/trait.Guard.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
 <div class='docblock'><p>The type of errors returned by the guard. This is typically <code>TokenReader::Error</code>. <a href="../binjs_io/trait.Guard.html#associatedtype.Error">Read more</a></p>
-</div><h4 id='method.done' class="method"><span id='done.v' class='invisible'><code>fn <a href='../binjs_io/trait.Guard.html#tymethod.done' class='fnname'>done</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../binjs_io/trait.Guard.html#associatedtype.Error" title="type binjs_io::Guard::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#197-200' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Mark the guard as safe to be dropped.</p>
-</div></div><h3 id='impl-Drop' class='impl'><span class='in-band'><code>impl&lt;Error&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html" title="trait core::ops::drop::Drop">Drop</a> for <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;Error&gt;</code><a href='#impl-Drop' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#203-212' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.drop' class="method"><span id='drop.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#209-211' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><h1 id="failures" class="section-header"><a href="#failures">Failures</a></h1>
+</div><h4 id='method.done' class="method"><span id='done.v' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='../binjs_io/trait.Guard.html#tymethod.done' class='fnname'>done</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../binjs_io/trait.Guard.html#associatedtype.Error" title="type binjs_io::Guard::Error">Error</a>&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#197-200' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Mark the guard as safe to be dropped.</p>
+</div></div><h3 id='impl-Drop' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;Error&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html" title="trait core::ops::drop::Drop">Drop</a> for <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;Error&gt;</code><a href='#impl-Drop' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#203-212' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.drop' class="method"><span id='drop.v' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/binjs_io/io.rs.html#209-211' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><h1 id="failures" class="section-header"><a href="#failures">Failures</a></h1>
 <p>If the <code>TrivialGuard</code> is dropped before <code>done()</code> is called
 or <code>self.finalized</code> is set to <code>true</code>, the drop will cause
 an assertion failure.</p>
@@ -105,9 +92,7 @@ an assertion failure.</p>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;Error&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;Error&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,&nbsp;</span></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div></div></section>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;Error&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;Error&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../binjs_io/struct.TrivialGuard.html" title="struct binjs_io::TrivialGuard">TrivialGuard</a>&lt;Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,&nbsp;</span></code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

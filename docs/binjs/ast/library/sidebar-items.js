@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Level","The set of features requested for a syntax."]],"fn":[["syntax","Construct a syntax for a specific version of JavaScript."]],"static":[["BINJS_CAPTURED_NAME",""],["BINJS_DIRECT_EVAL",""],["BINJS_LET_NAME",""],["BINJS_VAR_NAME",""],["SCOPE_NAME",""]]});

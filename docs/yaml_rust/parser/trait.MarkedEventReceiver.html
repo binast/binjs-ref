@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,15 +55,9 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>yaml_rust</a>::<wbr><a href='index.html'>parser</a>::<wbr><a class="trait" href=''>MarkedEventReceiver</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/yaml_rust/parser.rs.html#83-85' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait MarkedEventReceiver {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>yaml_rust</a>::<wbr><a href='index.html'>parser</a>::<wbr><a class="trait" href=''>MarkedEventReceiver</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/yaml_rust/parser.rs.html#83-85' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait MarkedEventReceiver {
     fn <a href='#tymethod.on_event' class='fnname'>on_event</a>(&amp;mut self, ev: <a class="enum" href="../../yaml_rust/parser/enum.Event.html" title="enum yaml_rust::parser::Event">Event</a>, _mark: <a class="struct" href="../../yaml_rust/scanner/struct.Marker.html" title="struct yaml_rust::scanner::Marker">Marker</a>);
-}</pre>
+}</pre></div>
             <h2 id='required-methods' class='small-section-header'>
               Required Methods<a href='#required-methods' class='anchor'></a>
             </h2>
@@ -73,8 +67,8 @@
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../../src/yaml_rust/yaml.rs.html#78-164' title='goto source code'>[src]</a></div><code>impl MarkedEventReceiver for <a class="struct" href="../../yaml_rust/yaml/struct.YamlLoader.html" title="struct yaml_rust::yaml::YamlLoader">YamlLoader</a></code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../src/yaml_rust/parser.rs.html#87-91' title='goto source code'>[src]</a></div><code>impl&lt;R:&nbsp;<a class="trait" href="../../yaml_rust/parser/trait.EventReceiver.html" title="trait yaml_rust::parser::EventReceiver">EventReceiver</a>&gt; MarkedEventReceiver for R</code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl MarkedEventReceiver for <a class="struct" href="../../yaml_rust/yaml/struct.YamlLoader.html" title="struct yaml_rust::yaml::YamlLoader">YamlLoader</a></code><td><div class='out-of-band'><a class='srclink' href='../../src/yaml_rust/yaml.rs.html#78-164' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl&lt;R:&nbsp;<a class="trait" href="../../yaml_rust/parser/trait.EventReceiver.html" title="trait yaml_rust::parser::EventReceiver">EventReceiver</a>&gt; MarkedEventReceiver for R</code><td><div class='out-of-band'><a class='srclink' href='../../src/yaml_rust/parser.rs.html#87-91' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../implementors/yaml_rust/parser/trait.MarkedEventReceiver.js">
                  </script></section>

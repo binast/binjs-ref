@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/webidl-0.5.0/src/parser/visitor/pretty_print.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/webidl-0.6.0/src/parser/visitor/pretty_print.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>pretty_print.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle">
     <script src="../../../../storage.js"></script>
     
 
@@ -1164,11 +1164,32 @@
 <span id="1107">1107</span>
 <span id="1108">1108</span>
 <span id="1109">1109</span>
+<span id="1110">1110</span>
+<span id="1111">1111</span>
+<span id="1112">1112</span>
+<span id="1113">1113</span>
+<span id="1114">1114</span>
+<span id="1115">1115</span>
+<span id="1116">1116</span>
+<span id="1117">1117</span>
+<span id="1118">1118</span>
+<span id="1119">1119</span>
+<span id="1120">1120</span>
+<span id="1121">1121</span>
+<span id="1122">1122</span>
+<span id="1123">1123</span>
+<span id="1124">1124</span>
+<span id="1125">1125</span>
+<span id="1126">1126</span>
+<span id="1127">1127</span>
+<span id="1128">1128</span>
+<span id="1129">1129</span>
+<span id="1130">1130</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">f64</span>;
 
-<span class="kw">use</span> <span class="ident">parser</span>::<span class="ident">ast</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">ImmutableVisitor</span>;
+<span class="kw">use</span> <span class="ident">parser</span>::<span class="ident">ast</span>::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// A visitor that can be used to convert an AST back into source code.</span>
 <span class="doccomment">///</span>
@@ -1362,6 +1383,10 @@
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">definition</span> {
                     <span class="ident">Definition</span>::<span class="ident">Callback</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">next_definition</span> {
                         <span class="ident">Definition</span>::<span class="ident">Callback</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> (),
+                        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push</span>(<span class="string">&#39;\n&#39;</span>),
+                    },
+                    <span class="ident">Definition</span>::<span class="ident">Implements</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">next_definition</span> {
+                        <span class="ident">Definition</span>::<span class="ident">Implements</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> (),
                         <span class="kw">_</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push</span>(<span class="string">&#39;\n&#39;</span>),
                     },
                     <span class="ident">Definition</span>::<span class="ident">Includes</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">next_definition</span> {
@@ -1605,6 +1630,7 @@
             <span class="string">&quot;Float64Array&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_Float64Array&quot;</span>,
             <span class="string">&quot;FrozenArray&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_FrozenArray&quot;</span>,
             <span class="string">&quot;getter&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_getter&quot;</span>,
+            <span class="string">&quot;implements&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_implements&quot;</span>,
             <span class="string">&quot;includes&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_includes&quot;</span>,
             <span class="string">&quot;inherit&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_inherit&quot;</span>,
             <span class="string">&quot;Int16Array&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_Int16Array&quot;</span>,
@@ -1612,6 +1638,7 @@
             <span class="string">&quot;Int8Array&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_Int8Array&quot;</span>,
             <span class="string">&quot;interface&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_interface&quot;</span>,
             <span class="string">&quot;iterable&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_iterable&quot;</span>,
+            <span class="string">&quot;legacycaller&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_legacycaller&quot;</span>,
             <span class="string">&quot;long&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_long&quot;</span>,
             <span class="string">&quot;maplike&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_maplike&quot;</span>,
             <span class="string">&quot;namespace&quot;</span> <span class="op">=&gt;</span> <span class="string">&quot;_namespace&quot;</span>,
@@ -1688,6 +1715,18 @@
         }
 
         <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;    stringifier;\n&quot;</span>);
+    }
+
+    <span class="kw">fn</span> <span class="ident">visit_implements</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">implements</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> <span class="ident">Implements</span>) {
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">implements</span>.<span class="ident">extended_attributes</span>.<span class="ident">is_empty</span>() {
+            <span class="self">self</span>.<span class="ident">stringify_extended_attributes</span>(<span class="kw-2">&amp;</span><span class="ident">implements</span>.<span class="ident">extended_attributes</span>);
+            <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push</span>(<span class="string">&#39;\n&#39;</span>);
+        }
+
+        <span class="self">self</span>.<span class="ident">visit_identifier</span>(<span class="kw-2">&amp;</span><span class="ident">implements</span>.<span class="ident">implementer</span>);
+        <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot; implements &quot;</span>);
+        <span class="self">self</span>.<span class="ident">visit_identifier</span>(<span class="kw-2">&amp;</span><span class="ident">implements</span>.<span class="ident">implementee</span>);
+        <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;;\n&quot;</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">visit_includes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">includes</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> <span class="ident">Includes</span>) {
@@ -1841,6 +1880,7 @@
             <span class="ident">Other</span>::<span class="ident">Float64Array</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;Float64Array&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">FrozenArray</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;FrozenArray&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Getter</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;getter&quot;</span>),
+            <span class="ident">Other</span>::<span class="ident">Implements</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;implements&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Includes</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;includes&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Inherit</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;inherit&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Int16Array</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;Int16Array&quot;</span>),
@@ -1848,6 +1888,7 @@
             <span class="ident">Other</span>::<span class="ident">Int8Array</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;Int8Array&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Interface</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;interface&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Iterable</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;iterable&quot;</span>),
+            <span class="ident">Other</span>::<span class="ident">LegacyCaller</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;legacycaller&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Long</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;long&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Maplike</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;maplike&quot;</span>),
             <span class="ident">Other</span>::<span class="ident">Namespace</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;namespace&quot;</span>),
@@ -2079,6 +2120,7 @@
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">special</span> {
             <span class="ident">Special</span>::<span class="ident">Deleter</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;deleter&quot;</span>),
             <span class="ident">Special</span>::<span class="ident">Getter</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;getter&quot;</span>),
+            <span class="ident">Special</span>::<span class="ident">LegacyCaller</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;legacycaller&quot;</span>),
             <span class="ident">Special</span>::<span class="ident">Setter</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">output</span>.<span class="ident">push_str</span>(<span class="string">&quot;setter&quot;</span>),
         }
     }

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.6.5/src/kmerge_impl.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.7.8/src/kmerge_impl.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>kmerge_impl.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -293,12 +293,31 @@
 <span id="236">236</span>
 <span id="237">237</span>
 <span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
 </pre><pre class="rust ">
 
 <span class="kw">use</span> <span class="ident">size_hint</span>;
 <span class="kw">use</span> <span class="ident">Itertools</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">replace</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">clone_fields</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">base</span>:<span class="ident">expr</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">field</span>:<span class="ident">ident</span>),<span class="op">+</span>) <span class="op">=&gt;</span> (
@@ -317,6 +336,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// The meanings of `PartialOrd` and `Ord` are reversed so as to turn the heap used in</span>
 <span class="doccomment">/// `KMerge` into a min-heap.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">struct</span> <span class="ident">HeadTail</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>
 {
@@ -405,10 +425,18 @@
 <span class="doccomment">/// Iterator element type is `I::Item`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [`.kmerge()`](../trait.Itertools.html#method.kmerge) for more information.</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterator adaptors are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">KMerge</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>
 {
     <span class="ident">heap</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">HeadTail</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">KMerge</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span> <span class="op">+</span> <span class="ident">fmt</span>::<span class="ident">Debug</span>,
+          <span class="ident">I</span>::<span class="ident">Item</span>: <span class="ident">fmt</span>::<span class="ident">Debug</span>,
+{
+    <span class="macro">debug_fmt_fields</span><span class="macro">!</span>(<span class="ident">KMerge</span>, <span class="ident">heap</span>);
 }
 
 <span class="doccomment">/// Create an iterator that merges elements of the contained iterators using</span>
@@ -479,11 +507,19 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [`.kmerge_by()`](../trait.Itertools.html#method.kmerge_by) for more</span>
 <span class="doccomment">/// information.</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterator adaptors are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">KMergeBy</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">F</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>,
 {
     <span class="ident">heap</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">HeadTail</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;&gt;</span>,
     <span class="ident">less_than</span>: <span class="ident">F</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">F</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">KMergeBy</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">F</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span> <span class="op">+</span> <span class="ident">fmt</span>::<span class="ident">Debug</span>,
+          <span class="ident">I</span>::<span class="ident">Item</span>: <span class="ident">fmt</span>::<span class="ident">Debug</span>,
+{
+    <span class="macro">debug_fmt_fields</span><span class="macro">!</span>(<span class="ident">KMergeBy</span>, <span class="ident">heap</span>);
 }
 
 <span class="doccomment">/// Create an iterator that merges elements of the contained iterators.</span>

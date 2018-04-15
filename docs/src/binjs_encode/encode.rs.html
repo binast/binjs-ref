@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -330,6 +330,40 @@
 <span id="273">273</span>
 <span id="274">274</span>
 <span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Encode a text source to a BinJS.</span>
 
@@ -340,10 +374,12 @@
 <span class="kw">use</span> <span class="ident">binjs</span>::<span class="ident">io</span>::<span class="ident">TokenSerializer</span>;
 <span class="kw">use</span> <span class="ident">binjs</span>::<span class="ident">source</span>::{ <span class="ident">Shift</span>, <span class="ident">SourceParser</span> };
 <span class="kw">use</span> <span class="ident">binjs</span>::<span class="ident">generic</span>::<span class="ident">FromJSON</span>;
+<span class="kw">use</span> <span class="ident">binjs</span>::<span class="ident">specialized</span>::<span class="ident">es6</span>::<span class="ident">ast</span>::<span class="ident">Walker</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::{ <span class="ident">Path</span>, <span class="ident">PathBuf</span> };
 
 <span class="kw">use</span> <span class="ident">clap</span>::<span class="kw-2">*</span>;
@@ -353,7 +389,8 @@
     <span class="ident">multipart_stats</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">binjs</span>::<span class="ident">io</span>::<span class="ident">multipart</span>::<span class="ident">Statistics</span><span class="op">&gt;</span>,
     <span class="ident">simple_stats</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">binjs</span>::<span class="ident">io</span>::<span class="ident">simple</span>::<span class="ident">Statistics</span><span class="op">&gt;</span>,
     <span class="ident">compression</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">binjs</span>::<span class="ident">io</span>::<span class="ident">multipart</span>::<span class="ident">WriteOptions</span><span class="op">&gt;</span>,
-    <span class="ident">dest_dir</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>
+    <span class="ident">dest_dir</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
+    <span class="ident">lazification</span>: <span class="ident">u32</span>,
 }
 
 <span class="kw">fn</span> <span class="ident">handle_path</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">options</span>: <span class="kw-2">&amp;</span><span class="ident">Options</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
@@ -414,14 +451,20 @@
         .<span class="ident">len</span>();
 
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Parsing.&quot;</span>);
-    <span class="kw">let</span> <span class="ident">ast</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">parser</span>.<span class="ident">parse_file</span>(<span class="ident">source_path</span>)
+    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">parser</span>.<span class="ident">parse_file</span>(<span class="ident">source_path</span>)
         .<span class="ident">expect</span>(<span class="string">&quot;Could not parse source&quot;</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ast</span> <span class="op">=</span> <span class="ident">binjs</span>::<span class="ident">specialized</span>::<span class="ident">es6</span>::<span class="ident">ast</span>::<span class="ident">Script</span>::<span class="ident">import</span>(<span class="kw-2">&amp;</span><span class="ident">ast</span>)
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ast</span> <span class="op">=</span> <span class="ident">binjs</span>::<span class="ident">specialized</span>::<span class="ident">es6</span>::<span class="ident">ast</span>::<span class="ident">Script</span>::<span class="ident">import</span>(<span class="kw-2">&amp;</span><span class="ident">json</span>)
         .<span class="ident">expect</span>(<span class="string">&quot;Could not import AST&quot;</span>);
-
-    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Annotating.&quot;</span>);
     <span class="ident">binjs</span>::<span class="ident">specialized</span>::<span class="ident">es6</span>::<span class="ident">scopes</span>::<span class="ident">AnnotationVisitor</span>::<span class="ident">new</span>()
         .<span class="ident">annotate_script</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ast</span>);
+
+    <span class="kw">if</span> <span class="ident">options</span>.<span class="ident">lazification</span> <span class="op">&gt;</span> <span class="number">0</span> {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Introducing laziness.&quot;</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">binjs</span>::<span class="ident">specialized</span>::<span class="ident">es6</span>::<span class="ident">ast</span>::<span class="ident">Path</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">visitor</span> <span class="op">=</span> <span class="ident">binjs</span>::<span class="ident">specialized</span>::<span class="ident">es6</span>::<span class="ident">skip</span>::<span class="ident">LazifierVisitor</span>::<span class="ident">new</span>(<span class="ident">options</span>.<span class="ident">lazification</span>);
+        <span class="ident">ast</span>.<span class="ident">walk</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">visitor</span>)
+            .<span class="ident">expect</span>(<span class="string">&quot;Could not introduce laziness&quot;</span>);
+    }
 
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Encoding.&quot;</span>);
     <span class="kw">let</span> <span class="ident">data</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;&gt;</span> <span class="op">=</span> {
@@ -473,7 +516,20 @@
 
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Successfully compressed {} bytes =&gt; {} bytes&quot;</span>, <span class="ident">source_len</span>, <span class="ident">dest_len</span>);
 }
+
 <span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="ident">thread</span>::<span class="ident">Builder</span>::<span class="ident">new</span>()
+        .<span class="ident">name</span>(<span class="string">&quot;large stack dedicated thread&quot;</span>.<span class="ident">to_string</span>())
+        .<span class="ident">stack_size</span>(<span class="number">20</span> <span class="op">*</span> <span class="number">1024</span> <span class="op">*</span> <span class="number">1024</span>)
+        .<span class="ident">spawn</span>(<span class="op">||</span> {
+            <span class="ident">main_aux</span>();
+        })
+        .<span class="ident">expect</span>(<span class="string">&quot;Could not launch dedicated thread&quot;</span>)
+        .<span class="ident">join</span>()
+        .<span class="ident">expect</span>(<span class="string">&quot;Error in dedicated thread&quot;</span>);
+}
+
+<span class="kw">fn</span> <span class="ident">main_aux</span>() {
     <span class="ident">env_logger</span>::<span class="ident">init</span>();
 
     <span class="kw">let</span> <span class="ident">matches</span> <span class="op">=</span> <span class="ident">App</span>::<span class="ident">new</span>(<span class="string">&quot;BinJS encoder&quot;</span>)
@@ -521,6 +577,13 @@
             <span class="ident">Arg</span>::<span class="ident">with_name</span>(<span class="string">&quot;statistics&quot;</span>)
                 .<span class="ident">long</span>(<span class="string">&quot;show-stats&quot;</span>)
                 .<span class="ident">help</span>(<span class="string">&quot;Show statistics.&quot;</span>),
+            <span class="ident">Arg</span>::<span class="ident">with_name</span>(<span class="string">&quot;lazify&quot;</span>)
+                .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
+                .<span class="ident">default_value</span>(<span class="string">&quot;0&quot;</span>)
+                .<span class="ident">validator</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>()
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Invalid number {}&quot;</span>, <span class="ident">e</span>)))
+                .<span class="ident">help</span>(<span class="string">&quot;Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc.&quot;</span>),
         ])
         .<span class="ident">group</span>(<span class="ident">ArgGroup</span>::<span class="ident">with_name</span>(<span class="string">&quot;multipart&quot;</span>)
             .<span class="ident">args</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;strings&quot;</span>, <span class="string">&quot;grammar&quot;</span>, <span class="string">&quot;tree&quot;</span>])
@@ -587,13 +650,18 @@
         .<span class="ident">with_source_bytes</span>(<span class="number">0</span>);
     <span class="kw">let</span> <span class="ident">simple_stats</span> <span class="op">=</span> <span class="ident">binjs</span>::<span class="ident">io</span>::<span class="ident">simple</span>::<span class="ident">Statistics</span>::<span class="ident">default</span>();
 
+    <span class="kw">let</span> <span class="ident">lazification</span> <span class="op">=</span> <span class="ident">str</span>::<span class="ident">parse</span>(<span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;lazify&quot;</span>).<span class="ident">expect</span>(<span class="string">&quot;Missing lazify&quot;</span>))
+        .<span class="ident">expect</span>(<span class="string">&quot;Invalid number&quot;</span>);
+
     <span class="kw">let</span> <span class="ident">options</span> <span class="op">=</span> <span class="ident">Options</span> {
         <span class="ident">parser</span>: <span class="kw-2">&amp;</span><span class="ident">parser</span>,
         <span class="ident">multipart_stats</span>: <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">multipart_stats</span>),
         <span class="ident">simple_stats</span>: <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">simple_stats</span>),
         <span class="ident">compression</span>,
         <span class="ident">dest_dir</span>,
+        <span class="ident">lazification</span>,
     };
+
     <span class="kw">for</span> <span class="ident">source_path</span> <span class="kw">in</span> <span class="ident">sources</span> {
         <span class="ident">handle_path</span>(<span class="kw-2">&amp;</span><span class="ident">options</span>, <span class="ident">source_path</span>, <span class="ident">PathBuf</span>::<span class="ident">new</span>().<span class="ident">as_path</span>());
     }

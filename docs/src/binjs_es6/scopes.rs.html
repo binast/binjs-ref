@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -710,9 +710,10 @@
 <span id="653">653</span>
 <span id="654">654</span>
 <span id="655">655</span>
+<span id="656">656</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">ast</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">binjs_shared</span>::{ <span class="ident">FromJSON</span>, <span class="ident">ToJSON</span> };
+<span class="kw">use</span> <span class="ident">binjs_shared</span>::{ <span class="ident">FromJSON</span>, <span class="ident">ToJSON</span>, <span class="ident">VisitMe</span> };
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{  <span class="ident">HashSet</span> };
 
@@ -895,25 +896,25 @@
 <span class="kw">impl</span> <span class="ident">Visitor</span><span class="op">&lt;</span>()<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AnnotationVisitor</span> {
     <span class="comment">// Identifiers</span>
 
-    <span class="kw">fn</span> <span class="ident">exit_call_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CallExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_call_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CallExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CallExpression</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">ExpressionOrSuper</span>::<span class="ident">IdentifierExpression</span>(<span class="kw">box</span> <span class="kw-2">ref</span> <span class="ident">id</span>) <span class="op">=</span> <span class="ident">node</span>.<span class="ident">callee</span> {
             <span class="kw">if</span> <span class="ident">id</span>.<span class="ident">name</span> <span class="op">==</span> <span class="string">&quot;eval&quot;</span> {
                 <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">apparent_direct_eval_stack</span>.<span class="ident">last_mut</span>()
                     .<span class="ident">unwrap</span>() <span class="op">=</span> <span class="bool-val">true</span>;
             }
         }
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">exit_identifier_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">IdentifierExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_identifier_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">IdentifierExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IdentifierExpression</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">free_names_in_function_stack</span>.<span class="ident">last_mut</span>()
             .<span class="ident">unwrap</span>()
             .<span class="ident">insert</span>(<span class="ident">node</span>.<span class="ident">name</span>.<span class="ident">clone</span>());
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
 
-    <span class="kw">fn</span> <span class="ident">exit_binding_identifier</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BindingIdentifier</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_binding_identifier</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BindingIdentifier</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BindingIdentifier</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">path</span>.<span class="ident">get</span>(<span class="number">0</span>) {
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">PathItem</span> { <span class="ident">interface</span>: <span class="ident">ASTNode</span>::<span class="ident">EagerFunctionDeclaration</span>, <span class="ident">field</span>: <span class="ident">ASTField</span>::<span class="ident">Name</span>})
             <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">PathItem</span> { <span class="ident">interface</span>: <span class="ident">ASTNode</span>::<span class="ident">EagerFunctionExpression</span>, <span class="ident">field</span>: <span class="ident">ASTField</span>::<span class="ident">Name</span>})
@@ -923,7 +924,7 @@
             <span class="op">=&gt;</span> {
                 <span class="comment">// Function names are special.</span>
                 <span class="comment">// They are handled in the respective `exit_*` methods.</span>
-                <span class="kw">return</span> <span class="prelude-val">Ok</span>(())
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
             }
             <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
@@ -948,94 +949,94 @@
             }
             <span class="ident">BindingKind</span>::<span class="ident">Implicit</span> <span class="op">=&gt;</span> { <span class="comment">/* Nothing to do */</span> }
         }
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
 
     <span class="comment">// Blocks</span>
 
-    <span class="kw">fn</span> <span class="ident">enter_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Block</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Block</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">push_block_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
 
-    <span class="kw">fn</span> <span class="ident">exit_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Block</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Block</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Block</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="ident">node</span>.<span class="ident">scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_block_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">enter_script</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Script</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_script</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Script</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">push_var_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_script</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Script</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_script</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Script</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Script</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="ident">node</span>.<span class="ident">scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_var_scope</span>(<span class="ident">path</span>, <span class="prelude-val">None</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">enter_module</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Module</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_module</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Module</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">push_var_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_module</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Module</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_module</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Module</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Module</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="ident">node</span>.<span class="ident">scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_var_scope</span>(<span class="ident">path</span>, <span class="prelude-val">None</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
     <span class="comment">// Try/Catch</span>
-    <span class="kw">fn</span> <span class="ident">enter_catch_clause</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CatchClause</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_catch_clause</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CatchClause</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">push</span>(<span class="ident">BindingKind</span>::<span class="ident">Implicit</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_catch_clause</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CatchClause</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_catch_clause</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CatchClause</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CatchClause</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">pop</span>(), <span class="prelude-val">Some</span>(<span class="ident">BindingKind</span>::<span class="ident">Implicit</span>));
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
     <span class="comment">// Explicit variable declarations</span>
 
-    <span class="kw">fn</span> <span class="ident">enter_for_in_of_binding</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ForInOfBinding</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_for_in_of_binding</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ForInOfBinding</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">kind</span> {
             <span class="ident">VariableDeclarationKind</span>::<span class="ident">Let</span> <span class="op">|</span> <span class="ident">VariableDeclarationKind</span>::<span class="ident">Const</span> <span class="op">=&gt;</span> <span class="ident">BindingKind</span>::<span class="ident">Lex</span>,
             <span class="ident">VariableDeclarationKind</span>::<span class="ident">Var</span> <span class="op">=&gt;</span> <span class="ident">BindingKind</span>::<span class="ident">Var</span>,
         };
         <span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">push</span>(<span class="ident">kind</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_for_in_of_binding</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ForInOfBinding</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_for_in_of_binding</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ForInOfBinding</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ForInOfBinding</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">kind</span> {
             <span class="ident">VariableDeclarationKind</span>::<span class="ident">Let</span> <span class="op">|</span> <span class="ident">VariableDeclarationKind</span>::<span class="ident">Const</span> <span class="op">=&gt;</span> <span class="ident">BindingKind</span>::<span class="ident">Lex</span>,
             <span class="ident">VariableDeclarationKind</span>::<span class="ident">Var</span> <span class="op">=&gt;</span> <span class="ident">BindingKind</span>::<span class="ident">Var</span>,
         };
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>(), <span class="ident">kind</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">enter_variable_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">VariableDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_variable_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">VariableDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">kind</span> {
             <span class="ident">VariableDeclarationKind</span>::<span class="ident">Let</span> <span class="op">|</span> <span class="ident">VariableDeclarationKind</span>::<span class="ident">Const</span> <span class="op">=&gt;</span> <span class="ident">BindingKind</span>::<span class="ident">Lex</span>,
             <span class="ident">VariableDeclarationKind</span>::<span class="ident">Var</span> <span class="op">=&gt;</span> <span class="ident">BindingKind</span>::<span class="ident">Var</span>,
         };
         <span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">push</span>(<span class="ident">kind</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_variable_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">VariableDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_variable_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">VariableDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">VariableDeclaration</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">kind</span> {
             <span class="ident">VariableDeclarationKind</span>::<span class="ident">Let</span> <span class="op">|</span> <span class="ident">VariableDeclarationKind</span>::<span class="ident">Const</span> <span class="op">=&gt;</span> <span class="ident">BindingKind</span>::<span class="ident">Lex</span>,
             <span class="ident">VariableDeclarationKind</span>::<span class="ident">Var</span> <span class="op">=&gt;</span> <span class="ident">BindingKind</span>::<span class="ident">Var</span>,
         };
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>(), <span class="ident">kind</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
     <span class="comment">// Functions, methods, arguments.</span>
-    <span class="kw">fn</span> <span class="ident">enter_eager_setter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerSetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_setter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerSetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">push</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>);
         <span class="self">self</span>.<span class="ident">push_param_scope</span>(<span class="ident">path</span>);
         <span class="self">self</span>.<span class="ident">push_var_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_setter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerSetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_setter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerSetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerSetter</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">pop</span>(), <span class="prelude-val">Some</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>));
         <span class="comment">// If the setter has a name, it&#39;s not a free name.</span>
         <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">PropertyName</span>::<span class="ident">LiteralPropertyName</span>(<span class="kw">box</span> <span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=</span> <span class="ident">node</span>.<span class="ident">name</span> {
@@ -1048,15 +1049,15 @@
         <span class="ident">node</span>.<span class="ident">parameter_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_param_scope</span>(<span class="ident">path</span>);
         <span class="ident">node</span>.<span class="ident">body_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_var_scope</span>(<span class="ident">path</span>, <span class="ident">name</span>);
 
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">enter_eager_getter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerGetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_getter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerGetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">push_var_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
 
-    <span class="kw">fn</span> <span class="ident">exit_eager_getter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerGetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_getter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerGetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerGetter</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="comment">// If the getter has a name, it&#39;s not a free name.</span>
         <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">PropertyName</span>::<span class="ident">LiteralPropertyName</span>(<span class="kw">box</span> <span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=</span> <span class="ident">node</span>.<span class="ident">name</span> {
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>.<span class="ident">value</span>)
@@ -1066,16 +1067,16 @@
 
         <span class="ident">node</span>.<span class="ident">body_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_var_scope</span>(<span class="ident">path</span>, <span class="ident">name</span>);
 
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">enter_eager_method</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerMethod</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_method</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerMethod</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">push</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>);
         <span class="self">self</span>.<span class="ident">push_var_scope</span>(<span class="ident">path</span>);
         <span class="self">self</span>.<span class="ident">push_param_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_method</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerMethod</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_method</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerMethod</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerMethod</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">pop</span>(), <span class="prelude-val">Some</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>));
 
         <span class="comment">// If the method has a name, it&#39;s not a free name.</span>
@@ -1089,32 +1090,32 @@
         <span class="ident">node</span>.<span class="ident">parameter_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_param_scope</span>(<span class="ident">path</span>);
         <span class="ident">node</span>.<span class="ident">body_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_var_scope</span>(<span class="ident">path</span>, <span class="ident">name</span>);
 
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">enter_eager_arrow_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerArrowExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_arrow_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerArrowExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">push</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>);
         <span class="self">self</span>.<span class="ident">push_var_scope</span>(<span class="ident">path</span>);
         <span class="self">self</span>.<span class="ident">push_param_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_arrow_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerArrowExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_arrow_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerArrowExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerArrowExpression</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">pop</span>(), <span class="prelude-val">Some</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>));
 
         <span class="comment">// Commit parameter scope and var scope.</span>
         <span class="ident">node</span>.<span class="ident">parameter_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_param_scope</span>(<span class="ident">path</span>);
         <span class="ident">node</span>.<span class="ident">body_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_var_scope</span>(<span class="ident">path</span>, <span class="prelude-val">None</span>);
 
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">enter_eager_function_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_function_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">push</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>);
         <span class="self">self</span>.<span class="ident">push_var_scope</span>(<span class="ident">path</span>);
         <span class="self">self</span>.<span class="ident">push_param_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_function_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_function_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerFunctionExpression</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">pop</span>(), <span class="prelude-val">Some</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>));
 
         <span class="comment">// If the function has a name, it&#39;s not a free name</span>
@@ -1128,16 +1129,16 @@
         <span class="ident">node</span>.<span class="ident">parameter_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_param_scope</span>(<span class="ident">path</span>);
         <span class="ident">node</span>.<span class="ident">body_scope</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_var_scope</span>(<span class="ident">path</span>, <span class="ident">name</span>);
 
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">enter_eager_function_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_function_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">push</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>);
         <span class="self">self</span>.<span class="ident">push_var_scope</span>(<span class="ident">path</span>);
         <span class="self">self</span>.<span class="ident">push_param_scope</span>(<span class="ident">path</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_function_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_function_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerFunctionDeclaration</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="macro">debug</span><span class="macro">!</span>(<span class="ident">target</span>: <span class="string">&quot;annotating&quot;</span>, <span class="string">&quot;exit_function_declaration {} at {:?}&quot;</span>, <span class="ident">node</span>.<span class="ident">name</span>.<span class="ident">name</span>, <span class="ident">path</span>);
         <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">binding_kind_stack</span>.<span class="ident">pop</span>(), <span class="prelude-val">Some</span>(<span class="ident">BindingKind</span>::<span class="ident">Param</span>));
 
@@ -1178,7 +1179,7 @@
                     .<span class="ident">insert</span>(<span class="ident">name</span>);
             }
         }
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 }
 
@@ -1191,18 +1192,18 @@
 <span class="kw">impl</span> <span class="ident">Visitor</span><span class="op">&lt;</span>()<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EvalCleanupAnnotator</span> {
     <span class="comment">// FIXME: Anything that has a scope (including CatchClause and its invisible scope) should push an `eval_bindings`.</span>
     <span class="comment">// on entering, pop it on exit.</span>
-    <span class="kw">fn</span> <span class="ident">enter_eager_function_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_function_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="comment">// By default, adopt parent&#39;s behavior.</span>
         <span class="comment">// If necessary, reading the scope information will amend it.</span>
         <span class="kw">let</span> <span class="ident">has_eval_binding</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>();
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">push</span>(<span class="ident">has_eval_binding</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_function_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_function_declaration</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionDeclaration</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerFunctionDeclaration</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
-    <span class="kw">fn</span> <span class="ident">enter_eager_function_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_function_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="comment">// By default, adopt parent&#39;s behavior.</span>
         <span class="comment">// Don&#39;t forget that the internal name of the function may mask `eval`.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_eval_binding</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>();
@@ -1211,24 +1212,24 @@
         }
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">push</span>(<span class="ident">has_eval_binding</span>);
         <span class="comment">// If necessary, reading the scope information will amend it.</span>
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_function_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_function_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerFunctionExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerFunctionExpression</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
-    <span class="kw">fn</span> <span class="ident">enter_eager_arrow_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerArrowExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_arrow_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerArrowExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="comment">// By default, adopt parent&#39;s behavior.</span>
         <span class="comment">// If necessary, reading the scope information will amend it.</span>
         <span class="kw">let</span> <span class="ident">has_eval_binding</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>();
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">push</span>(<span class="ident">has_eval_binding</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_arrow_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerArrowExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_arrow_expression</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerArrowExpression</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerArrowExpression</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
-    <span class="kw">fn</span> <span class="ident">enter_eager_getter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerGetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_getter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerGetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="comment">// Don&#39;t forget that the internal name of the getter may mask `eval`.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_eval_binding</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>();
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">PropertyName</span>::<span class="ident">LiteralPropertyName</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=</span> <span class="ident">node</span>.<span class="ident">name</span> {
@@ -1236,13 +1237,13 @@
         }
         <span class="comment">// If necessary, reading the scope information will amend it.</span>
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">push</span>(<span class="ident">has_eval_binding</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_getter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerGetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_getter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerGetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerGetter</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
-    <span class="kw">fn</span> <span class="ident">enter_eager_setter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerSetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_setter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerSetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="comment">// Don&#39;t forget that the internal name of the setter may mask `eval`.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_eval_binding</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>();
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">PropertyName</span>::<span class="ident">LiteralPropertyName</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=</span> <span class="ident">node</span>.<span class="ident">name</span> {
@@ -1250,13 +1251,13 @@
         }
         <span class="comment">// If necessary, reading the scope information will amend it.</span>
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">push</span>(<span class="ident">has_eval_binding</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_setter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerSetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_setter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerSetter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerSetter</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
-    <span class="kw">fn</span> <span class="ident">enter_eager_method</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerMethod</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_eager_method</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerMethod</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="comment">// Don&#39;t forget that the internal name of the method may mask `eval`.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_eval_binding</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>();
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">PropertyName</span>::<span class="ident">LiteralPropertyName</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=</span> <span class="ident">node</span>.<span class="ident">name</span> {
@@ -1264,13 +1265,13 @@
         }
         <span class="comment">// If necessary, reading the scope information will amend it.</span>
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">push</span>(<span class="ident">has_eval_binding</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_eager_method</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerMethod</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_eager_method</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EagerMethod</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EagerMethod</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
-    <span class="kw">fn</span> <span class="ident">enter_catch_clause</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CatchClause</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enter_catch_clause</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CatchClause</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">VisitMe</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="comment">// Don&#39;t forget that the implicitly declared variable may mask `eval`.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_eval_binding</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>();
         <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">binding</span> {
@@ -1280,17 +1281,17 @@
             <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>() <span class="comment">// FIXME: Patterns may also mask `eval`.</span>
         }
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">push</span>(<span class="ident">has_eval_binding</span>);
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="ident">VisitMe</span>::<span class="ident">HoldThis</span>(()))
     }
-    <span class="kw">fn</span> <span class="ident">exit_catch_clause</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CatchClause</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_catch_clause</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">_node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CatchClause</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CatchClause</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
 
 
     <span class="comment">// Update scopes themselves.</span>
-    <span class="kw">fn</span> <span class="ident">exit_asserted_block_scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AssertedBlockScope</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_asserted_block_scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AssertedBlockScope</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">AssertedBlockScope</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">lexically_declared_names</span>.<span class="ident">iter</span>()
             .<span class="ident">find</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">e</span> <span class="op">==</span> <span class="string">&quot;eval&quot;</span>)
             .<span class="ident">is_some</span>()
@@ -1303,9 +1304,9 @@
         {
             <span class="ident">node</span>.<span class="ident">has_direct_eval</span> <span class="op">=</span> <span class="bool-val">false</span>;
         }
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
-    <span class="kw">fn</span> <span class="ident">exit_asserted_var_scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AssertedVarScope</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_asserted_var_scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AssertedVarScope</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">AssertedVarScope</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">lexically_declared_names</span>.<span class="ident">iter</span>()
             .<span class="ident">chain</span>(<span class="ident">node</span>.<span class="ident">var_declared_names</span>.<span class="ident">iter</span>())
             .<span class="ident">find</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">e</span> <span class="op">==</span> <span class="string">&quot;eval&quot;</span>)
@@ -1317,11 +1318,11 @@
         <span class="kw">if</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">eval_bindings</span>.<span class="ident">last</span>()
             .<span class="ident">unwrap</span>()
         {
-            <span class="ident">node</span>.<span class="ident">has_direct_eval</span> <span class="op">=</span> <span class="bool-val">false</span>;    
+            <span class="ident">node</span>.<span class="ident">has_direct_eval</span> <span class="op">=</span> <span class="bool-val">false</span>;
         }
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
-    <span class="kw">fn</span> <span class="ident">exit_asserted_parameter_scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AssertedParameterScope</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">exit_asserted_parameter_scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AssertedParameterScope</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">AssertedParameterScope</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">parameter_names</span>.<span class="ident">iter</span>()
             .<span class="ident">find</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">e</span> <span class="op">==</span> <span class="string">&quot;eval&quot;</span>)
             .<span class="ident">is_some</span>()
@@ -1334,7 +1335,7 @@
         {
             <span class="ident">node</span>.<span class="ident">has_direct_eval</span> <span class="op">=</span> <span class="bool-val">false</span>;
         }
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 }
 
@@ -1344,6 +1345,7 @@
     }
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">annotate_script</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">script</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Script</span>) {
         <span class="comment">// Annotate.</span>
+
         <span class="comment">// At this stage, we may have false positives for `hasDirectEval`.</span>
         <span class="ident">script</span>.<span class="ident">walk</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Path</span>::<span class="ident">new</span>(), <span class="self">self</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Could not walk script&quot;</span>);

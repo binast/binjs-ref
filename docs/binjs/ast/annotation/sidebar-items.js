@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["DeclPosition",""],["ScopeNodeName",""]],"struct":[["Context","Storage for information collected while annotating an AST."],["ContextContents",""],["DeclContents",""],["Position","The position currently being examined."],["RefContents","The contents of a context used to annotate use of variables."]],"trait":[["Annotator",""]]});

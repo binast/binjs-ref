@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.6.5/src/groupbylazy.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.7.8/src/groupbylazy.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>groupbylazy.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -621,6 +621,11 @@
 <span id="564">564</span>
 <span id="565">565</span>
 <span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::{<span class="ident">Cell</span>, <span class="ident">RefCell</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">vec</span>;
@@ -643,6 +648,7 @@
 
 
 <span class="doccomment">/// ChunkIndex acts like the grouping key function for IntoChunks</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ChunkIndex</span> {
     <span class="ident">size</span>: <span class="ident">usize</span>,
     <span class="ident">index</span>: <span class="ident">usize</span>,
@@ -908,6 +914,7 @@
 <span class="doccomment">/// iterated.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [`.group_by()`](../trait.Itertools.html#method.group_by) for more information.</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterator adaptors are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GroupBy</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">I</span>, <span class="ident">F</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>,
 {
@@ -977,6 +984,7 @@
 <span class="doccomment">/// the group&#39;s key `K` and the group&#39;s iterator.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [`.group_by()`](../trait.Itertools.html#method.group_by) for more information.</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterator adaptors are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Groups</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">K</span>: <span class="lifetime">&#39;a</span>, <span class="ident">I</span>: <span class="lifetime">&#39;a</span>, <span class="ident">F</span>: <span class="lifetime">&#39;a</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>,
           <span class="ident">I</span>::<span class="ident">Item</span>: <span class="lifetime">&#39;a</span>
@@ -1082,6 +1090,7 @@
 <span class="doccomment">/// Iterator element type is `Chunk`, each chunk&#39;s iterator.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [`.chunks()`](../trait.Itertools.html#method.chunks) for more information.</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterator adaptors are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">IntoChunks</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>,
 {
@@ -1126,6 +1135,7 @@
 <span class="doccomment">/// Iterator element type is `Chunk`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [`.chunks()`](../trait.Itertools.html#method.chunks) for more information.</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterator adaptors are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Chunks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span>: <span class="lifetime">&#39;a</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>,
           <span class="ident">I</span>::<span class="ident">Item</span>: <span class="lifetime">&#39;a</span>,

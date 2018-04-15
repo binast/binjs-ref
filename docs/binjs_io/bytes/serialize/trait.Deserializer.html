@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -55,16 +55,10 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>binjs_io</a>::<wbr><a href='../index.html'>bytes</a>::<wbr><a href='index.html'>serialize</a>::<wbr><a class="trait" href=''>Deserializer</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../../src/binjs_io/bytes/serialize.rs.html#8-11' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Deserializer <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Self::<a class="type" href="../../../binjs_io/bytes/serialize/trait.Deserializer.html#associatedtype.Target" title="type binjs_io::bytes::serialize::Deserializer::Target">Target</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,&nbsp;</span>{
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>binjs_io</a>::<wbr><a href='../index.html'>bytes</a>::<wbr><a href='index.html'>serialize</a>::<wbr><a class="trait" href=''>Deserializer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/binjs_io/bytes/serialize.rs.html#8-11' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Deserializer <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Self::<a class="type" href="../../../binjs_io/bytes/serialize/trait.Deserializer.html#associatedtype.Target" title="type binjs_io::bytes::serialize::Deserializer::Target">Target</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,&nbsp;</span>{
     type <a href='#associatedtype.Target' class="type">Target</a>;
     fn <a href='#tymethod.read' class='fnname'>read</a>&lt;R:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Seek.html" title="trait std::io::Seek">Seek</a>&gt;(&amp;self, _: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>R) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../../binjs_io/bytes/serialize/trait.Deserializer.html#associatedtype.Target" title="type binjs_io::bytes::serialize::Deserializer::Target">Target</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html" title="struct std::io::error::Error">Error</a>&gt;;
-}</pre><div class='docblock'><p>A value that may be deserialized from bytes, optionally decompressed.</p>
+}</pre></div><div class='docblock'><p>A value that may be deserialized from bytes, optionally decompressed.</p>
 </div>
             <h2 id='associated-types' class='small-section-header'>
               Associated Types<a href='#associated-types' class='anchor'></a>
@@ -79,11 +73,9 @@
                 <h2 id='foreign-impls' class='small-section-header'>
                   Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
                 </h2>
-            <h3 id='impl-Deserializer' class='impl'><span class='in-band'><code>impl <a class="trait" href="../../../binjs_io/bytes/serialize/trait.Deserializer.html" title="trait binjs_io::bytes::serialize::Deserializer">Deserializer</a> for <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code><a href='#impl-Deserializer' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/binjs_io/multipart/read.rs.html#37-53' title='goto source code'>[src]</a></span></h3>
-<div class='docblock'><p>Deserialize a String|null</p>
+            <h3 id='impl-Deserializer' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="../../../binjs_io/bytes/serialize/trait.Deserializer.html" title="trait binjs_io::bytes::serialize::Deserializer">Deserializer</a> for <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code><a href='#impl-Deserializer' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/binjs_io/multipart/read.rs.html#37-53' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='docblock'><p>Deserialize a String|null</p>
 </div><span class='docblock autohide'><div class='impl-items'><h4 id='associatedtype.Target-1' class="type"><span id='Target.t-1' class='invisible'><code>type <a href='#associatedtype.Target' class="type">Target</a> = Self</code></span></h4>
-<h4 id='method.read' class="method"><span id='read.v-1' class='invisible'><code>fn <a href='#method.read' class='fnname'>read</a>&lt;R:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a>&gt;(&amp;self, inp: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>R) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self, <a class="struct" href="https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html" title="struct std::io::error::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/binjs_io/multipart/read.rs.html#39-52' title='goto source code'>[src]</a></span></h4>
-</div></span>
+<h4 id='method.read' class="method"><span id='read.v-1' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='#method.read' class='fnname'>read</a>&lt;R:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a>&gt;(&amp;self, inp: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>R) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self, <a class="struct" href="https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html" title="struct std::io::error::Error">Error</a>&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/binjs_io/multipart/read.rs.html#39-52' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4></div></span>
         <h2 id='implementors' class='small-section-header'>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>

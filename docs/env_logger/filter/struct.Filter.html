@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>env_logger</a>::<wbr><a href='index.html'>filter</a>::<wbr><a class="struct" href=''>Filter</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#82-85' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct Filter { /* fields omitted */ }</pre><div class='docblock'><p>A log filter.</p>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>env_logger</a>::<wbr><a href='index.html'>filter</a>::<wbr><a class="struct" href=''>Filter</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#82-85' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Filter { /* fields omitted */ }</pre></div><div class='docblock'><p>A log filter.</p>
 <p>This struct can be used to determine whether or not a log record
 should be written to the output.
 Use the <a href="struct.Builder.html"><code>Builder</code></a> type to parse and construct a <code>Filter</code>.</p>
@@ -69,9 +63,7 @@ Use the <a href="struct.Builder.html"><code>Builder</code></a> type to parse and
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../env_logger/filter/struct.Filter.html" title="struct env_logger::filter::Filter">Filter</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#127-178' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.filter' class="method"><span id='filter.v' class='invisible'><code>pub fn <a href='#method.filter' class='fnname'>filter</a>(&amp;self) -&gt; <a class="enum" href="../../log/enum.LevelFilter.html" title="enum log::LevelFilter">LevelFilter</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#149-154' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Returns the maximum <code>LevelFilter</code> that this filter instance is
+                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="struct" href="../../env_logger/filter/struct.Filter.html" title="struct env_logger::filter::Filter">Filter</a></code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#127-178' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.filter' class="method"><span id='filter.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.filter' class='fnname'>filter</a>(&amp;self) -&gt; <a class="enum" href="../../log/enum.LevelFilter.html" title="enum log::LevelFilter">LevelFilter</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#149-154' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Returns the maximum <code>LevelFilter</code> that this filter instance is
 configured to output.</p>
 <h1 id="example" class="section-header"><a href="#example">Example</a></h1>
 <pre class="rust rust-example-rendered">
@@ -89,26 +81,19 @@ configured to output.</p>
     <span class="kw">let</span> <span class="ident">filter</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">build</span>();
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">filter</span>.<span class="ident">filter</span>(), <span class="ident">LevelFilter</span>::<span class="ident">Info</span>);
 }</pre>
-</div><h4 id='method.matches' class="method"><span id='matches.v' class='invisible'><code>pub fn <a href='#method.matches' class='fnname'>matches</a>(&amp;self, record: &amp;<a class="struct" href="../../log/struct.Record.html" title="struct log::Record">Record</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#157-169' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Checks if this record matches the configured filter.</p>
-</div><h4 id='method.enabled' class="method"><span id='enabled.v' class='invisible'><code>pub fn <a href='#method.enabled' class='fnname'>enabled</a>(&amp;self, metadata: &amp;<a class="struct" href="../../log/struct.Metadata.html" title="struct log::Metadata">Metadata</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#172-177' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Determines if a log message with the specified metadata would be logged.</p>
+</div><h4 id='method.matches' class="method"><span id='matches.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.matches' class='fnname'>matches</a>(&amp;self, record: &amp;<a class="struct" href="../../log/struct.Record.html" title="struct log::Record">Record</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#157-169' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Checks if this record matches the configured filter.</p>
+</div><h4 id='method.enabled' class="method"><span id='enabled.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.enabled' class='fnname'>enabled</a>(&amp;self, metadata: &amp;<a class="struct" href="../../log/struct.Metadata.html" title="struct log::Metadata">Metadata</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#172-177' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Determines if a log message with the specified metadata would be logged.</p>
 </div></div>
-            <h2 id='implementations' class='small-section-header'>
-              Trait Implementations<a href='#implementations' class='anchor'></a>
-            </h2>
-            <div id='implementations-list'>
-        <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../env_logger/filter/struct.Filter.html" title="struct env_logger::filter::Filter">Filter</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#261-268' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#262-267' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+                <h2 id='implementations' class='small-section-header'>
+                  Trait Implementations<a href='#implementations' class='anchor'></a>
+                </h2>
+                <div id='implementations-list'><h3 id='impl-Debug' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../env_logger/filter/struct.Filter.html" title="struct env_logger::filter::Filter">Filter</a></code><a href='#impl-Debug' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#261-268' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/env_logger/filter/mod.rs.html#262-267' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
 </div></div></div>
                 <h2 id='synthetic-implementations' class='small-section-header'>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../env_logger/filter/struct.Filter.html" title="struct env_logger::filter::Filter">Filter</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../env_logger/filter/struct.Filter.html" title="struct env_logger::filter::Filter">Filter</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div></div></section>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../env_logger/filter/struct.Filter.html" title="struct env_logger::filter::Filter">Filter</a></code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../env_logger/filter/struct.Filter.html" title="struct env_logger::filter::Filter">Filter</a></code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

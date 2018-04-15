@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,17 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>binjs</a>::<wbr><a href='index.html'>source</a>::<wbr><a class="trait" href=''>SourceParser</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/binjs/source/parser.rs.html#7-15' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait SourceParser {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>binjs</a>::<wbr><a href='index.html'>source</a>::<wbr><a class="trait" href=''>SourceParser</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/binjs/source/parser.rs.html#7-15' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait SourceParser {
     type <a href='#associatedtype.Error' class="type">Error</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>;
     fn <a href='#tymethod.parse_str' class='fnname'>parse_str</a>(&amp;self, source: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a>, Self::<a class="type" href="../../binjs/source/trait.SourceParser.html#associatedtype.Error" title="type binjs::source::SourceParser::Error">Error</a>&gt;;
 <div class='item-spacer'></div>    fn <a href='#tymethod.parse_file' class='fnname'>parse_file</a>&lt;P:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html" title="trait core::convert::AsRef">AsRef</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html" title="struct std::path::Path">Path</a>&gt;&gt;(&amp;self, path: P) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../../json/value/enum.JsonValue.html" title="enum json::value::JsonValue">JSON</a>, Self::<a class="type" href="../../binjs/source/trait.SourceParser.html#associatedtype.Error" title="type binjs::source::SourceParser::Error">Error</a>&gt;;
-}</pre><div class='docblock'><p>A source that can parse files to JSON ASTs.</p>
+}</pre></div><div class='docblock'><p>A source that can parse files to JSON ASTs.</p>
 </div>
             <h2 id='associated-types' class='small-section-header'>
               Associated Types<a href='#associated-types' class='anchor'></a>
@@ -83,7 +77,7 @@
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../../src/binjs/source/shift.rs.html#134-180' title='goto source code'>[src]</a></div><code>impl SourceParser for <a class="struct" href="../../binjs/source/shift/struct.Shift.html" title="struct binjs::source::shift::Shift">Shift</a><span class="where fmt-newline">  type <a href='#associatedtype.Error' class="type">Error</a> = <a class="enum" href="../../binjs/source/shift/enum.Error.html" title="enum binjs::source::shift::Error">Error</a>;</span></code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl SourceParser for <a class="struct" href="../../binjs/source/shift/struct.Shift.html" title="struct binjs::source::shift::Shift">Shift</a><span class="where fmt-newline">  type <a href='#associatedtype.Error' class="type">Error</a> = <a class="enum" href="../../binjs/source/shift/enum.Error.html" title="enum binjs::source::shift::Error">Error</a>;</span></code><td><div class='out-of-band'><a class='srclink' href='../../src/binjs/source/shift.rs.html#142-188' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../implementors/binjs/source/trait.SourceParser.js">
                  </script></section>

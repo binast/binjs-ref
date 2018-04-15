@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.6.5/src/peeking_take_while.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.7.8/src/peeking_take_while.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>peeking_take_while.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -199,10 +199,16 @@
 <span id="142">142</span>
 <span id="143">143</span>
 <span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
 </pre><pre class="rust ">
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">Peekable</span>;
 <span class="kw">use</span> <span class="ident">PutBack</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">PutBackN</span>;
 
 <span class="doccomment">/// An iterator that allows peeking at an element before deciding to accept it.</span>
@@ -254,6 +260,7 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="ident">PeekingNext</span> <span class="kw">for</span> <span class="ident">PutBackN</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>,
 {
@@ -276,6 +283,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [`.peeking_take_while()`](../trait.Itertools.html#method.peeking_take_while)</span>
 <span class="doccomment">/// for more information.</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterator adaptors are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PeekingTakeWhile</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span>: <span class="lifetime">&#39;a</span>, <span class="ident">F</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">I</span>: <span class="ident">Iterator</span>,
 {
@@ -338,7 +346,9 @@
 <span class="macro">peeking_next_by_clone</span><span class="macro">!</span> { [<span class="lifetime">&#39;a</span>, <span class="ident">T</span>] ::<span class="ident">std</span>::<span class="ident">option</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> }
 <span class="macro">peeking_next_by_clone</span><span class="macro">!</span> { [<span class="lifetime">&#39;a</span>, <span class="ident">T</span>] ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> }
 <span class="macro">peeking_next_by_clone</span><span class="macro">!</span> { [<span class="ident">T</span>] ::<span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">Empty</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> }
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="macro">peeking_next_by_clone</span><span class="macro">!</span> { [<span class="lifetime">&#39;a</span>, <span class="ident">T</span>] ::<span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">linked_list</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> }
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="macro">peeking_next_by_clone</span><span class="macro">!</span> { [<span class="lifetime">&#39;a</span>, <span class="ident">T</span>] ::<span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">vec_deque</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> }
 
 <span class="comment">// cloning a Rev has no extra overhead; peekable and put backs are never DEI.</span>

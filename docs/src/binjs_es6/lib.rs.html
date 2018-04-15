@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -76,10 +76,16 @@
 <span id="19">19</span>
 <span id="20">20</span>
 <span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Strongly-typed implementation of the ES6 AST.</span>
 
 <span class="attribute">#![<span class="ident">feature</span>(<span class="ident">box_patterns</span>)]</span>
+<span class="attribute">#![<span class="ident">recursion_limit</span><span class="op">=</span><span class="string">&quot;128&quot;</span>]</span> <span class="comment">// We have deeply nested data structures...</span>
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">binjs_io</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">binjs_shared</span>;
@@ -94,10 +100,14 @@
 <span class="doccomment">/// A strongly-typed AST for ES6.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">ast</span>;
 
+<span class="doccomment">/// Serialization/deserialization utilities.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">io</span>;
 
 <span class="doccomment">/// Computing scope information from a strongly-typed AST.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">scopes</span>;
+
+<span class="doccomment">/// Introducing laziness in an AST.</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">skip</span>;
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

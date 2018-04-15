@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.6.5/src/ziptuple.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.7.8/src/ziptuple.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>ziptuple.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -166,25 +166,14 @@
 <span id="109">109</span>
 <span id="110">110</span>
 <span id="111">111</span>
-<span id="112">112</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">size_hint</span>;
 
 <span class="doccomment">/// See [`multizip`](../fn.multizip.html) for more information.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterator adaptors are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Zip</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="ident">t</span>: <span class="ident">T</span>,
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Zip</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Deprecated: renamed to multizip</span>
-    <span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">note</span> <span class="op">=</span> <span class="string">&quot;Renamed to multizip&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>(<span class="ident">t</span>: <span class="ident">U</span>) <span class="op">-&gt;</span> <span class="ident">Zip</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">Zip</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>,
-              <span class="ident">Zip</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>: <span class="ident">Iterator</span>,
-    {
-        <span class="ident">multizip</span>(<span class="ident">t</span>)
-    }
 }
 
 <span class="doccomment">/// An iterator that generalizes *.zip()* and allows running multiple iterators in lockstep.</span>
@@ -196,18 +185,27 @@
 <span class="doccomment">/// The iterator element type is a tuple like like `(A, B, ..., E)` where `A` to `E` are the</span>
 <span class="doccomment">/// element types of the subiterator.</span>
 <span class="doccomment">///</span>
+<span class="doccomment">/// **Note:** The result of this macro is a value of a named type (`Zip&lt;(I, J,</span>
+<span class="doccomment">/// ..)&gt;` of each component iterator `I, J, ...`) if each component iterator is</span>
+<span class="doccomment">/// nameable.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Prefer [`izip!()`] over `multizip` for the performance benefits of using the</span>
+<span class="doccomment">/// standard library `.zip()`. Prefer `multizip` if a nameable type is needed.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`izip!()`]: macro.izip.html</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// use itertools::multizip;</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// // Iterate over three sequences side-by-side</span>
-<span class="doccomment">/// let mut xs = [0, 0, 0];</span>
-<span class="doccomment">/// let ys = [69, 107, 101];</span>
+<span class="doccomment">/// // iterate over three sequences side-by-side</span>
+<span class="doccomment">/// let mut results = [0, 0, 0, 0];</span>
+<span class="doccomment">/// let inputs = [3, 7, 9, 6];</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// for (i, a, b) in multizip((0..100, &amp;mut xs, &amp;ys)) {</span>
-<span class="doccomment">///    *a = i ^ *b;</span>
+<span class="doccomment">/// for (r, index, input) in multizip((&amp;mut results, 0..10, &amp;inputs)) {</span>
+<span class="doccomment">///     *r = index * 10 + input;</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// assert_eq!(xs, [69, 106, 103]);</span>
+<span class="doccomment">/// assert_eq!(results, [0 + 3, 10 + 7, 29, 36]);</span>
 <span class="doccomment">/// ```</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">multizip</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">U</span><span class="op">&gt;</span>(<span class="ident">t</span>: <span class="ident">U</span>) <span class="op">-&gt;</span> <span class="ident">Zip</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">Zip</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>,

@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,42 +55,24 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>yaml_rust</a>::<wbr><a href='index.html'>emitter</a>::<wbr><a class="struct" href=''>YamlEmitter</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#41-47' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct YamlEmitter&lt;'a&gt; { /* fields omitted */ }</pre>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>yaml_rust</a>::<wbr><a href='index.html'>emitter</a>::<wbr><a class="struct" href=''>YamlEmitter</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#41-47' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct YamlEmitter&lt;'a&gt; { /* fields omitted */ }</pre></div>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../../yaml_rust/emitter/struct.YamlEmitter.html" title="struct yaml_rust::emitter::YamlEmitter">YamlEmitter</a>&lt;'a&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#114-281' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(writer: &amp;'a mut <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Write.html" title="trait core::fmt::Write">Write</a>) -&gt; <a class="struct" href="../../yaml_rust/emitter/struct.YamlEmitter.html" title="struct yaml_rust::emitter::YamlEmitter">YamlEmitter</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#115-123' title='goto source code'>[src]</a></span></h4>
-<h4 id='method.compact' class="method"><span id='compact.v' class='invisible'><code>pub fn <a href='#method.compact' class='fnname'>compact</a>(&amp;mut self, compact: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#133-135' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Set 'compact inline notation' on or off, as described for block
+                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'a&gt; <a class="struct" href="../../yaml_rust/emitter/struct.YamlEmitter.html" title="struct yaml_rust::emitter::YamlEmitter">YamlEmitter</a>&lt;'a&gt;</code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#114-281' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.new' class='fnname'>new</a>(writer: &amp;'a mut <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Write.html" title="trait core::fmt::Write">Write</a>) -&gt; <a class="struct" href="../../yaml_rust/emitter/struct.YamlEmitter.html" title="struct yaml_rust::emitter::YamlEmitter">YamlEmitter</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#115-123' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><h4 id='method.compact' class="method"><span id='compact.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.compact' class='fnname'>compact</a>(&amp;mut self, compact: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>)</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#133-135' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Set 'compact inline notation' on or off, as described for block
 <a href="http://www.yaml.org/spec/1.2/spec.html#id2797382">sequences</a>
 and
 <a href="http://www.yaml.org/spec/1.2/spec.html#id2798057">mappings</a>.</p>
 <p>In this form, blocks cannot have any properties (such as anchors
 or tags), which should be OK, because this emitter doesn't
 (currently) emit those anyways.</p>
-</div><h4 id='method.is_compact' class="method"><span id='is_compact.v' class='invisible'><code>pub fn <a href='#method.is_compact' class='fnname'>is_compact</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#138-140' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Determine if this emitter is using 'compact inline notation'.</p>
-</div><h4 id='method.dump' class="method"><span id='dump.v' class='invisible'><code>pub fn <a href='#method.dump' class='fnname'>dump</a>(&amp;mut self, doc: &amp;<a class="enum" href="../../yaml_rust/yaml/enum.Yaml.html" title="enum yaml_rust::yaml::Yaml">Yaml</a>) -&gt; <a class="type" href="../../yaml_rust/emitter/type.EmitResult.html" title="type yaml_rust::emitter::EmitResult">EmitResult</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#142-147' title='goto source code'>[src]</a></span></h4>
-</div>
-            <h2 id='implementations' class='small-section-header'>
-              Trait Implementations<a href='#implementations' class='anchor'></a>
-            </h2>
-            <div id='implementations-list'>
-        </div>
+</div><h4 id='method.is_compact' class="method"><span id='is_compact.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.is_compact' class='fnname'>is_compact</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#138-140' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Determine if this emitter is using 'compact inline notation'.</p>
+</div><h4 id='method.dump' class="method"><span id='dump.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.dump' class='fnname'>dump</a>(&amp;mut self, doc: &amp;<a class="enum" href="../../yaml_rust/yaml/enum.Yaml.html" title="enum yaml_rust::yaml::Yaml">Yaml</a>) -&gt; <a class="type" href="../../yaml_rust/emitter/type.EmitResult.html" title="type yaml_rust::emitter::EmitResult">EmitResult</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/yaml_rust/emitter.rs.html#142-147' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4></div>
                 <h2 id='synthetic-implementations' class='small-section-header'>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'a&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../yaml_rust/emitter/struct.YamlEmitter.html" title="struct yaml_rust::emitter::YamlEmitter">YamlEmitter</a>&lt;'a&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'a&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../yaml_rust/emitter/struct.YamlEmitter.html" title="struct yaml_rust::emitter::YamlEmitter">YamlEmitter</a>&lt;'a&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div></div></section>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'a&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../yaml_rust/emitter/struct.YamlEmitter.html" title="struct yaml_rust::emitter::YamlEmitter">YamlEmitter</a>&lt;'a&gt;</code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'a&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../yaml_rust/emitter/struct.YamlEmitter.html" title="struct yaml_rust::emitter::YamlEmitter">YamlEmitter</a>&lt;'a&gt;</code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

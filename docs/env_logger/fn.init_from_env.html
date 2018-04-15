@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>env_logger</a>::<wbr><a class="fn" href=''>init_from_env</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/env_logger/lib.rs.html#872-877' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn init_from_env&lt;'a, E&gt;(env: E) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="struct" href="../env_logger/struct.Env.html" title="struct env_logger::Env">Env</a>&lt;'a&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Initializes the global logger with an env logger from the given environment
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='index.html'>env_logger</a>::<wbr><a class="fn" href=''>init_from_env</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/env_logger/lib.rs.html#872-877' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn init_from_env&lt;'a, E&gt;(env: E) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="struct" href="../env_logger/struct.Env.html" title="struct env_logger::Env">Env</a>&lt;'a&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Initializes the global logger with an env logger from the given environment
 variables.</p>
 <p>This should be called early in the execution of a Rust program. Any log
 events that occur before initialization will be ignored.</p>

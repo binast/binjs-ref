@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -352,7 +352,7 @@
 <span class="kw">impl</span> <span class="ident">Rand</span> <span class="kw">for</span> <span class="ident">Compression</span> {
     <span class="kw">fn</span> <span class="ident">rand</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">Compression</span>::<span class="kw-2">*</span>;
-        <span class="ident">rng</span>.<span class="ident">choose</span>(<span class="kw-2">&amp;</span>[<span class="ident">Identity</span>, <span class="ident">Gzip</span>, <span class="ident">Deflate</span>, <span class="ident">Brotli</span> <span class="comment">/*, Lzw doesn&#39;t work yet */</span>])
+        <span class="ident">rng</span>.<span class="ident">choose</span>(<span class="kw-2">&amp;</span>[<span class="ident">Identity</span>, <span class="ident">Gzip</span>, <span class="comment">/* Deflate is apprently broken https://github.com/alexcrichton/flate2-rs/issues/151 , */</span> <span class="ident">Brotli</span> <span class="comment">/*, Lzw doesn&#39;t work yet */</span>])
             .<span class="ident">unwrap</span>() <span class="comment">// The array is not empty.</span>
             .<span class="ident">clone</span>()
     }

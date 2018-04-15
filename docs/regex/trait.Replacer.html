@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,17 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>regex</a>::<wbr><a class="trait" href=''>Replacer</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/regex/re_unicode.rs.html#727-737' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Replacer {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>regex</a>::<wbr><a class="trait" href=''>Replacer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/regex/re_unicode.rs.html#727-737' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Replacer {
     fn <a href='#tymethod.reg_replace' class='fnname'>reg_replace</a>(&amp;mut self, caps: &amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;;
 
     fn <a href='#method.no_expand' class='fnname'>no_expand</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt; { ... }
-}</pre><div class='docblock'><p>Replacer describes types that can be used to replace matches in a string.</p>
+}</pre></div><div class='docblock'><p>Replacer describes types that can be used to replace matches in a string.</p>
 </div>
             <h2 id='required-methods' class='small-section-header'>
               Required Methods<a href='#required-methods' class='anchor'></a>
@@ -85,16 +79,13 @@ a new owned string isn't needed (e.g., for <code>NoExpand</code>).</p>
                 <h2 id='foreign-impls' class='small-section-header'>
                   Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
                 </h2>
-            <h3 id='impl-Replacer' class='impl'><span class='in-band'><code>impl&lt;'t&gt; <a class="trait" href="../regex/trait.Replacer.html" title="trait regex::Replacer">Replacer</a> for &amp;'t <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code><a href='#impl-Replacer' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#749-761' title='goto source code'>[src]</a></span></h3>
-<span class='docblock autohide'><div class='impl-items'><h4 id='method.reg_replace' class="method"><span id='reg_replace.v-1' class='invisible'><code>fn <a href='#method.reg_replace' class='fnname'>reg_replace</a>&lt;'a&gt;(&amp;'a mut self, caps: &amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'a, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#750-752' title='goto source code'>[src]</a></span></h4>
-<h4 id='method.no_expand-1' class="method"><span id='no_expand.v-1' class='invisible'><code>fn <a href='#method.no_expand' class='fnname'>no_expand</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#754-760' title='goto source code'>[src]</a></span></h4>
-</div></span>
+            <h3 id='impl-Replacer' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'t&gt; <a class="trait" href="../regex/trait.Replacer.html" title="trait regex::Replacer">Replacer</a> for &amp;'t <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code><a href='#impl-Replacer' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#749-761' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><span class='docblock autohide'><div class='impl-items'><h4 id='method.reg_replace' class="method"><span id='reg_replace.v-1' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='#method.reg_replace' class='fnname'>reg_replace</a>&lt;'a&gt;(&amp;'a mut self, caps: &amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'a, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#750-752' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><h4 id='method.no_expand-1' class="method"><span id='no_expand.v-1' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='#method.no_expand' class='fnname'>no_expand</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#754-760' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4></div></span>
         <h2 id='implementors' class='small-section-header'>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../src/regex/re_unicode.rs.html#739-747' title='goto source code'>[src]</a></div><code>impl&lt;'t&gt; Replacer for <a class="struct" href="../regex/struct.NoExpand.html" title="struct regex::NoExpand">NoExpand</a>&lt;'t&gt;</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../src/regex/re_unicode.rs.html#763-767' title='goto source code'>[src]</a></div><code>impl&lt;F&gt; Replacer for F <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(&amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,&nbsp;</span></code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl&lt;'t&gt; Replacer for <a class="struct" href="../regex/struct.NoExpand.html" title="struct regex::NoExpand">NoExpand</a>&lt;'t&gt;</code><td><div class='out-of-band'><a class='srclink' href='../src/regex/re_unicode.rs.html#739-747' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl&lt;F&gt; Replacer for F <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(&amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,&nbsp;</span></code><td><div class='out-of-band'><a class='srclink' href='../src/regex/re_unicode.rs.html#763-767' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../implementors/regex/trait.Replacer.js">
                  </script></section>

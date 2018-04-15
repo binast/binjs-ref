@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/webidl-0.5.0/src/lexer/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/webidl-0.6.0/src/lexer/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -1311,6 +1311,10 @@
 <span id="1254">1254</span>
 <span id="1255">1255</span>
 <span id="1256">1256</span>
+<span id="1257">1257</span>
+<span id="1258">1258</span>
+<span id="1259">1259</span>
+<span id="1260">1260</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A WebIDL lexer.</span>
 
@@ -1318,8 +1322,8 @@
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">Peekable</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">i64</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">Peekable</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">CharIndices</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">token</span>::<span class="ident">Token</span>;
@@ -1898,10 +1902,12 @@
             <span class="string">&quot;false&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">False</span>,
             <span class="string">&quot;float&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Float</span>,
             <span class="string">&quot;getter&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Getter</span>,
+            <span class="string">&quot;implements&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Implements</span>,
             <span class="string">&quot;includes&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Includes</span>,
             <span class="string">&quot;inherit&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Inherit</span>,
             <span class="string">&quot;interface&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Interface</span>,
             <span class="string">&quot;iterable&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Iterable</span>,
+            <span class="string">&quot;legacycaller&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">LegacyCaller</span>,
             <span class="string">&quot;long&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Long</span>,
             <span class="string">&quot;maplike&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Maplike</span>,
             <span class="string">&quot;mixin&quot;</span> <span class="op">=&gt;</span> <span class="ident">Token</span>::<span class="ident">Mixin</span>,
@@ -2445,10 +2451,12 @@
         <span class="ident">assert_lex</span>(<span class="string">&quot;false&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">False</span>, <span class="number">5</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;float&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Float</span>, <span class="number">5</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;getter&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Getter</span>, <span class="number">6</span>))]);
+        <span class="ident">assert_lex</span>(<span class="string">&quot;implements&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Implements</span>, <span class="number">10</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;includes&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Includes</span>, <span class="number">8</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;inherit&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Inherit</span>, <span class="number">7</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;interface&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Interface</span>, <span class="number">9</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;iterable&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Iterable</span>, <span class="number">8</span>))]);
+        <span class="ident">assert_lex</span>(<span class="string">&quot;legacycaller&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">LegacyCaller</span>, <span class="number">12</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;long&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Long</span>, <span class="number">4</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;maplike&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Maplike</span>, <span class="number">7</span>))]);
         <span class="ident">assert_lex</span>(<span class="string">&quot;mixin&quot;</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>((<span class="number">0</span>, <span class="ident">Token</span>::<span class="ident">Mixin</span>, <span class="number">5</span>))]);

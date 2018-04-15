@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/webidl-0.5.0/src/parser/visitor/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/Users/dteller/.cargo/registry/src/github.com-1ecc6299db9ec823/webidl-0.6.0/src/parser/visitor/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle">
     <script src="../../../../storage.js"></script>
     
 
@@ -1029,6 +1029,22 @@
 <span id="972">972</span>
 <span id="973">973</span>
 <span id="974">974</span>
+<span id="975">975</span>
+<span id="976">976</span>
+<span id="977">977</span>
+<span id="978">978</span>
+<span id="979">979</span>
+<span id="980">980</span>
+<span id="981">981</span>
+<span id="982">982</span>
+<span id="983">983</span>
+<span id="984">984</span>
+<span id="985">985</span>
+<span id="986">986</span>
+<span id="987">987</span>
+<span id="988">988</span>
+<span id="989">989</span>
+<span id="990">990</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">missing_docs</span>)]</span>
 
@@ -1143,6 +1159,10 @@
                 <span class="ident">op</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">ImplicitStringifierOperation</span>)
             {
                 <span class="self">self</span>.<span class="ident">walk_implicit_stringifier_operation</span>(<span class="ident">op</span>);
+            }
+
+            <span class="kw">fn</span> <span class="ident">visit_implements</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">implements</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">Implements</span>) {
+                <span class="self">self</span>.<span class="ident">walk_implements</span>(<span class="ident">implements</span>);
             }
 
             <span class="kw">fn</span> <span class="ident">visit_includes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">includes</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">Includes</span>) {
@@ -1408,6 +1428,9 @@
                     <span class="ident">Definition</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">enum_</span>) <span class="op">=&gt;</span> {
                         <span class="self">self</span>.<span class="ident">visit_enum</span>(<span class="ident">enum_</span>);
                     }
+                    <span class="ident">Definition</span>::<span class="ident">Implements</span>(<span class="kw-2">ref</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">implements</span>) <span class="op">=&gt;</span> {
+                        <span class="self">self</span>.<span class="ident">visit_implements</span>(<span class="ident">implements</span>);
+                    }
                     <span class="ident">Definition</span>::<span class="ident">Includes</span>(<span class="kw-2">ref</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">includes</span>) <span class="op">=&gt;</span> {
                         <span class="self">self</span>.<span class="ident">visit_includes</span>(<span class="ident">includes</span>);
                     }
@@ -1529,6 +1552,15 @@
                 <span class="kw">for</span> <span class="ident">extended_attribute</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">op</span>.<span class="ident">extended_attributes</span> {
                     <span class="self">self</span>.<span class="ident">visit_extended_attribute</span>(<span class="ident">extended_attribute</span>);
                 }
+            }
+
+            <span class="kw">fn</span> <span class="ident">walk_implements</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">implements</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">Implements</span>) {
+                <span class="kw">for</span> <span class="ident">extended_attribute</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">implements</span>.<span class="ident">extended_attributes</span> {
+                    <span class="self">self</span>.<span class="ident">visit_extended_attribute</span>(<span class="ident">extended_attribute</span>);
+                }
+
+                <span class="self">self</span>.<span class="ident">visit_identifier</span>(<span class="kw-2">&amp;</span>$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">implements</span>.<span class="ident">implementer</span>);
+                <span class="self">self</span>.<span class="ident">visit_identifier</span>(<span class="kw-2">&amp;</span>$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">implements</span>.<span class="ident">implementee</span>);
             }
 
             <span class="kw">fn</span> <span class="ident">walk_includes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">includes</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">mutability</span>)<span class="op">*</span> <span class="ident">Includes</span>) {

@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>binjs_io</a>::<wbr><a class="mod" href=''>multipart</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/binjs_io/multipart/mod.rs.html#1-404' title='goto source code'>[src]</a></span></h1>
-<div class='docblock'><p>An optimization of TokenReader/TokenWriter,
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>binjs_io</a>::<wbr><a class="mod" href=''>multipart</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/binjs_io/multipart/mod.rs.html#1-401' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>An optimization of TokenReader/TokenWriter,
 designed to minimize the size of the file.
 A multipart format, in which each part can be compressed independently.</p>
 <h1 id="overview" class="section-header"><a href="#overview">Overview</a></h1>
@@ -113,16 +107,10 @@ parsing.</p>
 <li>for each entry,
 <ul>
 <li>byte length of entry (<code>varnum</code>);</li>
-</ul>
-</li>
-<li>for each entry,
+<li>one of
 <ul>
-<li>byte length of node name (<code>varnum</code>);</li>
-<li>number of fields (<code>varnum</code>);</li>
-<li>for each field
-<ul>
-<li>byte length of field name (<code>varnum</code>);</li>
-<li>field name (utf-8 encoded string).</li>
+<li>the invalid strings [255, 0] (representing the null interface, only valid if byte length is 2);</li>
+<li>a utf-8 encoded string (utf-8 encoded, <code>bytelen</code> bytes, no terminator).</li>
 </ul>
 </li>
 </ul>
