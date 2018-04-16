@@ -585,10 +585,12 @@ fn test_simple_io() {
         writer.string(Some("simple string"))
             .expect("Writing simple string");
 
+        let data = writer.data().unwrap();
         File::create("/tmp/test-simple-string.binjs").unwrap()
-            .write_all(writer.data()).unwrap();
+            .write_all(data)
+            .unwrap();
 
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
+        let mut reader = TreeTokenReader::new(Cursor::new(data));
         let simple_string = reader.string()
             .expect("Reading simple string")
             .expect("Non-null string");
@@ -602,10 +604,11 @@ fn test_simple_io() {
         writer.string(Some(data))
             .expect("Writing string with escapes");
 
+        let result = writer.data().unwrap();
         File::create("/tmp/test-string-with-escapes.binjs").unwrap()
-            .write_all(writer.data()).unwrap();
+            .write_all(result).unwrap();
 
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
+        let mut reader = TreeTokenReader::new(Cursor::new(result));
         let escapes_string = reader.string()
             .expect("Reading string with escapes")
             .expect("Non-null string");
@@ -619,10 +622,11 @@ fn test_simple_io() {
         writer.untagged_tuple(&[])
             .expect("Writing empty untagged tuple");
 
+        let data = writer.data().unwrap();
         File::create("/tmp/test-empty-untagged-tuple.binjs").unwrap()
-            .write_all(writer.data()).unwrap();
+            .write_all(data).unwrap();
 
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
+        let mut reader = TreeTokenReader::new(Cursor::new(data));
         let guard = reader.untagged_tuple()
             .expect("Reading empty untagged tuple");
 
@@ -638,10 +642,11 @@ fn test_simple_io() {
         writer.untagged_tuple(&[item_0, item_1])
             .expect("Writing trivial untagged tuple");
 
+        let data = writer.data().unwrap();
         File::create("/tmp/test-trivial-untagged-tuple.binjs").unwrap()
-            .write_all(writer.data()).unwrap();
+            .write_all(data).unwrap();
 
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
+        let mut reader = TreeTokenReader::new(Cursor::new(data));
         let guard = reader.untagged_tuple()
             .expect("Reading trivial untagged tuple");
         let simple_string = reader.string()
@@ -666,10 +671,11 @@ fn test_simple_io() {
         writer.tagged_tuple("BindingIdentifier", &[("label", item_0), ("value", item_1)])
             .expect("Writing trivial tagged tuple");
 
+        let data = writer.data().unwrap();
         File::create("/tmp/test-simple-tagged-tuple.binjs").unwrap()
-            .write_all(writer.data()).unwrap();
+            .write_all(data).unwrap();
 
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
+        let mut reader = TreeTokenReader::new(Cursor::new(data));
         let (name, fields, guard) = reader.tagged_tuple()
             .expect("Reading trivial tagged tuple");
         assert_eq!(&name, "BindingIdentifier");
@@ -698,10 +704,11 @@ fn test_simple_io() {
         writer.list(vec![])
             .expect("Writing empty list");
 
+        let data = writer.data().unwrap();
         File::create("/tmp/test-empty-list.binjs").unwrap()
-                .write_all(writer.data()).unwrap();
+                .write_all(data).unwrap();
 
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
+        let mut reader = TreeTokenReader::new(Cursor::new(data));
         let (len, guard) = reader.list()
             .expect("Reading empty list");
         assert_eq!(len, 0);
@@ -717,10 +724,11 @@ fn test_simple_io() {
         writer.list(vec![item_0, item_1])
             .expect("Writing trivial list");
 
+        let data = writer.data().unwrap();
         File::create("/tmp/test-trivial-list.binjs").unwrap()
-            .write_all(writer.data()).unwrap();
+            .write_all(data).unwrap();
 
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
+        let mut reader = TreeTokenReader::new(Cursor::new(data));
         let (len, guard) = reader.list()
             .expect("Reading trivial list");
         assert_eq!(len, 2);
@@ -747,10 +755,11 @@ fn test_simple_io() {
         writer.list(vec![list])
             .expect("Writing outer list");
 
+        let data = writer.data().unwrap();
         File::create("/tmp/test-nested-lists.binjs").unwrap()
-            .write_all(writer.data()).unwrap();
+            .write_all(data).unwrap();
 
-        let mut reader = TreeTokenReader::new(Cursor::new(writer.data()));
+        let mut reader = TreeTokenReader::new(Cursor::new(data));
         let (len, guard) = reader.list()
             .expect("Reading outer list");
         assert_eq!(len, 1);
