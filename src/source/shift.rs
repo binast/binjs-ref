@@ -151,11 +151,7 @@ impl SourceParser for Shift {
             var parseScript = require('shift-parser').parseScript;
             var data = "{}";
 
-            console.warn("parse_str", "input", data);
-
-            var parsed = parseScript(data);
-
-            console.warn("parse_str", "output", parsed);
+            var parsed = parseScript(data, {{ earlyErrors: false }});
 
             return JSON.stringify(parsed);
             "##,
