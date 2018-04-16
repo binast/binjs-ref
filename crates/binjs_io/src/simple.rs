@@ -487,6 +487,7 @@ impl TokenWriter for TreeTokenWriter {
     /// For this example, we use a very, very, very suboptimal encoding.
     /// - <head>
     ///   - kind (string, \0 terminated)
+    ///   - number of items (varnum)
     ///   - field names (string, \0 terminated)
     /// - </head>
     /// - contents
