@@ -15,6 +15,7 @@ binjs_io = { path = "crates/binjs_io", version = "*" }
 binjs_meta = { path = "crates/binjs_meta", version = "*" }
 binjs_shared = { path = "crates/binjs_shared", version = "*" }
 assert_matches = "*"
+bencher = "^0.1"
 brotli = "1.*"
 clap = "*"
 env_logger = "^0.5"
@@ -38,3 +39,8 @@ path = "src/bin/encode.rs"
 [[bin]]
 name = "binjs_decode"
 path = "src/bin/decode.rs"
+
+[[bench]]
+name = "bench_fb"
+harness = false
+
