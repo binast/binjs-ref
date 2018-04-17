@@ -24,7 +24,7 @@ use rand::Rng;
 /// a `CHANCES_TO_SKIP` probability of being skipped.
 const CHANCES_TO_SKIP : f64 = 0.8;
 
-const PATHS : [&'static str; 2] = ["tests/data/facebook/single/**/*.js", "tests/data/spidermonkey/ecma_2/**/*.js"];
+const PATHS : [&'static str; 2] = ["tests/data/facebook/single/**/*.js", "tests/data/frameworks/*.js"];
 
 fn progress() {
     // Make sure that we see progress in the logs, without spamming these logs.
@@ -88,12 +88,12 @@ fn main() {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting laziness test_roundtrip from {}", path);
 
-        'per_entry: for entry in glob::glob(&path)
+        'laziness_per_entry: for entry in glob::glob(&path)
             .expect("Invalid glob pattern")
         {
             // Randomly skip instances.
             if should_skip(&mut rng) {
-                continue 'per_entry;
+                continue 'laziness_per_entry;
             }
 
 
@@ -160,12 +160,12 @@ fn main() {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting test_roundtrip from {}", path);
 
-        'per_entry: for entry in glob::glob(&path)
+        'compression_per_entry: for entry in glob::glob(&path)
             .expect("Invalid glob pattern")
         {
             // Randomly skip instances.
             if should_skip(&mut rng) {
-                continue 'per_entry;
+                continue 'compression_per_entry;
             }
             let entry = entry.expect("Invalid entry");
 
