@@ -33,7 +33,6 @@ extern crate assert_matches;
 extern crate brotli;
 #[cfg(test)]
 extern crate env_logger;
-extern crate flate2;
 extern crate itertools;
 #[macro_use]
 extern crate json;
