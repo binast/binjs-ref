@@ -7,8 +7,8 @@ extern crate glob;
 extern crate rand;
 
 use binjs::io::bytes::compress::*;
-use binjs::generic::io::encode::*;
-use binjs::meta::spec::*;
+use binjs::io::TokenSerializer;
+use binjs::generic::FromJSON;
 use binjs::source::*;
 
 use clap::*;
@@ -21,12 +21,16 @@ use std::process::Command;
 struct FileStats {
     before: u64,
     after_binjs: u64,
+    after_binjs_post: u64,
     after_gzip: u64,
     after_br: u64,
     binjs_compression: binjs::io::multipart::Statistics,
 }
 
 impl FileStats {
+    fn ratio_binjs_post(&self) -> f64 {
+        self.after_binjs_post as f64 / self.before as f64
+    }
     fn ratio_binjs(&self) -> f64 {
         self.after_binjs as f64 / self.before as f64
     }
@@ -86,12 +90,6 @@ fn main() {
     };
 
     let parser = Shift::new();
-    let mut spec_builder = SpecBuilder::new();
-    let library = binjs::generic::es6::Library::new(&mut spec_builder);
-    let spec = spec_builder.into_spec(SpecOptions {
-        null: &library.null,
-        root: &library.program,
-    });
 
     let mut multipart_stats = binjs::io::multipart::Statistics::default()
         .with_source_bytes(0);
@@ -112,22 +110,25 @@ fn main() {
 
             {
                 eprintln!("Compressing with binjs");
-                let mut ast = parser.parse_file(&source_path)
+                let json = parser.parse_file(source_path.clone())
                     .expect("Could not parse source");
-                library.annotate(&mut ast);
+                let mut ast = binjs::specialized::es6::ast::Script::import(&json)
+                    .expect("Could not import AST");
+                binjs::specialized::es6::scopes::AnnotationVisitor::new()
+                    .annotate_script(&mut ast);
 
                 let writer = binjs::io::multipart::TreeTokenWriter::new(binjs_options.clone());
-                let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
-                encoder
-                    .encode(&ast)
+                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                serializer.serialize(&ast)
                     .expect("Could not encode AST");
-                let (data, stats) = encoder.done()
+                let (data, stats) = serializer.done()
                     .expect("Could not finalize AST encoding");
 
                 file_stats.binjs_compression = stats.clone();
                 multipart_stats = multipart_stats + stats.with_source_bytes(source_len as usize);
 
-                let len : u64 = match post_compression {
+                let len = data.len() as u64;
+                let len_post : u64 = match post_compression {
                     None => data.len() as u64,
                     Some(Compression::Gzip) => {
                         eprintln!("Post-compressing with gzip");
@@ -155,11 +156,10 @@ fn main() {
                             .expect("Could not write to tmp .bijs file");
                         drop(file);
                         let _ = std::fs::remove_file(dest_path_brotli);
-                        let _ = Command::new("bro")
-                            .args(&["--quality", "9"])
-                            .arg("--input")
+                        let _ = Command::new("brotli")
+                            .arg("-9")
                             .arg(&dest_path_binjs)
-                            .args(&["--output", dest_path_brotli])
+                            .args(&["-o", dest_path_brotli])
                             .spawn()
                             .expect("Couldn't start bro")
                             .wait()
@@ -171,6 +171,7 @@ fn main() {
                     _ => panic!()
                 };
                 file_stats.after_binjs = len;
+                file_stats.after_binjs_post = len_post;
             }
 
             {
@@ -191,11 +192,10 @@ fn main() {
             {
                 eprintln!("Comparing with brotli");
                 let _ = std::fs::remove_file(dest_path_brotli);
-                let _ = Command::new("bro")
-                    .args(&["--quality", "9"])
-                    .arg("--input")
+                let _ = Command::new("brotli")
+                    .arg("-9")
                     .arg(&source_path)
-                    .args(&["--output", dest_path_brotli])
+                    .args(&["-o", dest_path_brotli])
                     .spawn()
                     .expect("Couldn't start bro")
                     .wait()
@@ -205,13 +205,15 @@ fn main() {
                     .len();
             }
 
-            eprintln!("Compression results: source {}b, binjs+{} {binjs}b (x{binjs_ratio:.2}), gzip {gzip}b (x{gzip_ratio:.2}), brotli {br}b (x{br_ratio:.2})",
-                file_stats.before,
-                compression.code(),
-                binjs=file_stats.after_binjs,
+            eprintln!("Compression results: source {source}b, {binjs}b, binjs+{compression} (x{binjs_ratio:.2}) {binjs_compressed}b (x{binjs_ratio_post:.2}), gzip {gzip}b (x{gzip_ratio:.2}), brotli {br}b (x{br_ratio:.2})",
+                source = file_stats.before,
+                binjs = file_stats.after_binjs,
+                compression = compression.code(),
+                binjs_compressed=file_stats.after_binjs_post,
                 gzip=file_stats.after_gzip,
                 br=file_stats.after_br,
                 binjs_ratio=file_stats.ratio_binjs(),
+                binjs_ratio_post=file_stats.ratio_binjs_post(),
                 gzip_ratio=file_stats.ratio_gz(),
                 br_ratio=file_stats.ratio_br()
             );
@@ -221,7 +223,7 @@ fn main() {
     }
 
     eprintln!("*** Done");
-    println!("File, Original size, Binjs size, Gzip size, Brotli size, Number of strings, Number of identifiers, Number of grammar entries");
+    println!("File, Original size, Gzip size, Brotli size, Binjs size, Binjs + compression, Number of strings, Number of identifiers, Number of grammar entries");
     for (path, stats) in &all_stats {
         let number_of_binding_identifiers = match stats.binjs_compression.per_kind_name.get("BindingIdentifier") {
             None => 0,
@@ -232,9 +234,10 @@ fn main() {
             Some(identifiers) => identifiers.entries
         };
 
-        println!("{path:?}, {before}, {after_binjs}, {after_gz}, {after_br}, {strings}, {identifiers}, {grammar_entries}",
+        println!("{path:?}, {before}, {after_gz}, {after_br}, {after_binjs}, {after_binjs_post}, {strings}, {identifiers}, {grammar_entries}",
             before=stats.before,
             after_binjs=stats.after_binjs,
+            after_binjs_post=stats.after_binjs_post,
             after_gz=stats.after_gzip,
             after_br=stats.after_br,
             strings=stats.binjs_compression.strings_table.entries,
