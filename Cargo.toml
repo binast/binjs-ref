@@ -43,3 +43,5 @@ path = "src/bin/decode.rs"
 name = "bench_fb"
 harness = false
 
+[workspace]
+members = ["crates/*"]
