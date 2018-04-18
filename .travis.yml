@@ -1,7 +1,7 @@
 language: rust
 script:
   - cargo build --verbose
-  - cargo test -- --nocapture
+  - cargo test --all -- --nocapture
 rust:
   - nightly
 node_js:
