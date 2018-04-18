@@ -5,9 +5,11 @@
 
 As websites become more sophisticated, the amount of JavaScript source code keeps
 increasing. While depending upon a large JavaScript codebase won't prevent a website
-from working, parsing and bytecode compiling JavaScript code cause websites to
-start slowly – often [unacceptably slow](https://medium.com/reloading/javascript-start-up-performance-69200f43b201). Worse: browsers have pretty much
-reached efficiency peak for parsing and bytecode compilation.
+from working, it will cause websites to
+start slowly – often [unacceptably slow](https://medium.com/reloading/javascript-start-up-performance-69200f43b201).
+This is due to two bottlenecks: parsing and bytecode compiling JavaScript.
+Unfortunately, browsers have pretty much
+reached efficiency peak for both operations.
 
 We (Mozilla, Bloomberg, Facebook, CloudFlare) are currently working on a
 domain-specific encoding for JavaScript, called "BinAST" (short for
