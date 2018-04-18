@@ -41,8 +41,7 @@ fn main() {
         .expect("Could not read source");
 
     println!("...parsing webidl");
-    let parser = webidl::Parser::new();
-    let ast = parser.parse_string(&source)
+    let ast = webidl::parse_string(&source)
         .expect("Could not parse source");
 
     println!("...verifying grammar");
