@@ -1,27 +1,28 @@
-![Travis status](https://travis-ci.org/Yoric/binjs-ref.svg?branch=master)
+![Travis status](https://travis-ci.org/binjs/binjs-ref.svg?branch=master)
 
 # About the JavaScript Binary AST
 
+
 As websites become more sophisticated, the amount of JavaScript source code keeps
-increasing. By itself, this is not a problem. However, with the amount of code
-loaded by large websites such as Facebook's chat, it is now common to witness
-page loads during which both the loading and the parsing of JS code can take
-several seconds each – this is assuming a fast connection, and taking into
-account that the code is both compressed and optimized for loading and parsing
-speed.
+increasing. While depending upon a large JavaScript codebase won't prevent a website
+from working, parsing and bytecode compiling JavaScript code cause websites to
+start slowly – often [unacceptably slow](https://medium.com/reloading/javascript-start-up-performance-69200f43b201). Worse: browsers have pretty much
+reached efficiency peak for parsing and bytecode compilation.
 
-There is no reason to believe that the size of JS code will decrease or will
-even stop increasing, nor that every large webdev team has the means to profile
-loading and parsing speed of all their code.
+We (Mozilla, Bloomberg, Facebook, CloudFlare) are currently working on a
+domain-specific encoding for JavaScript, called "BinAST" (short for
+"JavaScript Binary AST"). The JavaScript Binary AST is designed to
+break the bottleneck. Current
+advanced prototypes already show JS [parsing improvements of 30%-50%](https://gist.github.com/Yoric/1d41cdf3715815d39032f0dbce31ed42) on
+all the most common frameworks, just by changing the format,
+and we believe that we can increase
+this improvement much further. The encoding can be built as part of a
+webdev toolchain, or injected by a
+proxy or CDN, hence automatically improving the performance of end users
+without change to the original website.
 
-This repo offers a (WIP) reference implementation for BinJs, a vendor-neutral
-JavaScript format designed to optimize parsing speed and, when possible,
-loading speed.
-
-The JavaScript Binary AST format is not designed to be read or written by developers. Rather,
-we expect that the toolchain, both server-side and browser-side, will generate
-(respectively parse) .binjs files, letting .binjs files be used transparently
-for communication between the browser and the server.
+This encoding is currently in the JavaScript TC39 standardization process [3].
+It can be used alongside existing compression techniques (gzip, brotli, etc.)
 
 ## Testing it
 
@@ -43,8 +44,9 @@ cargo run --bin binjs_decode -- --help
 
 ## Compatibility with JavaScript source code
 
-The JavaScript Binary AST format is designed to preserve the semantics for all syntactically
-correct files.
+Preserved:
+- semantics of well-formed programs;
+- variable and function names.
 
 Not preserved:
 - actual semantics of syntax errors;
@@ -54,45 +56,26 @@ Not preserved:
 
 ## Expected benefits
 
-The BinJs format is designed so that the VM can start parsing the file
-as soon as the first few bytes are received.
 
-The BinJs format is designed to be generally faster to parse than JS source,
+The Binary AST format is designed to be generally faster to parse than JS source,
 thanks to a syntax that requires no backtracking, strings that do not need
 interning more than once, etc.
 
+The Binary AST format is designed so that the VM can start parsing the file
+as soon as the first few bytes are received (streaming parsing) and can
+start compiling the file to bytecode soon after that (streaming bytecode compilation).
+
 Furthermore, parsing a JS source is specified for a specific encoding, which
 means that many encodings need to be transcoded before they can be parsed
-(or, at best, while parsing), which slows down parsing. As BinJs is
+(or, at best, while parsing), which slows down parsing. As BinAST is
 a binary format, it does not need any form of transcoding.
 
 Finally, most modern JavaScript VMs support a form of lazy parsing, which
-performs faster parsing without most memory allocations. The BinJs format is
-designed to make lazy parsing more efficient, by letting parsers jump over
-subtrees (e.g. functions) in a single operation.
-
-
-## Benchmarks
-
-**WARNING** These benchmarks have been done with an early prototype of BinJs.
-Actual implementations may end up with entirely different results.
-
-These benchmarks do not attempt to measure the impact of early parsing.
-
-### Firefox DevTools snapshot
-
-Size (gzipped): -72%
-Total parsing time:
-
-
-### Facebook chat snapshot
-
-(total size/time for 152 files)
-
-Size (gzipped): 2541kb => 2403kb (-5%)
-Total parsing time:  -72% without skipping, -94% skipping all functions
+performs faster parsing without most memory allocations. The BinAST format is
+designed to make lazy parsing more efficient, if required,
+by letting parsers jump over (functions) in a single operation.
 
 # Specifications
 
-All (WIP) specifications may be found in the modules that implement them.
-See [the documentation](https://binast.github.io/binjs-ref/binjs/index.html).
+- The semantics are specified [here](https://binast.github.io/ecmascript-binary-ast/).
+- The binary format is specified [here](https://binast.github.io/binjs-ref/binjs/io/multipart.html).
