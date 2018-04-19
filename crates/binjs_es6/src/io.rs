@@ -31,6 +31,11 @@ impl<R> Deserialization<R, bool> for Deserializer<R> where R: TokenReader {
         }
     }
 }
+impl<R> Deserialization<R, u32> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self) -> Result<u32, R::Error> {
+        self.reader.u32()
+    }
+}
 impl<R> Deserialization<R, Option<f64>> for Deserializer<R> where R: TokenReader {
     fn deserialize(&mut self) -> Result<Option<f64>, R::Error> {
         self.reader.float()
@@ -129,6 +134,11 @@ impl<'a, W> Serialization<W, &'a Option<bool>> for Serializer<W> where W: TokenW
 impl<'a, W> Serialization<W, &'a bool> for Serializer<W> where W: TokenWriter {
     fn serialize(&mut self, value: &'a bool) -> Result<W::Tree, W::Error> {
         self.writer.bool(Some(*value))
+    }
+}
+impl<'a, W> Serialization<W, &'a u32> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: &'a u32) -> Result<W::Tree, W::Error> {
+        self.writer.u32(*value)
     }
 }
 impl<'a, W> Serialization<W, &'a Option<f64>> for Serializer<W> where W: TokenWriter {

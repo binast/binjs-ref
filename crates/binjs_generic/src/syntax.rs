@@ -265,6 +265,7 @@ macro_rules! make_ast_visitor {
                             return Ok(())
                         }
                     }
+                    &TypeSpec::U32 => unimplemented!(),
                     &TypeSpec::Number => {
                         if let JSON::Number(_) = *value {
                             return Ok(())

@@ -448,6 +448,7 @@ enum Nature {
     TaggedTuple(TableIndex<NodeDescription>),
     TaggedTupleHeader(TableIndex<NodeDescription>),
     Float,
+    U32,
     Bool,
     String(TableIndex<Option<String>>),
     /// Internal data representing a number of bytes.
@@ -635,6 +636,16 @@ impl TokenWriter for TreeTokenWriter {
         debug!(target: "multipart", "writing float {:?} => {:?}", value, bytes);
         Ok(self.register(UnresolvedTree {
             nature: Nature::Float,
+            data: UnresolvedTreeNode::Encoded(bytes),
+        }))
+    }
+
+    fn u32(&mut self, value: u32) -> Result<Self::Tree, Self::Error> {
+        let mut bytes = Vec::with_capacity(4);
+        bytes.write_varnum(value)
+            .map_err(TokenWriterError::WriteError)?;
+        Ok(self.register(UnresolvedTree {
+            nature: Nature::U32,
             data: UnresolvedTreeNode::Encoded(bytes),
         }))
     }

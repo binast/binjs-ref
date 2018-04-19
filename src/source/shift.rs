@@ -263,6 +263,11 @@ impl FromShift {
                 // Rewrite type
                 object["type"] = json::from("LabelledStatement");
             }
+            Some("LiteralNumericExpression") => {
+                if object["value"].as_u32().is_some() {
+                    object["type"] = json::from("LiteralU32Expression");
+                }
+            }
             Some("LiteralRegExpExpression") => {
                 let mut flags = String::new();
                 if let JSON::Boolean(true) = object["global"] {

@@ -69,6 +69,9 @@ impl RustExporter {
             TypeSpec::Boolean =>
                 format!("{prefix}Type::bool()",
                     prefix = prefix),
+            TypeSpec::U32 =>
+                format!("{prefix}Type::u32()",
+                    prefix = prefix),
             TypeSpec::Offset =>
                 format!("{prefix}Type::offset()",
                     prefix = prefix),
@@ -335,7 +338,7 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                     match *typedef.spec() {
                         TypeSpec::TypeSum(_) => { enums.push(name); }
                         TypeSpec::Array{ .. } => { lists.push(name); }
-                        TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => { primitives.push(name); }
+                        TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void | TypeSpec::U32 => { primitives.push(name); }
                         _ => { buffer.push_str(&format!("// UNIMPLEMENTED: {}\n", name)); }
                     }
                 }
@@ -753,6 +756,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                         TypeSpec::Number => "f64",
                         TypeSpec::String => "std::string::String",
                         TypeSpec::Offset => "Offset",
+                        TypeSpec::U32 => "u32",
                         TypeSpec::Void => "()",
                         _ => panic!("Unexpected type in alias to a primitive type: {name}",
                             name = name)
@@ -871,6 +875,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                                 TypeSpec::String => "String".to_string(),
                                 TypeSpec::Void => "()".to_string(),
                                 TypeSpec::Offset => "Offset".to_string(),
+                                TypeSpec::U32 => "u32".to_string(),
                                 _ => TypeName::type_(field.type_())
                             }
                         };
@@ -1183,6 +1188,12 @@ impl<'a> Walker<'a> for bool {{
     fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
         // Do not inspect the contents of a bool.
         Ok(None)
+    }}
+}}
+type ViewMutU32 = ViewMutNothing<u32>;
+impl<'a> From<&'a mut u32> for ViewMutNothing<u32> {{
+    fn from(_: &'a mut u32) -> Self {{
+        ViewMutNothing::default()
     }}
 }}
 type ViewMutF64 = ViewMutNothing<f64>;

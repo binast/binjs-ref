@@ -163,6 +163,9 @@ pub enum TypeSpec {
     /// A number, as per JavaScript specifications.
     Number,
 
+    /// An U32, specialized case of a number.
+    U32,
+
     /// A number of bytes in the binary file.
     ///
     /// This spec is used only internally, as a hidden
@@ -367,6 +370,9 @@ impl Type {
     }
     pub fn bool() -> TypeSpec {
         TypeSpec::Boolean
+    }
+    pub fn u32() -> TypeSpec {
+        TypeSpec::U32
     }
     pub fn void() -> TypeSpec {
         TypeSpec::Void
@@ -750,7 +756,7 @@ impl SpecBuilder {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Array
                     },
-                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void | TypeSpec::Offset => {
+                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void | TypeSpec::Offset | TypeSpec::U32 => {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Primitive
                     }

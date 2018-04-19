@@ -227,6 +227,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                         Ok(self.register(json::from(f)))
                 }
             }
+            U32 => panic!("Not implemented"),
             NamedType(ref name) => {
                 let named_type = self.grammar.get_type_by_name(name)
                     .ok_or_else(|| self.raise_error(Error::NoSuchType(name.to_string().clone())))?;

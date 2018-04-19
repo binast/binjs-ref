@@ -63,6 +63,7 @@ impl Pick for TypeSpec {
             TypeSpec::Boolean => {
                 JSON::Boolean(rng.gen())
             }
+            TypeSpec::U32 => unimplemented!(),
             TypeSpec::String => {
                 const MAX_STRING_LEN : usize = 10;
                 let len = rng.gen_range(0, MAX_STRING_LEN);

@@ -141,6 +141,7 @@ typedef (LiteralBooleanExpression or
          LiteralInfinityExpression or
          LiteralNullExpression or
          LiteralNumericExpression or
+         LiteralU32Expression or
          LiteralStringExpression)
         Literal;
 
@@ -504,6 +505,11 @@ interface LiteralNullExpression : Node { };
 // `NumericLiteral`
 interface LiteralNumericExpression : Node {
   attribute double value;
+};
+
+// `NumericLiteral`
+interface LiteralU32Expression : Node {
+  attribute unsigned long value;
 };
 
 // `RegularExpressionLiteral`
