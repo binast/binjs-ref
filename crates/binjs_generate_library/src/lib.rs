@@ -212,9 +212,8 @@ impl ToJSON for {name} {{
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
     fn deserialize_variant_{lowercase_name}_aux(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
-        let key = self.reader.string()?;
-        match key {{
-            None => Err(From::from(TokenReaderError::EmptyVariant)),
+        let key = self.reader.variant()?;
+        match key.as_str() {{
 {variants}
             _ => Err(From::from(TokenReaderError::InvalidValue)),
         }}
@@ -239,7 +238,7 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
                     lowercase_name = name.to_rust_identifier_case(),
                     variants = string_enum.strings()
                         .iter()
-                        .map(|s| format!("            Some(ref s) if s == \"{string}\" => Ok({name}::{typed}),",
+                        .map(|s| format!("            \"{string}\" => Ok({name}::{typed}),",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s))
@@ -275,7 +274,7 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
         let str = match *value {{
 {variants}
         }};
-        (self as &mut Serialization<W, &'a str>).serialize(str)
+        self.writer.variant(str)
     }}
 }}
 ",

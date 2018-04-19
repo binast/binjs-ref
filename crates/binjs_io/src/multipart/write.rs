@@ -291,6 +291,7 @@ impl FormatInTable for NodeDescription {
 enum UnresolvedTreeNode {
     /// An index into the table of strings.
     UnresolvedStringIndex(TableIndex<Option<String>>),
+    UnresolvedVariantIndex(TableIndex<Option<String>>),
 
     /// An index into the table of nodes.
     UnresolvedNodeIndex(TableIndex<NodeDescription>),
@@ -335,6 +336,14 @@ impl UnresolvedTree {
             UnresolvedStringIndex(index) => {
                 let index = index.index()
                     .expect("String index should have been resolved by now.");
+                let mut buf = Vec::with_capacity(4);
+                let byte_len : usize = buf.write_varnum(index).unwrap(); // This operation can't fail.
+
+                (byte_len as u32, byte_len as u32, ResolvedTree::Encoded(buf))
+            }
+            UnresolvedVariantIndex(index) => {
+                let index = index.index()
+                    .expect("Variant index should have been resolved by now.");
                 let mut buf = Vec::with_capacity(4);
                 let byte_len : usize = buf.write_varnum(index).unwrap(); // This operation can't fail.
 
@@ -385,7 +394,7 @@ impl UnresolvedTree {
         let total = total_bytes as usize;
         let own   = own_bytes as usize;
         match self.nature {
-            Nature::String(_) => {
+            Nature::String(_) | Nature::Variant(_) => {
                 stats.string.entries += 1;
                 stats.string.own_bytes += own;
                 stats.string.total_bytes += total;
@@ -491,6 +500,7 @@ enum Nature {
     U32,
     Bool,
     String(TableIndex<Option<String>>),
+    Variant(TableIndex<Option<String>>),
     /// Internal data representing a number of bytes.
     Offset,
 }
@@ -546,6 +556,7 @@ impl TreeTokenWriter {
         TreeTokenWriter {
             grammar_table: WriterTable::new(),
             strings_table: WriterTable::new(),
+            variants_table: WriterTable::new(),
             root: None,
             data: Vec::with_capacity(1024),
             options,
@@ -580,6 +591,15 @@ impl TreeTokenWriter {
         self.statistics.grammar_table.entries = self.grammar_table.map.len();
         self.statistics.grammar_table.max_entries = self.grammar_table.map.len();
         self.statistics.grammar_table.compression = compression;
+
+        // Write variants table to byte stream.
+        self.data.write_all(HEADER_STRINGS_TABLE.as_bytes())
+            .map_err(TokenWriterError::WriteError)?;
+        let compression = self.variants_table.write_with_compression(&mut self.data, &self.options.strings_table)
+            .map_err(TokenWriterError::WriteError)?;
+        self.statistics.strings_table.entries = self.variants_table.map.len();
+        self.statistics.strings_table.max_entries = self.variants_table.map.len();
+        self.statistics.strings_table.compression = compression;
 
         // Write strings table to byte stream.
         self.data.write_all(HEADER_STRINGS_TABLE.as_bytes())
@@ -725,6 +745,27 @@ impl TokenWriter for TreeTokenWriter {
             nature: Nature::String(index)
         }))
     }
+
+    fn variant(&mut self, data: &str) -> Result<Self::Tree, Self::Error> {
+        let key = Some(data.to_string());
+        let index = self.variants_table
+            .get(&key)
+            .map(|entry| entry.index.clone());
+
+        if let Some(index) = index {
+            return Ok(self.register(UnresolvedTree {
+                data: UnresolvedTreeNode::UnresolvedVariantIndex(index.clone()),
+                nature: Nature::String(index)
+            }));
+        }
+        let index = self.variants_table.insert(key);
+        debug!(target: "multipart", "writing variant {:?} => {:?}", data, index);
+        Ok(self.register(UnresolvedTree {
+            data: UnresolvedTreeNode::UnresolvedVariantIndex(index.clone()),
+            nature: Nature::Variant(index)
+        }))
+    }
+
     fn list(&mut self, mut children: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
         let mut items = Vec::with_capacity(children.len() + 1);
         // First child is the number of children.
@@ -850,6 +891,7 @@ pub struct TreeTokenWriter {
 
     /// The strings used in the binary.
     strings_table: WriterTable<Option<String>>,
+    variants_table: WriterTable<Option<String>>,
 
     root: Option<Tree>,
 

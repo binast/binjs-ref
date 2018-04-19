@@ -56,6 +56,10 @@ pub trait TokenReader where Self::Error: Debug + From<::TokenReaderError>,
     /// The returned string MUST be valid UTF-8.
     fn string(&mut self) -> Result<Option<String>, Self::Error>;
 
+    fn variant(&mut self) -> Result<String, Self::Error> {
+        unimplemented!()
+    }
+
     /// Read a single `f64`. Note that all numbers are `f64`.
     fn float(&mut self) -> Result<Option<f64>, Self::Error>;
 
@@ -147,6 +151,10 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
     ///
     /// If specified, the string MUST be UTF-8.
     fn string(&mut self, Option<&str>) -> Result<Self::Tree, Self::Error>;
+
+    fn variant(&mut self, &str) -> Result<Self::Tree, Self::Error> {
+        unimplemented!()
+    }
 
     /// Write a single number.
     fn float(&mut self, Option<f64>) -> Result<Self::Tree, Self::Error>;
