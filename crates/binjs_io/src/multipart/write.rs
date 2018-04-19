@@ -58,14 +58,14 @@ impl Serializable for Vec<u8> {
 }
 
 /// A `String` is serialized as:
-/// - number of UTF-8 bytes (varnum);
-/// - sequence of UTF-8 bytes.
+/// - sequence of UTF-8 bytes
+/// - '\0'
 impl Serializable for String {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
-        total += out.write_varnum(self.len() as u32)?;
         out.write_all(self.as_bytes())?;
-        total += self.len();
+        out.write_all(&[0])?;
+        total += self.len() + 1;
         Ok(total)
     }
 }
@@ -83,7 +83,6 @@ impl Serializable for Option<String> {
         let total = match *self {
             None => {
                 let mut total = 0;
-                total += out.write_varnum(EMPTY_STRING.len() as u32)?;
                 out.write_all(&EMPTY_STRING)?;
                 total += EMPTY_STRING.len();
                 total
