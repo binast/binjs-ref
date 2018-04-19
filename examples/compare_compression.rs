@@ -191,7 +191,7 @@ fn main() {
     }
 
     eprintln!("*** Done");
-    eprintln!("File, Source, Source+Gzip, Source+Brotli, Source+BZip2, Binjs, Binjs+GZip, Binjs+Brotli, Binjs+BZip2, Number of strings, Number of identifiers, Number of grammar entries");
+    eprintln!("File, Source (b), Source+Gzip (b), Source+Brotli (b), Source+BZip2 (b), BinAST (b), BinAST/Source, BinAST+GZip (b), BinAST+GZip/Source+GZip, BinAST+GZip/BinAST, BinAST+Brotli (b), BinAST+Brotli/Source+Brotli, BinAST+Brotli/BinAST, BinAST+BZip2 (b), BinAST+BZip2/Source+BZip2, BinAST+BZip2/BinAST, Number of strings, Number of identifiers, Number of grammar entries");
     for (path, file_stats) in &all_stats {
         let number_of_binding_identifiers = match file_stats.binjs_stats.per_kind_name.get("BindingIdentifier") {
             None => 0,
@@ -202,16 +202,25 @@ fn main() {
             Some(identifiers) => identifiers.entries
         };
 
-        println!("{path:?}, {source}, {source_gzip}, {source_brotli}, {source_bzip2}, {binjs}, {binjs_gzip}, {binjs_brotli}, {binjs_bzip2}, {strings}, {identifiers}, {grammar_entries}",
+        println!("{path:?}, {source}, {source_gzip}, {source_brotli}, {source_bzip2}, {binjs}, {uncompressed_to_uncompressed:2}, {binjs_gzip}, {gzip_to_gzip:2}, {gzip_to_uncompressed:2}, {binjs_brotli}, {brotli_to_brotli:2}, {brotli_to_uncompressed:2}, {binjs_bzip2}, {bzip2_to_bzip2:2}, {bzip2_to_uncompressed:2}, {strings}, {identifiers}, {grammar_entries}",
             source = file_stats.from_text.uncompressed,
             source_gzip = file_stats.from_text.gzip,
             source_brotli = file_stats.from_text.brotli,
             source_bzip2 = file_stats.from_text.bzip2,
 
             binjs = file_stats.from_binjs.uncompressed,
+            uncompressed_to_uncompressed = (file_stats.from_binjs.uncompressed as f64) / (file_stats.from_text.uncompressed as f64),
             binjs_gzip = file_stats.from_binjs.gzip,
+            gzip_to_gzip = (file_stats.from_binjs.gzip as f64) / (file_stats.from_text.gzip as f64),
+            gzip_to_uncompressed = (file_stats.from_binjs.gzip as f64) / (file_stats.from_binjs.uncompressed as f64),
+
             binjs_brotli = file_stats.from_binjs.brotli,
+            brotli_to_brotli = (file_stats.from_binjs.brotli as f64) / (file_stats.from_text.brotli as f64),
+            brotli_to_uncompressed = (file_stats.from_binjs.brotli as f64) / (file_stats.from_binjs.uncompressed as f64),
+
             binjs_bzip2 = file_stats.from_binjs.bzip2,
+            bzip2_to_bzip2 = (file_stats.from_binjs.bzip2 as f64) / (file_stats.from_text.bzip2 as f64),
+            bzip2_to_uncompressed = (file_stats.from_binjs.bzip2 as f64) / (file_stats.from_binjs.uncompressed as f64),
 
             strings = file_stats.binjs_stats.strings_table.entries,
             identifiers = number_of_binding_identifiers + number_of_expression_identifiers,
