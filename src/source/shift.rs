@@ -264,8 +264,13 @@ impl FromShift {
                 object["type"] = json::from("LabelledStatement");
             }
             Some("LiteralNumericExpression") => {
-                if object["value"].as_u32().is_some() {
-                    object["type"] = json::from("LiteralU32Expression");
+                if let Some(number) = object["value"].as_number() {
+                    if let (true, mantissa, 0) = number.as_parts() {
+                        if mantissa <= std::u32::MAX as u64 {
+                            // This is a u32.
+                            object["type"] = json::from("LiteralU32Expression");
+                        }
+                    }
                 }
             }
             Some("LiteralRegExpExpression") => {
