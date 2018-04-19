@@ -133,11 +133,12 @@ fn main() {
         .with_source_bytes(0);
 
     let mut all_stats = HashMap::new();
-
+    let mut paths = vec![];
     for path in matches.values_of("in").expect("Missing `in`") {
         for source_path in glob::glob(&path).expect("Invalid pattern") {
             let source_path = source_path.expect("I/O error");
             eprintln!("Source: {}", source_path.to_str().expect("Could not display path"));
+            paths.push(source_path.clone());
 
             let from_text = get_compressed_sizes(&source_path);
 
@@ -192,7 +193,8 @@ fn main() {
 
     eprintln!("*** Done");
     eprintln!("File, Source (b), Source+Gzip (b), Source+Brotli (b), Source+BZip2 (b), BinAST (b), BinAST/Source, BinAST+GZip (b), BinAST+GZip/Source+GZip, BinAST+GZip/BinAST, BinAST+Brotli (b), BinAST+Brotli/Source+Brotli, BinAST+Brotli/BinAST, BinAST+BZip2 (b), BinAST+BZip2/Source+BZip2, BinAST+BZip2/BinAST, Number of strings, Number of identifiers, Number of grammar entries");
-    for (path, file_stats) in &all_stats {
+    for path in paths.into_iter() {
+        let file_stats = all_stats.get(&path).unwrap();
         let number_of_binding_identifiers = match file_stats.binjs_stats.per_kind_name.get("BindingIdentifier") {
             None => 0,
             Some(identifiers) => identifiers.entries
