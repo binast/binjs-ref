@@ -199,6 +199,12 @@ impl Visitor<()> for AnnotationVisitor {
         Ok(None)
     }
 
+    fn exit_assignment_target_identifier(&mut self, _path: &Path, node: &mut AssignmentTargetIdentifier) -> Result<Option<AssignmentTargetIdentifier>, ()> {
+        self.free_names_in_function_stack.last_mut()
+            .unwrap()
+            .insert(node.name.clone());
+        Ok(None)
+    }
 
     fn exit_binding_identifier(&mut self, path: &Path, node: &mut BindingIdentifier) -> Result<Option<BindingIdentifier>, ()> {
         match path.get(0) {
