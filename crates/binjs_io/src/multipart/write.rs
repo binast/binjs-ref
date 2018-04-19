@@ -175,13 +175,13 @@ impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + F
 ///       -   byte length of entry (varnum);
 /// - for each entry,
 /// -   serialization of entry.
-impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
+impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug, TableEntry<Entry>: Ord {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
         // Sort entries by number of uses.
         let mut contents : Vec<_> = self.map.values().collect();
-        contents.sort_unstable_by(|a, b| u32::cmp(&*b.instances.borrow(), &*a.instances.borrow()));
+        contents.sort_unstable();
 
         // Assign TableIndex
         for i in 0..contents.len() {
@@ -223,9 +223,50 @@ impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone +
 }
 
 
-#[derive(PartialEq, Eq, Clone, Hash, Debug)] // FIXME: Clone shouldn't be necessary. Sigh.
+#[derive(PartialEq, Eq, Clone, Hash, Debug, PartialOrd, Ord)] // FIXME: Clone shouldn't be necessary. Sigh.
 pub struct NodeDescription {
     kind: String,
+}
+impl PartialEq for TableEntry<NodeDescription> {
+    fn eq(&self, other: &Self) -> bool {
+        PartialEq::eq(&self.data, &other.data)
+    }
+}
+impl Eq for TableEntry<NodeDescription> { }
+impl PartialOrd for TableEntry<NodeDescription> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        PartialOrd::partial_cmp(&self.data, &other.data)
+    }
+}
+impl Ord for TableEntry<NodeDescription> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        Ord::cmp(&self.data, &other.data)
+    }
+}
+
+
+impl PartialEq for TableEntry<Option<String>> {
+    fn eq(&self, other: &Self) -> bool {
+        PartialEq::eq(&self.data, &other.data)
+    }
+}
+impl Eq for TableEntry<Option<String>> {}
+impl PartialOrd for TableEntry<Option<String>> {
+    fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
+        match (&self.data, &rhs.data) {
+            (&None, &None) => Some(std::cmp::Ordering::Equal),
+            (&Some(_), &None) => Some(std::cmp::Ordering::Less),
+            (&None, &Some(_)) => Some(std::cmp::Ordering::Greater),
+            (&Some(ref left), &Some(ref right)) => {
+                left.chars().rev().partial_cmp(right.chars().rev())
+            }
+        }
+    }
+}
+impl Ord for TableEntry<Option<String>> {
+    fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(rhs).unwrap()
+    }
 }
 
 /// Format:
