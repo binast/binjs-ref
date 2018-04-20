@@ -199,6 +199,12 @@ impl Visitor<()> for AnnotationVisitor {
         Ok(None)
     }
 
+    fn exit_assignment_target_identifier(&mut self, _path: &Path, node: &mut AssignmentTargetIdentifier) -> Result<Option<AssignmentTargetIdentifier>, ()> {
+        self.free_names_in_function_stack.last_mut()
+            .unwrap()
+            .insert(node.name.clone());
+        Ok(None)
+    }
 
     fn exit_binding_identifier(&mut self, path: &Path, node: &mut BindingIdentifier) -> Result<Option<BindingIdentifier>, ()> {
         match path.get(0) {
@@ -324,16 +330,9 @@ impl Visitor<()> for AnnotationVisitor {
     }
     fn exit_eager_setter(&mut self, path: &Path, node: &mut EagerSetter) -> Result<Option<EagerSetter>, ()> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
-        // If the setter has a name, it's not a free name.
-        let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
-            Some(&name.value)
-        } else {
-            None
-        };
-
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, name);
+        node.body_scope = self.pop_var_scope(path, None);
 
         Ok(None)
     }
@@ -344,14 +343,7 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn exit_eager_getter(&mut self, path: &Path, node: &mut EagerGetter) -> Result<Option<EagerGetter>, ()> {
-        // If the getter has a name, it's not a free name.
-        let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
-            Some(&name.value)
-        } else {
-            None
-        };
-
-        node.body_scope = self.pop_var_scope(path, name);
+        node.body_scope = self.pop_var_scope(path, None);
 
         Ok(None)
     }
@@ -365,16 +357,9 @@ impl Visitor<()> for AnnotationVisitor {
     fn exit_eager_method(&mut self, path: &Path, node: &mut EagerMethod) -> Result<Option<EagerMethod>, ()> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
 
-        // If the method has a name, it's not a free name.
-        let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
-            Some(&name.value)
-        } else {
-            None
-        };
-
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, name);
+        node.body_scope = self.pop_var_scope(path, None);
 
         Ok(None)
     }
@@ -431,9 +416,9 @@ impl Visitor<()> for AnnotationVisitor {
         // If a name declaration was specified, remove it from `unknown`.
         let ref name = node.name.name;
 
-        // Commit parameter scope and var scope.
+        // Commit parameter scope and var scope. The function's name is not actually bound in the function; the outer var binding is used.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, Some(name));
+        node.body_scope = self.pop_var_scope(path, None);
         // Anything we do from this point affects the scope outside the function.
 
         // 1. If the declaration is at the toplevel, the name is declared as a `var`.
@@ -441,15 +426,16 @@ impl Visitor<()> for AnnotationVisitor {
         // 3. Otherwise, the name is declared as a `let`.
         let name = name.to_string();
         debug!(target: "annotating", "exit_function_declaration sees {} at {:?}", node.name.name, path.get(0));
-        match path.get(0) {
-            None => {
+        match path.get(0).expect("Impossible AST walk") {
+            &PathItem { field: ASTField::Statements, interface: ASTNode::Script } |
+            &PathItem { field: ASTField::Statements, interface: ASTNode::Module } => {
                 // Case 1.
                 debug!(target: "annotating", "exit_function_declaration says it's a var (case 1)");
                 self.var_names_stack.last_mut()
                     .unwrap()
                     .insert(name);
             }
-            Some(&PathItem { field: ASTField::Statements, interface: ASTNode::FunctionBody }) =>
+            &PathItem { field: ASTField::Statements, interface: ASTNode::FunctionBody } =>
             {
                 // Case 2.
                 debug!(target: "annotating", "exit_function_declaration says it's a var (case 2)");
@@ -457,7 +443,7 @@ impl Visitor<()> for AnnotationVisitor {
                     .unwrap()
                     .insert(name);
             }
-            Some(_) => {
+            _ => {
                 // Case 3.
                 debug!(target: "annotating", "exit_function_declaration says it's a lex (case 3)");
                 self.lex_names_stack.last_mut()
