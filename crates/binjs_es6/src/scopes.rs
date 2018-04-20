@@ -330,16 +330,9 @@ impl Visitor<()> for AnnotationVisitor {
     }
     fn exit_eager_setter(&mut self, path: &Path, node: &mut EagerSetter) -> Result<Option<EagerSetter>, ()> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
-        // If the setter has a name, it's not a free name.
-        let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
-            Some(&name.value)
-        } else {
-            None
-        };
-
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, name);
+        node.body_scope = self.pop_var_scope(path, None);
 
         Ok(None)
     }
@@ -350,14 +343,7 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn exit_eager_getter(&mut self, path: &Path, node: &mut EagerGetter) -> Result<Option<EagerGetter>, ()> {
-        // If the getter has a name, it's not a free name.
-        let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
-            Some(&name.value)
-        } else {
-            None
-        };
-
-        node.body_scope = self.pop_var_scope(path, name);
+        node.body_scope = self.pop_var_scope(path, None);
 
         Ok(None)
     }
@@ -371,16 +357,9 @@ impl Visitor<()> for AnnotationVisitor {
     fn exit_eager_method(&mut self, path: &Path, node: &mut EagerMethod) -> Result<Option<EagerMethod>, ()> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
 
-        // If the method has a name, it's not a free name.
-        let name = if let PropertyName::LiteralPropertyName(box ref name) = node.name {
-            Some(&name.value)
-        } else {
-            None
-        };
-
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, name);
+        node.body_scope = self.pop_var_scope(path, None);
 
         Ok(None)
     }
@@ -437,9 +416,9 @@ impl Visitor<()> for AnnotationVisitor {
         // If a name declaration was specified, remove it from `unknown`.
         let ref name = node.name.name;
 
-        // Commit parameter scope and var scope.
+        // Commit parameter scope and var scope. The function's name is not actually bound in the function; the outer var binding is used.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, Some(name));
+        node.body_scope = self.pop_var_scope(path, None);
         // Anything we do from this point affects the scope outside the function.
 
         // 1. If the declaration is at the toplevel, the name is declared as a `var`.
