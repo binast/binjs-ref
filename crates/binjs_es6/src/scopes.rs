@@ -426,15 +426,16 @@ impl Visitor<()> for AnnotationVisitor {
         // 3. Otherwise, the name is declared as a `let`.
         let name = name.to_string();
         debug!(target: "annotating", "exit_function_declaration sees {} at {:?}", node.name.name, path.get(0));
-        match path.get(0) {
-            None => {
+        match path.get(0).expect("Impossible AST walk") {
+            &PathItem { field: ASTField::Statements, interface: ASTNode::Script } |
+            &PathItem { field: ASTField::Statements, interface: ASTNode::Module } => {
                 // Case 1.
                 debug!(target: "annotating", "exit_function_declaration says it's a var (case 1)");
                 self.var_names_stack.last_mut()
                     .unwrap()
                     .insert(name);
             }
-            Some(&PathItem { field: ASTField::Statements, interface: ASTNode::FunctionBody }) =>
+            &PathItem { field: ASTField::Statements, interface: ASTNode::FunctionBody } =>
             {
                 // Case 2.
                 debug!(target: "annotating", "exit_function_declaration says it's a var (case 2)");
@@ -442,7 +443,7 @@ impl Visitor<()> for AnnotationVisitor {
                     .unwrap()
                     .insert(name);
             }
-            Some(_) => {
+            _ => {
                 // Case 3.
                 debug!(target: "annotating", "exit_function_declaration says it's a lex (case 3)");
                 self.lex_names_stack.last_mut()
