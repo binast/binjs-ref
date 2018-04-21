@@ -32,6 +32,7 @@ test!(test_simple_tokenization, {
         "var i; for (i = 0; i < 100; ++i) {}",
         "var i; for (i = 0; i < 100; ++i) { console.log(i); }",
         "function foo(x, y) { var i; for (i = 0; i < 100; ++i) { console.log(x, y + i, x + y + i, x + y + i + 1); } }",
+        "let a = b => c;"
     ].iter() {
         println!("Attempting to (de)tokenize {}", source);
 
@@ -40,7 +41,8 @@ test!(test_simple_tokenization, {
             .expect("Could not parse source");
 
         println!("Annotating");
-        library.annotate(&mut ast);
+        let mut visitor = binjs::specialized::es6::scopes::AnnotationVisitor::new();
+        visitor.annotate(&mut ast);
 
         println!("Encoding sample {}", ast.pretty(2));
         let writer  = binjs::io::simple::TreeTokenWriter::new();

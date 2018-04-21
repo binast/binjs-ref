@@ -248,7 +248,7 @@ impl FromShift {
                     object["left"].remove("declarators");
                 }
             }
-            Some("Function") | Some("FunctionDeclaration") | Some("FunctionExpression") | Some("Method") => {
+            Some("Function") | Some("FunctionDeclaration") | Some("FunctionExpression") | Some("Method")  | Some("ArrowExpression") => {
                 // `isAsync` is not supported by the parser yet.
                 if let None = object.get("isAsync") {
                     object["isAsync"] = JSON::Boolean(false)
@@ -256,7 +256,7 @@ impl FromShift {
                 object.insert("scope", JSON::Null);
                 self.make_eager(object);
             }
-            Some("Getter") | Some("Setter") | Some("ArrowExpression") => {
+            Some("Getter") | Some("Setter") => {
                 self.make_eager(object);
             }
             Some("LabeledStatement") => {
