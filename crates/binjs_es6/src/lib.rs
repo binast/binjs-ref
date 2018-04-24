@@ -8,10 +8,11 @@ extern crate binjs_shared;
 
 #[macro_use]
 extern crate assert_matches;
-#[macro_use]
-extern crate log;
+extern crate itertools;
 #[macro_use]
 extern crate json;
+#[macro_use]
+extern crate log;
 
 /// A strongly-typed AST for ES6.
 pub mod ast;

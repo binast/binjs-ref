@@ -3,6 +3,7 @@ use binjs_shared::{ FromJSON, ToJSON, VisitMe };
 
 use std::collections::{  HashSet };
 
+use itertools::Itertools;
 use json::JsonValue as JSON;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -88,11 +89,11 @@ impl AnnotationVisitor {
     }
     fn pop_block_scope(&mut self, path: &Path) -> Option<AssertedBlockScope> {
         debug!(target: "annotating", "pop_block_scope at {:?}", path);
-        let mut lex_names = self.lex_names_stack.pop().unwrap();
+        let lex_names = self.lex_names_stack.pop().unwrap();
 
         let captured_names = self.pop_captured_names(&[&lex_names]);
-        let mut lex_names : Vec<_> = lex_names.drain().collect();
-        lex_names.sort();
+        let lex_names : Vec<_> = lex_names.into_iter()
+            .sorted();
 
         let has_direct_eval = self.pop_direct_eval();
         if lex_names.len() > 0 || has_direct_eval /* implied || captured_var_names.len() > 0 */ {
@@ -114,23 +115,26 @@ impl AnnotationVisitor {
     }
     fn pop_var_scope(&mut self, path: &Path, function_name: Option<&String>) -> Option<AssertedVarScope> {
         debug!(target: "annotating", "pop_var_scope at {:?}", path);
-        let mut var_names = self.var_names_stack.pop().unwrap();
-        let mut lex_names = self.lex_names_stack.pop().unwrap();
+        let var_names = self.var_names_stack.pop().unwrap();
+        let lex_names = self.lex_names_stack.pop().unwrap();
 
-        let function_name = {
-            let mut set = HashSet::new();
-            if let Some(name) = function_name {
-                set.insert(name.clone());
-            }
-            set
-        };
+        // Check that a name isn't defined twice in the same scope.
+        for name in var_names.intersection(&lex_names) {
+            panic!("This name is both lex-bound and var-bound: {}", name);
+        }
+
+        let function_name: HashSet<_> = function_name.iter()
+            .cloned()
+            .cloned()
+            .collect();
         let captured_names = self.pop_captured_names(&[&var_names, &lex_names, &function_name]);
         self.pop_free_names(&[&var_names, &lex_names, &function_name]);
 
-        let mut var_names : Vec<_> = var_names.drain().collect();
-        var_names.sort();
-        let mut lex_names : Vec<_> = lex_names.drain().collect();
-        lex_names.sort();
+        let var_names : Vec<_> = var_names.into_iter()
+            .sorted();
+        let lex_names : Vec<_> = lex_names.into_iter()
+            .sorted();
+
 
         let has_direct_eval = self.pop_direct_eval();
 
@@ -162,7 +166,6 @@ impl AnnotationVisitor {
                 .unwrap()
                 .remove(name);
         }
-
 
         let has_direct_eval = self.pop_direct_eval();
         if param_names.len() > 0 || has_direct_eval /* implied || captured_names.len() > 0 */ {
