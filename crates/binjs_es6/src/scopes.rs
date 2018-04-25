@@ -273,7 +273,7 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     // Try/Catch
-    fn enter_catch_clause(&mut self, path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
+    fn enter_catch_clause(&mut self, _path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
         self.binding_kind_stack.push(BindingKind::Param);
         self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
