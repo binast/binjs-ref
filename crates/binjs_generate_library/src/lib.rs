@@ -1292,7 +1292,7 @@ impl<'a> Walker<'a> for ViewMutOffset<'a> {{
                 fields.insert(field.name().to_string().clone());
             }
         }
-        fields.insert("Offset".to_string()); // Hardcoded Offset field.
+        fields.insert("_skip".to_string()); // Hardcoded `_skip` field.
         let fields : Vec<_> = fields.drain().sorted();
         for name in fields {
             let snake = name.to_rust_identifier_case();

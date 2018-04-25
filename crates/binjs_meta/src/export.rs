@@ -82,8 +82,8 @@ impl TypeDeanonymizer {
             result.builder.import_field_name(name)
         }
 
-        // We may need to introduce name `offset`, we'll see.
-        let mut field_offset = None;
+        // We may need to introduce name `_skip`, we'll see.
+        let mut field_skip = None;
 
         // Copy and deanonymize interfaces.
         for (name, interface) in spec.interfaces_by_name() {
@@ -92,10 +92,10 @@ impl TypeDeanonymizer {
             // and walk through their fields to deanonymize types.
 
             let mut fields = vec![];
-            // If the interface is skippable, introduce a first invisible field `_offset`.
+            // If the interface is skippable, introduce a first invisible field `_skip`.
             if interface.is_skippable() {
-                let name = field_offset.get_or_insert_with(||
-                    result.builder.field_name("_offset")
+                let name = field_skip.get_or_insert_with(||
+                    result.builder.field_name("_skip")
                 );
                 fields.push(Field::new(
                     name.clone(),
