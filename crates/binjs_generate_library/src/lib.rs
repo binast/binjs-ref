@@ -623,6 +623,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
                                 format!("{}", supers.iter()
                                     .map(|super_name| {
                                         format!("
+        // Attempt to cast to `ViewMut{specialized}`.
         let me = match From::from(me) {{
             Ok(mut specialized) => {{
                 let _ : ViewMut{specialized} = specialized;
@@ -784,8 +785,13 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
         // Do not callback on the `Vec<>` itself, just on its contents.
         for iter in self.0.iter_mut() {{
-            let mut specialized : ViewMut{contents} = iter.into();
-            specialized.walk(path, visitor)?;
+            let rewrite = {{
+                let mut specialized : ViewMut{contents} = iter.into();
+                specialized.walk(path, visitor)?
+            }};
+            if let Some(rewrite) = rewrite {{
+                *iter = rewrite;
+            }}
         }}
         Ok(None)
     }}
@@ -1067,7 +1073,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
         match visitor.enter_{snake}(path, self.0)? {{
             VisitMe::DoneHere => Ok(None),
             VisitMe::HoldThis(_guard) => {{
-                {fields}
+{fields}
                 let result = visitor.exit_{snake}(path, self.0)?;
                 path.exit_interface(ASTNode::{name});
                 Ok(result)
@@ -1082,17 +1088,17 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
                     fields = field_specs
                         .iter()
                         .map(|(field_name, field_spec)| {
-                            format!("       {{
-            path.enter_field(ASTField::{variant});
-            let result = {{
-                let mut walker : ViewMut{spec} = (&mut self.0.{name}).into();
-                walker.walk(path, visitor)?
-            }};
-            if let Some(replacement) = result {{
-                self.0.{name} = replacement;
-            }}
-            path.exit_field(ASTField::{variant});
-        }}",
+                            format!("                 {{
+                    path.enter_field(ASTField::{variant});
+                    let result = {{
+                        let mut walker : ViewMut{spec} = (&mut self.0.{name}).into();
+                        walker.walk(path, visitor)?
+                    }};
+                    if let Some(replacement) = result {{
+                        self.0.{name} = replacement;
+                    }}
+                    path.exit_field(ASTField::{variant});
+                }}",
                                 name = field_name.to_rust_identifier_case(),
                                 variant = field_name.to_class_cases(),
                                 spec = field_spec.to_class_cases()
@@ -1286,7 +1292,7 @@ impl<'a> Walker<'a> for ViewMutOffset<'a> {{
                 fields.insert(field.name().to_string().clone());
             }
         }
-        fields.insert("Offset".to_string()); // Hardcoded Offset field.
+        fields.insert("_skip".to_string()); // Hardcoded `_skip` field.
         let fields : Vec<_> = fields.drain().sorted();
         for name in fields {
             let snake = name.to_rust_identifier_case();

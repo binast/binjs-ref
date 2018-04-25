@@ -92,7 +92,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
             ViewMutMethodDefinition::EagerGetter(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
                     SkippableGetter {
-                        offset: Offset::default(),
+                        skip: Offset::default(),
                         skipped: stolen,
                     }.into()
                 })
@@ -100,7 +100,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
             ViewMutMethodDefinition::EagerSetter(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
                     SkippableSetter {
-                        offset: Offset::default(),
+                        skip: Offset::default(),
                         skipped: stolen,
                     }.into()
                 })
@@ -108,7 +108,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
             ViewMutMethodDefinition::EagerMethod(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
                     SkippableMethod {
-                        offset: Offset::default(),
+                        skip: Offset::default(),
                         skipped: stolen,
                     }.into()
                 })
@@ -130,7 +130,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
             ViewMutFunctionDeclaration::EagerFunctionDeclaration(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
                     SkippableFunctionDeclaration {
-                        offset: Offset::default(),
+                        skip: Offset::default(),
                         skipped: stolen,
                     }.into()
                 })
@@ -156,7 +156,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
             ViewMutFunctionExpression::EagerFunctionExpression(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
                     SkippableFunctionExpression {
-                        offset: Offset::default(),
+                        skip: Offset::default(),
                         skipped: stolen,
                     }.into()
                 })
