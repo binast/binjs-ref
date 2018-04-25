@@ -24,6 +24,7 @@ struct Options<'a> {
     compression: Option<binjs::io::multipart::WriteOptions>,
     dest_dir: Option<PathBuf>,
     lazification: u32,
+    show_ast: bool,
 }
 
 fn handle_path<'a>(options: &Options<'a>,
@@ -97,6 +98,12 @@ fn handle_path<'a>(options: &Options<'a>,
         let mut visitor = binjs::specialized::es6::skip::LazifierVisitor::new(options.lazification);
         ast.walk(&mut path, &mut visitor)
             .expect("Could not introduce laziness");
+    }
+
+    if options.show_ast {
+        use binjs::generic::ToJSON;
+        let json = ast.export();
+        println!("{:#}", json);
     }
 
     println!("Encoding.");
@@ -210,7 +217,11 @@ fn main_aux() {
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
+            Arg::with_name("show-ast")
+                .long("show-ast")
+                .help("Show pos-processed ast"),
             Arg::with_name("lazify")
+                .long("lazify")
                 .takes_value(true)
                 .default_value("0")
                 .validator(|s| s.parse::<u32>()
@@ -293,6 +304,7 @@ fn main_aux() {
         compression,
         dest_dir,
         lazification,
+        show_ast: matches.is_present("show-ast"),
     };
 
     for source_path in sources {
