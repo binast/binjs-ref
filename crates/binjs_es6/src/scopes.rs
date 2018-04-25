@@ -11,7 +11,6 @@ enum BindingKind {
     Var,
     Lex,
     Param,
-    Implicit,
 }
 
 #[derive(Default)]
@@ -238,7 +237,6 @@ impl Visitor<()> for AnnotationVisitor {
                     .unwrap()
                     .insert(node.name.clone());
             }
-            BindingKind::Implicit => { /* Nothing to do */ }
         }
         Ok(None)
     }
@@ -275,12 +273,14 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     // Try/Catch
-    fn enter_catch_clause(&mut self, _path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
-        self.binding_kind_stack.push(BindingKind::Implicit);
+    fn enter_catch_clause(&mut self, path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
+        self.binding_kind_stack.push(BindingKind::Param);
+        self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
-    fn exit_catch_clause(&mut self, _path: &Path, _node: &mut CatchClause) -> Result<Option<CatchClause>, ()> {
-        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Implicit));
+    fn exit_catch_clause(&mut self, path: &Path, node: &mut CatchClause) -> Result<Option<CatchClause>, ()> {
+        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+        node.binding_scope = self.pop_param_scope(path);
         Ok(None)
     }
 
