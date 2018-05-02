@@ -90,6 +90,8 @@ impl AnnotationVisitor {
         debug!(target: "annotating", "pop_block_scope at {:?}", path);
         let lex_names = self.lex_names_stack.pop().unwrap();
 
+        debug!(target: "annotating", "pop_lex_scope lex {:?}", lex_names);
+
         let captured_names = self.pop_captured_names(&[&lex_names]);
         let lex_names : Vec<_> = lex_names.into_iter()
             .sorted();
@@ -116,6 +118,9 @@ impl AnnotationVisitor {
         debug!(target: "annotating", "pop_var_scope at {:?}", path);
         let var_names = self.var_names_stack.pop().unwrap();
         let lex_names = self.lex_names_stack.pop().unwrap();
+
+        debug!(target: "annotating", "pop_var_scope var {:?}", var_names);
+        debug!(target: "annotating", "pop_var_scope lex {:?}", lex_names);
 
         // Check that a name isn't defined twice in the same scope.
         for name in var_names.intersection(&lex_names) {
@@ -157,9 +162,12 @@ impl AnnotationVisitor {
         // In the case of `function foo(j) {var j;}`, the `var j` is not the true declaration.
         // Remove it from parameters.
         for name in &param_names {
-            self.var_names_stack.last_mut()
+            if self.var_names_stack.last_mut()
                 .unwrap()
-                .remove(name);
+                .remove(name)
+            {
+                debug!(target: "annotating", "pop_param_scope removing {:?}", name);
+            }
         }
 
         let has_direct_eval = self.pop_direct_eval();
@@ -218,8 +226,9 @@ impl Visitor<()> for AnnotationVisitor {
             }
             _ => {}
         }
-        debug!(target: "annotating", "exit_binding identifier – marking {name} at {path:?}",
+        debug!(target: "annotating", "exit_binding identifier – marking {name} as {kind:?} at {path:?}",
             name = node.name,
+            kind = self.binding_kind_stack.last().unwrap(),
             path = path);
         match *self.binding_kind_stack.last().unwrap() {
             BindingKind::Var => {
@@ -273,14 +282,16 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     // Try/Catch
-    fn enter_catch_clause(&mut self, _path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
+    fn enter_catch_clause(&mut self, path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
         self.binding_kind_stack.push(BindingKind::Param);
+        self.push_var_scope(path); // Fake var scope, to avoid collisions in pop_param_scope.
         self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_catch_clause(&mut self, path: &Path, node: &mut CatchClause) -> Result<Option<CatchClause>, ()> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
         node.binding_scope = self.pop_param_scope(path);
+        assert!(self.pop_var_scope(path).is_none());
         Ok(None)
     }
 
