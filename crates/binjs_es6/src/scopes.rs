@@ -11,7 +11,6 @@ enum BindingKind {
     Var,
     Lex,
     Param,
-    Implicit,
 }
 
 #[derive(Default)]
@@ -113,7 +112,7 @@ impl AnnotationVisitor {
         self.push_free_names();
         self.push_direct_eval();
     }
-    fn pop_var_scope(&mut self, path: &Path, function_name: Option<&String>) -> Option<AssertedVarScope> {
+    fn pop_var_scope(&mut self, path: &Path) -> Option<AssertedVarScope> {
         debug!(target: "annotating", "pop_var_scope at {:?}", path);
         let var_names = self.var_names_stack.pop().unwrap();
         let lex_names = self.lex_names_stack.pop().unwrap();
@@ -123,12 +122,8 @@ impl AnnotationVisitor {
             panic!("This name is both lex-bound and var-bound: {}", name);
         }
 
-        let function_name: HashSet<_> = function_name.iter()
-            .cloned()
-            .cloned()
-            .collect();
-        let captured_names = self.pop_captured_names(&[&var_names, &lex_names, &function_name]);
-        self.pop_free_names(&[&var_names, &lex_names, &function_name]);
+        let captured_names = self.pop_captured_names(&[&var_names, &lex_names]);
+        self.pop_free_names(&[&var_names, &lex_names]);
 
         let var_names : Vec<_> = var_names.into_iter()
             .sorted();
@@ -242,7 +237,6 @@ impl Visitor<()> for AnnotationVisitor {
                     .unwrap()
                     .insert(node.name.clone());
             }
-            BindingKind::Implicit => { /* Nothing to do */ }
         }
         Ok(None)
     }
@@ -265,7 +259,7 @@ impl Visitor<()> for AnnotationVisitor {
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_script(&mut self, path: &Path, node: &mut Script) -> Result<Option<Script>, ()> {
-        node.scope = self.pop_var_scope(path, None);
+        node.scope = self.pop_var_scope(path);
         Ok(None)
     }
 
@@ -274,17 +268,19 @@ impl Visitor<()> for AnnotationVisitor {
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_module(&mut self, path: &Path, node: &mut Module) -> Result<Option<Module>, ()> {
-        node.scope = self.pop_var_scope(path, None);
+        node.scope = self.pop_var_scope(path);
         Ok(None)
     }
 
     // Try/Catch
-    fn enter_catch_clause(&mut self, _path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
-        self.binding_kind_stack.push(BindingKind::Implicit);
+    fn enter_catch_clause(&mut self, path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
+        self.binding_kind_stack.push(BindingKind::Param);
+        self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
-    fn exit_catch_clause(&mut self, _path: &Path, _node: &mut CatchClause) -> Result<Option<CatchClause>, ()> {
-        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Implicit));
+    fn exit_catch_clause(&mut self, path: &Path, node: &mut CatchClause) -> Result<Option<CatchClause>, ()> {
+        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+        node.binding_scope = self.pop_param_scope(path);
         Ok(None)
     }
 
@@ -335,7 +331,7 @@ impl Visitor<()> for AnnotationVisitor {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, None);
+        node.body_scope = self.pop_var_scope(path);
 
         Ok(None)
     }
@@ -346,7 +342,7 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn exit_eager_getter(&mut self, path: &Path, node: &mut EagerGetter) -> Result<Option<EagerGetter>, ()> {
-        node.body_scope = self.pop_var_scope(path, None);
+        node.body_scope = self.pop_var_scope(path);
 
         Ok(None)
     }
@@ -362,7 +358,7 @@ impl Visitor<()> for AnnotationVisitor {
 
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, None);
+        node.body_scope = self.pop_var_scope(path);
 
         Ok(None)
     }
@@ -378,7 +374,7 @@ impl Visitor<()> for AnnotationVisitor {
 
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, None);
+        node.body_scope = self.pop_var_scope(path);
 
         Ok(None)
     }
@@ -392,16 +388,16 @@ impl Visitor<()> for AnnotationVisitor {
     fn exit_eager_function_expression(&mut self, path: &Path, node: &mut EagerFunctionExpression) -> Result<Option<EagerFunctionExpression>, ()> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
 
-        // If the function has a name, it's not a free name
-        let name = if let Some(ref name) = node.name {
-            Some(&name.name)
-        } else {
-            None
-        };
+        // If the function has a name, it's a parameter.
+        if let Some(ref name) = node.name {
+            self.param_names_stack.last_mut()
+                .unwrap()
+                .insert(name.name.clone());
+        }
 
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, name);
+        node.body_scope = self.pop_var_scope(path);
 
         Ok(None)
     }
@@ -421,7 +417,7 @@ impl Visitor<()> for AnnotationVisitor {
 
         // Commit parameter scope and var scope. The function's name is not actually bound in the function; the outer var binding is used.
         node.parameter_scope = self.pop_param_scope(path);
-        node.body_scope = self.pop_var_scope(path, None);
+        node.body_scope = self.pop_var_scope(path);
         // Anything we do from this point affects the scope outside the function.
 
         // 1. If the declaration is at the toplevel, the name is declared as a `var`.
