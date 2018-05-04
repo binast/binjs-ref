@@ -13,6 +13,11 @@ enum BindingKind {
     Param,
 }
 
+struct VarAndLexNames {
+    var_names: HashSet<String>,
+    lex_names: HashSet<String>,
+}
+
 #[derive(Default)]
 pub struct AnnotationVisitor {
     // The following are stacks.
@@ -108,25 +113,32 @@ impl AnnotationVisitor {
         }
     }
 
-    fn push_var_scope(&mut self, _path: &Path) {
+    fn push_var_scope(&mut self, path: &Path) {
+        debug!(target: "annotating", "push_var_scope at {:?}", path);
         self.var_names_stack.push(HashSet::new());
         self.lex_names_stack.push(HashSet::new());
         self.push_free_names();
         self.push_direct_eval();
     }
-    fn pop_var_scope(&mut self, path: &Path) -> Option<AssertedVarScope> {
-        debug!(target: "annotating", "pop_var_scope at {:?}", path);
+    fn pop_incomplete_var_scope(&mut self, path: &Path) -> VarAndLexNames {
+        debug!(target: "annotating", "pop_incomplete_var_scope at {:?}", path);
         let var_names = self.var_names_stack.pop().unwrap();
         let lex_names = self.lex_names_stack.pop().unwrap();
 
-        debug!(target: "annotating", "pop_var_scope var {:?}", var_names);
-        debug!(target: "annotating", "pop_var_scope lex {:?}", lex_names);
+        debug!(target: "annotating", "pop_incomplete_var_scope var {:?}", var_names);
+        debug!(target: "annotating", "pop_incomplete_var_scope lex {:?}", lex_names);
 
         // Check that a name isn't defined twice in the same scope.
         for name in var_names.intersection(&lex_names) {
             panic!("This name is both lex-bound and var-bound: {}", name);
         }
-
+        VarAndLexNames {
+            var_names,
+            lex_names,
+        }
+    }
+    fn pop_var_scope(&mut self, path: &Path) -> Option<AssertedVarScope> {
+        let VarAndLexNames { var_names, lex_names} = self.pop_incomplete_var_scope(path);
         let captured_names = self.pop_captured_names(&[&var_names, &lex_names]);
         self.pop_free_names(&[&var_names, &lex_names]);
 
@@ -284,14 +296,33 @@ impl Visitor<()> for AnnotationVisitor {
     // Try/Catch
     fn enter_catch_clause(&mut self, path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
         self.binding_kind_stack.push(BindingKind::Param);
-        self.push_var_scope(path); // Fake var scope, to avoid collisions in pop_param_scope.
+
+        // We need to differentiate between
+        // `var ex; try { ... } catch(ex) { ... }` (both instances of `ex` are distinct)
+        // and
+        // `try { ... } catch(ex) { var ex; ... }` (both instances of `ex` are the same)
+        // so we introduce a var scope in `catch(ex)`, as if `catch(ex) { ... }` was
+        // a function.
+
+        self.push_var_scope(path);
         self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_catch_clause(&mut self, path: &Path, node: &mut CatchClause) -> Result<Option<CatchClause>, ()> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
         node.binding_scope = self.pop_param_scope(path);
-        assert!(self.pop_var_scope(path).is_none());
+        let var_scope = self.pop_incomplete_var_scope(path);
+
+        assert_eq!(var_scope.lex_names.len(), 0, "The implicit scope of a catch should not contain lexically declared names. This requires an actual block.");
+
+        // Propagate any var_declared_names.
+        for name in var_scope.var_names.into_iter() {
+            debug!(target: "annotating", "exit_catch_clause: reinserting {}", name);
+            self.var_names_stack.last_mut()
+                .unwrap()
+                .insert(name);
+        }
+
         Ok(None)
     }
 
