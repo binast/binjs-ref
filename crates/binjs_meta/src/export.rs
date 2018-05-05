@@ -115,6 +115,7 @@ impl TypeDeanonymizer {
             for field in fields.drain(..) {
                 declaration.with_field(field.name(), field.type_().clone());
             }
+            declaration.with_skippable(interface.is_skippable());
         }
         // Copy and deanonymize typedefs
         for (name, definition) in spec.typedefs_by_name() {
