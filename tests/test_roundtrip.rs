@@ -68,7 +68,11 @@ fn main() {
     let all_options = {
         use self::Compression::*;
         let mut vec = vec![];
-        let compressions = [Identity, Gzip, /*Deflate seems broken upstream,*/ Brotli, /*Lzw doesn't work yet*/];
+        let compressions = [Identity, Gzip, /*Deflate seems broken upstream,*/ Brotli, /*Lzw doesn't work yet*/]
+            .into_iter()
+            .cloned()
+            .map(SectionOption::Compression)
+            .collect::<Vec<_>>();
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {
@@ -121,9 +125,9 @@ fn main() {
                 progress();
 
                 let options = WriteOptions {
-                    grammar_table: Compression::Identity,
-                    strings_table: Compression::Identity,
-                    tree: Compression::Identity,
+                    grammar_table: SectionOption::Compression(Compression::Identity),
+                    strings_table: SectionOption::Compression(Compression::Identity),
+                    tree: SectionOption::Compression(Compression::Identity),
                 };
                 debug!(target: "test_roundtrip", "Encoding.");
                 let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());

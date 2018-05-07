@@ -7,6 +7,7 @@ extern crate glob;
 extern crate rand;
 
 use binjs::io::bytes::compress::*;
+use binjs::io::multipart::SectionOption;
 use binjs::io::TokenSerializer;
 use binjs::generic::FromJSON;
 use binjs::source::*;
@@ -117,8 +118,9 @@ fn main() {
 
     let compression = matches.value_of("compression")
         .expect("Missing compression format");
-    let compression = Compression::parse(Some(compression))
-        .expect("Could not parse compression format");
+    let compression = SectionOption::Compression(Compression::parse(Some(compression))
+                .expect("Could not parse compression format")
+    );
     let binjs_options = {
         binjs::io::multipart::WriteOptions {
             strings_table: compression.clone(),
