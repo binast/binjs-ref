@@ -7,6 +7,7 @@ extern crate env_logger;
 use clap::*;
 
 use binjs::io::bytes::compress::*;
+use binjs::io::multipart::SectionOption;
 use binjs::meta::spec::*;
 use binjs::source::*;
 use binjs::generic::io::encode::*;
@@ -15,13 +16,13 @@ use std::default::Default;
 use std::io::*;
 
 
-fn parse_compression(name: Option<&str>) -> Compression {
+fn parse_compression(name: Option<&str>) -> SectionOption {
     match name {
-        None | Some("identity") => Compression::Identity,
-        Some("lzw") => Compression::Lzw,
-        Some("br") => Compression::Brotli,
-        Some("gzip") => Compression::Gzip,
-        Some("deflate") => Compression::Deflate,
+        None | Some("identity") => SectionOption::Compression(Compression::Identity),
+        Some("lzw") => SectionOption::Compression(Compression::Lzw),
+        Some("br") => SectionOption::Compression(Compression::Brotli),
+        Some("gzip") => SectionOption::Compression(Compression::Gzip),
+        Some("deflate") => SectionOption::Compression(Compression::Deflate),
         Some(x) => panic!("Unexpected compression name {}", x)
     }
 }

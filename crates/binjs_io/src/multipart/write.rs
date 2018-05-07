@@ -19,19 +19,31 @@ use rand::{ Rand, Rng };
 use vec_map;
 use vec_map::*;
 
+/// Instructions for a single section (grammar, strings, tree, ...)
+#[derive(Clone, Debug)]
+pub enum SectionOption {
+    /// Compress.
+    Compression(Compression),
+
+    /// Append to an in-memory buffer.
+    AppendToBuffer(Rc<RefCell<Vec<u8>>>),
+
+    Discard,
+}
+
 #[derive(Clone, Debug)]
 pub struct WriteOptions {
-    pub grammar_table: Compression,
-    pub strings_table: Compression,
-    pub tree: Compression,
+    pub grammar_table: SectionOption,
+    pub strings_table: SectionOption,
+    pub tree: SectionOption,
 }
 
 impl Rand for WriteOptions {
     fn rand<R: Rng>(rng: &mut R) -> Self {
         WriteOptions {
-            grammar_table: Compression::rand(rng),
-            strings_table: Compression::rand(rng),
-            tree: Compression::rand(rng),
+            grammar_table: SectionOption::Compression(Compression::rand(rng)),
+            strings_table: SectionOption::Compression(Compression::rand(rng)),
+            tree: SectionOption::Compression(Compression::rand(rng)),
         }
     }
 }
@@ -531,23 +543,47 @@ impl TreeTokenWriter {
         self.statistics.uncompressed_bytes += std::mem::size_of_val(&FORMAT_VERSION);
 
         // Write grammar table to byte stream.
-        self.data.write_all(HEADER_GRAMMAR_TABLE.as_bytes())
-            .map_err(TokenWriterError::WriteError)?;
-        self.statistics.uncompressed_bytes += HEADER_GRAMMAR_TABLE.len();
-        let compression = self.grammar_table.write_with_compression(&mut self.data, &self.options.grammar_table)
-            .map_err(TokenWriterError::WriteError)?;
-        self.statistics.grammar_table.entries = self.grammar_table.map.len();
-        self.statistics.grammar_table.max_entries = self.grammar_table.map.len();
-        self.statistics.grammar_table.compression = compression;
+        match self.options.grammar_table {
+            SectionOption::Compression(ref mechanism) => {
+                self.data.write_all(HEADER_GRAMMAR_TABLE.as_bytes())
+                    .map_err(TokenWriterError::WriteError)?;
+                self.statistics.uncompressed_bytes += HEADER_GRAMMAR_TABLE.len();
+                let compression = self.grammar_table.write_with_compression(&mut self.data, mechanism)
+                    .map_err(TokenWriterError::WriteError)?;
+                self.statistics.grammar_table.entries = self.grammar_table.map.len();
+                self.statistics.grammar_table.max_entries = self.grammar_table.map.len();
+                self.statistics.grammar_table.compression = compression;
+            },
+            SectionOption::AppendToBuffer(ref buf) => {
+                let mut borrow = buf.borrow_mut();
+                self.grammar_table.write(&mut std::io::Cursor::new(&mut *borrow))
+                    .map_err(TokenWriterError::WriteError)?;
+            },
+            SectionOption::Discard => {
+                // Nothing to do.
+            }
+        }
 
         // Write strings table to byte stream.
-        self.data.write_all(HEADER_STRINGS_TABLE.as_bytes())
-            .map_err(TokenWriterError::WriteError)?;
-        let compression = self.strings_table.write_with_compression(&mut self.data, &self.options.strings_table)
-            .map_err(TokenWriterError::WriteError)?;
-        self.statistics.strings_table.entries = self.strings_table.map.len();
-        self.statistics.strings_table.max_entries = self.strings_table.map.len();
-        self.statistics.strings_table.compression = compression;
+        match self.options.strings_table {
+            SectionOption::Compression(ref mechanism) => {
+                self.data.write_all(HEADER_STRINGS_TABLE.as_bytes())
+                    .map_err(TokenWriterError::WriteError)?;
+                let compression = self.strings_table.write_with_compression(&mut self.data, mechanism)
+                    .map_err(TokenWriterError::WriteError)?;
+                self.statistics.strings_table.entries = self.strings_table.map.len();
+                self.statistics.strings_table.max_entries = self.strings_table.map.len();
+                self.statistics.strings_table.compression = compression;
+            },
+            SectionOption::AppendToBuffer(ref buf) => {
+                let mut borrow = buf.borrow_mut();
+                self.strings_table.write(&mut std::io::Cursor::new(&mut *borrow))
+                    .map_err(TokenWriterError::WriteError)?;
+            },
+            SectionOption::Discard => {
+                // Nothing to do.
+            }
+        }
 
         // Compute more statistics on strings.
         for (key, value) in &self.strings_table.map {
@@ -578,38 +614,54 @@ impl TreeTokenWriter {
 
 
         // Write tree itself to byte stream.
-        self.data.write_all(HEADER_TREE.as_bytes())
-            .map_err(TokenWriterError::WriteError)?;
         if let Some(root) = self.root {
-            let mut buf = Vec::with_capacity(2048);
+            let mut tree_buf = Vec::with_capacity(2048);
             let root = std::rc::Rc::try_unwrap(root.0)
                 .unwrap_or_else(|e| panic!("Could not unwrap tree, it still has {} consumers", std::rc::Rc::strong_count(&e)));
             let (_, resolved) = root.resolve(&mut self.statistics);
-            resolved.write(&mut buf)
+            resolved.write(&mut tree_buf)
                 .map_err(TokenWriterError::WriteError)?;
-            let compression = buf.write_with_compression(&mut self.data, &self.options.tree)
-                .map_err(TokenWriterError::WriteError)?;
-            self.statistics.tree.entries = 1;
-            self.statistics.tree.max_entries = 1;
-            self.statistics.tree.compression = compression;
+
+            match self.options.tree {
+                SectionOption::Compression(ref mechanism) => {
+                    self.data.write_all(HEADER_TREE.as_bytes())
+                        .map_err(TokenWriterError::WriteError)?;
+                    let compression = tree_buf.write_with_compression(&mut self.data, mechanism)
+                        .map_err(TokenWriterError::WriteError)?;
+                    self.statistics.tree.entries = 1;
+                    self.statistics.tree.max_entries = 1;
+                    self.statistics.tree.compression = compression;
+                }
+                SectionOption::AppendToBuffer(ref buf) => {
+                    let mut borrow = buf.borrow_mut();
+                    tree_buf.write(&mut std::io::Cursor::new(&mut *borrow))
+                        .map_err(TokenWriterError::WriteError)?;
+                }
+                SectionOption::Discard => {
+                    // Nothing to do.
+                }
+            }
         }
 
         // Compute more statistics on nodes.
         for (key, value) in self.grammar_table.map {
             let index = value.index.index.borrow()
                 .expect("Table index hasn't been resolved yet");
-            let stats = self.statistics.per_kind_index.get(index as usize)
-                .unwrap_or_else(|| panic!("Could not find stats entry for index {} ({}, {} occurrences)", index, key.kind, value.instances.borrow()));
-            match self.statistics.per_kind_name.entry(key.kind.clone()) {
-                std::collections::hash_map::Entry::Occupied(mut entry) => {
-                    let borrow = entry.get_mut();
-                    *borrow += stats.clone();
-                }
-                std::collections::hash_map::Entry::Vacant(entry) => {
-                    entry.insert(stats.clone());
+            match self.statistics.per_kind_index.get(index as usize) {
+                None => continue,
+                Some(stats) => {
+                    match self.statistics.per_kind_name.entry(key.kind.clone()) {
+                        std::collections::hash_map::Entry::Occupied(mut entry) => {
+                            let borrow = entry.get_mut();
+                            *borrow += stats.clone();
+                        }
+                        std::collections::hash_map::Entry::Vacant(entry) => {
+                            entry.insert(stats.clone());
+                        }
+                    }
+                    self.statistics.per_description.insert(key, stats.clone());
                 }
             }
-            self.statistics.per_description.insert(key, stats.clone());
         }
         self.statistics.number_of_files = 1;
         self.statistics.compressed_bytes = self.data.len();

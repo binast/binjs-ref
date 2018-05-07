@@ -5,6 +5,7 @@ extern crate clap;
 extern crate env_logger;
 
 use binjs::io::TokenSerializer;
+use binjs::io::multipart::{ SectionOption, WriteOptions };
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
 use binjs::specialized::es6::ast::Walker;
@@ -17,11 +18,59 @@ use std::path::{ Path, PathBuf };
 
 use clap::*;
 
+pub struct PreWriteOptions {
+    pub grammar_table: SectionOption,
+    pub strings_table: SectionOption,
+    pub tree: SectionOption,
+}
+impl PreWriteOptions {
+    fn instantiate(option: &SectionOption) -> SectionOption {
+        match *option {
+            SectionOption::Compression(ref c) => SectionOption::Compression(c.clone()),
+            SectionOption::Discard => SectionOption::Discard,
+            SectionOption::AppendToBuffer(_) => SectionOption::AppendToBuffer(std::rc::Rc::new(RefCell::new(Vec::new()))),
+        }
+    }
+    fn as_write_options(&self) -> WriteOptions {
+        WriteOptions {
+            grammar_table: Self::instantiate(&self.grammar_table),
+            strings_table: Self::instantiate(&self.strings_table),
+            tree: Self::instantiate(&self.tree),
+        }
+    }
+}
+
+fn parse_compression(option: Option<&str>) -> std::result::Result<SectionOption, String> {
+    use binjs::io::bytes::compress::Compression;
+    let result = match option {
+        None | Some("identity") => SectionOption::Compression(Compression::Identity),
+        Some("gzip") => SectionOption::Compression(Compression::Gzip),
+        Some("deflate") => SectionOption::Compression(Compression::Deflate),
+        Some("lzw") => SectionOption::Compression(Compression::Lzw),
+        Some("export") => SectionOption::AppendToBuffer(std::rc::Rc::new(RefCell::new(Vec::new()))),
+        Some(other) => return Err(other.to_string())
+    };
+    Ok(result)
+}
+
+fn write_extract(dest_bin_path: &Option<PathBuf>, option: &SectionOption, extension: &str) {
+    if let SectionOption::AppendToBuffer(ref buf) = *option {
+        let path = dest_bin_path
+            .clone()
+            .expect("Cannot write partial file without a destination")
+            .with_extension(extension);
+        let mut file = File::create(path.clone())
+            .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", path, e));
+        file.write(buf.borrow().as_ref())
+            .expect("Could not write destination file");
+    }
+}
+
 struct Options<'a> {
     parser: &'a Shift,
     multipart_stats: RefCell<binjs::io::multipart::Statistics>,
     simple_stats: RefCell<binjs::io::simple::Statistics>,
-    compression: Option<binjs::io::multipart::WriteOptions>,
+    compression: Option<PreWriteOptions>,
     dest_dir: Option<PathBuf>,
     lazification: u32,
     show_ast: bool,
@@ -121,7 +170,8 @@ fn handle_path<'a>(options: &Options<'a>,
                 *borrow += stats;
                 Box::new(data)
             }
-            Some(ref compression) => {
+            Some(ref pre_options) => {
+                let compression = pre_options.as_write_options();
                 let writer = binjs::io::multipart::TreeTokenWriter::new(compression.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)
@@ -129,9 +179,15 @@ fn handle_path<'a>(options: &Options<'a>,
                 let (data, stats) = serializer.done()
                     .expect("Could not finalize AST encoding");
 
+                write_extract(&dest_bin_path, &compression.grammar_table, "grammar");
+                write_extract(&dest_bin_path, &compression.strings_table, "strings");
+                write_extract(&dest_bin_path, &compression.tree, "tree");
+
+
                 let mut borrow = options.multipart_stats.borrow_mut();
                 *borrow += stats.with_source_bytes(source_len as usize);
                 Box::new(data)
+
             }
         }
     };
@@ -149,9 +205,13 @@ fn handle_path<'a>(options: &Options<'a>,
     }
 
     if let Some(ref txt_path) = dest_txt_path {
-        println!("Copying source file.");
-        std::fs::copy(source_path, txt_path)
-            .expect("Could not copy source file");
+        if txt_path.exists() {
+            println!("A file with name {:?} already exists, skipping copy.", txt_path);
+        } else {
+            println!("Copying source file.");
+            std::fs::copy(source_path, txt_path)
+                .expect("Could not copy source file");
+        }
     }
 
     println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
@@ -197,17 +257,17 @@ fn main_aux() {
             Arg::with_name("strings")
                 .long("strings")
                 .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
+                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for strings. Defaults to identity."),
             Arg::with_name("sections")
                 .long("sections")
                 .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
+                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for all sections. Defaults to identity."),
             Arg::with_name("grammar")
                 .long("grammar")
                 .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
+                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for the grammar table. Defaults to identity."),
             Arg::with_name("tree")
                 .long("tree")
@@ -260,22 +320,22 @@ fn main_aux() {
                 _ => false
             };
         if is_compressed {
-            if let Some(ref compression) = matches.value_of("sections") {
-                let compression = binjs::io::bytes::compress::Compression::parse(Some(compression))
+            if let Some(ref spec) = matches.value_of("sections") {
+                let compression = parse_compression(Some(spec))
                     .expect("Could not parse sections compression format");
-                Some(binjs::io::multipart::WriteOptions {
+                Some(PreWriteOptions {
                     strings_table: compression.clone(),
                     grammar_table: compression.clone(),
                     tree: compression,
                 })
             } else {
-                let strings = binjs::io::bytes::compress::Compression::parse(matches.value_of("strings"))
+                let strings = parse_compression(matches.value_of("strings"))
                     .expect("Could not parse string compression format");
-                let grammar = binjs::io::bytes::compress::Compression::parse(matches.value_of("grammar"))
+                let grammar = parse_compression(matches.value_of("grammar"))
                     .expect("Could not parse grammar compression format");
-                let tree = binjs::io::bytes::compress::Compression::parse(matches.value_of("tree"))
+                let tree = parse_compression(matches.value_of("tree"))
                     .expect("Could not parse tree compression format");
-                Some(binjs::io::multipart::WriteOptions {
+                Some(PreWriteOptions {
                     strings_table: strings,
                     grammar_table: grammar,
                     tree

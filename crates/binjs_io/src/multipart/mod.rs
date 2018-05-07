@@ -139,7 +139,7 @@ impl FormatInTable for Option<String> {
 }
 
 pub use self::read::TreeTokenReader;
-pub use self::write::{ TreeTokenWriter, Statistics, WriteOptions };
+pub use self::write::{ TreeTokenWriter, Statistics, SectionOption, WriteOptions };
 
 
 #[test]
@@ -163,9 +163,9 @@ fn test_multipart_io() {
             for strings_table in &compressions {
                 for tree in &compressions {
                     vec.push(WriteOptions {
-                        grammar_table: grammar_table.clone(),
-                        strings_table: strings_table.clone(),
-                        tree: tree.clone(),
+                        grammar_table: SectionOption::Compression(grammar_table.clone()),
+                        strings_table: SectionOption::Compression(strings_table.clone()),
+                        tree: SectionOption::Compression(tree.clone()),
                     });
                 }
             }
