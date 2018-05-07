@@ -205,9 +205,13 @@ fn handle_path<'a>(options: &Options<'a>,
     }
 
     if let Some(ref txt_path) = dest_txt_path {
-        println!("Copying source file.");
-        std::fs::copy(source_path, txt_path)
-            .expect("Could not copy source file");
+        if txt_path.exists() {
+            println!("A file with name {:?} already exists, skipping copy.", txt_path);
+        } else {
+            println!("Copying source file.");
+            std::fs::copy(source_path, txt_path)
+                .expect("Could not copy source file");
+        }
     }
 
     println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
