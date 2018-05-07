@@ -32,6 +32,7 @@ It can be used alongside existing compression techniques (gzip, brotli, etc.)
 ```
 npm install
 rustup install nightly
+rustup default nightly
 ```
 2. Pull the code.
 ```
