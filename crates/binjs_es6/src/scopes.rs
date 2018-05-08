@@ -113,12 +113,15 @@ impl AnnotationVisitor {
         }
     }
 
-    fn push_var_scope(&mut self, path: &Path) {
-        debug!(target: "annotating", "push_var_scope at {:?}", path);
+    fn push_incomplete_var_scope(&mut self, _path: &Path) {
         self.var_names_stack.push(HashSet::new());
         self.lex_names_stack.push(HashSet::new());
-        self.push_free_names();
+    }
+    fn push_var_scope(&mut self, path: &Path) {
+        debug!(target: "annotating", "push_var_scope at {:?}", path);
+        self.push_incomplete_var_scope(path);
         self.push_direct_eval();
+        self.push_free_names();
     }
     fn pop_incomplete_var_scope(&mut self, path: &Path) -> VarAndLexNames {
         debug!(target: "annotating", "pop_incomplete_var_scope at {:?}", path);
@@ -304,7 +307,7 @@ impl Visitor<()> for AnnotationVisitor {
         // so we introduce a var scope in `catch(ex)`, as if `catch(ex) { ... }` was
         // a function.
 
-        self.push_var_scope(path);
+        self.push_incomplete_var_scope(path);
         self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
