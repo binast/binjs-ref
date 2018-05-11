@@ -7,8 +7,10 @@ use io::TokenWriter;
 
 use std;
 use std::cell::RefCell;
-use std::collections::{ HashMap, LinkedList };
-use std::rc::Rc;
+use std::collections::{ BinaryHeap, HashMap, LinkedList };
+use std::rc::{ Rc, Weak };
+
+use itertools::Itertools;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 struct NodeIndex(usize);
@@ -53,6 +55,9 @@ pub struct SubTree { // FIXME: Make it private, eventually.
 
     /// Children.
     children: LinkedList<Rc<RefCell<SubTree>>>,
+
+    /// The parent. May be Weak::default() if this is the root.
+    parent: Weak<RefCell<SubTree>>,
 }
 
 impl PartialEq for SubTree {
@@ -86,7 +91,9 @@ impl SubTree {
     fn children(&self) -> impl Iterator<Item = &Rc<RefCell<SubTree>>> {
         self.children.iter()
     }
-    fn set(&mut self, label: Label, mut children: LinkedList<Rc<RefCell<SubTree>>>) {
+    fn replace(&mut self, label: Label, mut children: LinkedList<Rc<RefCell<SubTree>>>) {
+        // FIXME: Regenerate the unique index.
+        // FIXME: Replace the parent of `children`.
         unimplemented!()
     }
 }
@@ -197,13 +204,40 @@ impl TokenWriter for Encoder {
 }
 
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 struct Digram {
     parent: Label,
     position: usize,
     child: Label,
 }
 type Digrams<'a> = HashMap<Digram, Rc<RefCell<HashMap<NodeIndex, Rc<RefCell<SubTree>>>>>>;
+
+struct DigramAndInstances {
+    digram: Digram,
+    instances: Rc<RefCell<HashMap<NodeIndex, Rc<RefCell<SubTree>>>>>,
+}
+
+impl PartialEq for DigramAndInstances {
+    fn eq(&self, other: &Self) -> bool {
+        self.digram == other.digram
+    }
+}
+impl Eq for DigramAndInstances { }
+
+impl PartialOrd for DigramAndInstances {
+    fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
+        let my_len = self.instances.borrow().len();
+        let other_len = other.instances.borrow().len();
+        usize::partial_cmp(&my_len, &other_len)
+    }
+}
+impl Ord for DigramAndInstances {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let my_len = self.instances.borrow().len();
+        let other_len = other.instances.borrow().len();
+        usize::cmp(&my_len, &other_len)
+    }
+}
 
 impl Encoder {
     fn compute_startup_digrams<'a> (tree: &Rc<RefCell<SubTree>>) -> Digrams<'a> {
@@ -249,60 +283,63 @@ impl Encoder {
 
     fn proceed_with_tree_repair(&mut self) {
         // Replacement phase.
-        let /*mut*/ digrams = Self::compute_startup_digrams(&self.root.tree); // FIXME: We probably want a priority queue here.
-        // let mut replacements = vec![];
 
-        loop {
-            // Pick most frequent digram `d`.
-            let mut max = None;
-            for (digram, instances) in &digrams {
-                let borrow = instances.borrow();
-                if let Some((max_occurrences, _, _)) = max {
-                    if borrow.len() <= max_occurrences {
-                        // We already have the max.
-                        continue;
-                    }
-                }
-                max = Some((borrow.len(), digram.clone(), instances.clone()));
+        // We use a sorted vector rather than a binary heap, as we regularly need
+        // to change the order.
+        let mut digrams : Vec<_> = {
+            let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
+            startup_digrams.into_iter()
+                .map(|(digram, instances)| DigramAndInstances {digram, instances})
+                .sorted()
+        };
+        let mut replacements = HashMap::new();
+
+        // Pick most frequent digram.
+        while let Some(DigramAndInstances { digram, instances }) = digrams.pop() {
+            // Generate a new label `generated`.
+            let number_of_children = digram.parent.len() + digram.child.len() - 1;
+            let generated = self.root.new_generated_label(number_of_children);
+            replacements.insert(generated.clone(), digram.clone());
+
+            // Replace instances of `digram` with `generated` all over the tree.
+            let mut borrow_instances = instances.borrow_mut();
+            for (_, mut instance) in borrow_instances.iter_mut() {
+                let mut borrow_instance = instance.borrow_mut();
+                assert_eq!(digram.parent, borrow_instance.label);
+
+                let mut children = LinkedList::new();
+                std::mem::swap(&mut borrow_instance.children, &mut children);
+
+                let mut prefix = children;
+                let mut removed = prefix.split_off(digram.position);
+                let mut suffix = removed.split_off(1);
+
+                assert_eq!(removed.len(), 1);
+                let mut removed = removed.pop_front()
+                    .unwrap();
+
+                let mut borrow_removed = removed.borrow_mut();
+                assert_eq!(digram.child, borrow_removed.label);
+                let mut replacement = borrow_removed.children.clone();
+
+                prefix.append(&mut replacement);
+                prefix.append(&mut suffix);
+
+                borrow_instance.replace(generated.clone(), prefix);
             }
 
-            if let Some((_, digram, mut instances)) = max {
-                // Generate a new label `generated`.
-                let number_of_children = digram.parent.len() + digram.child.len() - 1;
-                let generated = self.root.new_generated_label(number_of_children);
 
-                // Replace instances of `digram` with `generated` all over the tree.
-                let mut borrow_instances = instances.borrow_mut();
-                for (_, mut instance) in borrow_instances.iter_mut() {
-                    // FIXME: We need to change the label!
-                    let mut borrow_instance = instance.borrow_mut();
-                    assert_eq!(digram.parent, borrow_instance.label);
-
-                    let mut children = LinkedList::new();
-                    std::mem::swap(&mut borrow_instance.children, &mut children);
-
-                    let mut prefix = children;
-                    let mut removed = prefix.split_off(digram.position);
-                    let mut suffix = removed.split_off(1);
-
-                    assert_eq!(removed.len(), 1);
-                    let mut removed = removed.pop_front()
-                        .unwrap();
-
-                    let mut borrow_removed = removed.borrow_mut();
-                    assert_eq!(digram.child, borrow_removed.label);
-                    let mut replacement = borrow_removed.children.clone();
-
-                    prefix.append(&mut replacement);
-                    prefix.append(&mut suffix);
-
-                    borrow_instance.set(generated.clone(), prefix);
-                }
-                // FIXME:   Update list of most frequent digrams.
-            } else {
-                // We're done with replacement.
-                break;
-            }
+            // FIXME: Update list of most frequent digrams.
+            // FIXME:
+            // - digrams that deal with `digram.parent` may be affected
+            //     walk all these digrams from priority queue, count instances that have vanished
+            // - digrams that deal with `digram.child` may be affected
+            //     walk all these digrams from priority queue, count instances that have vanished
+            // - generate new digrams that have `generated` as parent
+            //     can be done in the above loop (N instances)
+            // - generate new digrams that have `generated` as child
+            //     in the above loop, inspect the parent (1 instance)
+            // FIXME: Then sort again
         }
 
 

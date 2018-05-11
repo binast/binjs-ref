@@ -1,5 +1,6 @@
 extern crate brotli;
 extern crate flate2;
+extern crate itertools;
 extern crate lzw;
 #[macro_use]
 extern crate log;
