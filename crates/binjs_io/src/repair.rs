@@ -7,117 +7,118 @@ use io::TokenWriter;
 
 use std;
 use std::cell::RefCell;
-use std::collections::{ HashMap };
+use std::collections::{ HashMap, LinkedList };
 use std::rc::Rc;
-
-use trees;
-
-type Tree<T> = trees::Tree<T>;
-type SharedTree = Rc<RefCell<Option<trees::Tree<Label>>>>;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 struct NodeIndex(usize);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+struct LabelIndex(usize);
+
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct GeneratedLabel(usize);
 
-pub struct Encoder {
-    node_counter: usize,
-    generated_counter: usize,
-    root: SharedTree,
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Label {
+    Named {
+        label: Rc<String>,
+        children: usize,
+    },
+    Generated {
+        label: GeneratedLabel,
+        children: usize,
+    },
+    Leaf(Rc<Vec<u8>>)
 }
 
-#[derive(Debug, Clone)]
-pub enum LabelData {
-    /// Labelled leaf with `N` children.
-    /// Value `N` is **not** written to the byte stream.
-    Labelled(Rc<String>, usize), // FIXME: Check whether we're actually using `N`.
-
-    /// Data in leaves is encoded. Rank is 0.
-    Leaf(Rc<Vec<u8>>),
-
-    /// A generated label with `N` children.
-    /// Value `N` **is** written to the byte stream.
-    Generated(GeneratedLabel, usize),
-}
-impl LabelData {
+impl Label {
     fn len(&self) -> usize {
-        use self::LabelData::*;
+        use self::Label::*;
         match *self {
             Leaf(_) => 0,
-            Labelled(_, ref len)
-            | Generated(_, ref len) => *len
+            Named { ref children, .. }
+            | Generated { ref children, .. } => *children
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Label {
-    /// Unique-per-node index.
+pub struct SubTree { // FIXME: Make it private, eventually.
+    /// An index, used to quickly compare tree nodes.
     index: NodeIndex,
-    data: LabelData,
+
+    /// The label
+    label: Label,
+
+    /// Children.
+    children: LinkedList<Rc<RefCell<SubTree>>>,
 }
-impl PartialEq for Label {
-    fn eq(&self, other: &Label) -> bool {
+
+impl PartialEq for SubTree {
+    fn eq(&self, other: &Self) -> bool {
         self.index == other.index
     }
 }
-impl Eq for Label { }
-impl PartialOrd for Label {
-    fn partial_cmp(&self, other: &Label) -> std::option::Option<std::cmp::Ordering> {
+impl Eq for SubTree { }
+impl PartialOrd for SubTree {
+    fn partial_cmp(&self, other: &SubTree) -> std::option::Option<std::cmp::Ordering> {
         NodeIndex::partial_cmp(&self.index, &other.index)
     }
 }
-impl Ord for Label {
-    fn cmp(&self, other: &Label) -> std::cmp::Ordering {
+impl Ord for SubTree {
+    fn cmp(&self, other: &SubTree) -> std::cmp::Ordering {
         NodeIndex::cmp(&self.index, &other.index)
     }
 }
-impl std::hash::Hash for Label {
+impl std::hash::Hash for SubTree {
     fn hash<H>(&self, state: &mut H) where H: std::hash::Hasher {
         self.index.hash(state)
     }
 }
-impl Label {
+impl SubTree {
     fn len(&self) -> usize {
-        self.data.len()
+        self.children.len()
+    }
+    fn into_shared(self) -> SharedTree {
+        Rc::new(RefCell::new(Some(self)))
+    }
+    fn children(&self) -> impl Iterator<Item = &Rc<RefCell<SubTree>>> {
+        self.children.iter()
     }
 }
 
-fn take(item: &SharedTree) -> trees::Tree<Label> {
+struct Root {
+    labels: HashMap<Label, LabelIndex>,
+    label_counter: usize,
+}
+impl Root {
+    fn new_leaf(&mut self, leaf: Vec<u8>) -> SubTree {
+        unimplemented!()
+    }
+    fn new_named_label(&mut self, name: &str, children: usize) -> Label {
+        unimplemented!()
+    }
+    fn new_subtree(&mut self, label: Label, children: LinkedList<Rc<RefCell<SubTree>>>) -> SubTree {
+        unimplemented!()
+    }
+}
+
+type SharedTree = Rc<RefCell<Option<SubTree>>>;
+
+pub struct Encoder {
+    node_counter: usize,
+    generated_counter: usize,
+    root: Root,
+}
+
+fn take(item: &SharedTree) -> SubTree {
     let mut borrow = item.borrow_mut();
     let child = borrow.take();
-    if let Some(child) = child {
-        return child;
-    } else {
-        panic!()
-    }
+    child.expect("Could not `take` shared tree, it was already taken")
 }
 
-
 impl Encoder {
-    fn new_leaf(&mut self, data: Rc<Vec<u8>>) -> Label {
-        let index = NodeIndex(self.node_counter);
-        self.node_counter += 1;
-        Label {
-            index,
-            data: LabelData::Leaf(data)
-        }
-    }
-    fn new_internal(&mut self, label: String, size: usize) -> Label {
-        let index = NodeIndex(self.node_counter);
-        self.node_counter += 1;
-        Label {
-            index,
-            data: LabelData::Labelled(Rc::new(label), size)
-        }
-    }
-    fn generate_label(&mut self) -> GeneratedLabel {
-        let result = GeneratedLabel(self.generated_counter);
-        self.node_counter += 1;
-        result
-    }
-
     /// Convert a list into a binary representation.
     fn list_aux(&mut self, items: &[SharedTree]) -> Result<SharedTree, TokenWriterError> {
         if items.len() == 0 {
@@ -135,12 +136,12 @@ impl TokenWriter for Encoder {
 
     fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
         let bytes = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
-        Ok(Rc::new(RefCell::new(Some(Tree::new(self.new_leaf(Rc::new(bytes)))))))
+        Ok(self.root.new_leaf(bytes).into_shared())
     }
 
     fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
         let bytes = bytes::float::bytes_of_float(data).iter().cloned().collect();
-        Ok(Rc::new(RefCell::new(Some(Tree::new(self.new_leaf(Rc::new(bytes)))))))
+        Ok(self.root.new_leaf(bytes).into_shared())
     }
 
     fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
@@ -159,7 +160,7 @@ impl TokenWriter for Encoder {
             None => buf.extend_from_slice(&EMPTY_STRING),
             Some(ref x) => buf.extend(x.bytes())
         }
-        Ok(Rc::new(RefCell::new(Some(Tree::new(self.new_leaf(Rc::new(buf)))))))
+        Ok(self.root.new_leaf(buf).into_shared())
     }
 
     fn untagged_tuple(&mut self, _data: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
@@ -167,12 +168,12 @@ impl TokenWriter for Encoder {
     }
 
     fn tagged_tuple(&mut self, tag: &str, items: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
-        let mut tree = Tree::new(self.new_internal(tag.to_string(), items.len()));
-        for (_, item)  in items {
-            tree.push_back(take(item));
-        }
-
-        Ok(Rc::new(RefCell::new(Some(tree))))
+        let label = self.root.new_named_label(tag, items.len());
+        let children = items.iter()
+            .map(|(_, tree)| Rc::new(RefCell::new(take(tree))))
+            .collect();
+        Ok(self.root.new_subtree(label, children)
+            .into_shared())
     }
 
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
@@ -188,51 +189,57 @@ impl TokenWriter for Encoder {
     }
 }
 
+
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Digram {
     parent: Label,
     position: usize,
     child: Label,
 }
-
-type Digrams<'a> = HashMap<Digram, Rc<RefCell<HashMap<NodeIndex, &'a mut trees::Node<Label>>>>>;
+type Digrams<'a> = HashMap<Digram, Rc<RefCell<HashMap<NodeIndex, Rc<RefCell<SubTree>>>>>>;
 
 impl Encoder {
-    fn compute_startup_digrams<'a> (tree: &'a mut trees::Tree<Label>) -> Digrams<'a> {
+    fn compute_startup_digrams<'a> (tree: &Rc<RefCell<SubTree>>) -> Digrams<'a> {
         use std::borrow::BorrowMut;
         let mut digrams = HashMap::new();
-        fn aux<'a>(node: &'a mut trees::Node<Label>, set: &mut Digrams<'a>) {
-            let parent = node.data.clone();
-            for (position, child) in node.children_mut().enumerate() {
-                let me = child.data.clone();
+        fn aux<'a>(node: &Rc<RefCell<SubTree>>, set: &mut Digrams<'a>) {
+            let parent_borrow = node.borrow();
+            let parent_label = parent_borrow.label.clone();
+            for (position, child) in parent_borrow.children().enumerate() {
+                let child_borrow = child.borrow();
+                let child_label = child_borrow.label.clone();
                 let digram = Digram {
-                    parent: parent.clone(),
+                    parent: parent_label.clone(),
                     position,
-                    child: me.clone()
+                    child: child_label.clone(),
                 };
 
-                // Walk in post-order.
+                // Walk in post-order. Note that we borrow `child` twice, both for reading.
                 aux(child, set);
                 // Now expand to parent.
                 let this_digram = set.entry(digram)
                     .or_insert_with(|| Rc::new(RefCell::new(HashMap::new())));
-                if parent == me {
-                    let borrow : std::cell::Ref<_> = Rc::as_ref(this_digram).borrow();
-                    if let Some(_) = borrow.get(&me.index) {
+                if parent_label == child_label {
+                    // If `child` is already in `this_digram` (which can only happen if
+                    // `parent == me`), we don't want to also put the parent in `this_digram`,
+                    // otherwise there will be a conflict.
+                    // cause an overlap if `child` is alre. If so, discard the parent.
+                    let digrams_borrow : std::cell::Ref<_> = Rc::as_ref(this_digram).borrow();
+                    if digrams_borrow.get(&child_borrow.index).is_some() {
                         // The digram can be applied either to the child or to the parent, but not both.
                         // We keep the child and ignore the parent.
                         continue;
                     }
                 }
                 // We now know that there is no conflict between two instances of this specific digram.
-                let mut borrow = this_digram.as_ref().borrow_mut();
-                borrow.insert(parent.index.clone(), node);
+                let mut digrams_borrow = this_digram.as_ref().borrow_mut();
+                digrams_borrow.insert(parent_borrow.index.clone(), node.clone());
             }
         }
-        aux(tree.borrow_mut(), &mut digrams);
+        aux(tree, &mut digrams);
         digrams
     }
-
+/*
     fn proceed_with_tree_repair(&mut self) {
         // Replacement phase.
         let /*mut*/ root = take(&self.root);
@@ -279,4 +286,5 @@ impl Encoder {
         // FIXME: 2. Pruning phase.
         // FIXME: Eliminate productions that increase final size.
     }
+*/
 }
