@@ -11,6 +11,7 @@ extern crate lzw;
 extern crate log;
 extern crate priority_queue;
 extern crate rand;
+extern crate trees;
 extern crate vec_map;
 extern crate xml as xml_rs;
 
@@ -66,13 +67,8 @@ pub mod simple;
 /// designed to minimize the size of the file.
 pub mod multipart;
 
-pub mod multistream;
-
 /// A tree comperssion mechanism.
 pub mod repair;
-pub mod repair2;
-
-pub mod xml;
 
 mod util;
 
