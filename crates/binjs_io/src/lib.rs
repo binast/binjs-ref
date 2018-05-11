@@ -4,6 +4,7 @@ extern crate lzw;
 #[macro_use]
 extern crate log;
 extern crate rand;
+extern crate trees;
 extern crate vec_map;
 
 #[derive(Debug)]
@@ -52,5 +53,8 @@ pub mod simple;
 /// An optimization of TokenReader/TokenWriter,
 /// designed to minimize the size of the file.
 pub mod multipart;
+
+/// A tree comperssion mechanism.
+pub mod repair;
 
 mod util;

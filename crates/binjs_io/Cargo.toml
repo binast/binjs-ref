@@ -9,6 +9,7 @@ flate2 = "^1.0"
 lzw = "*"
 log = "*"
 rand = "*"
+trees = "*"
 vec_map = "*"
 
 [dev-dependencies]
