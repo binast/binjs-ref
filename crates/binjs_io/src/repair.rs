@@ -7,8 +7,10 @@ use io::TokenWriter;
 
 use std;
 use std::cell::RefCell;
-use std::collections::{ HashMap, HashSet };
-use std::rc::Rc;
+use std::collections::{ BinaryHeap, HashMap, LinkedList };
+use std::rc::{ Rc, Weak };
+
+use itertools::Itertools;
 
 use trees;
 
@@ -37,7 +39,15 @@ pub enum LabelData {
 pub struct Label {
     /// Unique-per-node index.
     index: NodeIndex,
-    data: LabelData,
+
+    /// The label
+    label: Label,
+
+    /// Children.
+    children: LinkedList<Rc<RefCell<SubTree>>>,
+
+    /// The parent. May be Weak::default() if this is the root.
+    parent: Weak<RefCell<SubTree>>,
 }
 impl PartialEq for Label {
     fn eq(&self, other: &Label) -> bool {
@@ -58,6 +68,42 @@ impl Ord for Label {
 impl std::hash::Hash for Label {
     fn hash<H>(&self, state: &mut H) where H: std::hash::Hasher {
         self.index.hash(state)
+    }
+}
+impl SubTree {
+    fn len(&self) -> usize {
+        self.children.len()
+    }
+    fn into_shared(self) -> SharedTree {
+        Rc::new(RefCell::new(Some(self)))
+    }
+    fn children(&self) -> impl Iterator<Item = &Rc<RefCell<SubTree>>> {
+        self.children.iter()
+    }
+    fn replace(&mut self, label: Label, mut children: LinkedList<Rc<RefCell<SubTree>>>) {
+        // FIXME: Regenerate the unique index.
+        // FIXME: Replace the parent of `children`.
+        unimplemented!()
+    }
+}
+
+struct Root {
+    labels: HashMap<Label, LabelIndex>,
+    label_counter: usize,
+    tree: Rc<RefCell<SubTree>>,
+}
+impl Root {
+    fn new_leaf(&mut self, leaf: Vec<u8>) -> SubTree {
+        unimplemented!()
+    }
+    fn new_named_label(&mut self, name: &str, children: usize) -> Label {
+        unimplemented!()
+    }
+    fn new_generated_label(&mut self, children: usize) -> Label {
+        unimplemented!()
+    }
+    fn new_subtree(&mut self, label: Label, children: LinkedList<Rc<RefCell<SubTree>>>) -> SubTree {
+        unimplemented!()
     }
 }
 
@@ -160,7 +206,8 @@ impl TokenWriter for Encoder {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 struct Digram {
     parent: Label,
     position: usize,
@@ -168,6 +215,33 @@ struct Digram {
 }
 
 type Digrams<'a> = HashMap<Digram, HashMap<NodeIndex, &'a trees::Node<Label>>>;
+
+struct DigramAndInstances {
+    digram: Digram,
+    instances: Rc<RefCell<HashMap<NodeIndex, Rc<RefCell<SubTree>>>>>,
+}
+
+impl PartialEq for DigramAndInstances {
+    fn eq(&self, other: &Self) -> bool {
+        self.digram == other.digram
+    }
+}
+impl Eq for DigramAndInstances { }
+
+impl PartialOrd for DigramAndInstances {
+    fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
+        let my_len = self.instances.borrow().len();
+        let other_len = other.instances.borrow().len();
+        usize::partial_cmp(&my_len, &other_len)
+    }
+}
+impl Ord for DigramAndInstances {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let my_len = self.instances.borrow().len();
+        let other_len = other.instances.borrow().len();
+        usize::cmp(&my_len, &other_len)
+    }
+}
 
 impl Encoder {
     fn compute_startup_digrams<'a> (tree: &'a trees::Tree<Label>) -> Digrams<'a> {
@@ -193,8 +267,73 @@ impl Encoder {
                     }
                 }
                 // We now know that there is no conflict between two instances of this specific digram.
-                this_digram.insert(node.data.index.clone(), node);
+                let mut digrams_borrow = this_digram.as_ref().borrow_mut();
+                digrams_borrow.insert(parent_borrow.index.clone(), node.clone());
             }
+        }
+        aux(tree, &mut digrams);
+        digrams
+    }
+
+    fn proceed_with_tree_repair(&mut self) {
+        // Replacement phase.
+
+        // We use a sorted vector rather than a binary heap, as we regularly need
+        // to change the order.
+        let mut digrams : Vec<_> = {
+            let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
+            startup_digrams.into_iter()
+                .map(|(digram, instances)| DigramAndInstances {digram, instances})
+                .sorted()
+        };
+        let mut replacements = HashMap::new();
+
+        // Pick most frequent digram.
+        while let Some(DigramAndInstances { digram, instances }) = digrams.pop() {
+            // Generate a new label `generated`.
+            let number_of_children = digram.parent.len() + digram.child.len() - 1;
+            let generated = self.root.new_generated_label(number_of_children);
+            replacements.insert(generated.clone(), digram.clone());
+
+            // Replace instances of `digram` with `generated` all over the tree.
+            let mut borrow_instances = instances.borrow_mut();
+            for (_, mut instance) in borrow_instances.iter_mut() {
+                let mut borrow_instance = instance.borrow_mut();
+                assert_eq!(digram.parent, borrow_instance.label);
+
+                let mut children = LinkedList::new();
+                std::mem::swap(&mut borrow_instance.children, &mut children);
+
+                let mut prefix = children;
+                let mut removed = prefix.split_off(digram.position);
+                let mut suffix = removed.split_off(1);
+
+                assert_eq!(removed.len(), 1);
+                let mut removed = removed.pop_front()
+                    .unwrap();
+
+                let mut borrow_removed = removed.borrow_mut();
+                assert_eq!(digram.child, borrow_removed.label);
+                let mut replacement = borrow_removed.children.clone();
+
+                prefix.append(&mut replacement);
+                prefix.append(&mut suffix);
+
+                borrow_instance.replace(generated.clone(), prefix);
+            }
+
+
+            // FIXME: Update list of most frequent digrams.
+            // FIXME:
+            // - digrams that deal with `digram.parent` may be affected
+            //     walk all these digrams from priority queue, count instances that have vanished
+            // - digrams that deal with `digram.child` may be affected
+            //     walk all these digrams from priority queue, count instances that have vanished
+            // - generate new digrams that have `generated` as parent
+            //     can be done in the above loop (N instances)
+            // - generate new digrams that have `generated` as child
+            //     in the above loop, inspect the parent (1 instance)
+            // FIXME: Then sort again
         }
         aux(tree.borrow(), &mut digrams);
         digrams
