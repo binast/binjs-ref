@@ -71,15 +71,14 @@ fn main() {
         let compressions = [Identity, Gzip, /*Deflate seems broken upstream,*/ Brotli, /*Lzw doesn't work yet*/]
             .into_iter()
             .cloned()
-            .map(SectionOption::Compression)
             .collect::<Vec<_>>();
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {
-                    vec.push(WriteOptions {
-                        grammar_table: grammar_table.clone(),
-                        strings_table: strings_table.clone(),
-                        tree: tree.clone(),
+                    vec.push(Targets {
+                        grammar_table: CompressionTarget::new(grammar_table.clone()),
+                        strings_table: CompressionTarget::new(grammar_table.clone()),
+                        tree: CompressionTarget::new(grammar_table.clone()),
                     });
                 }
             }
@@ -124,10 +123,10 @@ fn main() {
                     .expect("Could not introduce laziness");
                 progress();
 
-                let options = WriteOptions {
-                    grammar_table: SectionOption::Compression(Compression::Identity),
-                    strings_table: SectionOption::Compression(Compression::Identity),
-                    tree: SectionOption::Compression(Compression::Identity),
+                let options = Targets {
+                    grammar_table: CompressionTarget::new(Compression::Identity),
+                    strings_table: CompressionTarget::new(Compression::Identity),
+                    tree: CompressionTarget::new(Compression::Identity),
                 };
                 debug!(target: "test_roundtrip", "Encoding.");
                 let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());

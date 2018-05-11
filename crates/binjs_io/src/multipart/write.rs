@@ -2,7 +2,7 @@ use bytes;
 use bytes::compress::*;
 use bytes::varnum::*;
 use io::*;
-use ::TokenWriterError;
+use ::{ CompressionTarget, TokenWriterError };
 use multipart::*;
 
 use std;
@@ -14,40 +14,23 @@ use std::io::Write;
 use std::ops::{ Add, AddAssign };
 use std::rc::Rc;
 
-use rand::{ Rand, Rng };
-
 use vec_map;
 use vec_map::*;
 
-/// Instructions for a single section (grammar, strings, tree, ...)
-#[derive(Clone, Debug)]
-pub enum SectionOption {
-    /// Compress.
-    Compression(Compression),
-
-    /// Append to an in-memory buffer.
-    AppendToBuffer(Rc<RefCell<Vec<u8>>>),
-
-    Discard,
-}
 
 #[derive(Clone, Debug)]
-pub struct WriteOptions {
-    pub grammar_table: SectionOption,
-    pub strings_table: SectionOption,
-    pub tree: SectionOption,
+pub struct Targets {
+    pub grammar_table: CompressionTarget,
+    pub strings_table: CompressionTarget,
+    pub tree: CompressionTarget,
 }
-
-impl Rand for WriteOptions {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        WriteOptions {
-            grammar_table: SectionOption::Compression(Compression::rand(rng)),
-            strings_table: SectionOption::Compression(Compression::rand(rng)),
-            tree: SectionOption::Compression(Compression::rand(rng)),
-        }
+impl Targets {
+    pub fn reset(&mut self) {
+        self.grammar_table.reset();
+        self.strings_table.reset();
+        self.tree.reset();
     }
 }
-
 
 /// A value that may be serialized to bytes, optionally compressed.
 trait Serializable {
@@ -513,13 +496,13 @@ impl<T> Serializable for TableIndex<T> {
 
 
 impl TreeTokenWriter {
-    pub fn new(options: WriteOptions) -> Self {
+    pub fn new(targets: Targets) -> Self {
         TreeTokenWriter {
             grammar_table: WriterTable::new(),
             strings_table: WriterTable::new(),
             root: None,
             data: Vec::with_capacity(1024),
-            options,
+            targets,
             statistics: Statistics::default()
         }
     }
@@ -543,46 +526,34 @@ impl TreeTokenWriter {
         self.statistics.uncompressed_bytes += std::mem::size_of_val(&FORMAT_VERSION);
 
         // Write grammar table to byte stream.
-        match self.options.grammar_table {
-            SectionOption::Compression(ref mechanism) => {
-                self.data.write_all(HEADER_GRAMMAR_TABLE.as_bytes())
-                    .map_err(TokenWriterError::WriteError)?;
-                self.statistics.uncompressed_bytes += HEADER_GRAMMAR_TABLE.len();
-                let compression = self.grammar_table.write_with_compression(&mut self.data, mechanism)
-                    .map_err(TokenWriterError::WriteError)?;
-                self.statistics.grammar_table.entries = self.grammar_table.map.len();
-                self.statistics.grammar_table.max_entries = self.grammar_table.map.len();
-                self.statistics.grammar_table.compression = compression;
-            },
-            SectionOption::AppendToBuffer(ref buf) => {
-                let mut borrow = buf.borrow_mut();
-                self.grammar_table.write(&mut std::io::Cursor::new(&mut *borrow))
-                    .map_err(TokenWriterError::WriteError)?;
-            },
-            SectionOption::Discard => {
-                // Nothing to do.
-            }
+        self.data.write_all(HEADER_GRAMMAR_TABLE.as_bytes())
+            .map_err(TokenWriterError::WriteError)?;
+        self.statistics.uncompressed_bytes += HEADER_GRAMMAR_TABLE.len();
+        {
+            self.grammar_table.write(&mut self.targets.grammar_table)
+                .map_err(TokenWriterError::WriteError)?;
+            let (data, compression) = self.targets.grammar_table.done()
+                .map_err(TokenWriterError::WriteError)?;
+            self.data.write_all(data.as_ref())
+                .map_err(TokenWriterError::WriteError)?;
+            self.statistics.grammar_table.entries = self.grammar_table.map.len();
+            self.statistics.grammar_table.max_entries = self.grammar_table.map.len();
+            self.statistics.grammar_table.compression = compression;
         }
 
         // Write strings table to byte stream.
-        match self.options.strings_table {
-            SectionOption::Compression(ref mechanism) => {
-                self.data.write_all(HEADER_STRINGS_TABLE.as_bytes())
-                    .map_err(TokenWriterError::WriteError)?;
-                let compression = self.strings_table.write_with_compression(&mut self.data, mechanism)
-                    .map_err(TokenWriterError::WriteError)?;
-                self.statistics.strings_table.entries = self.strings_table.map.len();
-                self.statistics.strings_table.max_entries = self.strings_table.map.len();
-                self.statistics.strings_table.compression = compression;
-            },
-            SectionOption::AppendToBuffer(ref buf) => {
-                let mut borrow = buf.borrow_mut();
-                self.strings_table.write(&mut std::io::Cursor::new(&mut *borrow))
-                    .map_err(TokenWriterError::WriteError)?;
-            },
-            SectionOption::Discard => {
-                // Nothing to do.
-            }
+        self.data.write_all(HEADER_STRINGS_TABLE.as_bytes())
+            .map_err(TokenWriterError::WriteError)?;
+        {
+            self.strings_table.write(&mut self.targets.strings_table)
+                .map_err(TokenWriterError::WriteError)?;
+            let (data, compression) = self.targets.strings_table.done()
+                .map_err(TokenWriterError::WriteError)?;
+            self.data.write_all(data.as_ref())
+                .map_err(TokenWriterError::WriteError)?;
+            self.statistics.strings_table.entries = self.strings_table.map.len();
+            self.statistics.strings_table.max_entries = self.strings_table.map.len();
+            self.statistics.strings_table.compression = compression;
         }
 
         // Compute more statistics on strings.
@@ -622,24 +593,18 @@ impl TreeTokenWriter {
             resolved.write(&mut tree_buf)
                 .map_err(TokenWriterError::WriteError)?;
 
-            match self.options.tree {
-                SectionOption::Compression(ref mechanism) => {
-                    self.data.write_all(HEADER_TREE.as_bytes())
-                        .map_err(TokenWriterError::WriteError)?;
-                    let compression = tree_buf.write_with_compression(&mut self.data, mechanism)
-                        .map_err(TokenWriterError::WriteError)?;
-                    self.statistics.tree.entries = 1;
-                    self.statistics.tree.max_entries = 1;
-                    self.statistics.tree.compression = compression;
-                }
-                SectionOption::AppendToBuffer(ref buf) => {
-                    let mut borrow = buf.borrow_mut();
-                    tree_buf.write(&mut std::io::Cursor::new(&mut *borrow))
-                        .map_err(TokenWriterError::WriteError)?;
-                }
-                SectionOption::Discard => {
-                    // Nothing to do.
-                }
+            self.data.write_all(HEADER_TREE.as_bytes())
+                .map_err(TokenWriterError::WriteError)?;
+            {
+                tree_buf.write(&mut self.targets.tree)
+                    .map_err(TokenWriterError::WriteError)?;
+                let (data, compression) = self.targets.tree.done()
+                    .map_err(TokenWriterError::WriteError)?;
+                self.data.write_all(data.as_ref())
+                    .map_err(TokenWriterError::WriteError)?;
+                self.statistics.tree.entries = 1;
+                self.statistics.tree.max_entries = 1;
+                self.statistics.tree.compression = compression;
             }
         }
 
@@ -674,15 +639,14 @@ impl TreeTokenWriter {
 
 impl TokenWriter for TreeTokenWriter {
     type Tree = Tree;
-    type Error = TokenWriterError;
     type Data = Box<[u8]>;
     type Statistics = Statistics;
 
-    fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
+    fn done(self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
         (self as TreeTokenWriter).done()
     }
 
-    fn float(&mut self, value: Option<f64>) -> Result<Self::Tree, Self::Error> {
+    fn float(&mut self, value: Option<f64>) -> Result<Self::Tree, TokenWriterError> {
         let bytes : Vec<_> = bytes::float::bytes_of_float(value).iter().cloned().collect();
         debug!(target: "multipart", "writing float {:?} => {:?}", value, bytes);
         Ok(self.register(UnresolvedTree {
@@ -691,7 +655,7 @@ impl TokenWriter for TreeTokenWriter {
         }))
     }
 
-    fn bool(&mut self, data: Option<bool>)  -> Result<Self::Tree, Self::Error> {
+    fn bool(&mut self, data: Option<bool>)  -> Result<Self::Tree, TokenWriterError> {
         let bytes = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
         debug!(target: "multipart", "writing bool {:?} => {:?}", data, bytes);
         Ok(self.register(UnresolvedTree {
@@ -700,14 +664,14 @@ impl TokenWriter for TreeTokenWriter {
         }))
     }
 
-    fn offset(&mut self) -> Result<Self::Tree, Self::Error> {
+    fn offset(&mut self) -> Result<Self::Tree, TokenWriterError> {
         Ok(self.register(UnresolvedTree {
             data: UnresolvedTreeNode::UnresolvedOffset(None), // This will be replaced later.
             nature: Nature::Offset
         }))
     }
 
-    fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
+    fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
         let key = data.map(str::to_string);
         let index = self.strings_table
             .get(&key)
@@ -726,7 +690,7 @@ impl TokenWriter for TreeTokenWriter {
             nature: Nature::String(index)
         }))
     }
-    fn list(&mut self, mut children: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
+    fn list(&mut self, mut children: Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError> {
         let mut items = Vec::with_capacity(children.len() + 1);
         // First child is the number of children.
         let mut encoded_number_of_items = Vec::with_capacity(4);
@@ -749,7 +713,7 @@ impl TokenWriter for TreeTokenWriter {
             nature: Nature::List,
         }))
     }
-    fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
+    fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
         let result = UnresolvedTree {
             data: UnresolvedTreeNode::Tuple(children.iter()
                 .map(|tree| tree.0.clone())
@@ -768,7 +732,7 @@ impl TokenWriter for TreeTokenWriter {
     // - index in the grammar table (varnum);
     // - for each item, in the order specified
     //    - the item (see item)
-    fn tagged_tuple(&mut self, name: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
+    fn tagged_tuple(&mut self, name: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         let data;
         let description = NodeDescription {
             kind: name.to_string(),
@@ -856,7 +820,7 @@ pub struct TreeTokenWriter {
 
     data: Vec<u8>,
 
-    options: WriteOptions,
+    targets: Targets,
 
     statistics: Statistics,
 }

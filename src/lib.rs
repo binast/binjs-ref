@@ -30,7 +30,6 @@ extern crate binjs_shared;
 #[allow(unused_imports)]
 #[macro_use]
 extern crate assert_matches;
-extern crate brotli;
 #[cfg(test)]
 extern crate env_logger;
 extern crate itertools;

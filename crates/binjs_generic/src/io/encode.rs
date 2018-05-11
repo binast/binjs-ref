@@ -1,17 +1,16 @@
 use util::type_of;
 
-use binjs_io::TokenWriter;
+use binjs_io::{ TokenWriter, TokenWriterError };
 use binjs_meta::spec::*;
 
 use std;
 use std::cell::*;
-use std::fmt::Debug;
 
 use json::JsonValue as JSON;
 use json::object::Object as Object;
 
 #[derive(Debug)]
-pub enum Error<E> {
+pub enum Error {
     Mismatch { expected: String, got: String },
     NoSuchInterface(String),
     NoSuchRefinement { expected: String, got: Vec<String> },
@@ -19,17 +18,17 @@ pub enum Error<E> {
     NoSuchType(String),
     MissingField(String),
     NoSuchLiteral { strings: Vec<String> },
-    TokenWriterError(E),
+    TokenWriterError(TokenWriterError),
     NonNullableType(String),
 }
 
-impl<E> From<E> for Error<E> {
-    fn from(value: E) -> Self {
+impl From<TokenWriterError> for Error {
+    fn from(value: TokenWriterError) -> Self {
         Error::TokenWriterError(value)
     }
 }
 
-impl<E> Error<E> {
+impl Error {
     fn missing_field(field: &str, node: &NodeName) -> Self {
         Error::MissingField(format!("Field \"{}\" while handling {:?}", field, node))
     }
@@ -38,15 +37,18 @@ impl<E> Error<E> {
 pub trait Encode {
     type Data;
     type Statistics;
+    fn generic_encode(&self, value: &JSON) -> Result<(), std::io::Error> {
+        self.encode(value)
+    }
     fn encode(&self, value: &JSON) -> Result<(), std::io::Error>;
     fn done(self) -> Result<(Self::Data, Self::Statistics), std::io::Error>;
 }
 
-pub struct Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
+pub struct Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
     grammar: &'a Spec,
     builder: RefCell<B>,
 }
-impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
+impl<'a, B, Tree> Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
     pub fn new(syntax: &'a Spec, builder: B) -> Self {
         Encoder {
             grammar: syntax,
@@ -56,12 +58,12 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
 
     /// Encode a JSON into a SerializeTree based on a grammar.
     /// This step doesn't perform any interesting check on the JSON.
-    pub fn encode(&self, value: &JSON) -> Result<Tree, Error<E>> {
+    pub fn encode(&self, value: &JSON) -> Result<Tree, Error> {
         let root = self.grammar.get_root();
         let node = self.grammar.get_root_name();
         self.encode_from_named_type(value, &root, &node, false)
     }
-    pub fn encode_from_named_type(&self, value: &JSON, named: &NamedType, node: &NodeName, is_optional: bool) -> Result<Tree, Error<E>> {
+    pub fn encode_from_named_type(&self, value: &JSON, named: &NamedType, node: &NodeName, is_optional: bool) -> Result<Tree, Error> {
         match *named {
             NamedType::StringEnum(ref enum_) => {
                 let string = value.as_str()
@@ -127,11 +129,11 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             }
         }
     }
-    pub fn encode_from_type(&self, value: &JSON, type_: &Type, node: &NodeName, is_optional: bool) -> Result<Tree, Error<E>> {
+    pub fn encode_from_type(&self, value: &JSON, type_: &Type, node: &NodeName, is_optional: bool) -> Result<Tree, Error> {
         debug!(target:"encode", "value {:?} within node {:?}, type {:?}", value, node, type_);
         self.encode_from_type_spec(value, type_.spec(), node, is_optional || type_.is_optional())
     }
-    fn encode_from_type_spec(&self, value: &JSON, spec: &TypeSpec, node: &NodeName, is_optional: bool) -> Result<Tree, Error<E>> {
+    fn encode_from_type_spec(&self, value: &JSON, spec: &TypeSpec, node: &NodeName, is_optional: bool) -> Result<Tree, Error> {
         use binjs_meta::spec::TypeSpec::*;
         match (spec, value) {
             (&Array { contents: ref kind, .. }, &JSON::Array(ref array)) => {
@@ -191,7 +193,7 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             got: value.dump()
         })
     }
-    fn encode_structure<'b>(&self, object: &'b Object, fields: &'b [Field], node: &NodeName) -> Result<Vec<(&'b str, B::Tree)>, Error<E>> {
+    fn encode_structure<'b>(&self, object: &'b Object, fields: &'b [Field], node: &NodeName) -> Result<Vec<(&'b str, B::Tree)>, Error> {
         let mut result = Vec::with_capacity(fields.len());
         'fields: for field in fields {
             if let Some(source) = object.get(field.name().to_string()) {
@@ -210,11 +212,11 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
 }
 
 
-impl<'a, B, Tree, E> Encode for Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Error=E>, E: Debug {
+impl<'a, B, Tree> Encode for Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
     type Data = B::Data;
     type Statistics = B::Statistics;
     fn encode(&self, value: &JSON) -> Result<(), std::io::Error> {
-        (self as &Encoder<'a, B, Tree, E>).encode(value)
+        (self as &Encoder<'a, B, Tree>).encode(value)
             .map(|_| ())
             .map_err(|err| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", err))

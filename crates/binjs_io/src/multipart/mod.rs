@@ -139,7 +139,7 @@ impl FormatInTable for Option<String> {
 }
 
 pub use self::read::TreeTokenReader;
-pub use self::write::{ TreeTokenWriter, Statistics, SectionOption, WriteOptions };
+pub use self::write::{ Statistics, TreeTokenWriter, Targets };
 
 
 #[test]
@@ -148,6 +148,7 @@ fn test_multipart_io() {
     extern crate env_logger;
     env_logger::init();
 
+    use ::CompressionTarget;
     use io::{ Guard, TokenReader, TokenWriter };
     use multipart::*;
 
@@ -162,10 +163,10 @@ fn test_multipart_io() {
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {
-                    vec.push(WriteOptions {
-                        grammar_table: SectionOption::Compression(grammar_table.clone()),
-                        strings_table: SectionOption::Compression(strings_table.clone()),
-                        tree: SectionOption::Compression(tree.clone()),
+                    vec.push(Targets {
+                        grammar_table: CompressionTarget::new(grammar_table.clone()),
+                        strings_table: CompressionTarget::new(strings_table.clone()),
+                        tree: CompressionTarget::new(tree.clone()),
                     });
                 }
             }

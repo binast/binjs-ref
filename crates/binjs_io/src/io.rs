@@ -7,10 +7,18 @@
 //! In practice, this API is kept as a trait to simplify unit testing and
 //! experimentation of sophisticated compression schemes.
 
+use binjs_shared;
+
+use ::{ TokenWriterError };
+
+use std::collections::HashMap;
 use std::fmt::{ Debug, Display };
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::Add;
 use std::rc::Rc;
+
+use itertools::Itertools;
 
 /// An API for reading tokens.
 ///
@@ -55,6 +63,10 @@ pub trait TokenReader where Self::Error: Debug + From<::TokenReaderError>,
     ///
     /// The returned string MUST be valid UTF-8.
     fn string(&mut self) -> Result<Option<String>, Self::Error>;
+    fn string_enum(&mut self) -> Result<String, Self::Error> {
+        self.string()?
+            .ok_or_else(|| ::TokenReaderError::invalid_value(&"Empty string enum").into())
+    }
 
     /// Read a single `f64`. Note that all numbers are `f64`.
     fn float(&mut self) -> Result<Option<f64>, Self::Error>;
@@ -99,7 +111,7 @@ pub trait TokenReader where Self::Error: Debug + From<::TokenReaderError>,
 ///
 /// Implementations may for instance introduce atoms,
 /// maximal sharing, etc.
-pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Sized + Add + Default {
+pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// The type of trees manipulated by this writer.
     type Tree;
 
@@ -110,14 +122,8 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
     /// Typically some variant of `Vec<u8>`.
     type Data: AsRef<[u8]>;
 
-    /// An error returned by this writer.
-    ///
-    /// Note that errors are *not* recoverable within the life
-    /// of this `TokenWriter`.
-    type Error;
-
     /// Finish writing, produce data.
-    fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error>;
+    fn done(self) -> Result<(Self::Data, Self::Statistics), TokenWriterError>;
 
     /// Write a tagged tuple.
     ///
@@ -125,33 +131,47 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
     /// recorded by the `TokenWriter`.
     ///
     /// The interface MUST have a Tag.
-    fn tagged_tuple(&mut self, tag: &str, &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error>;
+    fn tagged_tuple(&mut self, tag: &str, &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError>;
+    fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+        self.tagged_tuple(tag, children)
+    }
 
     /// Write an untagged tuple.
     ///
     /// The number of items is specified by the grammar, so it MAY not be
     /// recorded by the `TokenWriter`.
-    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, Self::Error>;
+    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, TokenWriterError>;
 
     /// Write a list.
     ///
     /// By opposition to a tuple, the number of items is variable and MUST
     /// be somehow recorded by the `TokenWriter`.
-    fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, Self::Error>;
+    fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError>;
 
     /// Write a single UTF-8 string.
     ///
     /// If specified, the string MUST be UTF-8.
-    fn string(&mut self, Option<&str>) -> Result<Self::Tree, Self::Error>;
+    fn string(&mut self, Option<&str>) -> Result<Self::Tree, TokenWriterError>;
+    fn string_enum(&mut self, str: &str) -> Result<Self::Tree, TokenWriterError> {
+        self.string(Some(str))
+    }
 
     /// Write a single number.
-    fn float(&mut self, Option<f64>) -> Result<Self::Tree, Self::Error>;
+    fn float(&mut self, Option<f64>) -> Result<Self::Tree, TokenWriterError>;
 
     /// Write single bool.
-    fn bool(&mut self, Option<bool>) -> Result<Self::Tree, Self::Error>;
+    fn bool(&mut self, Option<bool>) -> Result<Self::Tree, TokenWriterError>;
 
     /// Write the number of bytes left in this tuple.
-    fn offset(&mut self) -> Result<Self::Tree, Self::Error>;
+    fn offset(&mut self) -> Result<Self::Tree, TokenWriterError>;
+
+    fn identifier_definition(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
+        self.string(name)
+    }
+
+    fn identifier_reference(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
+        self.string(name)
+    }
 }
 
 
@@ -212,16 +232,73 @@ impl<Error> Drop for TrivialGuard<Error> {
 }
 
 pub trait Serialization<W, T> where W: TokenWriter, T: Sized {
-    fn serialize(&mut self, data: T) -> Result<W::Tree, W::Error>;
+    fn serialize(&mut self, data: T) -> Result<W::Tree, TokenWriterError>;
 }
 pub trait TokenSerializer<W> where W: TokenWriter {
-    fn done(self) -> Result<(W::Data, W::Statistics), W::Error>;
+    fn done(self) -> Result<(W::Data, W::Statistics), TokenWriterError>;
 }
-
+pub trait RootedTokenSerializer<W, T>: Serialization<W, T> + TokenSerializer<W> where W: TokenWriter, T: Sized { }
+pub trait TokenSerializerFamily<T> {
+    fn make<W>(&self, writer: W) -> Box<RootedTokenSerializer<W, T>> where W: TokenWriter;
+}
 
 pub trait Deserialization<R, T> where R: TokenReader, T: Sized {
     fn deserialize(&mut self) -> Result<T, R::Error>;
 }
 pub trait InnerDeserialization<R, T> where R: TokenReader, T: Sized {
     fn deserialize_inner(&mut self) -> Result<T, R::Error>;
+}
+
+#[derive(Debug, Clone)]
+pub struct Numbering {
+    is_first: bool,
+    index: usize
+}
+impl Numbering {
+    pub fn is_first(&self) -> bool {
+        self.is_first
+    }
+    pub fn index(&self) -> usize {
+        self.index
+    }
+}
+
+pub enum NumberingStrategy<T> where T: Eq + Hash + Clone {
+    MRU(binjs_shared::mru::MRU<T>),
+    Frequency(HashMap<T, Numbering>)
+}
+
+impl<T> NumberingStrategy<T> where T: Eq + Hash + Clone {
+    pub fn mru() -> Self {
+        let mru = binjs_shared::mru::MRU::new();
+        NumberingStrategy::MRU(mru)
+    }
+
+    pub fn frequency(occurrences: HashMap<T, usize>) -> Self {
+        let sorted = occurrences.into_iter()
+            .sorted_by(|(_, v), (_, v2)| usize::cmp(v2, v)); // Sort from largest to smallest
+        let numbered = sorted.into_iter()
+            .enumerate()
+            .map(|(position, (label, _))| (label, Numbering { is_first: true, index: position }))
+            .collect();
+        NumberingStrategy::Frequency(numbered)
+    }
+
+    pub fn get_index(&mut self, label: &T) -> Numbering {
+        match *self {
+            NumberingStrategy::MRU(ref mut mru) => {
+                use binjs_shared::mru::Seen::*;
+                match mru.access(label) {
+                    Age(index) => Numbering { is_first: false, index },
+                    Never(index) => Numbering { is_first: true, index }
+                }
+            }
+            NumberingStrategy::Frequency(ref mut frequency) => {
+                let mut found = frequency.get_mut(label).unwrap();
+                let result = found.clone();
+                found.is_first = false;
+                result
+            }
+        }
+    }
 }

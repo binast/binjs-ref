@@ -12,8 +12,9 @@ extern crate rand;
 const DEFAULT_TREE_SIZE: isize = 5;
 
 
+use binjs::io::bytes::compress::Compression;
 use binjs::source::Shift;
-use binjs::generic::io::encode::Encode;
+use binjs::generic::io::Encoder;
 use binjs::generic::pick::{ Pick, Picker };
 
 use clap::*;
@@ -53,12 +54,12 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .help("If specified, generate random ast metadata (declared variables, etc.).")
         ])
         .get_matches();
-    let is_multipart =
-        if let Some("multipart") = matches.value_of("format") {
-            true
-        } else {
-            false
-        };
+
+    let mut rng = rand::thread_rng();
+
+    let mut format = binjs::io::Format::parse(matches.value_of("format"))
+        .expect("Invalid `format`")
+        .with_compression(Compression::rand(&mut rng));
 
     let prefix = matches.value_of("PREFIX")
         .expect("Missing argument `PREFIX`");
@@ -83,7 +84,6 @@ Note that this tool does not attempt to make sure that the files are entirely co
 
     let random_metadata = matches.is_present("random-metadata");
 
-    let mut rng = rand::thread_rng();
     let parser = Shift::new();
 
     let mut i = 0;
@@ -109,29 +109,10 @@ Note that this tool does not attempt to make sure that the files are entirely co
                     .expect("Could not write js file");
             }
 
+            let encoder = Encoder::new();
+            let encoded = encoder.encode(&spec, &mut format, &ast)
+                .expect("Could not encode AST");
 
-            let encoded =
-                if is_multipart {
-                    let options = binjs::io::multipart::WriteOptions::rand(&mut rng);
-                    let writer = binjs::io::multipart::TreeTokenWriter::new(options);
-                    let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
-                    encoder
-                        .encode(&ast)
-                        .expect("Could not encode AST");
-                    encoder.done()
-                        .map(|(data, _)| Box::new(data) as Box<AsRef<[u8]>>)
-                } else {
-                    let writer = binjs::io::simple::TreeTokenWriter::new();
-                    let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
-                    encoder
-                        .encode(&ast)
-                        .expect("Could not encode AST");
-                    encoder.done()
-                        .map(|(data, _)| Box::new(data) as Box<AsRef<[u8]>>)
-                };
-
-            let encoded = encoded
-                .expect("Could not finalize encoding");
             {
                 let mut encoded_file = std::fs::File::create(format!("{}-{}.binjs", prefix, i))
                     .expect("Could not create binjs file");

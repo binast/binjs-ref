@@ -7,25 +7,12 @@ extern crate env_logger;
 use clap::*;
 
 use binjs::io::bytes::compress::*;
-use binjs::io::multipart::SectionOption;
 use binjs::meta::spec::*;
 use binjs::source::*;
 use binjs::generic::io::encode::*;
 
 use std::default::Default;
 use std::io::*;
-
-
-fn parse_compression(name: Option<&str>) -> SectionOption {
-    match name {
-        None | Some("identity") => SectionOption::Compression(Compression::Identity),
-        Some("lzw") => SectionOption::Compression(Compression::Lzw),
-        Some("br") => SectionOption::Compression(Compression::Brotli),
-        Some("gzip") => SectionOption::Compression(Compression::Gzip),
-        Some("deflate") => SectionOption::Compression(Compression::Deflate),
-        Some(x) => panic!("Unexpected compression name {}", x)
-    }
-}
 
 fn main() {
     env_logger::init();
@@ -42,26 +29,33 @@ fn main() {
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
-                .possible_values(&["simple", "multipart"])
-                .help("Format to use for writing to OUTPUT. Defaults to simple unless --strings, --grammar or --tree is specified."),
-            Arg::with_name("strings")
-                .long("strings")
+                .possible_values(&["simple", "multipart", "trp", "xml"])
+                .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
+            Arg::with_name("trp-rank")
+                .long("trp-rank")
+                .takes_value(true)
+                .help("Maximal rank for trp. Ignored if the format isn't trp. Number of 'none'."),
+            Arg::with_name("compression")
+                .long("compression")
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for strings. Defaults to identity."),
-            Arg::with_name("grammar")
-                .long("grammar")
+                .help("Compression format for all sections. Defaults to identity."),
+            Arg::with_name("numbering")
+                .long("numbering")
                 .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for the grammar table. Defaults to identity."),
-            Arg::with_name("tree")
-                .long("tree")
-                .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for the tree. Defaults to identity."),
+                .possible_values(&["mru", "frequency"])
+                .help("Numbering strategy for the tree. Defaults to frequency."),
             Arg::with_name("statistics")
                 .long("stat")
                 .help("Show statistics."),
+            Arg::with_name("lazify")
+                .long("lazify")
+                .takes_value(true)
+                .default_value("0")
+                .validator(|s| s.parse::<u32>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid number {}", e)))
+                .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
         ])
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
@@ -69,51 +63,18 @@ fn main() {
         )
         .get_matches();
 
-    let compression = {
-        let mut is_compressed = false;
-        if matches.value_of("strings").is_some()
-        || matches.value_of("grammar").is_some()
-        || matches.value_of("tree").is_some() {
-            match matches.value_of("format") {
-                None | Some("multipart") => {
-                    is_compressed = true;
-                }
-                _ => {
-                    println!("Error: Cannot specify `strings`, `grammar` or `tree` with this format.\n{}", matches.usage());
-                    std::process::exit(-1);
-                }
-            }
-        }
-        if let Some("multipart") = matches.value_of("format") {
-            is_compressed = true;
-        }
-        if is_compressed {
-            let strings = parse_compression(matches.value_of("strings"));
-            let grammar = parse_compression(matches.value_of("grammar"));
-            let tree = parse_compression(matches.value_of("tree"));
+    let mut format = binjs::io::Format::parse(matches.value_of("format"))
+        .expect("Invalid `format`")
+        .with_compression_str(matches.value_of("compression"))
+        .expect("Invalid `compression`");
 
-            println!("Format: multipart\n\tstrings table: {:?}\n\tgrammar table: {:?}\n\ttree: {:?}", strings, grammar, tree);
-            Some(binjs::io::multipart::WriteOptions {
-                strings_table: strings,
-                grammar_table: grammar,
-                tree
-            })
-        } else {
-            println!("Format: simple");
-            None
-        }
-    };
+    let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
+        .expect("Invalid number");
 
     let files : Vec<_> = matches.values_of("in")
         .unwrap()
         .collect();
     println!("List of files: {:?}", files);
-
-    let show_stats = matches.is_present("statistics");
-
-    let mut multipart_stats = binjs::io::multipart::Statistics::default()
-        .with_source_bytes(0);
-    let mut simple_stats = binjs::io::simple::Statistics::default();
 
     let parser = Shift::new();
     let mut spec_builder = SpecBuilder::new();
@@ -135,49 +96,21 @@ fn main() {
         println!("Annotating.");
         library.annotate(&mut ast);
 
-        let decoded = match compression {
-            None => {
-                println!("Encoding.");
-                let writer  = binjs::io::simple::TreeTokenWriter::new();
-                let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
 
-                encoder.encode(&ast)
-                    .expect("Could not encode AST");
-                let (data, stats) = encoder.done()
-                    .expect("Could not finalize AST encoding");
+        if lazification > 0 {
+            println!("Introducing laziness.");
+            library.lazify(lazification, &mut ast);
+        }
 
-                simple_stats = simple_stats + stats;
+        let encoder = binjs::generic::io::Encoder::new();
+        let encoded = encoder.encode(&spec, &mut format, &ast)
+            .expect("Could not encode AST");
 
-                println!("Decoding.");
-                let source = Cursor::new(data);
-                let reader = binjs::io::simple::TreeTokenReader::new(source);
-                let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
+        let data = encoded.as_ref();
 
-                decoder.decode()
-                    .expect("Could not decode")
-            }
-            Some(ref options) => {
-                println!("Encoding.");
-                let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());
-                let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
-
-                encoder.encode(&ast)
-                    .expect("Could not encode AST");
-                let (data, stats) = encoder.done()
-                    .expect("Could not finalize AST encoding");
-
-                multipart_stats = multipart_stats + stats.with_source_bytes(bytes);
-
-                println!("Decoding.");
-                let source = Cursor::new(data.as_ref().clone());
-                let reader = binjs::io::multipart::TreeTokenReader::new(source)
-                    .expect("Could not decode AST container");
-                let mut decoder = binjs::generic::io::decode::Decoder::new(&spec, reader);
-
-                decoder.decode()
-                    .expect("Could not decode")
-            }
-        };
+        let decoder = binjs::generic::io::Decoder::new();
+        let decoded = decoder.decode(&spec, &mut format, Cursor::new(data))
+            .expect("Could not decode AST");
 
         println!("Checking.");
         let equal = binjs::generic::syntax::Comparator::compare(&spec, &ast, &decoded)
@@ -185,13 +118,5 @@ fn main() {
         assert!(equal);
 
         println!("Roundtrip success!");
-    }
-
-    if show_stats {
-        if compression.is_none() {
-            println!("Statistics: {}", simple_stats);
-        } else {
-            println!("Statistics: {}", multipart_stats);
-        }
     }
 }

@@ -317,7 +317,9 @@ impl TokenReader for TreeTokenReader {
             state.reader.read(&mut buf)
                 .map_err(TokenReaderError::ReadError)?;
             let result = bytes::bool::bool_of_bytes(&buf)
-                .map_err(|_| TokenReaderError::InvalidValue);
+                .map_err(|e| {
+                    TokenReaderError::invalid_value(&e)
+                });
             debug!(target: "multipart", "Reading bool {:?} => {:?}", buf, result);
             result
         })

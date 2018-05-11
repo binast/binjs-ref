@@ -71,7 +71,43 @@ impl Importer {
     }
     fn import_typedef(&mut self, typedef: &Typedef) {
         let name = self.builder.node_name(&typedef.name);
-        let type_ = self.convert_type(&*typedef.type_);
+        enum Kind {
+            Regular,
+            IdentifierDefinition,
+            IdentifierReference,
+        }
+        let kind = typedef.type_.extended_attributes.iter()
+            .filter_map(|x| {
+                match **x {
+                    ExtendedAttribute::NoArguments(Other::Identifier(ref s)) if s == "IdentifierDefinition" => {
+                        Some(Kind::IdentifierDefinition)
+                    }
+                    ExtendedAttribute::NoArguments(Other::Identifier(ref s)) if s == "IdentifierReference" => {
+                        Some(Kind::IdentifierReference)
+                    }
+                    _ => None
+                }
+            })
+            .next()
+            .unwrap_or(Kind::Regular);
+
+        let type_ = match kind {
+            Kind::Regular => self.convert_type(&*typedef.type_),
+            Kind::IdentifierDefinition =>
+                if typedef.type_.nullable {
+                    spec::TypeSpec::IdentifierDefinition.optional()
+                        .expect("Can't be made optional")
+                } else {
+                    spec::TypeSpec::IdentifierDefinition.required()
+                },
+            Kind::IdentifierReference =>
+                if typedef.type_.nullable {
+                    spec::TypeSpec::IdentifierReference.optional()
+                        .expect("Can't be made optional")
+                } else {
+                    spec::TypeSpec::IdentifierReference.required()
+                },
+        };
         let mut node = self.builder.add_typedef(&name)
             .expect("Name already present");
         assert!(!type_.is_optional());
@@ -113,6 +149,9 @@ impl Importer {
             if let &NoArguments(Identifier(ref id)) = extended_attribute.as_ref() {
                 if &*id == "Skippable" {
                     node.with_skippable(true);
+                }
+                if &*id == "Scope" {
+                    node.with_scope(true);
                 }
             }
         }

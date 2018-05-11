@@ -1,7 +1,34 @@
+use bytes::varnum::*;
+
 use std;
 
 /// The representation of "no float", used for `float | null`.
 const NONE_FLOAT_REPR: u64 = 0x7FF0000000000001;
+const VARNUM_PREFIX_FLOAT: [u8; 2] = VARNUM_INVALID_ZERO_1;
+const VARNUM_NULL: [u8; 3] = VARNUM_INVALID_ZERO_2;
+
+pub fn varbytes_of_float(value: Option<f64>) -> Vec<u8> {
+    if let Some(value) = value {
+        let signed = value as i32;
+        if signed as f64 == value {
+            // This is an i32. We can fit it in at most 5 7bit bytes.
+            let unsigned : u32 = unsafe { std::mem::transmute(signed) };
+            let mut result = vec![];
+            result.write_varnum(unsigned).unwrap();
+            return result
+        }
+    } else {
+        // Magic short-ish constant for NULL.
+        return VARNUM_NULL.iter()
+            .cloned()
+            .collect()
+    }
+    // Encode as a float prefixed by 0b00000001 0b00000000 (which is an invalid integer).
+    let mut result = Vec::with_capacity(10);
+    result.extend_from_slice(&VARNUM_PREFIX_FLOAT);
+    result.extend_from_slice(&bytes_of_float(value));
+    result
+}
 
 /// Encode a f64 | null, little-endian
 pub fn bytes_of_float(value: Option<f64>) -> [u8; 8] {
@@ -31,7 +58,7 @@ pub fn float_of_bytes(buf: &[u8; 8]) -> Option<f64> {
     if as_u64 == NONE_FLOAT_REPR {
         None
     } else {
-        let as_f64 = unsafe { std::mem::transmute::<_, f64>(as_u64) }; 
+        let as_f64 = unsafe { std::mem::transmute::<_, f64>(as_u64) };
         Some(as_f64)
     }
 }

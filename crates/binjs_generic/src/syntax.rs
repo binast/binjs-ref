@@ -325,6 +325,7 @@ macro_rules! make_ast_visitor {
                         };
                         return self.walk_interface(value, &interface, name);
                     }
+                    _ => unimplemented!(),
                 }
                 return Err(ASTError::InvalidValue {
                     expected: format!("{:?}", spec),

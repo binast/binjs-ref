@@ -215,7 +215,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
                 .map_err(TokenReaderError::ReadError)?;
             match bytes::bool::bool_of_bytes(&buf) {
                 Ok(x) => Ok(x),
-                Err(_) => Err(TokenReaderError::InvalidValue)
+                Err(_) => Err(TokenReaderError::invalid_value(&"bool"))
             }
         })
     }
@@ -386,11 +386,10 @@ pub struct AbstractTree(Rc<TreeItem>);
 
 impl TokenWriter for TreeTokenWriter {
     type Tree = AbstractTree;
-    type Error = TokenWriterError;
     type Data = Vec<u8>;
     type Statistics = Statistics;
 
-    fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
+    fn done(self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
         let unwrapped = Rc::try_unwrap(self.root)
             .unwrap_or_else(|e| panic!("We still have {} references to the root", Rc::strong_count(&e)));
         match unwrapped {
@@ -399,18 +398,18 @@ impl TokenWriter for TreeTokenWriter {
         }
     }
 
-    fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
+    fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, TokenWriterError> {
         let bytes = bytes::float::bytes_of_float(data);
         Ok(self.register(bytes.iter().cloned().collect()))
     }
 
-    fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
+    fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: bool");
         let result = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
         Ok(self.register(result))
     }
 
-    fn offset(&mut self) -> Result<Self::Tree, Self::Error> {
+    fn offset(&mut self) -> Result<Self::Tree, TokenWriterError> {
         let tree = Rc::new(TreeItem::Offset);
         self.root = tree.clone();
         Ok(AbstractTree(tree))
@@ -418,7 +417,7 @@ impl TokenWriter for TreeTokenWriter {
 
     // Strings are represented as len + UTF-8
     // The None string is represented as len + [255, 0]
-    fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
+    fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: string {:?}", data);
         const EMPTY_STRING: [u8; 2] = [255, 0];
         let byte_len = match data {
@@ -450,7 +449,7 @@ impl TokenWriter for TreeTokenWriter {
     /// The number of bytes is the total size of
     /// - number of items;
     /// - items.
-    fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
+    fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: list");
         let prefix = "<list>";
         let suffix = "</list>";
@@ -491,7 +490,7 @@ impl TokenWriter for TreeTokenWriter {
     ///   - field names (string, \0 terminated)
     /// - </head>
     /// - contents
-    fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
+    fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: tagged_tuple");
         let mut prefix = Vec::new();
         prefix.extend_from_str("<head>");
@@ -517,7 +516,7 @@ impl TokenWriter for TreeTokenWriter {
 
         self.untagged_tuple(&untagged)
     }
-    fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
+    fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: untagged_tuple");
         let mut result = Vec::new();
         result.extend_from_str("<tuple>"); // Sole purpose of this constant is testing
