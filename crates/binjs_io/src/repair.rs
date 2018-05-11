@@ -86,17 +86,24 @@ impl SubTree {
     fn children(&self) -> impl Iterator<Item = &Rc<RefCell<SubTree>>> {
         self.children.iter()
     }
+    fn set(&mut self, label: Label, mut children: LinkedList<Rc<RefCell<SubTree>>>) {
+        unimplemented!()
+    }
 }
 
 struct Root {
     labels: HashMap<Label, LabelIndex>,
     label_counter: usize,
+    tree: Rc<RefCell<SubTree>>,
 }
 impl Root {
     fn new_leaf(&mut self, leaf: Vec<u8>) -> SubTree {
         unimplemented!()
     }
     fn new_named_label(&mut self, name: &str, children: usize) -> Label {
+        unimplemented!()
+    }
+    fn new_generated_label(&mut self, children: usize) -> Label {
         unimplemented!()
     }
     fn new_subtree(&mut self, label: Label, children: LinkedList<Rc<RefCell<SubTree>>>) -> SubTree {
@@ -239,11 +246,10 @@ impl Encoder {
         aux(tree, &mut digrams);
         digrams
     }
-/*
+
     fn proceed_with_tree_repair(&mut self) {
         // Replacement phase.
-        let /*mut*/ root = take(&self.root);
-        let /*mut*/ digrams = Self::compute_startup_digrams(&mut root); // FIXME: We probably want a priority queue here.
+        let /*mut*/ digrams = Self::compute_startup_digrams(&self.root.tree); // FIXME: We probably want a priority queue here.
         // let mut replacements = vec![];
 
         loop {
@@ -262,20 +268,37 @@ impl Encoder {
 
             if let Some((_, digram, mut instances)) = max {
                 // Generate a new label `generated`.
-                //let generated = self.generate_label();
-                // let number_of_children = digram.child.len();
+                let number_of_children = digram.parent.len() + digram.child.len() - 1;
+                let generated = self.root.new_generated_label(number_of_children);
 
                 // Replace instances of `digram` with `generated` all over the tree.
-                let mut borrow = instances.borrow_mut();
-                for (_, &mut instance) in borrow.iter_mut() {
-                    assert_eq!(digram.parent, instance.data);
-                    for _child in instance.children_mut() {
+                let mut borrow_instances = instances.borrow_mut();
+                for (_, mut instance) in borrow_instances.iter_mut() {
+                    // FIXME: We need to change the label!
+                    let mut borrow_instance = instance.borrow_mut();
+                    assert_eq!(digram.parent, borrow_instance.label);
 
-                    }
+                    let mut children = LinkedList::new();
+                    std::mem::swap(&mut borrow_instance.children, &mut children);
+
+                    let mut prefix = children;
+                    let mut removed = prefix.split_off(digram.position);
+                    let mut suffix = removed.split_off(1);
+
+                    assert_eq!(removed.len(), 1);
+                    let mut removed = removed.pop_front()
+                        .unwrap();
+
+                    let mut borrow_removed = removed.borrow_mut();
+                    assert_eq!(digram.child, borrow_removed.label);
+                    let mut replacement = borrow_removed.children.clone();
+
+                    prefix.append(&mut replacement);
+                    prefix.append(&mut suffix);
+
+                    borrow_instance.set(generated.clone(), prefix);
                 }
-                // FIXME:   Replace `d` all over our tree.
                 // FIXME:   Update list of most frequent digrams.
-                // FIXME:   Stop when we're out of digrams (or when rank grows beyond some limit?)
             } else {
                 // We're done with replacement.
                 break;
@@ -286,5 +309,5 @@ impl Encoder {
         // FIXME: 2. Pruning phase.
         // FIXME: Eliminate productions that increase final size.
     }
-*/
+
 }
