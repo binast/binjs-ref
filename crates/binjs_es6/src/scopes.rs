@@ -1,7 +1,7 @@
 use ast::*;
 use binjs_shared::{ FromJSON, ToJSON, VisitMe };
 
-use std::collections::{  HashSet };
+use std::collections::{  HashSet, HashMap };
 
 use itertools::Itertools;
 use json::JsonValue as JSON;
@@ -26,27 +26,24 @@ pub struct AnnotationVisitor {
     param_names_stack: Vec<HashSet<String>>,
     binding_kind_stack: Vec<BindingKind>,
     apparent_direct_eval_stack: Vec<bool>,
-    free_names_in_function_stack: Vec<HashSet<String>>,
 
-    // Whenever we pop from `free_names_in_function_stack`,
-    // we transfer everything here.
-    free_names_in_nested_functions: HashSet<String>,
+    // 'true' if the free name has already cross a function boundary
+    // 'false' until then.
+    free_names_in_block_stack: Vec<HashMap<String, bool>>,
 }
 impl AnnotationVisitor {
     fn pop_captured_names(&mut self, bindings: &[&HashSet<String>]) -> Vec<String> {
         let mut captured_names = vec![];
+        let my_free_names = self.free_names_in_block_stack.last_mut().unwrap();
         for binding in bindings {
             for name in *binding {
-                if self.free_names_in_nested_functions.remove(name) {
-                    // Names that appear in both `bindings` and in `free_names_in_nested_functions`
-                    // are names that are declared in the current scope and captured in a nested
-                    // function.
-                    captured_names.push(name.clone());
+                if let Some(cross_function) = my_free_names.remove(name) {
+                    // Free names across nested function boundaries are closed.
+                    debug!(target: "annotating", "found captured name {}", name);
+                    if cross_function {
+                        captured_names.push(name.clone());
+                    }
                 }
-                // Also, cleanup free names.
-                self.free_names_in_function_stack.last_mut()
-                    .unwrap()
-                    .remove(name);
             }
         }
 
@@ -55,16 +52,27 @@ impl AnnotationVisitor {
     }
 
     fn push_free_names(&mut self) {
-        self.free_names_in_function_stack.push(HashSet::new());
+        self.free_names_in_block_stack.push(HashMap::new());
     }
-    fn pop_free_names(&mut self, bindings: &[&HashSet<String>]) {
-        let mut free_names_in_current_function = self.free_names_in_function_stack.pop().unwrap();
-        for name in free_names_in_current_function.drain() {
+    fn pop_free_names(&mut self, bindings: &[&HashSet<String>], is_leaving_function_scope: bool) {
+        let mut free_names_in_current_block = self.free_names_in_block_stack.pop().unwrap();
+        for (name, old_cross_function) in free_names_in_current_block.drain() {
             let is_bound = bindings.iter()
                 .find(|container| container.contains(&name))
                 .is_some();
             if !is_bound {
-                self.free_names_in_nested_functions.insert(name);
+                // Propagate free names up to the enclosing scope, for further analysis.
+                // Actively propagate the closure flag as we go. It could have been set by
+                //   A nested scope: old_cross_function
+                //   This scope: is_leaving_function_scope
+                //   Or, it could have already been in the parent scope from a sibling block.
+                // Or everything together, so we don't forget if the binding was closed over.
+                if let Some(mut parent_free) = self.free_names_in_block_stack.last_mut() {
+                    let my_contribution = old_cross_function || is_leaving_function_scope;
+                    parent_free.entry(name)
+                        .and_modify(|p| { *p = *p || my_contribution })
+                        .or_insert(my_contribution);
+                }
             }
         }
     }
@@ -89,6 +97,7 @@ impl AnnotationVisitor {
 
     fn push_block_scope(&mut self, _path: &Path) {
         self.lex_names_stack.push(HashSet::new());
+        self.push_free_names();
         self.push_direct_eval();
     }
     fn pop_block_scope(&mut self, path: &Path) -> Option<AssertedBlockScope> {
@@ -98,6 +107,7 @@ impl AnnotationVisitor {
         debug!(target: "annotating", "pop_lex_scope lex {:?}", lex_names);
 
         let captured_names = self.pop_captured_names(&[&lex_names]);
+        self.pop_free_names(&[&lex_names], /* is_leaving_function_scope = */false);
         let lex_names : Vec<_> = lex_names.into_iter()
             .sorted();
 
@@ -113,12 +123,15 @@ impl AnnotationVisitor {
         }
     }
 
-    fn push_var_scope(&mut self, path: &Path) {
-        debug!(target: "annotating", "push_var_scope at {:?}", path);
+    fn push_incomplete_var_scope(&mut self, _path: &Path) {
         self.var_names_stack.push(HashSet::new());
         self.lex_names_stack.push(HashSet::new());
-        self.push_free_names();
+    }
+    fn push_var_scope(&mut self, path: &Path) {
+        debug!(target: "annotating", "push_var_scope at {:?}", path);
+        self.push_incomplete_var_scope(path);
         self.push_direct_eval();
+        self.push_free_names();
     }
     fn pop_incomplete_var_scope(&mut self, path: &Path) -> VarAndLexNames {
         debug!(target: "annotating", "pop_incomplete_var_scope at {:?}", path);
@@ -140,7 +153,7 @@ impl AnnotationVisitor {
     fn pop_var_scope(&mut self, path: &Path) -> Option<AssertedVarScope> {
         let VarAndLexNames { var_names, lex_names} = self.pop_incomplete_var_scope(path);
         let captured_names = self.pop_captured_names(&[&var_names, &lex_names]);
-        self.pop_free_names(&[&var_names, &lex_names]);
+        self.pop_free_names(&[&var_names, &lex_names], /* is_leaving_function_scope = */true);
 
         let var_names : Vec<_> = var_names.into_iter()
             .sorted();
@@ -163,13 +176,16 @@ impl AnnotationVisitor {
     }
 
     fn push_param_scope(&mut self, _path: &Path) {
+        debug!(target: "annotating", "push_param_scope at {:?}", _path);
         self.param_names_stack.push(HashSet::new());
+        self.push_free_names();
         self.push_direct_eval();
     }
     fn pop_param_scope(&mut self, path: &Path) -> Option<AssertedParameterScope> {
         debug!(target: "annotating", "pop_param_scope at {:?}", path);
         let mut param_names = self.param_names_stack.pop().unwrap();
         let captured_names = self.pop_captured_names(&[&param_names]);
+        self.pop_free_names(&[&param_names], /* is_leaving_function_scope = */false);
 
         // In the case of `function foo(j) {var j;}`, the `var j` is not the true declaration.
         // Remove it from parameters.
@@ -211,16 +227,19 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn exit_identifier_expression(&mut self, _path: &Path, node: &mut IdentifierExpression) -> Result<Option<IdentifierExpression>, ()> {
-        self.free_names_in_function_stack.last_mut()
-            .unwrap()
-            .insert(node.name.clone());
+        debug!(target: "annotating", "exit_identifier_expression {} at {:?}", node.name, _path);
+        let names = self.free_names_in_block_stack.last_mut().unwrap();
+        if !names.contains_key(&node.name) {
+            names.insert(node.name.clone(), false);
+        }
         Ok(None)
     }
 
     fn exit_assignment_target_identifier(&mut self, _path: &Path, node: &mut AssignmentTargetIdentifier) -> Result<Option<AssignmentTargetIdentifier>, ()> {
-        self.free_names_in_function_stack.last_mut()
-            .unwrap()
-            .insert(node.name.clone());
+        let names = self.free_names_in_block_stack.last_mut().unwrap();
+        if !names.contains_key(&node.name) {
+            names.insert(node.name.clone(), false);
+        }
         Ok(None)
     }
 
@@ -304,7 +323,7 @@ impl Visitor<()> for AnnotationVisitor {
         // so we introduce a var scope in `catch(ex)`, as if `catch(ex) { ... }` was
         // a function.
 
-        self.push_var_scope(path);
+        self.push_incomplete_var_scope(path);
         self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
