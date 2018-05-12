@@ -12,6 +12,8 @@ use std::rc::{ Rc, Weak };
 
 use itertools::Itertools;
 
+type SharedCell<T> = Rc<RefCell<T>>;
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 struct NodeIndex(usize);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -23,12 +25,21 @@ pub struct GeneratedLabel(usize);
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Label {
+    /// A well-known label with well-known arity.
     Named {
         label: Rc<String>,
         children: usize,
     },
     Generated {
         label: GeneratedLabel,
+
+        /// The digram to which this label expands.
+        /// When we serialize, the first instance of the generated
+        /// label is immediately followed by its number of children
+        /// and digram. As the digram may itself contain generated
+        /// labels, serialization of the digram may itself contain
+        /// [number of children; digrams] sequences.
+        digram: Rc<Digram>,
         children: usize,
     },
     Leaf(Rc<Vec<u8>>)
@@ -54,7 +65,7 @@ pub struct SubTree { // FIXME: Make it private, eventually.
     label: Label,
 
     /// Children.
-    children: LinkedList<Rc<RefCell<SubTree>>>,
+    children: LinkedList<SharedCell<SubTree>>,
 
     /// The parent. May be Weak::default() if this is the root.
     parent: Weak<RefCell<SubTree>>,
@@ -88,10 +99,10 @@ impl SubTree {
     fn into_shared(self) -> SharedTree {
         Rc::new(RefCell::new(Some(self)))
     }
-    fn children(&self) -> impl Iterator<Item = &Rc<RefCell<SubTree>>> {
+    fn children(&self) -> impl Iterator<Item = &SharedCell<SubTree>> {
         self.children.iter()
     }
-    fn replace(&mut self, label: Label, mut children: LinkedList<Rc<RefCell<SubTree>>>) {
+    fn replace(&mut self, label: Label, mut children: LinkedList<SharedCell<SubTree>>) {
         // FIXME: Regenerate the unique index.
         // FIXME: Replace the parent of `children`.
         unimplemented!()
@@ -101,7 +112,7 @@ impl SubTree {
 struct Root {
     labels: HashMap<Label, LabelIndex>,
     label_counter: usize,
-    tree: Rc<RefCell<SubTree>>,
+    tree: SharedCell<SubTree>,
 }
 impl Root {
     fn new_leaf(&mut self, leaf: Vec<u8>) -> SubTree {
@@ -113,12 +124,12 @@ impl Root {
     fn new_generated_label(&mut self, children: usize) -> Label {
         unimplemented!()
     }
-    fn new_subtree(&mut self, label: Label, children: LinkedList<Rc<RefCell<SubTree>>>) -> SubTree {
+    fn new_subtree(&mut self, label: Label, children: LinkedList<SharedCell<SubTree>>) -> SubTree {
         unimplemented!()
     }
 }
 
-type SharedTree = Rc<RefCell<Option<SubTree>>>;
+type SharedTree = SharedCell<Option<SubTree>>;
 
 pub struct Encoder {
     node_counter: usize,
@@ -204,34 +215,47 @@ impl TokenWriter for Encoder {
 }
 
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-struct Digram {
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Digram { // FIXME: Should be private, really.
+    /// The parent label. It will be replaced by a new, per-digram, generated label.
     parent: Label,
+    /// The index of the child of the parent to replace.
     position: usize,
+    /// The child label. It will be replaced by its own children.
     child: Label,
 }
-type Digrams<'a> = HashMap<Digram, Rc<RefCell<HashMap<NodeIndex, Rc<RefCell<SubTree>>>>>>;
 
-struct DigramAndInstances {
+// FIXME: We don't need the `HashMap<NodeIndex, ...>`. We just need a list of `(NodeIndex, Tree)`,
+// built in post-order. We then walk the list, skipping substitutions that are not valid anymore.
+// If we maintain the invariant that these lists of `(NodeIndex, Tree)` are always in post-order,
+// we can extract from them new lists of digrams (for generated non-terminals) that are also
+// in post-order, hence in which we can skip, etc.
+type Digrams = HashMap<Digram, SharedCell<Vec<SharedCell<SubTree>>>>;
+
+/// Instances of a single Digram.
+struct DigramInstances {
     digram: Digram,
-    instances: Rc<RefCell<HashMap<NodeIndex, Rc<RefCell<SubTree>>>>>,
+
+    /// Invariant: these instances are always in post-order (descendants appear before
+    /// ancestors).
+    instances: SharedCell<Vec<SharedCell<SubTree>>>,
 }
 
-impl PartialEq for DigramAndInstances {
+impl PartialEq for DigramInstances {
     fn eq(&self, other: &Self) -> bool {
         self.digram == other.digram
     }
 }
-impl Eq for DigramAndInstances { }
+impl Eq for DigramInstances { }
 
-impl PartialOrd for DigramAndInstances {
+impl PartialOrd for DigramInstances {
     fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
         let my_len = self.instances.borrow().len();
         let other_len = other.instances.borrow().len();
         usize::partial_cmp(&my_len, &other_len)
     }
 }
-impl Ord for DigramAndInstances {
+impl Ord for DigramInstances {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let my_len = self.instances.borrow().len();
         let other_len = other.instances.borrow().len();
@@ -240,10 +264,10 @@ impl Ord for DigramAndInstances {
 }
 
 impl Encoder {
-    fn compute_startup_digrams<'a> (tree: &Rc<RefCell<SubTree>>) -> Digrams<'a> {
+    fn compute_startup_digrams(tree: &SharedCell<SubTree>) -> Digrams {
         use std::borrow::BorrowMut;
         let mut digrams = HashMap::new();
-        fn aux<'a>(node: &Rc<RefCell<SubTree>>, set: &mut Digrams<'a>) {
+        fn aux(node: &SharedCell<SubTree>, set: &mut Digrams) {
             let parent_borrow = node.borrow();
             let parent_label = parent_borrow.label.clone();
             for (position, child) in parent_borrow.children().enumerate() {
@@ -259,22 +283,7 @@ impl Encoder {
                 aux(child, set);
                 // Now expand to parent.
                 let this_digram = set.entry(digram)
-                    .or_insert_with(|| Rc::new(RefCell::new(HashMap::new())));
-                if parent_label == child_label {
-                    // If `child` is already in `this_digram` (which can only happen if
-                    // `parent == me`), we don't want to also put the parent in `this_digram`,
-                    // otherwise there will be a conflict.
-                    // cause an overlap if `child` is alre. If so, discard the parent.
-                    let digrams_borrow : std::cell::Ref<_> = Rc::as_ref(this_digram).borrow();
-                    if digrams_borrow.get(&child_borrow.index).is_some() {
-                        // The digram can be applied either to the child or to the parent, but not both.
-                        // We keep the child and ignore the parent.
-                        continue;
-                    }
-                }
-                // We now know that there is no conflict between two instances of this specific digram.
-                let mut digrams_borrow = this_digram.as_ref().borrow_mut();
-                digrams_borrow.insert(parent_borrow.index.clone(), node.clone());
+                    .or_insert_with(|| Rc::new(RefCell::new(vec![node.clone()])));
             }
         }
         aux(tree, &mut digrams);
@@ -289,13 +298,17 @@ impl Encoder {
         let mut digrams : Vec<_> = {
             let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
             startup_digrams.into_iter()
-                .map(|(digram, instances)| DigramAndInstances {digram, instances})
+                .filter_map(|(digram, instances)| if instances.borrow().len() >= 2 {
+                    Some(DigramInstances {digram, instances})
+                } else {
+                    None
+                })
                 .sorted()
         };
         let mut replacements = HashMap::new();
 
         // Pick most frequent digram.
-        while let Some(DigramAndInstances { digram, instances }) = digrams.pop() {
+        'per_digram: while let Some(DigramInstances { digram, instances }) = digrams.pop() {
             // Generate a new label `generated`.
             let number_of_children = digram.parent.len() + digram.child.len() - 1;
             let generated = self.root.new_generated_label(number_of_children);
@@ -303,9 +316,13 @@ impl Encoder {
 
             // Replace instances of `digram` with `generated` all over the tree.
             let mut borrow_instances = instances.borrow_mut();
-            for (_, mut instance) in borrow_instances.iter_mut() {
+            'per_node: for mut instance in borrow_instances.iter_mut() {
                 let mut borrow_instance = instance.borrow_mut();
-                assert_eq!(digram.parent, borrow_instance.label);
+
+                if digram.parent != borrow_instance.label {
+                    // The node has been rewritten, the digram doesn't apply anymore.
+                    continue 'per_node;
+                }
 
                 let mut children = LinkedList::new();
                 std::mem::swap(&mut borrow_instance.children, &mut children);
@@ -318,14 +335,26 @@ impl Encoder {
                 let mut removed = removed.pop_front()
                     .unwrap();
 
-                let mut borrow_removed = removed.borrow_mut();
-                assert_eq!(digram.child, borrow_removed.label);
-                let mut replacement = borrow_removed.children.clone();
+                {
+                    let mut borrow_removed = removed.borrow_mut();
+                    if borrow_removed.label == digram.child {
+                        let mut replacement = borrow_removed.children.clone();
 
-                prefix.append(&mut replacement);
+                        prefix.append(&mut replacement);
+                        prefix.append(&mut suffix);
+
+                        borrow_instance.replace(generated.clone(), prefix);
+                    }
+                    continue 'per_node;
+                }
+                // Oops, the label has changed (most likely, the child has been rewritten), so
+                // the digram doesn't apply anymore. We need to cancel our rewrite.
+                // FIXME: This would be nicer with a better implementation of linked lists.
+                prefix.push_back(removed);
                 prefix.append(&mut suffix);
 
-                borrow_instance.replace(generated.clone(), prefix);
+
+                std::mem::swap(&mut borrow_instance.children, &mut prefix);
             }
 
 

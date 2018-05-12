@@ -5,7 +5,6 @@ extern crate lzw;
 #[macro_use]
 extern crate log;
 extern crate rand;
-extern crate trees;
 extern crate vec_map;
 
 #[derive(Debug)]

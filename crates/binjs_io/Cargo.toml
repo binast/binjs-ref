@@ -10,7 +10,6 @@ itertools = "*"
 lzw = "*"
 log = "*"
 rand = "*"
-trees = "*"
 vec_map = "*"
 
 [dev-dependencies]
