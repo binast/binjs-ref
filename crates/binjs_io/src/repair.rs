@@ -65,7 +65,7 @@ pub struct SubTree { // FIXME: Make it private, eventually.
     label: Label,
 
     /// Children.
-    children: LinkedList<SharedCell<SubTree>>,
+    children: Vec<SharedCell<SubTree>>,
 
     /// The parent. May be Weak::default() if this is the root.
     parent: Weak<RefCell<SubTree>>,
@@ -102,7 +102,7 @@ impl SubTree {
     fn children(&self) -> impl Iterator<Item = &SharedCell<SubTree>> {
         self.children.iter()
     }
-    fn replace(&mut self, label: Label, mut children: LinkedList<SharedCell<SubTree>>) {
+    fn replace(&mut self, label: Label, mut children: Vec<SharedCell<SubTree>>) {
         // FIXME: Regenerate the unique index.
         // FIXME: Replace the parent of `children`.
         unimplemented!()
@@ -124,7 +124,7 @@ impl Root {
     fn new_generated_label(&mut self, children: usize) -> Label {
         unimplemented!()
     }
-    fn new_subtree(&mut self, label: Label, children: LinkedList<SharedCell<SubTree>>) -> SubTree {
+    fn new_subtree(&mut self, label: Label, children: Vec<SharedCell<SubTree>>) -> SubTree {
         unimplemented!()
     }
 }
@@ -319,42 +319,39 @@ impl Encoder {
             'per_node: for mut instance in borrow_instances.iter_mut() {
                 let mut borrow_instance = instance.borrow_mut();
 
-                if digram.parent != borrow_instance.label {
-                    // The node has been rewritten, the digram doesn't apply anymore.
-                    continue 'per_node;
-                }
-
-                let mut children = LinkedList::new();
-                std::mem::swap(&mut borrow_instance.children, &mut children);
-
-                let mut prefix = children;
-                let mut removed = prefix.split_off(digram.position);
-                let mut suffix = removed.split_off(1);
-
-                assert_eq!(removed.len(), 1);
-                let mut removed = removed.pop_front()
-                    .unwrap();
-
                 {
-                    let mut borrow_removed = removed.borrow_mut();
-                    if borrow_removed.label == digram.child {
-                        let mut replacement = borrow_removed.children.clone();
-
-                        prefix.append(&mut replacement);
-                        prefix.append(&mut suffix);
-
-                        borrow_instance.replace(generated.clone(), prefix);
+                    if digram.parent != borrow_instance.label || borrow_instance.children[digram.position].borrow().label != digram.child {
+                        // The node has been rewritten, the digram doesn't apply anymore.
+                        continue 'per_node;
                     }
-                    continue 'per_node;
                 }
-                // Oops, the label has changed (most likely, the child has been rewritten), so
-                // the digram doesn't apply anymore. We need to cancel our rewrite.
-                // FIXME: This would be nicer with a better implementation of linked lists.
-                prefix.push_back(removed);
-                prefix.append(&mut suffix);
 
+                let mut children = Vec::with_capacity(digram.parent.len() + digram.child.len() - 1);
 
-                std::mem::swap(&mut borrow_instance.children, &mut prefix);
+                std::mem::swap(&mut borrow_instance.children, &mut children);
+                let mut iter = children.into_iter();
+
+                // Keep the first `digram.position` children.
+                for _ in 0 .. digram.position {
+                    borrow_instance.children.push(iter.next().unwrap());
+                }
+
+                // Inline the children of child `digram.position`.
+                let removed = iter.next().unwrap();
+                let mut borrow_removed = removed.borrow_mut();
+                debug_assert_eq!(borrow_removed.label, digram.child);
+                for child in &borrow_removed.children {
+                    let mut borrow_child = child.borrow_mut();
+                    borrow_child.parent = Rc::downgrade(instance);
+                }
+
+                // Then copy the remaining children.
+                borrow_instance.children.extend(iter);
+
+                debug_assert_eq!(borrow_instance.children.len(), digram.parent.len() + digram.child.len() - 1);
+
+                // Finally, change the label.
+                borrow_instance.label = generated.clone();
             }
 
 
