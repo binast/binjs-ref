@@ -446,6 +446,7 @@ impl Encoder {
                 let removed = iter.next().unwrap();
                 let mut borrow_removed = removed.borrow_mut();
 
+                // Remove a single node from a list of digrams, updating priority list as needed.
                 let downgrade_conflict = |digrams_per_priority: &mut prio::Queue<_>, digram: &Weak<DigramInstances>, list_remover: &mut list::Remover<SharedCell<SubTree>>| {
                     // Remove from the list of digrams.
                     let len = list_remover.remove();
@@ -532,6 +533,7 @@ impl Encoder {
 
         // FIXME: 2. Pruning phase.
         // FIXME: Eliminate productions that increase final size.
+        unimplemented!("Pruning phase")
     }
 }
 
@@ -541,8 +543,6 @@ impl Encoder {
 /// By design, the number of slots can never grow.
 mod prio {
     use repair::list;
-
-    use std;
 
     #[derive(Debug)]
     pub struct Queue<T> {
@@ -574,13 +574,17 @@ mod prio {
     }
 
     #[derive(Debug)]
-    pub struct Remover<T>(std::marker::PhantomData<T>);
+    pub struct Remover<T> {
+        list_remover: list::Remover<T>,
+    }
     impl<T> Remover<T> {
-        fn new(_: list::Remover<T>) -> Self {
-            unimplemented!()
+        fn new(list_remover: list::Remover<T>) -> Self {
+            Self {
+                list_remover
+            }
         }
         pub fn remove(&mut self) {
-            unimplemented!()
+            self.list_remover.remove();
         }
     }
 }
@@ -601,13 +605,16 @@ mod list {
             unimplemented!()
         }
         pub fn len(&self) -> usize {
-            unimplemented!()
+            self.list.borrow().len
         }
-        pub fn push(&mut self, _: T) -> Remover<T> {
-            unimplemented!()
+        pub fn push(&mut self, data: T) -> Remover<T> {
+            let mut borrow = self.list.borrow_mut();
+            borrow.push(self, data)
+
         }
         pub fn pop(&mut self) -> Option<T> {
-            unimplemented!()
+            let mut borrow = self.list.borrow_mut();
+            borrow.pop()
         }
         pub fn iter(&self) -> impl Iterator<Item = &T> {
             self.placeholder.iter()
@@ -618,30 +625,146 @@ mod list {
             Self::new()
         }
     }
+
     #[derive(Debug)]
     struct ListImpl<T> {
         len: usize,
-        head: Option<Link<T>>,
-        tail: Option<Link<T>>,
+        head: Option<Rc<RefCell<Link<T>>>>,
+        tail: Option<Weak<RefCell<Link<T>>>>,
     }
+    impl<T> ListImpl<T> {
+        fn push(&mut self, list: &List<T>, data: T) -> Remover<T> {
+            match self.tail {
+                None => {
+                    debug_assert_eq!(self.len, 0);
+                    debug_assert!(self.head.is_none());
+                    let link = Rc::new(RefCell::new(Link::new(data)));
+                    self.tail = Some(Rc::downgrade(&link));
+                    self.head = Some(link.clone());
+                    self.len = 1;
+                    return unimplemented!()
+                }
+                Some(ref mut tl) => {
+                    debug_assert!(self.len != 0);
+                    debug_assert!(self.head.is_some());
+                    let tail = tl.upgrade()
+                        .unwrap();   // If the list is not empty, we MUST be able to upgrade the pointer to the tail.
+                    let mut tail_borrow = tail
+                        .borrow_mut();
+                    let link = Rc::new(RefCell::new(Link::new(data)));
+                    link.borrow_mut().prev = tl
+                        .clone();
+                    *tl = Rc::downgrade(&link);
+                    self.len += 1;
+                    tail_borrow.next = Some(link);
+                    unimplemented!()
+                }
+            }
+        }
+
+        fn pop(&mut self) -> Option<T> {
+            match self.tail {
+                None => {
+                    debug_assert_eq!(self.len, 0);
+                    debug_assert!(self.head.is_none());
+                    None
+                }
+                Some(ref tl) => {
+                    debug_assert!(self.len != 0);
+                    debug_assert!(self.head.is_some());
+                    let tl = tl.upgrade()
+                        .unwrap(); // The tail MUST be upgradable.
+                    let mut tl_borrow = tl
+                        .borrow_mut();
+                    let result = Some(tl_borrow.remove());
+                    self.len -= 1;
+                    result
+                }
+            }
+        }
+    }
+
+
     #[derive(Clone, Debug)]
     pub struct Remover<T> {
         list: Weak<RefCell<ListImpl<T>>>,
+        link: Weak<RefCell<Link<T>>>,
+        removed: bool,
     }
     impl<T> Remover<T> {
+        fn new(list: Weak<RefCell<ListImpl<T>>>, link: Weak<RefCell<Link<T>>>) -> Self {
+            Self {
+                list,
+                link,
+                removed: false,
+            }
+        }
+
         /// Remove oneself from the list, returning the new list length.
         pub fn remove(&mut self) -> usize {
+            assert_eq!(self.removed, false);
+            self.removed = true;
+            let list = self.list.upgrade()
+                .expect("Attempting to remove oneself from a list that doesn't exist anymore");
+            let mut borrow_list = list.borrow_mut();
+            let link = self.link.upgrade()
+                .expect("Attempting to remove from a list an item that doesn't exist anymore");
+            let mut borrow_link = link.borrow_mut();
+            match (borrow_link.prev.upgrade(), borrow_link.next.as_ref()) {
+                (Some(prev), Some(next)) => {
+                    // Neither first nor last.
+                    prev.borrow_mut().next = borrow_link.next.clone();
+                    next.borrow_mut().prev = Rc::downgrade(&prev);
+                }
+                (None, None) => {
+                    // The only item in the list.
+                    assert_eq!(borrow_list.len, 1);
+                    borrow_list.head = None;
+                    borrow_list.tail = None;
+                }
+                (Some(prev), None) => {
+                    // Last item in the list, but not first.
+                    prev.borrow_mut().next = None;
+                    borrow_list.tail = Some(Rc::downgrade(&prev));
+                }
+                (None, Some(next)) => {
+                    // First item in the list, but not last.
+                    next.borrow_mut().prev = Weak::default();
+                    borrow_list.head = Some(next.clone());
+                }
+            }
+            borrow_link.next = None;
+            borrow_list.len -= 1;
+            borrow_list.len
+        }
+    }
+
+    #[derive(Debug)]
+    struct Link<T> {
+        data: T,
+        next: Option<Rc<RefCell<Link<T>>>>,
+        prev: Weak<RefCell<Link<T>>>,
+    }
+    impl<T> Link<T> {
+        fn new(data: T) -> Self {
+            Link {
+                data,
+                next: None,
+                prev: Weak::default(),
+            }
+        }
+
+        pub fn remove(&self) -> T {
             unimplemented!()
         }
     }
     #[derive(Clone, Debug)]
-    struct Link<T> {
-        link: Rc<RefCell<LinkImpl<T>>>,
-    }
-    impl<T> Link<T> {
-    }
-    #[derive(Clone, Debug)]
     struct LinkImpl<T> {
         list: Weak<RefCell<ListImpl<T>>>,
+    }
+    impl<T> LinkImpl<T> {
+        pub fn remove(&mut self) -> T {
+            unimplemented!()
+        }
     }
 }
