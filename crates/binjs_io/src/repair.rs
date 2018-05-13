@@ -12,14 +12,45 @@ use std::rc::{ Rc, Weak };
 
 type SharedCell<T> = Rc<RefCell<T>>;
 
+trait Counter {
+    fn internal_make(value: usize) -> Self;
+}
+#[derive(Default)]
+struct GenericCounter<T> where T: Counter {
+    count: usize,
+    phantom: std::marker::PhantomData<T>,
+}
+impl<T> GenericCounter<T> where T: Counter {
+    pub fn next(&mut self) -> T {
+        let result = T::internal_make(self.count);
+        self.count += 1;
+        result
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 struct NodeIndex(usize);
+impl Counter for NodeIndex {
+    fn internal_make(value: usize) -> Self {
+        NodeIndex(value)
+    }
+}
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 struct LabelIndex(usize);
+impl Counter for LabelIndex {
+    fn internal_make(value: usize) -> Self {
+        LabelIndex(value)
+    }
+}
 
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct GeneratedLabel(usize);
+impl Counter for GeneratedLabel {
+    fn internal_make(value: usize) -> Self {
+        GeneratedLabel(value)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Label {
@@ -118,19 +149,32 @@ impl SubTree {
 }
 
 struct Root {
-    labels: HashMap<Label, LabelIndex>,
-    label_counter: usize,
     tree: SharedCell<SubTree>,
+    node_counter: GenericCounter<NodeIndex>,
+    generated_label_counter: GenericCounter<GeneratedLabel>,
 }
 impl Root {
     fn new_leaf(&mut self, leaf: Vec<u8>) -> SubTree {
-        unimplemented!()
+        SubTree {
+            index: self.node_counter.next(),
+            label: Label::Leaf(Rc::new(leaf)),
+            parent: Weak::default(),
+            digrams: vec![],
+            children: vec![],
+        }
     }
     fn new_named_label(&mut self, name: &str, children: usize) -> Label {
-        unimplemented!()
+        Label::Named {
+            label: Rc::new(name.to_string()),
+            children: children,
+        }
     }
-    fn new_generated_label(&mut self, children: usize) -> Label {
-        unimplemented!()
+    fn new_generated_label(&mut self, children: usize, digram: Rc<Digram>) -> Label {
+        Label::Generated {
+            label: self.generated_label_counter.next(),
+            digram,
+            children,
+        }
     }
     fn new_subtree(&mut self, label: Label, children: Vec<SharedCell<SubTree>>) -> SubTree {
         unimplemented!()
@@ -350,7 +394,7 @@ impl Encoder {
         'per_digram: while let Some(digram_instances) = digrams_per_priority.pop() {
             // Generate a new label `generated`.
             let number_of_children = digram_instances.digram.parent.len() + digram_instances.digram.child.len() - 1;
-            let generated = self.root.new_generated_label(number_of_children);
+            let generated = self.root.new_generated_label(number_of_children, digram_instances.digram.clone());
             replacements.insert(generated.clone(), digram_instances.digram.clone());
 
             // A map to hold all the digrams we are creating.
