@@ -18,6 +18,17 @@ use std::path::{ Path, PathBuf };
 
 use clap::*;
 
+pub enum Format {
+    Simple {
+        stats: RefCell<binjs::io::simple::Statistics>
+    },
+    Multipart {
+        options: PreWriteOptions,
+        stats: RefCell<binjs::io::multipart::Statistics>
+    },
+    TreeRePair
+}
+
 pub struct PreWriteOptions {
     pub grammar_table: SectionOption,
     pub strings_table: SectionOption,
@@ -68,9 +79,7 @@ fn write_extract(dest_bin_path: &Option<PathBuf>, option: &SectionOption, extens
 
 struct Options<'a> {
     parser: &'a Shift,
-    multipart_stats: RefCell<binjs::io::multipart::Statistics>,
-    simple_stats: RefCell<binjs::io::simple::Statistics>,
-    compression: Option<PreWriteOptions>,
+    format: Format,
     dest_dir: Option<PathBuf>,
     lazification: u32,
     show_ast: bool,
@@ -157,8 +166,8 @@ fn handle_path<'a>(options: &Options<'a>,
 
     println!("Encoding.");
     let data: Box<AsRef<[u8]>> = {
-        match options.compression {
-            None => {
+        match options.format {
+            Format::Simple { stats: ref my_stats } => {
                 let writer = binjs::io::simple::TreeTokenWriter::new();
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)
@@ -166,11 +175,24 @@ fn handle_path<'a>(options: &Options<'a>,
                 let (data, stats) = serializer.done()
                     .expect("Could not finalize AST encoding");
 
-                let mut borrow = options.simple_stats.borrow_mut();
+                let mut borrow = my_stats.borrow_mut();
                 *borrow += stats;
                 Box::new(data)
             }
-            Some(ref pre_options) => {
+            Format::TreeRePair => {
+                let writer = binjs::io::repair::Encoder::new();
+                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                serializer.serialize(&ast)
+                    .expect("Could not encode AST");
+                let (data, _) = serializer.done()
+                    .expect("Could not finalize AST encoding");
+
+                Box::new(data)
+            }
+            Format::Multipart {
+                stats: ref my_stats,
+                options: ref pre_options
+            } => {
                 let compression = pre_options.as_write_options();
                 let writer = binjs::io::multipart::TreeTokenWriter::new(compression.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
@@ -184,7 +206,7 @@ fn handle_path<'a>(options: &Options<'a>,
                 write_extract(&dest_bin_path, &compression.tree, "tree");
 
 
-                let mut borrow = options.multipart_stats.borrow_mut();
+                let mut borrow = my_stats.borrow_mut();
                 *borrow += stats.with_source_bytes(source_len as usize);
                 Box::new(data)
 
@@ -252,7 +274,7 @@ fn main_aux() {
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
-                .possible_values(&["simple", "multipart"])
+                .possible_values(&["simple", "multipart", "trp"])
                 .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
             Arg::with_name("strings")
                 .long("strings")
@@ -305,29 +327,21 @@ fn main_aux() {
         Some(path) => Some(Path::new(path).to_path_buf())
     };
 
-    let compression = {
-        let is_compressed =
-            match matches.value_of("format") {
-                None | Some("multipart") => true,
-                _ if matches.values_of("sections").is_some()
-                   || matches.value_of("strings").is_some()
-                   || matches.value_of("grammar").is_some()
-                   || matches.value_of("tree").is_some()
-                 => {
-                    println!("Error: Cannot specify `strings`, `grammar` or `tree` with this format.\n{}", matches.usage());
-                    std::process::exit(-1);
-                 }
-                _ => false
-            };
-        if is_compressed {
+    let format = match matches.value_of("format") {
+        None | Some("multipart") => {
+            let stats = RefCell::new(binjs::io::multipart::Statistics::default()
+                .with_source_bytes(0));
             if let Some(ref spec) = matches.value_of("sections") {
                 let compression = parse_compression(Some(spec))
                     .expect("Could not parse sections compression format");
-                Some(PreWriteOptions {
-                    strings_table: compression.clone(),
-                    grammar_table: compression.clone(),
-                    tree: compression,
-                })
+                Format::Multipart {
+                    options: PreWriteOptions {
+                        strings_table: compression.clone(),
+                        grammar_table: compression.clone(),
+                        tree: compression,
+                    },
+                    stats
+                }
             } else {
                 let strings = parse_compression(matches.value_of("strings"))
                     .expect("Could not parse string compression format");
@@ -335,33 +349,33 @@ fn main_aux() {
                     .expect("Could not parse grammar compression format");
                 let tree = parse_compression(matches.value_of("tree"))
                     .expect("Could not parse tree compression format");
-                Some(PreWriteOptions {
-                    strings_table: strings,
-                    grammar_table: grammar,
-                    tree
-                })
+                Format::Multipart {
+                    options: PreWriteOptions {
+                        strings_table: strings,
+                        grammar_table: grammar,
+                        tree
+                    },
+                    stats
+                }
             }
-        } else {
-            println!("Format: simple");
-            None
-        }
+        },
+        Some("trp") => Format::TreeRePair,
+        Some("simple") => Format::Simple {
+            stats: RefCell::new(binjs::io::simple::Statistics::default())
+        },
+        _ => panic!()
     };
     let show_stats = matches.is_present("statistics");
 
     // Setup.
     let parser = Shift::new();
-    let multipart_stats = binjs::io::multipart::Statistics::default()
-        .with_source_bytes(0);
-    let simple_stats = binjs::io::simple::Statistics::default();
 
     let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
         .expect("Invalid number");
 
     let options = Options {
         parser: &parser,
-        multipart_stats: RefCell::new(multipart_stats),
-        simple_stats: RefCell::new(simple_stats),
-        compression,
+        format,
         dest_dir,
         lazification,
         show_ast: matches.is_present("show-ast"),
@@ -372,10 +386,8 @@ fn main_aux() {
     }
 
     if show_stats {
-        if options.compression.is_none() {
-            println!("Statistics: {}", options.simple_stats.borrow());
-        } else {
-            println!("Statistics: {}", options.multipart_stats.borrow());
+        if let Format::Multipart { ref stats, .. } = options.format {
+            println!("Statistics: {}", stats.borrow());
         }
     }
 }

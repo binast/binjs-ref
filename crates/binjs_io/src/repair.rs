@@ -24,6 +24,12 @@ struct GenericCounter<T> where T: Counter {
     phantom: std::marker::PhantomData<T>,
 }
 impl<T> GenericCounter<T> where T: Counter {
+    pub fn new() -> Self {
+        GenericCounter {
+            count: 0,
+            phantom: std::marker::PhantomData,
+        }
+    }
     pub fn next(&mut self) -> T {
         let result = T::internal_make(self.count);
         self.count += 1;
@@ -204,14 +210,32 @@ struct Root {
     generated_label_counter: GenericCounter<GeneratedLabel>,
 }
 impl Root {
+    fn new() -> Self {
+        let mut node_counter = GenericCounter::new();
+        let generated_label_counter = GenericCounter::new();
+        let index = node_counter.next();
+        Root {
+            node_counter,
+            generated_label_counter,
+            tree: Rc::new(RefCell::new(SubTree {
+                index,
+                label: Label::Leaf(Rc::new(vec![])),
+                parent: Weak::default(),
+                digrams: vec![],
+                children: vec![]
+            }))
+        }
+    }
     fn new_leaf(&mut self, leaf: Vec<u8>) -> SharedCell<SubTree> {
-        Rc::new(RefCell::new(SubTree {
+        let result = Rc::new(RefCell::new(SubTree {
             index: self.node_counter.next(),
             label: Label::Leaf(Rc::new(leaf)),
             parent: Weak::default(),
             digrams: vec![],
             children: vec![],
-        }))
+        }));
+        self.tree = result.clone();
+        result
     }
     fn new_named_label(&mut self, name: &str, children: usize) -> Label {
         Label::Named {
@@ -250,6 +274,7 @@ impl Root {
             debug_assert!(child_borrow.parent.upgrade().is_none());
             child_borrow.parent = weak.clone();
         }
+        self.tree = parent.clone();
         parent
     }
 }
@@ -408,6 +433,11 @@ impl Ord for DigramInstances {
 const MINIMAL_NUMBER_OF_INSTANCE : usize = 1;
 
 impl Encoder {
+    pub fn new() -> Self {
+        Self {
+            root: Root::new(),
+        }
+    }
     fn compute_single_startup_digram(node: &Rc<RefCell<SubTree>>, label: &Label, position: usize, child: &SubTree, set: &mut HashMap<Digram, Rc<DigramInstances>>, removers: &mut Vec<(Weak<DigramInstances>, list::Remover<SharedCell<SubTree>>)>) {
         let digram = Digram {
             parent: label.clone(),
@@ -627,8 +657,10 @@ mod prio {
     }
     impl<T> Queue<T> {
         pub fn with_capacity(len: usize) -> Self {
+            let mut data = Vec::with_capacity(len + 1);
+            data.resize_default(len + 1);
             Queue {
-                data: Vec::with_capacity(len + 1),
+                data,
             }
         }
         pub fn insert(&mut self, data: T, priority: usize)  -> Remover<T> {
@@ -680,7 +712,9 @@ mod list {
     }
     impl<T> List<T> {
         pub fn new() -> Self {
-            unimplemented!()
+            List {
+                list: Rc::new(RefCell::new(ListImpl::new()))
+            }
         }
         pub fn len(&self) -> usize {
             self.list.borrow().len
@@ -728,6 +762,13 @@ mod list {
         tail: Option<Weak<RefCell<Link<T>>>>,
     }
     impl<T> ListImpl<T> {
+        fn new() -> Self {
+            Self {
+                len: 0,
+                head: None,
+                tail: None,
+            }
+        }
         fn push(&mut self, list: &List<T>, data: T) -> Remover<T> {
             match self.tail {
                 None => {
@@ -779,12 +820,12 @@ mod list {
                     match tl_borrow.prev.upgrade() {
                         None => {
                             // First (and only) element in the list
-                            debug_assert_eq!(self.len, 1);
+                            debug_assert_eq!(self.len, 0);
                             (None, result)
                         }
                         Some(prev) => {
                             // Not the first
-                            debug_assert!(self.len != 1);
+                            debug_assert!(self.len != 0);
                             prev.borrow_mut().next = None;
                             (Some(tl_borrow.prev.clone()), result)
                         }
