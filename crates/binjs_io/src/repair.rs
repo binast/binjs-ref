@@ -140,9 +140,6 @@ impl SubTree {
     fn len(&self) -> usize {
         self.children.len()
     }
-    fn into_shared(self) -> SharedTree {
-        Rc::new(RefCell::new(Some(self)))
-    }
     fn children(&self) -> impl Iterator<Item = &SharedCell<SubTree>> {
         self.children.iter()
     }
@@ -154,14 +151,14 @@ struct Root {
     generated_label_counter: GenericCounter<GeneratedLabel>,
 }
 impl Root {
-    fn new_leaf(&mut self, leaf: Vec<u8>) -> SubTree {
-        SubTree {
+    fn new_leaf(&mut self, leaf: Vec<u8>) -> SharedCell<SubTree> {
+        Rc::new(RefCell::new(SubTree {
             index: self.node_counter.next(),
             label: Label::Leaf(Rc::new(leaf)),
             parent: Weak::default(),
             digrams: vec![],
             children: vec![],
-        }
+        }))
     }
     fn new_named_label(&mut self, name: &str, children: usize) -> Label {
         Label::Named {
@@ -176,23 +173,40 @@ impl Root {
             children,
         }
     }
-    fn new_subtree(&mut self, label: Label, children: Vec<SharedCell<SubTree>>) -> SubTree {
-        unimplemented!()
+    fn new_subtree(&mut self, label: Label, children: Vec<SharedCell<SubTree>>) -> SharedCell<SubTree> {
+        debug_assert!{
+            children.iter()
+                .find(|child| {
+                    child.borrow()
+                        .digrams
+                        .len() != 0
+                })
+                .is_none(),
+            "We shouldn't be calling `new_subtree` once we have started filling the digrams."
+        }
+        let parent = Rc::new(RefCell::new(SubTree {
+            index: self.node_counter.next(),
+            label,
+            parent: Weak::default(),
+            digrams: vec![],
+            children: children
+        }));
+        let weak = Rc::downgrade(&parent);
+        for child in &parent.borrow().children {
+            let mut child_borrow = child.borrow_mut();
+            debug_assert!(child_borrow.parent.upgrade().is_none());
+            child_borrow.parent = weak.clone();
+        }
+        parent
     }
 }
 
-type SharedTree = SharedCell<Option<SubTree>>;
+type SharedTree = SharedCell<SubTree>;
 
 pub struct Encoder {
     node_counter: usize,
     generated_counter: usize,
     root: Root,
-}
-
-fn take(item: &SharedTree) -> SubTree {
-    let mut borrow = item.borrow_mut();
-    let child = borrow.take();
-    child.expect("Could not `take` shared tree, it was already taken")
 }
 
 impl Encoder {
@@ -213,12 +227,12 @@ impl TokenWriter for Encoder {
 
     fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
         let bytes = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
-        Ok(self.root.new_leaf(bytes).into_shared())
+        Ok(self.root.new_leaf(bytes))
     }
 
     fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
         let bytes = bytes::float::bytes_of_float(data).iter().cloned().collect();
-        Ok(self.root.new_leaf(bytes).into_shared())
+        Ok(self.root.new_leaf(bytes))
     }
 
     fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
@@ -237,7 +251,7 @@ impl TokenWriter for Encoder {
             None => buf.extend_from_slice(&EMPTY_STRING),
             Some(ref x) => buf.extend(x.bytes())
         }
-        Ok(self.root.new_leaf(buf).into_shared())
+        Ok(self.root.new_leaf(buf))
     }
 
     fn untagged_tuple(&mut self, _data: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
@@ -247,10 +261,9 @@ impl TokenWriter for Encoder {
     fn tagged_tuple(&mut self, tag: &str, items: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
         let label = self.root.new_named_label(tag, items.len());
         let children = items.iter()
-            .map(|(_, tree)| Rc::new(RefCell::new(take(tree))))
+            .map(|(_, tree)| tree.clone())
             .collect();
-        Ok(self.root.new_subtree(label, children)
-            .into_shared())
+        Ok(self.root.new_subtree(label, children))
     }
 
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
