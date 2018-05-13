@@ -864,41 +864,42 @@ mod list {
         pub fn remove(&mut self) -> usize {
             assert_eq!(self.removed, false);
             self.removed = true;
-            let list = self.list.upgrade()
-                .expect("Attempting to remove oneself from a list that doesn't exist anymore");
-            let mut borrow_list = list.borrow_mut();
-            if let Some(link) = self.link.upgrade() {
-                let mut borrow_link = link.borrow_mut();
-                match (borrow_link.prev.upgrade(), borrow_link.next.as_ref()) {
-                    (Some(prev), Some(next)) => {
-                        // Neither first nor last.
-                        prev.borrow_mut().next = borrow_link.next.clone();
-                        next.borrow_mut().prev = Rc::downgrade(&prev);
-                    }
-                    (None, None) => {
-                        // The only item in the list.
-                        assert_eq!(borrow_list.len, 1);
-                        borrow_list.head = None;
-                        borrow_list.tail = None;
-                    }
-                    (Some(prev), None) => {
-                        // Last item in the list, but not first.
-                        prev.borrow_mut().next = None;
-                        borrow_list.tail = Some(Rc::downgrade(&prev));
-                    }
-                    (None, Some(next)) => {
-                        // First item in the list, but not last.
-                        next.borrow_mut().prev = Weak::default();
-                        borrow_list.head = Some(next.clone());
-                    }
-                }
-                borrow_link.next = None;
-                borrow_list.len -= 1;
-                borrow_list.len
-            } else {
-                // The item may have been removed for other reasons already.
-                return 0;
+            let list = match self.list.upgrade() {
+                Some(list) => list,
+                None => return 0/* list may have been removed because it was too short*/,
+            };
+            let link = match self.link.upgrade() {
+                Some(link) => link,
+                None => return 0/* list may have been deprecated already*/,
             }
+            let mut borrow_list = list.borrow_mut();
+            let mut borrow_link = link.borrow_mut();
+            match (borrow_link.prev.upgrade(), borrow_link.next.as_ref()) {
+                (Some(prev), Some(next)) => {
+                    // Neither first nor last.
+                    prev.borrow_mut().next = borrow_link.next.clone();
+                    next.borrow_mut().prev = Rc::downgrade(&prev);
+                }
+                (None, None) => {
+                    // The only item in the list.
+                    assert_eq!(borrow_list.len, 1);
+                    borrow_list.head = None;
+                    borrow_list.tail = None;
+                }
+                (Some(prev), None) => {
+                    // Last item in the list, but not first.
+                    prev.borrow_mut().next = None;
+                    borrow_list.tail = Some(Rc::downgrade(&prev));
+                }
+                (None, Some(next)) => {
+                    // First item in the list, but not last.
+                    next.borrow_mut().prev = Weak::default();
+                    borrow_list.head = Some(next.clone());
+                }
+            }
+            borrow_link.next = None;
+            borrow_list.len -= 1;
+            borrow_list.len
         }
     }
 
