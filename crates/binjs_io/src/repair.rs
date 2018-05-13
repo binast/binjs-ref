@@ -7,11 +7,8 @@ use io::TokenWriter;
 
 use std;
 use std::cell::RefCell;
-use std::collections::{ BinaryHeap, HashMap, LinkedList };
+use std::collections::{ HashMap };
 use std::rc::{ Rc, Weak };
-
-use itertools::Itertools;
-use priority_queue::PriorityQueue;
 
 type SharedCell<T> = Rc<RefCell<T>>;
 
@@ -71,10 +68,8 @@ pub struct SubTree { // FIXME: Make it private, eventually.
     /// The parent. May be Weak::default() if this is the root.
     parent: Weak<RefCell<SubTree>>,
 
-    /// For each `i`, a pointer to the list of instances of digram `(label, i, children[i])`.
-    /// FIXME: In the future, we should try and make this a pointer that can be
-    /// used for O(1) removal from the list.
-    digrams: Vec<Rc<DigramInstances>>,
+    /// A mechanism to remove oneself from a list of subtrees.
+    digrams: Vec<(Weak<DigramInstances>, list::Remover<SharedCell<SubTree>>)>,
 }
 
 impl PartialEq for SubTree {
@@ -107,11 +102,6 @@ impl SubTree {
     }
     fn children(&self) -> impl Iterator<Item = &SharedCell<SubTree>> {
         self.children.iter()
-    }
-    fn replace(&mut self, label: Label, mut children: Vec<SharedCell<SubTree>>) {
-        // FIXME: Regenerate the unique index.
-        // FIXME: Replace the parent of `children`.
-        unimplemented!()
     }
 }
 
@@ -231,8 +221,6 @@ pub struct Digram { // FIXME: Should be private, really.
     child: Label,
 }
 
-type Digrams = HashMap<Digram, SharedCell<Vec<SharedCell<SubTree>>>>;
-
 /// Places where we can substitute a digram.
 // FIXME: We probably don't need that much sharing.
 #[derive(Debug)]
@@ -244,17 +232,13 @@ struct DigramInstances {
     ///
     /// Note that some of the instances may be invalid, if a previous substitution has
     /// conflicted with this digram.
-    instances: SharedCell<Vec<SharedCell<SubTree>>>,
+    instances: SharedCell<list::List<SharedCell<SubTree>>>,
 
-    /// The number of instances that are no longer valid.
-    /// FIXME: Ideally, we should remove directly from `instances`, but this would require
-    /// implementing a more sophisticated intrusive linked list mechanism, so this will
-    /// have to wait.
-    removed: RefCell<usize>,
+    remover: RefCell<Option<prio::Remover<Rc<DigramInstances>>>>,
 }
 impl DigramInstances {
     fn len(&self) -> usize {
-        self.instances.borrow().len() - *self.removed.borrow()
+        self.instances.borrow().len()
     }
 }
 impl PartialEq for DigramInstances {
@@ -279,27 +263,46 @@ impl Ord for DigramInstances {
     }
 }
 
-impl Encoder {
-    fn compute_startup_digrams(tree: &SharedCell<SubTree>) -> Digrams {
-        use std::borrow::BorrowMut;
-        let mut digrams = HashMap::new();
-        fn aux(node: &SharedCell<SubTree>, set: &mut Digrams) {
-            let parent_borrow = node.borrow();
-            let parent_label = parent_borrow.label.clone();
-            for (position, child) in parent_borrow.children().enumerate() {
-                let child_borrow = child.borrow();
-                let child_label = child_borrow.label.clone();
-                let digram = Digram {
-                    parent: parent_label.clone(),
-                    position,
-                    child: child_label.clone(),
-                };
+const MINIMAL_NUMBER_OF_INSTANCE : usize = 1;
 
-                // Walk in post-order. Note that we borrow `child` twice, both for reading.
-                aux(child, set);
-                // Now expand to parent.
-                let this_digram = set.entry(digram)
-                    .or_insert_with(|| Rc::new(RefCell::new(vec![node.clone()])));
+impl Encoder {
+    fn compute_single_startup_digram(node: &Rc<RefCell<SubTree>>, label: &Label, position: usize, child: &SubTree, set: &mut HashMap<Digram, Rc<DigramInstances>>, removers: &mut Vec<(Weak<DigramInstances>, list::Remover<SharedCell<SubTree>>)>) {
+        let digram = Digram {
+            parent: label.clone(),
+            position,
+            child: child.label.clone(),
+        };
+
+        // Now expand to parent.
+        let this_digram = set.entry(digram.clone())
+            .or_insert_with(|| Rc::new(DigramInstances {
+                digram: Rc::new(digram),
+                instances: Rc::new(RefCell::new(list::List::new())),
+                remover: RefCell::new(None)
+            }));
+        let remover = this_digram.instances
+            .as_ref()
+            .borrow_mut()
+            .push(node.clone());
+        let weak = Rc::downgrade(&this_digram);
+        removers.push((weak, remover));
+    }
+
+    fn compute_startup_digrams(tree: &SharedCell<SubTree>) -> HashMap<Digram, Rc<DigramInstances>> {
+        let mut digrams = HashMap::new();
+        fn aux(node: &SharedCell<SubTree>, set: &mut HashMap<Digram, Rc<DigramInstances>> ) {
+            let mut removers = vec![];
+            {
+                let node_borrow = node.borrow();
+                for (position, child) in node_borrow.children().enumerate() {
+                    // Walk in post-order.
+                    aux(child, set);
+                    Encoder::compute_single_startup_digram(node, &node_borrow.label, position, &*child.borrow(), set, &mut removers);
+                }
+            }
+            // Now re-borrow as mutable, to update subtree.
+            if removers.len() > 0 {
+                node.as_ref().borrow_mut().digrams = removers;
             }
         }
         aux(tree, &mut digrams);
@@ -311,33 +314,17 @@ impl Encoder {
 
         // We use a sorted vector rather than a binary heap, as we regularly need
         // to change the order.
-        let mut digrams_per_priority : PriorityQueue<_, _> = {
+        let mut digrams_per_priority : prio::Queue<_> = prio::Queue::new();
+        {
             let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
-            startup_digrams.into_iter()
-                .filter_map(|(digram, instances)| if instances.borrow().len() >= 2 {
-                    let digram = Rc::new(digram);
-                    Some((digram.clone(), DigramInstances {
-                        digram,
-                        instances,
-                        removed: RefCell::new(0)
-                    }))
-                } else {
-                    None
-                })
-                .collect()
-        };
-
-        // For each label, the list of digrams that may be affected if we substitute
-        // instances of this label.
-        let mut digrams_per_label : HashMap<Label, Vec<Rc<Digram>>> = HashMap::new();
-        for (digram, instances) in digrams_per_priority.iter() {
-            digrams_per_label.entry(digram.parent.clone())
-                .or_insert_with(|| vec![])
-                .push(digram.clone());
-            if digram.parent != digram.child {
-                digrams_per_label.entry(digram.child.clone())
-                    .or_insert_with(|| vec![])
-                    .push(digram.clone());
+            for (_, instances) in startup_digrams {
+                let len = instances.len();
+                if len <= MINIMAL_NUMBER_OF_INSTANCE {
+                    // Skip stuff that's too uncommon in the first place.
+                    continue;
+                }
+                let remover = digrams_per_priority.insert(instances.clone(), len);
+                *instances.remover.borrow_mut() = Some(remover);
             }
         }
 
@@ -345,34 +332,35 @@ impl Encoder {
         let mut replacements = HashMap::new();
 
         // Pick most frequent digram.
-        // FIXME: The original paper recommends a priority queue based on a list of
-        // all digrams with `i` occurrences, itself encoded as a doubly linked list that
-        // supports constant-time add/remove from the digram.
-        'per_digram: while let Some((_, DigramInstances { digram, instances, .. })) = digrams_per_priority.pop() {
+        'per_digram: while let Some(digram_instances) = digrams_per_priority.pop() {
             // Generate a new label `generated`.
-            let number_of_children = digram.parent.len() + digram.child.len() - 1;
+            let number_of_children = digram_instances.digram.parent.len() + digram_instances.digram.child.len() - 1;
             let generated = self.root.new_generated_label(number_of_children);
-            replacements.insert(generated.clone(), digram.clone());
+            replacements.insert(generated.clone(), digram_instances.digram.clone());
+
+            // A map to hold all the digrams we are creating.
+            let mut new_digrams = HashMap::new();
 
             // Replace instances of `digram` with `generated` all over the tree.
-            let mut borrow_instances = instances.borrow_mut();
-            'per_node: for mut instance in borrow_instances.iter_mut() {
+            let mut borrow_instances = digram_instances.instances.borrow_mut();
+            'per_node: for instance in borrow_instances.iter() {
                 let mut borrow_instance = instance.borrow_mut();
 
                 {
-                    if digram.parent != borrow_instance.label || borrow_instance.children[digram.position].borrow().label != digram.child {
+                    if digram_instances.digram.parent != borrow_instance.label
+                    || borrow_instance.children[digram_instances.digram.position].borrow().label != digram_instances.digram.child {
                         // The node has been rewritten, the digram doesn't apply anymore.
                         continue 'per_node;
                     }
                 }
 
-                let mut children = Vec::with_capacity(digram.parent.len() + digram.child.len() - 1);
+                let mut children = Vec::with_capacity(number_of_children);
 
                 std::mem::swap(&mut borrow_instance.children, &mut children);
                 let mut iter = children.into_iter();
 
                 // Keep the first `digram.position` children. // FIXME: A convenient LinkedList would be faster
-                for _ in 0 .. digram.position {
+                for _ in 0 .. digram_instances.digram.position {
                     borrow_instance.children.push(iter.next().unwrap());
                 }
 
@@ -380,11 +368,30 @@ impl Encoder {
                 let removed = iter.next().unwrap();
                 let mut borrow_removed = removed.borrow_mut();
 
+                let downgrade_conflict = |digrams_per_priority: &mut prio::Queue<_>, digram: &Weak<DigramInstances>, list_remover: &mut list::Remover<SharedCell<SubTree>>| {
+                    // Remove from the list of digrams.
+                    let len = list_remover.remove();
+                    // Update priority of `digram`, or remove it entirely.
+                    let digram_instance = digram.upgrade().unwrap();
+                    {
+                        digram_instance.remover
+                            .borrow_mut()
+                            .as_mut()
+                            .unwrap()
+                            .remove();
+                    }
+                    if len >= MINIMAL_NUMBER_OF_INSTANCE {
+                        let priority_remover = digrams_per_priority.insert(digram_instance.clone(), len);
+                        *digram_instance.remover
+                            .borrow_mut() = Some(priority_remover);
+                    }
+                };
+
+
                 // Since we're removing `removed`, it doesn't belong to any digram list anymore.
-                debug_assert_eq!(borrow_removed.label, digram.child);
-                for list in &borrow_removed.digrams {
-                    *list.removed.borrow_mut() != 1;
-                    // FIXME: Move it to another slot of the priority queue.
+                debug_assert_eq!(borrow_removed.label, digram_instances.digram.child);
+                for (digram, list_remover) in &mut borrow_removed.digrams {
+                    downgrade_conflict(&mut digrams_per_priority, digram, list_remover)
                 }
                 for child in &borrow_removed.children {
                     let mut borrow_child = child.borrow_mut();
@@ -394,58 +401,118 @@ impl Encoder {
                 // Then copy the remaining children.
                 borrow_instance.children.extend(iter);
 
-                debug_assert_eq!(borrow_instance.children.len(), digram.parent.len() + digram.child.len() - 1);
+                debug_assert_eq!(borrow_instance.children.len(), number_of_children);
 
                 // Finally, change the label.
                 borrow_instance.label = generated.clone();
 
-                // Since we're changing the label of the instance, any digram list to which it
-                // belongs is now invalid.
-                for list in &borrow_instance.digrams {
-                    *list.removed.borrow_mut() != 1;
-                    // FIXME: Move it to another slot of the priority queue.
-                }
-            }
+                // We still need to update priorities.
 
-            // FIXME: Update list of most frequent digrams.
-            // FIXME:
-            // - generate new digrams that have `generated` as parent
-            //     can be done in the above loop (N instances)
-            // - generate new digrams that have `generated` as child
-            //     in the above loop, inspect the parent (1 instance)
-            // FIXME: Then sort again
+                // Since we're changing the label of the instance, any digram list to which it
+                // belongs is now invalid, so downgrade appropriately.
+                for (digram, list_remover) in &mut borrow_instance.digrams {
+                    downgrade_conflict(&mut digrams_per_priority, digram, list_remover)
+                }
+
+                // Also, we have **replaced** all the possibilities for digrams in this node.
+                {
+                    let mut removers = Vec::with_capacity(number_of_children);
+                    for (position, child) in borrow_instance.children.iter().enumerate() {
+                        Self::compute_single_startup_digram(instance, &generated, position, &*child.borrow(), &mut new_digrams, &mut removers);
+                    }
+                    borrow_instance.digrams = removers;
+                }
+
+                // FIXME: We have **replaced** one new possible digram in the parent node.
+
+                // FIXME: Inject `new_digrams` in `digrams_per_priority`.
+            }
         }
 
 
         // FIXME: 2. Pruning phase.
         // FIXME: Eliminate productions that increase final size.
     }
-
 }
 
+/// A priority queue designed as a vector of linked lists with the
+/// ability to quickly reslot an item.
+mod prio {
+    use std;
+
+    #[derive(Debug)]
+    pub struct Queue<T> {
+        placeholder: Vec<T>,
+    }
+    impl<T> Queue<T> {
+        pub fn new() -> Self {
+            unimplemented!()
+        }
+        pub fn insert(&mut self, _: T, _priority: usize)  -> Remover<T> {
+            unimplemented!()
+        }
+        pub fn pop(&mut self) -> Option<T> {
+            unimplemented!()
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct Remover<T>(std::marker::PhantomData<T>);
+    impl<T> Remover<T> {
+        pub fn remove(&mut self) {
+            unimplemented!()
+        }
+    }
+}
+
+/// A variant on linked lists, with the ability to
+/// remove from the middle in O(1).
 mod list {
     use std::cell::RefCell;
     use std::rc::{ Rc, Weak };
 
-    struct List<T> {
+    #[derive(Debug)]
+    pub struct List<T> {
         list: Rc<RefCell<ListImpl<T>>>,
+        placeholder: Vec<T>,
     }
+    impl<T> List<T> {
+        pub fn new() -> Self {
+            unimplemented!()
+        }
+        pub fn len(&self) -> usize {
+            unimplemented!()
+        }
+        pub fn push(&mut self, _: T) -> Remover<T> {
+            unimplemented!()
+        }
+        pub fn iter(&self) -> impl Iterator<Item = &T> {
+            self.placeholder.iter()
+        }
+    }
+    #[derive(Debug)]
     struct ListImpl<T> {
         len: usize,
         head: Option<Link<T>>,
         tail: Option<Link<T>>,
     }
-
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
+    pub struct Remover<T> {
+        list: Weak<RefCell<ListImpl<T>>>,
+    }
+    impl<T> Remover<T> {
+        /// Remove oneself from the list, returning the new list length.
+        pub fn remove(&mut self) -> usize {
+            unimplemented!()
+        }
+    }
+    #[derive(Clone, Debug)]
     struct Link<T> {
         link: Rc<RefCell<LinkImpl<T>>>,
     }
     impl<T> Link<T> {
-        /// Remove oneself from the list of
-        fn remove(&mut self) {
-            unimplemented!()
-        }
     }
+    #[derive(Clone, Debug)]
     struct LinkImpl<T> {
         list: Weak<RefCell<ListImpl<T>>>,
     }
