@@ -514,7 +514,7 @@ impl Encoder {
             let mut actual_instances_encountered = 0;
 
             debug!(target: "repair", "Considering digram {:?}", digram_instances.digram);
-
+            debug!(target: "repair", "This digram should have {} instances", borrow_instances.len());
             // Generate a new label `generated`.
             let number_of_children = digram_instances.digram.parent.len() + digram_instances.digram.child.len() - 1;
             let generated = self.root.new_generated_label(number_of_children, digram_instances.digram.clone());
@@ -525,7 +525,6 @@ impl Encoder {
             // Replace instances of `digram` with `generated` all over the tree.
             let mut borrow_instances = digram_instances.instances.borrow_mut();
             'per_node: for instance in borrow_instances.iter() {
-                debug!(target: "repair", "This node should have {} instances", borrow_instances.len());
                 let mut borrow_instance = instance.borrow_mut();
 
                 {
