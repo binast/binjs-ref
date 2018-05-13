@@ -312,12 +312,8 @@ impl Encoder {
     fn proceed_with_tree_repair(&mut self) {
         // Replacement phase.
 
-        // We use a sorted vector rather than a binary heap, as we regularly need
-        // to change the order.
-        let mut digrams_per_priority : prio::Queue<_> = prio::Queue::new();
-        {
-            let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
-            for (_, instances) in startup_digrams {
+        let insert_new_digrams = |digrams_per_priority: &mut prio::Queue<_>, digrams: HashMap<Digram, Rc<DigramInstances>>| {
+            for (_, instances) in digrams {
                 let len = instances.len();
                 if len <= MINIMAL_NUMBER_OF_INSTANCE {
                     // Skip stuff that's too uncommon in the first place.
@@ -326,6 +322,13 @@ impl Encoder {
                 let remover = digrams_per_priority.insert(instances.clone(), len);
                 *instances.remover.borrow_mut() = Some(remover);
             }
+        };
+
+        // Compute the initial set of digrams.
+        let mut digrams_per_priority : prio::Queue<_> = prio::Queue::new();
+        {
+            let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
+            insert_new_digrams(&mut digrams_per_priority, startup_digrams)
         }
 
         // Generated symbol => digram.
@@ -424,9 +427,10 @@ impl Encoder {
                 }
 
                 // FIXME: We have **replaced** one new possible digram in the parent node.
-
-                // FIXME: Inject `new_digrams` in `digrams_per_priority`.
             }
+
+            // We can now insert all these new digrams in the priority queue.
+            insert_new_digrams(&mut digrams_per_priority, new_digrams);
         }
 
 
