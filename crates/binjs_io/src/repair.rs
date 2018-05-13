@@ -44,12 +44,23 @@ pub enum Label {
 }
 
 impl Label {
+    /// Return the number of children of a label.
     fn len(&self) -> usize {
         use self::Label::*;
         match *self {
             Leaf(_) => 0,
             Named { ref children, .. }
             | Generated { ref children, .. } => *children
+        }
+    }
+
+    /// Return an approximation of the number of bytes taken by an instance of a label.
+    fn byte_len(&self) -> usize {
+        use self::Label::*;
+        match *self {
+            Leaf(ref buf) => buf.len(),
+            Named { ref label, .. } => label.len(),
+            Generated { .. } => 4 /* FIXME: let's say it takes 32 bits */
         }
     }
 }
@@ -69,6 +80,7 @@ pub struct SubTree { // FIXME: Make it private, eventually.
     parent: Weak<RefCell<SubTree>>,
 
     /// A mechanism to remove oneself from a list of subtrees.
+    /// Index `i` corresponds to the digram `(label, i, children[i].label)`.
     digrams: Vec<(Weak<DigramInstances>, list::Remover<SharedCell<SubTree>>)>,
 }
 
@@ -426,7 +438,28 @@ impl Encoder {
                     borrow_instance.digrams = removers;
                 }
 
-                // FIXME: We have **replaced** one new possible digram in the parent node.
+                // We have **replaced** one new possible digram in the parent node.
+                if let Some(parent) = borrow_instance.parent.upgrade() {
+                    // May be `None` if we are the root node.
+                    let mut parent_borrow = parent.borrow_mut();
+                    let index = parent_borrow.children
+                        .iter()
+                        .position(|child| {
+                            Rc::ptr_eq(child, instance)
+                        })
+                        .expect("Could not find child in parent");
+
+                    // Remove old digram.
+                    {
+                        let (ref digram, ref mut list_remover) = parent_borrow.digrams[index];
+                        downgrade_conflict(&mut digrams_per_priority, digram, list_remover);
+                    }
+
+                    // Add new digram.
+                    let mut remover = Vec::with_capacity(1);
+                    Self::compute_single_startup_digram(&parent, &parent_borrow.label, index, &*borrow_instance, &mut new_digrams, &mut remover);
+                    parent_borrow.digrams[index] = remover.pop().unwrap();
+                }
             }
 
             // We can now insert all these new digrams in the priority queue.
