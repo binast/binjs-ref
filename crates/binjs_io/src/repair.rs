@@ -474,7 +474,7 @@ impl Encoder {
                 }
                 for child in &borrow_removed.children {
                     let mut borrow_child = child.borrow_mut();
-                    borrow_child.parent = Rc::downgrade(instance);
+                    borrow_child.parent = Rc::downgrade(&instance);
                 }
 
                 // Then copy the remaining children.
@@ -497,7 +497,7 @@ impl Encoder {
                 {
                     let mut removers = Vec::with_capacity(number_of_children);
                     for (position, child) in borrow_instance.children.iter().enumerate() {
-                        Self::compute_single_startup_digram(instance, &generated, position, &*child.borrow(), &mut new_digrams, &mut removers);
+                        Self::compute_single_startup_digram(&instance, &generated, position, &*child.borrow(), &mut new_digrams, &mut removers);
                     }
                     borrow_instance.digrams = removers;
                 }
@@ -509,7 +509,7 @@ impl Encoder {
                     let index = parent_borrow.children
                         .iter()
                         .position(|child| {
-                            Rc::ptr_eq(child, instance)
+                            Rc::ptr_eq(child, &instance)
                         })
                         .expect("Could not find child in parent");
 
@@ -592,13 +592,14 @@ mod prio {
 /// A variant on linked lists, with the ability to
 /// remove from the middle in O(1).
 mod list {
+    use itertools;
+
     use std::cell::RefCell;
     use std::rc::{ Rc, Weak };
 
     #[derive(Debug)]
     pub struct List<T> {
         list: Rc<RefCell<ListImpl<T>>>,
-        placeholder: Vec<T>,
     }
     impl<T> List<T> {
         pub fn new() -> Self {
@@ -616,8 +617,25 @@ mod list {
             let mut borrow = self.list.borrow_mut();
             borrow.pop()
         }
-        pub fn iter(&self) -> impl Iterator<Item = &T> {
-            self.placeholder.iter()
+    }
+
+    impl<U> List<Rc<U>> {
+        pub fn iter(&self) -> impl Iterator<Item = Rc<U>> {
+            let borrow = self.list.borrow();
+            let mut cursor = borrow.head.clone();
+            let mut iter = itertools::unfold((), move |_| {
+                let (next, result) = match cursor {
+                    None => return None,
+                    Some(ref next) => {
+                        let borrow = next.borrow();
+                        let result = borrow.data.clone().unwrap();
+                        (borrow.next.clone(), result)
+                    }
+                };
+                cursor = next;
+                Some(result)
+            });
+            iter
         }
     }
     impl<T> Default for List<T> {
@@ -625,7 +643,35 @@ mod list {
             Self::new()
         }
     }
-
+/*
+    use std;
+    pub struct Iter<'a, T> where T: 'a {
+        cursor: Option<std::cell::Ref<'a, Link<T>>>,
+        phantom: std::marker::PhantomData<&'a ()>
+    }
+    impl<'a, T> Iter<'a, T> {
+        fn new(start: Option<std::cell::Ref<'a, Link<T>>>) -> Self {
+            Self {
+                cursor: start,
+                phantom: std::marker::PhantomData,
+            }
+        }
+    }
+    impl<'a, T> Iterator for Iter<'a, T> {
+        type Item = &'a T;
+        fn next(&mut self) -> Option<&'a T> {
+            let cursor = self.cursor.take();
+            match cursor {
+                None => None,
+                Some(link) => {
+                    let result = link.data.as_ref();
+                    self.cursor = unimplemented!();
+                    result
+                }
+            }
+        }
+    }
+*/
     #[derive(Debug)]
     struct ListImpl<T> {
         len: usize,
@@ -642,7 +688,7 @@ mod list {
                     self.tail = Some(Rc::downgrade(&link));
                     self.head = Some(link.clone());
                     self.len = 1;
-                    return unimplemented!()
+                    return Remover::new(Rc::downgrade(&list.list), Rc::downgrade(&link));
                 }
                 Some(ref mut tl) => {
                     debug_assert!(self.len != 0);
@@ -656,18 +702,18 @@ mod list {
                         .clone();
                     *tl = Rc::downgrade(&link);
                     self.len += 1;
-                    tail_borrow.next = Some(link);
-                    unimplemented!()
+                    tail_borrow.next = Some(link.clone());
+                    return Remover::new(Rc::downgrade(&list.list), Rc::downgrade(&link));
                 }
             }
         }
 
         fn pop(&mut self) -> Option<T> {
-            match self.tail {
+            let (tail, result) = match self.tail {
                 None => {
                     debug_assert_eq!(self.len, 0);
                     debug_assert!(self.head.is_none());
-                    None
+                    return None
                 }
                 Some(ref tl) => {
                     debug_assert!(self.len != 0);
@@ -676,11 +722,31 @@ mod list {
                         .unwrap(); // The tail MUST be upgradable.
                     let mut tl_borrow = tl
                         .borrow_mut();
-                    let result = Some(tl_borrow.remove());
+                    debug_assert!(tl_borrow.next.is_none());
                     self.len -= 1;
-                    result
+
+                    let result = tl_borrow.data.take()
+                        .unwrap(); // We only steal this data once during the lifetime of the tail.
+                    match tl_borrow.prev.upgrade() {
+                        None => {
+                            // First (and only) element in the list
+                            debug_assert_eq!(self.len, 1);
+                            (None, result)
+                        }
+                        Some(prev) => {
+                            // Not the first
+                            debug_assert!(self.len != 1);
+                            prev.borrow_mut().next = None;
+                            (Some(tl_borrow.prev.clone()), result)
+                        }
+                    }
                 }
+            };
+            self.tail = tail;
+            if self.len == 0 {
+                self.head = None;
             }
+            Some(result)
         }
     }
 
@@ -741,30 +807,17 @@ mod list {
 
     #[derive(Debug)]
     struct Link<T> {
-        data: T,
+        data: Option<T>, // We make this an `Option` to allow stealing in `pop`
         next: Option<Rc<RefCell<Link<T>>>>,
         prev: Weak<RefCell<Link<T>>>,
     }
     impl<T> Link<T> {
         fn new(data: T) -> Self {
             Link {
-                data,
+                data: Some(data),
                 next: None,
                 prev: Weak::default(),
             }
-        }
-
-        pub fn remove(&self) -> T {
-            unimplemented!()
-        }
-    }
-    #[derive(Clone, Debug)]
-    struct LinkImpl<T> {
-        list: Weak<RefCell<ListImpl<T>>>,
-    }
-    impl<T> LinkImpl<T> {
-        pub fn remove(&mut self) -> T {
-            unimplemented!()
         }
     }
 }
