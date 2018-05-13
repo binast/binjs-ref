@@ -4,6 +4,7 @@ extern crate itertools;
 extern crate lzw;
 #[macro_use]
 extern crate log;
+extern crate priority_queue;
 extern crate rand;
 extern crate vec_map;
 
