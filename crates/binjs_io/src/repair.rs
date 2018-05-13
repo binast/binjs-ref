@@ -271,6 +271,7 @@ impl TokenWriter for Encoder {
     }
 
     fn offset(&mut self) -> Result<Self::Tree, Self::Error> {
+        // FIXME: We'll want to build a forest and put skippable stuff after the rest.
         unimplemented!()
     }
 
@@ -394,11 +395,16 @@ impl Encoder {
         };
 
         // Compute the initial set of digrams.
-        let mut digrams_per_priority : prio::Queue<_> = prio::Queue::new();
-        {
+        let mut digrams_per_priority = {
             let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
-            insert_new_digrams(&mut digrams_per_priority, startup_digrams)
-        }
+            let highest_priority = startup_digrams.values()
+                .map(|instances| instances.as_ref().instances.borrow().len())
+                .max()
+                .expect("No digrams found!");
+            let mut digrams_per_priority = prio::Queue::with_capacity(highest_priority);
+            insert_new_digrams(&mut digrams_per_priority, startup_digrams);
+            digrams_per_priority
+        };
 
         // Generated symbol => digram.
         let mut replacements = HashMap::new();
@@ -531,28 +537,48 @@ impl Encoder {
 
 /// A priority queue designed as a vector of linked lists with the
 /// ability to quickly reslot an item.
+///
+/// By design, the number of slots can never grow.
 mod prio {
+    use repair::list;
+
     use std;
 
     #[derive(Debug)]
     pub struct Queue<T> {
-        placeholder: Vec<T>,
+        data: Vec<list::List<T>>,
     }
     impl<T> Queue<T> {
-        pub fn new() -> Self {
-            unimplemented!()
+        pub fn with_capacity(len: usize) -> Self {
+            Queue {
+                data: Vec::with_capacity(len + 1),
+            }
         }
-        pub fn insert(&mut self, _: T, _priority: usize)  -> Remover<T> {
-            unimplemented!()
+        pub fn insert(&mut self, data: T, priority: usize)  -> Remover<T> {
+            assert!(priority < self.data.len());
+            let list_remover = self.data[priority].push(data);
+            Remover::new(list_remover)
         }
         pub fn pop(&mut self) -> Option<T> {
-            unimplemented!()
+            loop {
+                if let Some(ref mut list) = self.data.last_mut() {
+                    if let Some(result) = list.pop() {
+                        return Some(result)
+                    }
+                }
+                if self.data.pop().is_none() {
+                    return None;
+                }
+            }
         }
     }
 
     #[derive(Debug)]
     pub struct Remover<T>(std::marker::PhantomData<T>);
     impl<T> Remover<T> {
+        fn new(_: list::Remover<T>) -> Self {
+            unimplemented!()
+        }
         pub fn remove(&mut self) {
             unimplemented!()
         }
@@ -580,8 +606,16 @@ mod list {
         pub fn push(&mut self, _: T) -> Remover<T> {
             unimplemented!()
         }
+        pub fn pop(&mut self) -> Option<T> {
+            unimplemented!()
+        }
         pub fn iter(&self) -> impl Iterator<Item = &T> {
             self.placeholder.iter()
+        }
+    }
+    impl<T> Default for List<T> {
+        fn default() -> Self {
+            Self::new()
         }
     }
     #[derive(Debug)]

@@ -1,3 +1,6 @@
+#![feature(vec_resize_default)]
+
+
 extern crate brotli;
 extern crate flate2;
 extern crate itertools;
