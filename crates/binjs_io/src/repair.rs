@@ -8,7 +8,10 @@ use io::TokenWriter;
 use std;
 use std::cell::RefCell;
 use std::collections::{ HashMap };
+use std::io::Write;
 use std::rc::{ Rc, Weak };
+
+use itertools::Itertools;
 
 type SharedCell<T> = Rc<RefCell<T>>;
 
@@ -94,6 +97,33 @@ impl Label {
             Generated { .. } => 4 /* FIXME: let's say it takes 32 bits */
         }
     }
+
+    fn serialize<W: Write>(&self, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, out: &mut W) {
+        use self::Label::*;
+
+        let (varnum, seen) = labels.get(self).unwrap();
+        // No matter what, write our varnum.
+        out.write_all(varnum).unwrap();
+        // If this is the first time we see the header, write our definition.
+        let mut borrow_seen = seen.borrow_mut();
+        if *borrow_seen {
+            // We're done here.
+            return;
+        }
+        *borrow_seen = true;
+        match *self {
+            Leaf(ref buf) => out.write_all(&buf).unwrap(),
+            Named { ref label, ..} => out.write_all(label.as_bytes()).unwrap(),
+            Generated { ref digram, .. } => {
+                use bytes::varnum::WriteVarNum;
+                // The definition of a digram requires writing its labels, possibly for the first time,
+                // which may in turn contain digrams, etc.
+                digram.parent.serialize(labels, out);
+                out.write_varnum(digram.position as u32).unwrap();
+                digram.child.serialize(labels, out);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -137,11 +167,34 @@ impl std::hash::Hash for SubTree {
     }
 }
 impl SubTree {
-    fn len(&self) -> usize {
-        self.children.len()
-    }
     fn children(&self) -> impl Iterator<Item = &SharedCell<SubTree>> {
         self.children.iter()
+    }
+    fn collect_labels(&self) -> HashMap<Label, usize> {
+        fn aux(tree: &SubTree, labels: &mut HashMap<Label, usize>) {
+            {
+                let entry = labels.entry(tree.label.clone())
+                    .or_insert(0);
+                *entry += 1;
+            }
+            for child in &tree.children {
+                aux(&*child.borrow(), labels);
+            }
+        }
+        let mut map = HashMap::new();
+        aux(self, &mut map);
+        map
+    }
+    fn serialize<W: Write>(&self, substitutions: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, out: &mut W) {
+        fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, out: &mut W) {
+            // Write header.
+            tree.label.serialize(labels, out);
+            // Then write children in the order.
+            for child in &tree.children {
+                aux(&*child.borrow(), labels, out)
+            }
+        }
+        aux(self, substitutions, out)
     }
 }
 
@@ -204,8 +257,6 @@ impl Root {
 type SharedTree = SharedCell<SubTree>;
 
 pub struct Encoder {
-    node_counter: usize,
-    generated_counter: usize,
     root: Root,
 }
 
@@ -275,8 +326,29 @@ impl TokenWriter for Encoder {
         unimplemented!()
     }
 
-    fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
-        unimplemented!()
+    fn done(mut self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
+        // Rewrite tree with digrams.
+        self.proceed_with_tree_repair();
+        // Collect statistics on most commonly labels.
+        let statistics = self.root.tree.borrow()
+            .collect_labels()
+            .into_iter()
+            .sorted_by(|a, b| Ord::cmp(&a.1, &b.1));
+        let number_of_labels = statistics.len();
+        // FIXME We could eliminate lookup by making this part of the label itself.
+        let label_representation : HashMap<_, _> = statistics.into_iter()
+            .map(|(label, instances)| {
+                use bytes::varnum::WriteVarNum;
+                // Compute varnum index.
+                let mut encoded_length = vec![];
+                encoded_length.write_varnum((number_of_labels - instances) as u32).unwrap();
+
+                (label, (encoded_length, /* encountered */ RefCell::new(false)))
+            })
+            .collect();
+        let mut buf = vec![];
+        self.root.tree.borrow().serialize(&label_representation, &mut buf);
+        Ok((buf, 0))
     }
 }
 
@@ -406,17 +478,15 @@ impl Encoder {
             digrams_per_priority
         };
 
-        // Generated symbol => digram.
-        let mut replacements = HashMap::new();
-
         // Pick most frequent digram.
         'per_digram: while let Some(digram_instances) = digrams_per_priority.pop() {
+            let mut actual_instances_encountered = 0;
+
             // Generate a new label `generated`.
             let number_of_children = digram_instances.digram.parent.len() + digram_instances.digram.child.len() - 1;
             let generated = self.root.new_generated_label(number_of_children, digram_instances.digram.clone());
-            replacements.insert(generated.clone(), digram_instances.digram.clone());
 
-            // A map to hold all the digrams we are creating.
+            // A map to hold all the digrams we are creating during the substitution.
             let mut new_digrams = HashMap::new();
 
             // Replace instances of `digram` with `generated` all over the tree.
@@ -431,6 +501,8 @@ impl Encoder {
                         continue 'per_node;
                     }
                 }
+
+                actual_instances_encountered += 1;
 
                 let mut children = Vec::with_capacity(number_of_children);
 
@@ -526,6 +598,11 @@ impl Encoder {
                 }
             }
 
+            debug!(target: "repair", "Replaced {instances} instances of digram, for a total of {} bytes saved",
+                total = actual_instances_encountered * (digram_instances.digram.parent.byte_len() + digram_instances.digram.child.byte_len() - generated.byte_len())
+                        - (digram_instances.digram.parent.byte_len() + digram_instances.digram.child.byte_len() + 4),
+                instances = actual_instances_encountered);
+
             // We can now insert all these new digrams in the priority queue.
             insert_new_digrams(&mut digrams_per_priority, new_digrams);
         }
@@ -533,7 +610,7 @@ impl Encoder {
 
         // FIXME: 2. Pruning phase.
         // FIXME: Eliminate productions that increase final size.
-        unimplemented!("Pruning phase")
+        debug!(target: "repair", "Skipping unimplemented pruning phase");
     }
 }
 
@@ -623,7 +700,7 @@ mod list {
         pub fn iter(&self) -> impl Iterator<Item = Rc<U>> {
             let borrow = self.list.borrow();
             let mut cursor = borrow.head.clone();
-            let mut iter = itertools::unfold((), move |_| {
+            itertools::unfold((), move |_| {
                 let (next, result) = match cursor {
                     None => return None,
                     Some(ref next) => {
@@ -634,8 +711,7 @@ mod list {
                 };
                 cursor = next;
                 Some(result)
-            });
-            iter
+            })
         }
     }
     impl<T> Default for List<T> {
@@ -643,35 +719,8 @@ mod list {
             Self::new()
         }
     }
-/*
-    use std;
-    pub struct Iter<'a, T> where T: 'a {
-        cursor: Option<std::cell::Ref<'a, Link<T>>>,
-        phantom: std::marker::PhantomData<&'a ()>
-    }
-    impl<'a, T> Iter<'a, T> {
-        fn new(start: Option<std::cell::Ref<'a, Link<T>>>) -> Self {
-            Self {
-                cursor: start,
-                phantom: std::marker::PhantomData,
-            }
-        }
-    }
-    impl<'a, T> Iterator for Iter<'a, T> {
-        type Item = &'a T;
-        fn next(&mut self) -> Option<&'a T> {
-            let cursor = self.cursor.take();
-            match cursor {
-                None => None,
-                Some(link) => {
-                    let result = link.data.as_ref();
-                    self.cursor = unimplemented!();
-                    result
-                }
-            }
-        }
-    }
-*/
+
+
     #[derive(Debug)]
     struct ListImpl<T> {
         len: usize,
