@@ -552,6 +552,9 @@ impl Encoder {
                 let downgrade_conflict = |digrams_per_priority: &mut prio::Queue<_>, digram: &Weak<DigramInstances>, list_remover: &mut list::Remover<SharedCell<SubTree>>| {
                     // Remove from the list of digrams.
                     let len = list_remover.remove();
+                    eprintln!("Adjusting priority: {:?} => {:?}",
+                        digram.upgrade().unwrap().digram,
+                        len);
                     // Update priority of `digram`, or remove it entirely.
                     let digram_instance = digram.upgrade().unwrap();
                     {
@@ -577,6 +580,7 @@ impl Encoder {
                 for child in &borrow_removed.children {
                     let mut borrow_child = child.borrow_mut();
                     borrow_child.parent = Rc::downgrade(&instance);
+                    borrow_instance.children.push(child.clone());
                 }
 
                 // Then copy the remaining children.
@@ -863,35 +867,38 @@ mod list {
             let list = self.list.upgrade()
                 .expect("Attempting to remove oneself from a list that doesn't exist anymore");
             let mut borrow_list = list.borrow_mut();
-            let link = self.link.upgrade()
-                .expect("Attempting to remove from a list an item that doesn't exist anymore");
-            let mut borrow_link = link.borrow_mut();
-            match (borrow_link.prev.upgrade(), borrow_link.next.as_ref()) {
-                (Some(prev), Some(next)) => {
-                    // Neither first nor last.
-                    prev.borrow_mut().next = borrow_link.next.clone();
-                    next.borrow_mut().prev = Rc::downgrade(&prev);
+            if let Some(link) = self.link.upgrade() {
+                let mut borrow_link = link.borrow_mut();
+                match (borrow_link.prev.upgrade(), borrow_link.next.as_ref()) {
+                    (Some(prev), Some(next)) => {
+                        // Neither first nor last.
+                        prev.borrow_mut().next = borrow_link.next.clone();
+                        next.borrow_mut().prev = Rc::downgrade(&prev);
+                    }
+                    (None, None) => {
+                        // The only item in the list.
+                        assert_eq!(borrow_list.len, 1);
+                        borrow_list.head = None;
+                        borrow_list.tail = None;
+                    }
+                    (Some(prev), None) => {
+                        // Last item in the list, but not first.
+                        prev.borrow_mut().next = None;
+                        borrow_list.tail = Some(Rc::downgrade(&prev));
+                    }
+                    (None, Some(next)) => {
+                        // First item in the list, but not last.
+                        next.borrow_mut().prev = Weak::default();
+                        borrow_list.head = Some(next.clone());
+                    }
                 }
-                (None, None) => {
-                    // The only item in the list.
-                    assert_eq!(borrow_list.len, 1);
-                    borrow_list.head = None;
-                    borrow_list.tail = None;
-                }
-                (Some(prev), None) => {
-                    // Last item in the list, but not first.
-                    prev.borrow_mut().next = None;
-                    borrow_list.tail = Some(Rc::downgrade(&prev));
-                }
-                (None, Some(next)) => {
-                    // First item in the list, but not last.
-                    next.borrow_mut().prev = Weak::default();
-                    borrow_list.head = Some(next.clone());
-                }
+                borrow_link.next = None;
+                borrow_list.len -= 1;
+                borrow_list.len
+            } else {
+                // The item may have been removed for other reasons already.
+                return 0;
             }
-            borrow_link.next = None;
-            borrow_list.len -= 1;
-            borrow_list.len
         }
     }
 
