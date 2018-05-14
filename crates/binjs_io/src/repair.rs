@@ -87,6 +87,9 @@ pub enum Label {
         digram: Rc<Digram>,
         children: usize,
     },
+    List {
+        len: usize
+    },
     Leaf(Rc<Vec<u8>>)
 }
 
@@ -97,7 +100,8 @@ impl Label {
         match *self {
             Leaf(_) => 0,
             Named { ref children, .. }
-            | Generated { ref children, .. } => *children
+            | Generated { ref children, .. } => *children,
+            List { ref len, .. } => *len
         }
     }
 
@@ -107,7 +111,8 @@ impl Label {
         match *self {
             Leaf(ref buf) => buf.len(),
             Named { ref label, .. } => label.len(),
-            Generated { .. } => 4 /* FIXME: let's say it takes 32 bits */
+            Generated { .. } => 4, /* FIXME: let's say it takes 32 bits */
+            List { .. } => 4
         }
     }
 
@@ -123,7 +128,7 @@ impl Label {
         }
     }
 
-    fn serialize<W: Write>(&self, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, out: &mut W) {
+    fn serialize<W: Write>(&self, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
         use self::Label::*;
 
         let (varnum, seen) = labels.get(self)
@@ -138,15 +143,22 @@ impl Label {
         }
         *borrow_seen = true;
         match *self {
-            Leaf(ref buf) => out.write_all(&buf).unwrap(),
-            Named { ref label, ..} => out.write_all(label.as_bytes()).unwrap(),
+            Leaf(ref buf) => {
+                *headers += buf.len();
+                out.write_all(&buf).unwrap()
+            },
+            Named { ref label, ..} => {
+                *headers += label.as_bytes().len();
+                out.write_all(label.as_bytes()).unwrap()
+            },
+            List { .. } => { /* Nothing else to write */ }
             Generated { ref digram, .. } => {
                 use bytes::varnum::WriteVarNum;
                 // The definition of a digram requires writing its labels, possibly for the first time,
                 // which may in turn contain digrams, etc.
-                digram.parent.serialize(labels, out);
-                out.write_varnum(digram.position as u32).unwrap();
-                digram.child.serialize(labels, out);
+                digram.parent.serialize(labels, headers, out);
+                *headers += out.write_varnum(digram.position as u32).unwrap();
+                digram.child.serialize(labels, headers, out);
             }
         }
     }
@@ -268,15 +280,17 @@ impl SubTree {
         map
     }
     fn serialize<W: Write>(&self, substitutions: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, out: &mut W) {
-        fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, out: &mut W) {
+        let mut headers = 0;
+        fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
             // Write header.
-            tree.label.serialize(labels, out);
+            tree.label.serialize(labels, headers, out);
             // Then write children in the order.
             for child in &tree.children {
-                aux(&*child.borrow(), labels, out)
+                aux(&*child.borrow(), labels, headers, out)
             }
         }
-        aux(self, substitutions, out)
+        aux(self, substitutions, &mut headers, out);
+        debug!(target: "repair", "Total size spent writing headers: {}", headers);
     }
 }
 
@@ -363,16 +377,6 @@ pub struct Encoder {
     pending_digrams: HashMap<Digram, Rc<DigramInstances>>,
 }
 
-impl Encoder {
-    /// Convert a list into a binary representation.
-    fn list_aux(&mut self, items: &[SharedTree]) -> Result<SharedTree, TokenWriterError> {
-        if items.len() == 0 {
-            return self.tagged_tuple("_Nil", &[])
-        }
-        let children = [("hd" /* ignored*/, items[0].clone()), ("tl", /*ignored */ self.list_aux(&items[1..])?) ];
-        self.tagged_tuple("_Cons", &children)
-    }
-}
 impl TokenWriter for Encoder {
     type Error = TokenWriterError;
     type Statistics = u32; // Ignored for the time being.
@@ -421,7 +425,20 @@ impl TokenWriter for Encoder {
     }
 
     fn list(&mut self, items: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
-        self.list_aux(&items)
+        use bytes::varnum::WriteVarNum;
+        let label = Label::List { len: items.len() + 1 };
+        let mut children = Vec::with_capacity(items.len() + 1);
+
+        let mut buf = Vec::new();
+        buf.write_varnum(items.len() as u32).unwrap();
+
+        children.push(self.root.new_leaf(buf));
+
+        for item in items.into_iter() {
+            children.push(item);
+        }
+
+        Ok(self.root.new_subtree(label, children))
     }
 
     fn offset(&mut self) -> Result<Self::Tree, Self::Error> {
