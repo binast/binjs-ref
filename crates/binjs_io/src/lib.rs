@@ -11,6 +11,9 @@ extern crate priority_queue;
 extern crate rand;
 extern crate vec_map;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 #[derive(Debug)]
 pub enum TokenWriterError {
     InvalidOffsetField,
@@ -62,3 +65,28 @@ pub mod multipart;
 pub mod repair;
 
 mod util;
+
+
+pub enum Format {
+    Simple {
+        stats: Rc<RefCell<simple::Statistics>>
+    },
+    Multipart {
+        options: multipart::WriteOptions,
+        stats: Rc<RefCell<multipart::Statistics>>
+    },
+    TreeRePair
+}
+impl Format {
+    pub fn new(format: &Format) -> Format {
+        use multipart::WriteOptions;
+        match *format {
+            Format::Simple { .. } => Format::Simple { stats: Default::default() },
+            Format::Multipart { ref options, .. } => Format::Multipart {
+                stats: Default::default(),
+                options: WriteOptions::new(options),
+            },
+            Format::TreeRePair => Format::TreeRePair
+        }
+    }
+}

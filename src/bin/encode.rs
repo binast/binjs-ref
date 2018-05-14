@@ -4,7 +4,7 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::io::TokenSerializer;
+use binjs::io::{ Format, TokenSerializer };
 use binjs::io::multipart::{ SectionOption, WriteOptions };
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
@@ -15,41 +15,9 @@ use std::fs::*;
 use std::io::*;
 use std::thread;
 use std::path::{ Path, PathBuf };
+use std::rc::Rc;
 
 use clap::*;
-
-pub enum Format {
-    Simple {
-        stats: RefCell<binjs::io::simple::Statistics>
-    },
-    Multipart {
-        options: PreWriteOptions,
-        stats: RefCell<binjs::io::multipart::Statistics>
-    },
-    TreeRePair
-}
-
-pub struct PreWriteOptions {
-    pub grammar_table: SectionOption,
-    pub strings_table: SectionOption,
-    pub tree: SectionOption,
-}
-impl PreWriteOptions {
-    fn instantiate(option: &SectionOption) -> SectionOption {
-        match *option {
-            SectionOption::Compression(ref c) => SectionOption::Compression(c.clone()),
-            SectionOption::Discard => SectionOption::Discard,
-            SectionOption::AppendToBuffer(_) => SectionOption::AppendToBuffer(std::rc::Rc::new(RefCell::new(Vec::new()))),
-        }
-    }
-    fn as_write_options(&self) -> WriteOptions {
-        WriteOptions {
-            grammar_table: Self::instantiate(&self.grammar_table),
-            strings_table: Self::instantiate(&self.strings_table),
-            tree: Self::instantiate(&self.tree),
-        }
-    }
-}
 
 fn parse_compression(option: Option<&str>) -> std::result::Result<SectionOption, String> {
     use binjs::io::bytes::compress::Compression;
@@ -166,7 +134,7 @@ fn handle_path<'a>(options: &Options<'a>,
 
     println!("Encoding.");
     let data: Box<AsRef<[u8]>> = {
-        match options.format {
+        match Format::new(&options.format) {
             Format::Simple { stats: ref my_stats } => {
                 let writer = binjs::io::simple::TreeTokenWriter::new();
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
@@ -191,9 +159,8 @@ fn handle_path<'a>(options: &Options<'a>,
             }
             Format::Multipart {
                 stats: ref my_stats,
-                options: ref pre_options
+                options: ref compression,
             } => {
-                let compression = pre_options.as_write_options();
                 let writer = binjs::io::multipart::TreeTokenWriter::new(compression.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)
@@ -329,13 +296,13 @@ fn main_aux() {
 
     let format = match matches.value_of("format") {
         None | Some("multipart") => {
-            let stats = RefCell::new(binjs::io::multipart::Statistics::default()
-                .with_source_bytes(0));
+            let stats = Rc::new(RefCell::new(binjs::io::multipart::Statistics::default()
+                .with_source_bytes(0)));
             if let Some(ref spec) = matches.value_of("sections") {
                 let compression = parse_compression(Some(spec))
                     .expect("Could not parse sections compression format");
                 Format::Multipart {
-                    options: PreWriteOptions {
+                    options: WriteOptions {
                         strings_table: compression.clone(),
                         grammar_table: compression.clone(),
                         tree: compression,
@@ -350,7 +317,7 @@ fn main_aux() {
                 let tree = parse_compression(matches.value_of("tree"))
                     .expect("Could not parse tree compression format");
                 Format::Multipart {
-                    options: PreWriteOptions {
+                    options: WriteOptions {
                         strings_table: strings,
                         grammar_table: grammar,
                         tree
@@ -361,7 +328,7 @@ fn main_aux() {
         },
         Some("trp") => Format::TreeRePair,
         Some("simple") => Format::Simple {
-            stats: RefCell::new(binjs::io::simple::Statistics::default())
+            stats: Rc::new(RefCell::new(binjs::io::simple::Statistics::default()))
         },
         _ => panic!()
     };

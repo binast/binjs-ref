@@ -128,10 +128,10 @@ impl Label {
         }
     }
 
-    fn serialize<W: Write>(&self, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
+    fn serialize<W: Write>(&self, labels: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
         use self::Label::*;
 
-        let (varnum, seen) = labels.get(self)
+        let (varnum, _, seen) = labels.get(self)
             .unwrap_or_else(|| panic!("Label {:?} is not in the table of labels", self));
         // No matter what, write our varnum.
         out.write_all(varnum).unwrap();
@@ -279,9 +279,9 @@ impl SubTree {
         aux(self, &mut map);
         map
     }
-    fn serialize<W: Write>(&self, substitutions: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, out: &mut W) {
+    fn serialize<W: Write>(&self, substitutions: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, out: &mut W) {
         let mut headers = 0;
-        fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
+        fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
             // Write header.
             tree.label.serialize(labels, headers, out);
             // Then write children in the order.
@@ -290,7 +290,7 @@ impl SubTree {
             }
         }
         aux(self, substitutions, &mut headers, out);
-        debug!(target: "repair", "Total size spent writing headers: {}", headers);
+        debug!(target: "repair", "Total headers bytes {}", headers);
     }
 }
 
@@ -469,11 +469,15 @@ impl TokenWriter for Encoder {
                     position,
                     number_of_labels - position - 1);
 
-                // Compute varnum index.
-                let mut encoded_length = vec![];
-                encoded_length.write_varnum((number_of_labels - position - 1) as u32).unwrap();
+                let mut encoded = vec![];
+                if instances == 1 {
+                    // Special value 0 is reserved for inlining.
+                    encoded.write_varnum(0).unwrap();
+                } else {
+                    encoded.write_varnum(/* not zero, which is reserved for inlining*/(number_of_labels - position) as u32).unwrap();
+                }
 
-                (label, (encoded_length, /* encountered */ RefCell::new(false)))
+                (label, (encoded, instances,/* encountered */ RefCell::new(false)))
             })
             .collect();
 

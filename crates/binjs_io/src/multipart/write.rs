@@ -30,12 +30,30 @@ pub enum SectionOption {
 
     Discard,
 }
+impl SectionOption {
+    pub fn new(option: &SectionOption) -> SectionOption {
+        match *option {
+            SectionOption::Compression(ref c) => SectionOption::Compression(c.clone()),
+            SectionOption::Discard => SectionOption::Discard,
+            SectionOption::AppendToBuffer(_) => SectionOption::AppendToBuffer(Default::default())
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct WriteOptions {
     pub grammar_table: SectionOption,
     pub strings_table: SectionOption,
     pub tree: SectionOption,
+}
+impl WriteOptions {
+    pub fn new(options: &WriteOptions) -> WriteOptions {
+        WriteOptions {
+            grammar_table: SectionOption::new(&options.grammar_table),
+            strings_table: SectionOption::new(&options.strings_table),
+            tree: SectionOption::new(&options.tree),
+        }
+    }
 }
 
 impl Rand for WriteOptions {
