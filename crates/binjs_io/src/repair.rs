@@ -132,6 +132,9 @@ impl Label {
     }
 }
 
+/// A subtree.
+///
+/// Designed to be used as `Rc<RefCell<SubTree>>`.
 #[derive(Debug, Clone)]
 pub struct SubTree { // FIXME: Make it private, eventually.
     /// An index, used to quickly compare tree nodes.
@@ -151,28 +154,72 @@ pub struct SubTree { // FIXME: Make it private, eventually.
     digrams: Vec<(Weak<DigramInstances>, list::Remover<SharedCell<SubTree>>)>,
 }
 
+/// Equality only compares `index`.
 impl PartialEq for SubTree {
     fn eq(&self, other: &Self) -> bool {
         self.index == other.index
     }
 }
+/// Equality only compares `index`.
 impl Eq for SubTree { }
+
+/// Order only compares `index`.
 impl PartialOrd for SubTree {
     fn partial_cmp(&self, other: &SubTree) -> std::option::Option<std::cmp::Ordering> {
         NodeIndex::partial_cmp(&self.index, &other.index)
     }
 }
+/// Order only compares `index`.
 impl Ord for SubTree {
     fn cmp(&self, other: &SubTree) -> std::cmp::Ordering {
         NodeIndex::cmp(&self.index, &other.index)
     }
 }
+/// Hashing only uses `index`.
 impl std::hash::Hash for SubTree {
     fn hash<H>(&self, state: &mut H) where H: std::hash::Hasher {
         self.index.hash(state)
     }
 }
+
+trait SanityCheck {
+    fn sanity_check(&self) -> bool;
+}
+impl SanityCheck for Rc<RefCell<SubTree>> {
+    fn sanity_check(&self) -> bool {
+        debug_assert!(self.borrow().sanity_check());
+        if let Some(parent) = self.borrow().parent.upgrade() {
+            let borrow_parent = parent.borrow();
+            borrow_parent.children()
+                .position(|sibling| Rc::ptr_eq(sibling, self))
+                .expect("My parent doesn't have me as a child (by ptr)");
+        }
+        true
+    }
+}
+impl SanityCheck for SubTree {
+    fn sanity_check(&self) -> bool {
+        assert_eq!(self.children.len(), self.label.len());
+        for child in &self.children {
+            let child_parent = child.borrow()
+                .parent
+                .upgrade()
+                .expect("My child doesn't have a parent");
+            assert_eq!(child_parent.borrow().index, self.index, "My child's parent is not me.");
+        }
+        if let Some(parent) = self.parent.upgrade() {
+            let ref my_index = self.index;
+            let borrow_parent = parent.borrow();
+            borrow_parent.children()
+                .position(|sibling| sibling.borrow().index == *my_index)
+                .expect("My parent doesn't have me as a child (by index)");
+        }
+        true
+    }
+}
+
 impl SubTree {
+    /// Iterate over the children of the tree.
     fn children(&self) -> impl Iterator<Item = &SharedCell<SubTree>> {
         self.children.iter()
     }
@@ -271,7 +318,7 @@ impl Root {
         let weak = Rc::downgrade(&parent);
         for child in &parent.borrow().children {
             let mut child_borrow = child.borrow_mut();
-            debug_assert!(child_borrow.parent.upgrade().is_none());
+            debug_assert!(child_borrow.parent.upgrade().is_none(), "We shouldn't use new_subtree for a child that already has a parent");
             child_borrow.parent = weak.clone();
         }
         self.tree = parent.clone();
@@ -468,6 +515,7 @@ impl Encoder {
                 let node_borrow = node.borrow();
                 for (position, child) in node_borrow.children().enumerate() {
                     // Walk in post-order.
+                    debug_assert!(child.sanity_check());
                     aux(child, set);
                     Encoder::compute_single_startup_digram(node, &node_borrow.label, position, &*child.borrow(), set, &mut removers);
                 }
@@ -485,7 +533,8 @@ impl Encoder {
         // Replacement phase.
 
         let insert_new_digrams = |digrams_per_priority: &mut prio::Queue<_>, digrams: HashMap<Digram, Rc<DigramInstances>>| {
-            for (_, instances) in digrams {
+            for (digram, instances) in digrams {
+                debug!(target: "repair", "Inserting new digram {:?}", digram);
                 let len = instances.len();
                 if len <= MINIMAL_NUMBER_OF_INSTANCE {
                     // Skip stuff that's too uncommon in the first place.
@@ -513,8 +562,7 @@ impl Encoder {
         'per_digram: while let Some((priority, digram_instances)) = digrams_per_priority.pop() {
             let mut actual_instances_encountered = 0;
 
-            debug!(target: "repair", "Considering digram {:?}", digram_instances.digram);
-            debug!(target: "repair", "This digram should have {} instances", borrow_instances.len());
+            // debug!(target: "repair", "Considering digram {:?}", digram_instances.digram);
             // Generate a new label `generated`.
             let number_of_children = digram_instances.digram.parent.len() + digram_instances.digram.child.len() - 1;
             let generated = self.root.new_generated_label(number_of_children, digram_instances.digram.clone());
@@ -524,7 +572,9 @@ impl Encoder {
 
             // Replace instances of `digram` with `generated` all over the tree.
             let mut borrow_instances = digram_instances.instances.borrow_mut();
+            // debug!(target: "repair", "This digram should have {} instances", borrow_instances.len());
             'per_node: for instance in borrow_instances.iter() {
+                debug_assert!(instance.sanity_check());
                 let mut borrow_instance = instance.borrow_mut();
 
                 {
@@ -545,7 +595,7 @@ impl Encoder {
                 }
 
                 actual_instances_encountered += 1;
-                debug!(target: "repair", "Entering actual instance {}/{}", actual_instances_encountered, borrow_instances.len());
+                // debug!(target: "repair", "Entering actual instance {}/{}", actual_instances_encountered, borrow_instances.len());
 
                 let mut children = Vec::with_capacity(number_of_children);
 
@@ -573,21 +623,17 @@ impl Encoder {
                     }
                     // Remove from the list of digrams.
                     let len = list_remover.remove();
-                    eprintln!("Adjusting priority: {:?} => {:?}",
-                        removing_instance.digram,
-                        len);
                     // Update priority of `digram`, or remove it entirely.
+                    let mut borrow_remover = removing_instance.remover
+                        .borrow_mut();
                     {
-                        removing_instance.remover
-                            .borrow_mut()
-                            .as_mut()
-                            .expect("Missing diagram instance remover")
-                            .remove();
+                        let remover = borrow_remover.as_mut()
+                            .expect("Missing digram instance remover");
+                        remover.remove();
                     }
                     if len >= MINIMAL_NUMBER_OF_INSTANCE {
                         let priority_remover = digrams_per_priority.insert(removing_instance.clone(), len);
-                        *removing_instance.remover
-                            .borrow_mut() = Some(priority_remover);
+                        *borrow_remover = Some(priority_remover);
                     }
                 };
 
@@ -638,6 +684,8 @@ impl Encoder {
                             Rc::ptr_eq(child, &instance)
                         })
                         .expect("Could not find child in parent");
+                        // FIXME: The only way this should be possible is if we're not in the right order:
+                        // we have rewritten the parent before rewriting the children.
 
                     // Remove old digram.
                     {
@@ -648,6 +696,8 @@ impl Encoder {
                     // Add new digram.
                     let mut remover = Vec::with_capacity(1);
                     Self::compute_single_startup_digram(&parent, &parent_borrow.label, index, &*borrow_instance, &mut new_digrams, &mut remover);
+                    assert_eq!(remover.len(), 1);
+                    assert!(remover[0].0.upgrade().is_some());
                     parent_borrow.digrams[index] = remover.pop()
                         .unwrap();
                 }
@@ -762,23 +812,17 @@ mod list {
             let borrow = self.list.borrow();
             let mut position = 0;
             let len = borrow.len;
-            debug!(target: "repair", "Iterator starting {}/{}", position, len);
             debug_assert_eq!(borrow.compute_length(), len);
             itertools::unfold(borrow.head.clone(), move |cursor| {
                 let (next, item) = match cursor {
                     None => {
-                        debug!(target: "repair", "Iterator complete");
-                        assert_eq!(position + 1, len);
+                        assert_eq!(position, len);
                         (None, None)
                     }
                     Some(ref next) => {
                         let borrow = next.borrow();
-                        debug!(target: "repair", "Iterator next {}/{} (next: {})",
-                            position,
-                            len,
-                            if borrow.next.is_none() { "none" } else { "some" });
-                        position += 1;
                         assert!(position < len);
+                        position += 1;
                         let result = borrow.data.clone().unwrap();
                         (borrow.next.clone(), Some(result))
                     }
@@ -897,21 +941,17 @@ mod list {
     pub struct Remover<T> {
         list: Weak<RefCell<ListImpl<T>>>,
         link: Weak<RefCell<Link<T>>>,
-        removed: bool,
     }
     impl<T> Remover<T> {
         fn new(list: Weak<RefCell<ListImpl<T>>>, link: Weak<RefCell<Link<T>>>) -> Self {
             Self {
                 list,
                 link,
-                removed: false,
             }
         }
 
         /// Remove oneself from the list, returning the new list length.
         pub fn remove(&mut self) -> usize {
-            assert_eq!(self.removed, false);
-            self.removed = true;
             let list = match self.list.upgrade() {
                 Some(list) => list,
                 None => return 0/* list may have been removed because it was too short*/,
@@ -948,7 +988,7 @@ mod list {
             borrow_link.next = None;
             borrow_list.len -= 1;
             debug_assert_eq!(borrow_list.compute_length(), borrow_list.len);
-            debug!(target: "repair", "Removing item");
+            // debug!(target: "repair", "Removing item");
             borrow_list.len
         }
     }
