@@ -214,6 +214,14 @@ impl SanityCheck for SubTree {
                 .position(|sibling| sibling.borrow().index == *my_index)
                 .expect("My parent doesn't have me as a child (by index)");
         }
+        if self.digrams.len() != 0 {
+            assert_eq!(self.digrams.len(), self.label.len());
+            for (weak_instance, _) in &self.digrams {
+                let instance = weak_instance.upgrade()
+                    .expect("Could not upgrade instance");
+                debug_assert!(instance.sanity_check());
+            }
+        }
         true
     }
 }
@@ -448,7 +456,17 @@ struct DigramInstances {
     /// conflicted with this digram.
     instances: SharedCell<list::List<SharedCell<SubTree>>>,
 
+    /// Remover, used by the `DigramPriorityQueue` to remove this set of instances
+    /// from a slot. This property is meant to be manipulated **only** by `DigramPriorityQueue`.
     remover: RefCell<Option<prio::Remover<Rc<DigramInstances>>>>,
+}
+impl SanityCheck for DigramInstances {
+    fn sanity_check(&self) -> bool {
+        self.remover.borrow()
+            .as_ref()
+            .unwrap_or_else(|| panic!("Sanity check: Missing remover in DigramInstances ({} occurences)", self.instances.borrow().len()));
+        true
+    }
 }
 impl DigramInstances {
     fn len(&self) -> usize {
@@ -532,19 +550,6 @@ impl Encoder {
     fn proceed_with_tree_repair(&mut self) {
         // Replacement phase.
 
-        let insert_new_digrams = |digrams_per_priority: &mut prio::Queue<_>, digrams: HashMap<Digram, Rc<DigramInstances>>| {
-            for (digram, instances) in digrams {
-                debug!(target: "repair", "Inserting new digram {:?}", digram);
-                let len = instances.len();
-                if len <= MINIMAL_NUMBER_OF_INSTANCE {
-                    // Skip stuff that's too uncommon in the first place.
-                    continue;
-                }
-                let remover = digrams_per_priority.insert(instances.clone(), len);
-                *instances.remover.borrow_mut() = Some(remover);
-            }
-        };
-
         // Compute the initial set of digrams.
         let mut digrams_per_priority = {
             let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
@@ -553,13 +558,21 @@ impl Encoder {
                 .max()
                 .expect("No digrams found!");
             debug!(target: "repair", "During startup, the highest digram priority found was {}", highest_priority);
-            let mut digrams_per_priority = prio::Queue::with_capacity(highest_priority);
-            insert_new_digrams(&mut digrams_per_priority, startup_digrams);
+            let mut digrams_per_priority = DigramPriorityQueue::with_capacity(highest_priority);
+            for (_, instances) in startup_digrams.into_iter() {
+                digrams_per_priority.insert(&instances);
+            }
             digrams_per_priority
         };
 
         // Pick most frequent digram.
         'per_digram: while let Some((priority, digram_instances)) = digrams_per_priority.pop() {
+            debug_assert!(digram_instances.sanity_check());
+            if digram_instances.len() < MINIMAL_NUMBER_OF_INSTANCE {
+                // Only so few instances? It's not worth replacing.
+                continue 'per_digram;
+            }
+
             let mut actual_instances_encountered = 0;
 
             // debug!(target: "repair", "Considering digram {:?}", digram_instances.digram);
@@ -574,6 +587,10 @@ impl Encoder {
             let mut borrow_instances = digram_instances.instances.borrow_mut();
             // debug!(target: "repair", "This digram should have {} instances", borrow_instances.len());
             'per_node: for instance in borrow_instances.iter() {
+                {
+                    let borrow = instance.borrow();
+                    debug!(target: "repair", "Investigating node {:?} {:?}", borrow.index, borrow.label);
+                }
                 debug_assert!(instance.sanity_check());
                 let mut borrow_instance = instance.borrow_mut();
 
@@ -612,36 +629,25 @@ impl Encoder {
                 let mut borrow_removed = removed.borrow_mut();
 
                 // Remove a single node from a list of digrams, updating priority list as needed.
-                let downgrade_conflict = |digrams_per_priority: &mut prio::Queue<_>, removing_instance: &Weak<DigramInstances>, list_remover: &mut list::Remover<SharedCell<SubTree>>| {
+                let mut downgrade_conflict = |removing_instance: &Weak<DigramInstances>, digram_instance_remover: &mut list::Remover<SharedCell<SubTree>>| {
                     let removing_instance = match removing_instance.upgrade() {
                         Some(removing_instance) => removing_instance,
                         None => return, /* stuff was already gc-ed? */
                     };
+                    debug_assert!(removing_instance.sanity_check());
                     if removing_instance.digram == digram_instances.digram {
                         // Don't remove the current digram!
                         return;
                     }
                     // Remove from the list of digrams.
-                    let len = list_remover.remove();
-                    // Update priority of `digram`, or remove it entirely.
-                    let mut borrow_remover = removing_instance.remover
-                        .borrow_mut();
-                    {
-                        let remover = borrow_remover.as_mut()
-                            .expect("Missing digram instance remover");
-                        remover.remove();
-                    }
-                    if len >= MINIMAL_NUMBER_OF_INSTANCE {
-                        let priority_remover = digrams_per_priority.insert(removing_instance.clone(), len);
-                        *borrow_remover = Some(priority_remover);
-                    }
+                    digram_instance_remover.remove();
+                    digrams_per_priority.reprioritize(&removing_instance);
                 };
-
 
                 // Since we're removing `removed`, it doesn't belong to any digram list anymore.
                 debug_assert_eq!(borrow_removed.label, digram_instances.digram.child);
-                for (digram, list_remover) in &mut borrow_removed.digrams {
-                    downgrade_conflict(&mut digrams_per_priority, digram, list_remover)
+                for (digram, digram_instance_remover) in &mut borrow_removed.digrams {
+                    downgrade_conflict(digram, digram_instance_remover)
                 }
                 for child in &borrow_removed.children {
                     let mut borrow_child = child.borrow_mut();
@@ -661,8 +667,8 @@ impl Encoder {
 
                 // Since we're changing the label of the instance, any digram list to which it
                 // belongs is now invalid, so downgrade appropriately.
-                for (digram, list_remover) in &mut borrow_instance.digrams {
-                    downgrade_conflict(&mut digrams_per_priority, digram, list_remover)
+                for (digram, digram_instance_remover) in &mut borrow_instance.digrams {
+                    downgrade_conflict(digram, digram_instance_remover)
                 }
 
                 // Also, we have **replaced** all the possibilities for digrams in this node.
@@ -689,8 +695,8 @@ impl Encoder {
 
                     // Remove old digram.
                     {
-                        let (ref digram, ref mut list_remover) = parent_borrow.digrams[index];
-                        downgrade_conflict(&mut digrams_per_priority, digram, list_remover);
+                        let (ref digram, ref mut digram_instance_remover) = parent_borrow.digrams[index];
+                        downgrade_conflict(digram, digram_instance_remover);
                     }
 
                     // Add new digram.
@@ -710,7 +716,9 @@ impl Encoder {
                 instances = actual_instances_encountered);
 
             // We can now insert all these new digrams in the priority queue.
-            insert_new_digrams(&mut digrams_per_priority, new_digrams);
+            for (_, instances) in new_digrams.into_iter() {
+                digrams_per_priority.insert(&instances);
+            }
         }
 
 
@@ -772,6 +780,41 @@ mod prio {
         pub fn remove(&mut self) {
             self.list_remover.remove();
         }
+    }
+}
+
+struct DigramPriorityQueue {
+    queue: prio::Queue<Rc<DigramInstances>>
+}
+impl DigramPriorityQueue {
+    fn with_capacity(size: usize) -> Self {
+        DigramPriorityQueue {
+            queue: prio::Queue::with_capacity(size)
+        }
+    }
+    fn pop(&mut self) -> Option<(usize, Rc<DigramInstances>)> {
+        self.queue.pop()
+    }
+    fn reprioritize(&mut self, digram_instances: &Rc<DigramInstances>) {
+        self.remove(digram_instances);
+        self.insert(digram_instances);
+    }
+    fn remove(&mut self, digram_instances: &Rc<DigramInstances>) {
+        let mut borrow_remover = digram_instances.remover
+            .borrow_mut();
+        let mut remover = borrow_remover
+            .take()
+            .expect("DigramInstances does not have a remover");
+        remover.remove();
+    }
+    fn insert(&mut self, digram_instances: &Rc<DigramInstances>) -> usize {
+        let len = digram_instances.len();
+        let remover = self.queue.insert(digram_instances.clone(), len);
+        let mut borrow_remover = digram_instances.remover
+            .borrow_mut();
+        assert!(borrow_remover.is_none());
+        *borrow_remover = Some(remover);
+        len
     }
 }
 
