@@ -6,7 +6,7 @@ use ::TokenWriterError;
 use io::TokenWriter;
 
 use std;
-use std::cell::RefCell;
+use std::cell::{ RefCell, RefMut };
 use std::collections::{ HashMap };
 use std::io::Write;
 use std::rc::{ Rc, Weak };
@@ -357,7 +357,7 @@ impl Encoder {
             return self.tagged_tuple("_Nil", &[])
         }
         let children = [("hd" /* ignored*/, items[0].clone()), ("tl", /*ignored */ self.list_aux(&items[1..])?) ];
-        self.tagged_tuple("_List", &children)
+        self.tagged_tuple("_Cons", &children)
     }
 }
 impl TokenWriter for Encoder {
@@ -485,14 +485,20 @@ impl DigramInstances {
     fn len(&self) -> usize {
         self.instances.borrow().len()
     }
+    unsafe fn unsafe_len(&self) -> usize {
+        self.instances.as_ptr().as_ref().unwrap().len()
+    }
 }
 
 trait RcDigramInstances {
-    fn insert(&self, node: &SharedCell<SubTree>);
-}
-impl RcDigramInstances for Rc<DigramInstances> {
     fn insert(&self, node: &SharedCell<SubTree>) {
         let mut borrow_node = node.borrow_mut();
+        self.insert_borrowed(node, &mut borrow_node);
+    }
+    fn insert_borrowed<'a>(&self, node: &SharedCell<SubTree>, borrow_node: &mut RefMut<'a, SubTree>);
+}
+impl RcDigramInstances for Rc<DigramInstances> {
+    fn insert_borrowed<'a>(&self, node: &SharedCell<SubTree>, borrow_node: &mut RefMut<'a, SubTree>) {
         let node_remover = self.instances
             .as_ref()
             .borrow_mut()
@@ -505,7 +511,8 @@ impl RcDigramInstances for Rc<DigramInstances> {
             // We're pushing a new remover.
             borrow_node.digrams.push((weak, node_remover));
         } else {
-            panic!()
+            // The entire node has been regenerated, ignore.
+            return;
         }
     }
 }
@@ -555,7 +562,7 @@ impl Encoder {
 
     /// Compute a single digram for a node.
     fn compute_digram_at(&mut self, node: &Rc<RefCell<SubTree>>, position: usize) {
-        let borrow_node = node.borrow_mut();
+        let mut borrow_node = node.borrow_mut();
         let digram = Digram {
             parent: borrow_node.label.clone(),
             position,
@@ -564,24 +571,34 @@ impl Encoder {
         let next = self.digram_counter.next();
         let instances = self.pending_digrams
             .entry(digram.clone())
-            .or_insert_with(|| Rc::new(DigramInstances::new(digram, next)));
-        instances.insert(node);
+            .or_insert_with(|| {
+                debug!(target: "repair", "compute_digram_at: new DigramInstances for {:?}", digram);
+                Rc::new(DigramInstances::new(digram, next))
+            });
+        instances.insert_borrowed(node, &mut borrow_node);
     }
 
     /// Compute all digrams for a node.
     fn compute_digrams_for_node(&mut self, node: &Rc<RefCell<SubTree>>) {
-        let borrow_node = node.borrow_mut();
-        for (position, child) in borrow_node.children.iter().enumerate() {
+        debug_assert!(node.sanity_check());
+        let mut borrow_node = node.borrow_mut();
+        let parent = borrow_node.label.clone();
+        let children : Vec<_> = borrow_node.children.iter().cloned().collect(); // FIXME: Find a better way to workaround sharing issues
+        for (position, child) in children.into_iter().enumerate() {
             let digram = Digram {
-                parent: borrow_node.label.clone(),
+                parent: parent.clone(),
                 position,
                 child: child.borrow().label.clone(),
             };
             let next = self.digram_counter.next();
+//            debug!(target: "repair", "compute_digrams_for_node: Pending digrams has {} entries, looking for DigramInstances for {:?}", self.pending_digrams.len(), digram);
             let instances = self.pending_digrams
                 .entry(digram.clone())
-                .or_insert_with(|| Rc::new(DigramInstances::new(digram, next)));
-            instances.insert(node);
+                .or_insert_with(|| {
+                    debug!(target: "repair", "compute_digrams_for_node: new DigramInstances for {:?}", digram);
+                    Rc::new(DigramInstances::new(digram, next))
+                });
+            instances.insert_borrowed(node, &mut borrow_node);
         }
     }
 
@@ -618,6 +635,7 @@ impl Encoder {
         };
 
         // Pick most frequent digram.
+        let mut parent_cleanup = vec![];
         'per_digram: while let Some((priority, digram_instances)) = digrams_per_priority.pop() {
             debug_assert!(digram_instances.sanity_check());
             if digram_instances.len() < MINIMAL_NUMBER_OF_INSTANCE {
@@ -627,7 +645,7 @@ impl Encoder {
 
             let mut actual_instances_encountered = 0;
 
-            // debug!(target: "repair", "Considering digram {:?}", digram_instances.digram);
+            debug!(target: "repair", "Considering digram {:?} with {} occurrences", digram_instances.digram, digram_instances.len());
             // Generate a new label `generated`.
             let number_of_children = digram_instances.digram.parent.len() + digram_instances.digram.child.len() - 1;
             let generated = self.root.new_generated_label(number_of_children, digram_instances.digram.clone());
@@ -636,10 +654,6 @@ impl Encoder {
             let mut borrow_instances = digram_instances.instances.borrow_mut();
             // debug!(target: "repair", "This digram should have {} instances", borrow_instances.len());
             'per_node: for instance in borrow_instances.iter() {
-                {
-                    let borrow = instance.borrow();
-                    debug!(target: "repair", "Investigating node {:?} {:?}", borrow.index, borrow.label);
-                }
                 debug_assert!(instance.sanity_check());
 
                 {
@@ -674,14 +688,16 @@ impl Encoder {
                 // Since `removed` is being removed, remove it from any priority.
                 digrams_per_priority.remove_full_node_except(&removed, &*digram_instances.digram);
 
-                let mut borrow_removed = removed.borrow_mut();
-                debug_assert_eq!(borrow_removed.label, digram_instances.digram.child);
+                {
+                    let mut borrow_removed = removed.borrow_mut();
+                    debug_assert_eq!(borrow_removed.label, digram_instances.digram.child);
 
-                // Since we're removing `removed`, it doesn't belong to any digram list anymore.
-                for child in &borrow_removed.children {
-                    let mut borrow_child = child.borrow_mut();
-                    borrow_child.parent = Rc::downgrade(&instance);
-                    borrow_instance.children.push(child.clone());
+                    // Since we're removing `removed`, it doesn't belong to any digram list anymore.
+                    for child in &borrow_removed.children {
+                        let mut borrow_child = child.borrow_mut();
+                        borrow_child.parent = Rc::downgrade(&instance);
+                        borrow_instance.children.push(child.clone());
+                    }
                 }
 
                 // Then copy the remaining children.
@@ -691,11 +707,6 @@ impl Encoder {
 
                 // Finally, change the label.
                 borrow_instance.label = generated.clone();
-
-                // Also, we have **replaced** all the possibilities for digrams in this node.
-                {
-                    self.compute_digrams_for_node(&instance);
-                }
 
                 // We have **replaced** one new possible digram in the parent node.
                 if let Some(parent) = borrow_instance.parent.upgrade() {
@@ -713,12 +724,32 @@ impl Encoder {
                             // we have rewritten the parent before rewriting the children.
                     };
 
-                    // Remove old digram.
-                    digrams_per_priority.remove_single_child(&parent, index);
-
-                    // Add new digram.
-                    self.compute_digram_at(&parent, index);
+                    parent_cleanup.push((parent.clone(), index, digram_instances.digram.clone()));
                 }
+
+
+                // Now, do stuff that will need to reborrow `instance`.
+                drop(borrow_instance);
+
+                debug_assert!(instance.sanity_check());
+                self.compute_digrams_for_node(&instance);
+            }
+
+            drop(borrow_instances);
+
+            // Now, do stuff that will need to reborrow `instances`.
+            for (parent, index, expected_digram) in parent_cleanup.drain(..) {
+                // Note that we can perform parent cleanup at the end of the loop because, during
+                // a single loop, a child may only be modified once.
+
+                // However, the parent may itself have been entirely overwritten.
+                // If so, the calls to remove/compute will be ignored, remove/compute has already happened.
+
+                // Remove old digram from parent.
+                digrams_per_priority.remove_single_child(&parent, index, &*expected_digram);
+
+                // Replace with new digram.
+                self.compute_digram_at(&parent, index);
             }
 
             debug!(target: "repair", "Replaced {instances} instances of digram (expected {priority}), for a total of {} bytes saved",
@@ -806,17 +837,29 @@ impl DigramPriorityQueue {
     fn pop(&mut self) -> Option<(usize, Rc<DigramInstances>)> {
         self.queue.pop()
     }
+
     fn reprioritize(&mut self, digram_instances: &Rc<DigramInstances>) {
         self.remove(digram_instances);
         self.insert(digram_instances);
     }
 
-    fn remove_single_child(&mut self, node: &SharedCell<SubTree>, position: usize) {
-        let borrow = node.borrow();
-        let (ref weak_digram, ref digram_instance_remover) = borrow.digrams[position];
-        let instance = weak_digram.upgrade()
-            .unwrap();
-        digram_instance_remover.remove();
+    fn remove_single_child(&mut self, node: &SharedCell<SubTree>, position: usize, expected_digram: &Digram) {
+        let instance = {
+            let borrow = node.borrow();
+            if borrow.digrams.len() == 0 {
+                // All children have already been removed.
+                return;
+            }
+            let (ref weak_digram, ref digram_instance_remover) = borrow.digrams[position];
+            let instance = weak_digram.upgrade()
+                .unwrap();
+            if &*instance.digram != expected_digram {
+                // The parent has already been rewritten.
+                return;
+            }
+            digram_instance_remover.remove();
+            instance
+        };
         self.reprioritize(&instance);
     }
     fn remove_full_node_except(&mut self, node: &SharedCell<SubTree>, maintain_digram: &Digram) {
