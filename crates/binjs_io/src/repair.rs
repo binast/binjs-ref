@@ -507,7 +507,7 @@ impl TokenWriter for Encoder {
             .map(|(position, (label, instances))| {
                 use bytes::varnum::WriteVarNum;
 
-                debug!(target: "repair", "Label {} appears {} times, rank {}, representing as {}.",
+                debug!(target: "repair", "`{}` appears {} times, rank {}, representing as {}.",
                     label,
                     instances,
                     position,
