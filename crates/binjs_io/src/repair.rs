@@ -13,6 +13,8 @@ use std::rc::{ Rc, Weak };
 
 use itertools::Itertools;
 
+const MAX_RANK: usize = 2;
+
 type SharedCell<T> = Rc<RefCell<T>>;
 
 trait Counter {
@@ -91,6 +93,23 @@ pub enum Label {
         len: usize
     },
     Leaf(Rc<Vec<u8>>)
+}
+
+impl std::fmt::Display for Label {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        use self::Label::*;
+        match *self {
+            Named { ref label, .. } => label.fmt(formatter),
+            Generated { ref digram, .. } => {
+                write!(formatter, "{parent}(...{child}(...)...)",
+                    parent = digram.parent,
+                    child = digram.child,
+                )
+            }
+            List { .. } => write!(formatter, "[...]"),
+            Leaf(..) => write!(formatter, "(leaf)"),
+        }
+    }
 }
 
 impl Label {
@@ -340,7 +359,7 @@ impl Root {
             children,
         }
     }
-    fn new_subtree(&mut self, label: Label, children: Vec<SharedCell<SubTree>>) -> SharedCell<SubTree> {
+    fn new_subtree(&mut self, label: Label, mut children: Vec<SharedCell<SubTree>>) -> SharedCell<SubTree> {
         debug_assert!{
             children.iter()
                 .find(|child| {
@@ -350,6 +369,31 @@ impl Root {
                 })
                 .is_none(),
             "We shouldn't be calling `new_subtree` once we have started filling the digrams."
+        }
+        if MAX_RANK == 2 {
+            // FIXME: For the moment, we assume that MAX_RANK is either 2 or MAX_INT
+            if children.len() > MAX_RANK {
+                debug_assert_eq!(MAX_RANK, 2);
+                let single = self.new_named_label("_Single", 1);
+                let cons   = self.new_named_label("_Cons", 2);
+                let mut new_children = vec![];
+                for chunk in &children.into_iter().chunks(MAX_RANK) {
+                    let chunk : Vec<_> = chunk.collect();
+                    let child = match chunk.len() {
+                        0 => self.new_leaf(vec![]),
+                        1 => self.new_subtree(single.clone(), chunk),
+                        2 => self.new_subtree(cons.clone(), chunk),
+                        _ => panic!()
+                    };
+                    new_children.push(child);
+                }
+                return self.new_subtree(label, new_children);
+            } else if children.len() < label.len() {
+                let nil = self.new_named_label("_Nil", 0);
+                for _ in children.len()..label.len() {
+                    children.push(self.new_subtree(nil.clone(), vec![]));
+                }
+            }
         }
         let parent = Rc::new(RefCell::new(SubTree {
             index: self.node_counter.next(),
@@ -463,7 +507,7 @@ impl TokenWriter for Encoder {
             .map(|(position, (label, instances))| {
                 use bytes::varnum::WriteVarNum;
 
-                debug!(target: "repair", "Label {:?} appears {} times, rank {}, representing as {}.",
+                debug!(target: "repair", "Label {} appears {} times, rank {}, representing as {}.",
                     label,
                     instances,
                     position,
