@@ -111,10 +111,23 @@ impl Label {
         }
     }
 
+    fn collect(&self, labels: &mut HashMap<Label, usize> ){
+        {
+            let entry = labels.entry(self.clone())
+                .or_insert(0);
+            *entry += 1;
+        }
+        if let Label::Generated { ref digram, .. } = *self {
+            digram.parent.collect(labels);
+            digram.child.collect(labels);
+        }
+    }
+
     fn serialize<W: Write>(&self, labels: &HashMap<Label, (Vec<u8>, RefCell<bool>)>, out: &mut W) {
         use self::Label::*;
 
-        let (varnum, seen) = labels.get(self).unwrap();
+        let (varnum, seen) = labels.get(self)
+            .unwrap_or_else(|| panic!("Label {:?} is not in the table of labels", self));
         // No matter what, write our varnum.
         out.write_all(varnum).unwrap();
         // If this is the first time we see the header, write our definition.
@@ -199,7 +212,7 @@ impl SanityCheck for Rc<RefCell<SubTree>> {
             let borrow_parent = parent.borrow();
             borrow_parent.children()
                 .position(|sibling| Rc::ptr_eq(sibling, self))
-                .expect("My parent doesn't have me as a child (by ptr)");
+                .unwrap_or_else(|| panic!("My parent doesn't have me as a child (by ptr) {:?} > {:?}", borrow_parent.label, self.borrow().label));
         }
         true
     }
@@ -219,14 +232,18 @@ impl SanityCheck for SubTree {
             let borrow_parent = parent.borrow();
             borrow_parent.children()
                 .position(|sibling| sibling.borrow().index == *my_index)
-                .expect("My parent doesn't have me as a child (by index)");
+                .unwrap_or_else(|| panic!("My parent doesn't have me as a child (by index): got [\n{:?}\n    ], looking for {:?}",
+                    borrow_parent.children()
+                        .map(|c| format!("        {:?}", c.borrow().label))
+                        .format(",\n"),
+                    self.label));
         }
         if self.digrams.len() != 0 {
             assert_eq!(self.digrams.len(), self.label.len());
             for (weak_instance, _) in &self.digrams {
-                let instance = weak_instance.upgrade()
-                    .expect("Could not upgrade instance");
-                debug_assert!(instance.sanity_check());
+                if let Some(instance) = weak_instance.upgrade() {
+                    debug_assert!(instance.sanity_check());
+                }
             }
         }
         true
@@ -241,11 +258,7 @@ impl SubTree {
 
     fn collect_labels(&self) -> HashMap<Label, usize> {
         fn aux(tree: &SubTree, labels: &mut HashMap<Label, usize>) {
-            {
-                let entry = labels.entry(tree.label.clone())
-                    .or_insert(0);
-                *entry += 1;
-            }
+            tree.label.collect(labels);
             for child in &tree.children {
                 aux(&*child.borrow(), labels);
             }
@@ -418,26 +431,40 @@ impl TokenWriter for Encoder {
 
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
         // Rewrite tree with digrams.
+        debug!(target: "repair", "Compressing tree to digrams.");
         self.proceed_with_tree_repair();
         // Collect statistics on most commonly labels.
+        debug!(target: "repair", "Collecting data for efficient binary representation.");
         let statistics = self.root.tree.borrow()
             .collect_labels()
             .into_iter()
             .sorted_by(|a, b| Ord::cmp(&a.1, &b.1));
         let number_of_labels = statistics.len();
+        debug!(target: "repair", "Generating efficient binary representation.");
         // FIXME We could eliminate lookup by making this part of the label itself.
-        let label_representation : HashMap<_, _> = statistics.into_iter()
-            .map(|(label, instances)| {
+        let label_representation : HashMap<_, _> = statistics.into_iter().enumerate()
+            .map(|(position, (label, instances))| {
                 use bytes::varnum::WriteVarNum;
+
+                debug!(target: "repair", "Label {:?} appears {} times, rank {}, representing as {}.",
+                    label,
+                    instances,
+                    position,
+                    number_of_labels - position - 1);
+
                 // Compute varnum index.
                 let mut encoded_length = vec![];
-                encoded_length.write_varnum((number_of_labels - instances) as u32).unwrap();
+                encoded_length.write_varnum((number_of_labels - position - 1) as u32).unwrap();
 
                 (label, (encoded_length, /* encountered */ RefCell::new(false)))
             })
             .collect();
+
+        debug!(target: "repair", "Generating binary.");
         let mut buf = vec![];
         self.root.tree.borrow().serialize(&label_representation, &mut buf);
+
+        debug!(target: "repair", "Done.");
         Ok((buf, 0))
     }
 }
@@ -482,11 +509,10 @@ impl DigramInstances {
             remover: RefCell::new(None)
         }
     }
+
+    /// Return the expected number of occurrences of this digram in the AST.
     fn len(&self) -> usize {
         self.instances.borrow().len()
-    }
-    unsafe fn unsafe_len(&self) -> usize {
-        self.instances.as_ptr().as_ref().unwrap().len()
     }
 }
 
@@ -549,20 +575,28 @@ impl Ord for DigramInstances {
     }
 }
 
-const MINIMAL_NUMBER_OF_INSTANCE : usize = 1;
+const MINIMAL_NUMBER_OF_INSTANCE : usize = 2;
 
 impl Encoder {
     pub fn new() -> Self {
         Self {
             root: Root::new(),
             digram_counter: GenericCounter::new(),
-            pending_digrams: HashMap::new(),
+            pending_digrams: HashMap::with_capacity(4096),
         }
     }
 
     /// Compute a single digram for a node.
-    fn compute_digram_at(&mut self, node: &Rc<RefCell<SubTree>>, position: usize) {
+    fn compute_digram_at(&mut self, node: &Rc<RefCell<SubTree>>, index: NodeIndex) {
+        debug_assert!(node.sanity_check());
         let mut borrow_node = node.borrow_mut();
+        let position = borrow_node.children.iter()
+            .position(|child| child.borrow().index == index);
+        let position = match position {
+            // This child was already removed
+            None => { return; }
+            Some(position) => position
+        };
         let digram = Digram {
             parent: borrow_node.label.clone(),
             position,
@@ -654,8 +688,6 @@ impl Encoder {
             let mut borrow_instances = digram_instances.instances.borrow_mut();
             // debug!(target: "repair", "This digram should have {} instances", borrow_instances.len());
             'per_node: for instance in borrow_instances.iter() {
-                debug_assert!(instance.sanity_check());
-
                 {
                     let borrow_instance = instance.borrow();
                     if digram_instances.digram.parent != borrow_instance.label
@@ -664,6 +696,7 @@ impl Encoder {
                         continue 'per_node;
                     }
                 }
+                debug_assert!(instance.sanity_check());
                 actual_instances_encountered += 1;
 
                 // Since we're changing the label of the instance, any digram list to which it
@@ -712,19 +745,7 @@ impl Encoder {
                 if let Some(parent) = borrow_instance.parent.upgrade() {
                     // May be `None` if we are the root node.
 
-                    let index = {
-                        let parent_borrow = parent.borrow();
-                        parent_borrow.children
-                            .iter()
-                            .position(|child| {
-                                Rc::ptr_eq(child, &instance)
-                            })
-                            .expect("Could not find child in parent")
-                            // FIXME: The only way this should be possible is if we're not in the right order:
-                            // we have rewritten the parent before rewriting the children.
-                    };
-
-                    parent_cleanup.push((parent.clone(), index, digram_instances.digram.clone()));
+                    parent_cleanup.push((parent.clone(), borrow_instance.index.clone(), digram_instances.digram.clone()));
                 }
 
 
@@ -746,15 +767,20 @@ impl Encoder {
                 // If so, the calls to remove/compute will be ignored, remove/compute has already happened.
 
                 // Remove old digram from parent.
-                digrams_per_priority.remove_single_child(&parent, index, &*expected_digram);
-
-                // Replace with new digram.
-                self.compute_digram_at(&parent, index);
+                if digrams_per_priority.remove_single_child(&parent, index, &*expected_digram) {
+                    // Replace with new digram.
+                    self.compute_digram_at(&parent, index);
+                }
             }
 
             debug!(target: "repair", "Replaced {instances} instances of digram (expected {priority}), for a total of {} bytes saved",
-                total = actual_instances_encountered * (digram_instances.digram.parent.byte_len() + digram_instances.digram.child.byte_len() - generated.byte_len()) as isize
-                        - (digram_instances.digram.parent.byte_len() + digram_instances.digram.child.byte_len() + 4) as isize,
+                total =
+                    if actual_instances_encountered > 0 {
+                            actual_instances_encountered * (digram_instances.digram.parent.byte_len() + digram_instances.digram.child.byte_len() - generated.byte_len()) as isize
+                                - (digram_instances.digram.parent.byte_len() + digram_instances.digram.child.byte_len() + 4) as isize
+                    } else {
+                        0
+                    },
                 priority = priority,
                 instances = actual_instances_encountered);
 
@@ -770,18 +796,21 @@ impl Encoder {
     }
 }
 
-/// A priority queue designed as a vector of linked lists with the
-/// ability to quickly reslot an item.
-///
-/// By design, the number of slots can never grow.
 mod prio {
     use repair::list;
 
+    /// A priority queue designed as a vector of linked lists with the
+    /// ability to quickly reslot an item.
+    ///
+    /// By design, the number of slots can never grow.
     #[derive(Debug)]
     pub struct Queue<T> {
         data: Vec<list::List<T>>,
     }
     impl<T> Queue<T> {
+        /// Create a new queue with a maximal number of slots.
+        ///
+        /// Any attempt to prioritize an item with a priority higher than `len` will fail.
         pub fn with_capacity(len: usize) -> Self {
             let mut data = Vec::with_capacity(len + 1);
             data.resize_default(len + 1);
@@ -843,30 +872,48 @@ impl DigramPriorityQueue {
         self.insert(digram_instances);
     }
 
-    fn remove_single_child(&mut self, node: &SharedCell<SubTree>, position: usize, expected_digram: &Digram) {
+    fn remove_single_child(&mut self, node: &SharedCell<SubTree>, index: NodeIndex, expected_digram: &Digram) -> bool {
         let instance = {
             let borrow = node.borrow();
             if borrow.digrams.len() == 0 {
-                // All children have already been removed.
-                return;
+                // Everything has already been removed
+                return false;
             }
+            let position = borrow.children.iter()
+                .position(|child| child.borrow().index == index);
+            let position = match position {
+                // This child was already removed
+                None => { return false; }
+                Some(position) => position
+            };
             let (ref weak_digram, ref digram_instance_remover) = borrow.digrams[position];
-            let instance = weak_digram.upgrade()
-                .unwrap();
+            let instance = match weak_digram.upgrade() {
+                None => {
+                    // The entire instance has ceased existing.
+                    return false;
+                }
+                Some(instance) => instance
+            };
             if &*instance.digram != expected_digram {
                 // The parent has already been rewritten.
-                return;
+                return false;
             }
             digram_instance_remover.remove();
             instance
         };
         self.reprioritize(&instance);
+        true
     }
     fn remove_full_node_except(&mut self, node: &SharedCell<SubTree>, maintain_digram: &Digram) {
         let mut borrow = node.borrow_mut();
         for (weak_digram, digram_instance_remover) in borrow.digrams.drain(..) {
-            let instance = weak_digram.upgrade()
-                .unwrap();
+            let instance = match weak_digram.upgrade() {
+                Some(instance) => instance,
+                None => {
+                    // Nothing to remove from.
+                    continue;
+                }
+            };
             if &*instance.digram == maintain_digram {
                 // Don't remove the current digram!
                 continue;
@@ -931,7 +978,7 @@ mod list {
             let borrow = self.list.borrow();
             let mut position = 0;
             let len = borrow.len;
-            debug_assert_eq!(borrow.compute_length(), len);
+            // debug_assert_eq!(borrow.compute_length(), len);
             itertools::unfold(borrow.head.clone(), move |cursor| {
                 let (next, item) = match cursor {
                     None => {
@@ -1050,7 +1097,7 @@ mod list {
             if self.len == 0 {
                 self.head = None;
             }
-            debug_assert_eq!(self.compute_length(), self.len);
+            // debug_assert_eq!(self.compute_length(), self.len);
             Some(result)
         }
     }
@@ -1106,7 +1153,7 @@ mod list {
             }
             borrow_link.next = None;
             borrow_list.len -= 1;
-            debug_assert_eq!(borrow_list.compute_length(), borrow_list.len);
+            // debug_assert_eq!(borrow_list.compute_length(), borrow_list.len);
             // debug!(target: "repair", "Removing item");
             borrow_list.len
         }
