@@ -1,5 +1,6 @@
 #![feature(vec_resize_default)]
 
+extern crate binjs_shared;
 
 extern crate brotli;
 extern crate flate2;
@@ -69,6 +70,13 @@ pub mod xml;
 
 mod util;
 
+pub mod mru;
+
+#[derive(Clone)]
+pub enum NumberingStrategy {
+    MRU,
+    GlobalFrequency,
+}
 
 pub enum Format {
     Simple {

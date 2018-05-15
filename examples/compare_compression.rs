@@ -114,6 +114,11 @@ fn main() {
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "br", "deflate", "trp"])
                 .help("Compression format for the binjs files"),
+            Arg::with_name("numbering")
+                .long("numbering")
+                .takes_value(true)
+                .possible_values(&["mru", "frequency"])
+                .help("Numbering strategy for the tree. Defaults to frequency."),
             Arg::with_name("trp-rank")
                 .long("trp-rank")
                 .takes_value(true)
@@ -142,9 +147,15 @@ fn main() {
                     None | Some("none") => None,
                     Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
                 };
+                let numbering_strategy = match matches.value_of("numbering") {
+                    None | Some("frequency") => NumberingStrategy::GlobalFrequency,
+                    Some("mru") => NumberingStrategy::MRU,
+                    Some(other) => panic!("Unexpected argument {}", other)
+                };
                 Format::TreeRePair {
                     options: binjs::io::repair::Options {
-                        max_rank
+                        max_rank,
+                        numbering_strategy,
                     }
                 }
             }

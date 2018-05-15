@@ -1,9 +1,10 @@
 [package]
 name = "binjs_io"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [dependencies]
+binjs_shared = { path = "../binjs_shared", version = "*" }
 brotli = "*"
 flate2 = "^1.0"
 itertools = "*"

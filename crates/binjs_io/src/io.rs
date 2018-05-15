@@ -7,10 +7,16 @@
 //! In practice, this API is kept as a trait to simplify unit testing and
 //! experimentation of sophisticated compression schemes.
 
+use binjs_shared;
+
+use std::collections::HashMap;
 use std::fmt::{ Debug, Display };
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::Add;
 use std::rc::Rc;
+
+use itertools::Itertools;
 
 /// An API for reading tokens.
 ///
@@ -224,4 +230,58 @@ pub trait Deserialization<R, T> where R: TokenReader, T: Sized {
 }
 pub trait InnerDeserialization<R, T> where R: TokenReader, T: Sized {
     fn deserialize_inner(&mut self) -> Result<T, R::Error>;
+}
+
+#[derive(Debug, Clone)]
+pub struct Numbering {
+    is_first: bool,
+    index: usize
+}
+impl Numbering {
+    pub fn is_first(&self) -> bool {
+        self.is_first
+    }
+    pub fn index(&self) -> usize {
+        self.index
+    }
+}
+
+pub enum NumberingStrategy<T> where T: Eq + Hash + Clone {
+    MRU(binjs_shared::mru::MRU<T>),
+    Frequency(HashMap<T, Numbering>)
+}
+
+impl<T> NumberingStrategy<T> where T: Eq + Hash + Clone {
+    pub fn mru() -> Self {
+        let mru = binjs_shared::mru::MRU::new();
+        NumberingStrategy::MRU(mru)
+    }
+
+    pub fn frequency(occurrences: HashMap<T, usize>) -> Self {
+        let sorted = occurrences.into_iter()
+            .sorted_by(|(_, v), (_, v2)| usize::cmp(v2, v)); // Sort from largest to smallest
+        let numbered = sorted.into_iter()
+            .enumerate()
+            .map(|(position, (label, _))| (label, Numbering { is_first: true, index: position }))
+            .collect();
+        NumberingStrategy::Frequency(numbered)
+    }
+
+    pub fn get_index(&mut self, label: &T) -> Numbering {
+        match *self {
+            NumberingStrategy::MRU(ref mut mru) => {
+                use binjs_shared::mru::Seen::*;
+                match mru.access(label) {
+                    Age(index) => Numbering { is_first: false, index },
+                    Never(index) => Numbering { is_first: true, index }
+                }
+            }
+            NumberingStrategy::Frequency(ref mut frequency) => {
+                let mut found = frequency.get_mut(label).unwrap();
+                let result = found.clone();
+                found.is_first = false;
+                result
+            }
+        }
+    }
 }

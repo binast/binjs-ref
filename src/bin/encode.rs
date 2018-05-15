@@ -4,7 +4,7 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::io::{ Format, TokenSerializer };
+use binjs::io::{ Format, NumberingStrategy, TokenSerializer };
 use binjs::io::multipart::{ SectionOption, WriteOptions };
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
@@ -277,6 +277,11 @@ fn main_aux() {
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for the tree. Defaults to identity."),
+            Arg::with_name("numbering")
+                .long("numbering")
+                .takes_value(true)
+                .possible_values(&["mru", "frequency"])
+                .help("Numbering strategy for the tree. Defaults to frequency."),
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
@@ -293,7 +298,7 @@ fn main_aux() {
                 .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
         ])
         .group(ArgGroup::with_name("trp")
-            .args(&["rank"])
+            .args(&["trp-rank"])
         )
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
@@ -348,9 +353,15 @@ fn main_aux() {
                 None | Some("none") => None,
                 Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
             };
+            let numbering_strategy = match matches.value_of("numbering") {
+                None | Some("frequency") => NumberingStrategy::GlobalFrequency,
+                Some("mru") => NumberingStrategy::MRU,
+                Some(other) => panic!("Unexpected argument {}", other)
+            };
             Format::TreeRePair {
                 options: binjs::io::repair::Options {
-                    max_rank
+                    max_rank,
+                    numbering_strategy,
                 }
             }
         }

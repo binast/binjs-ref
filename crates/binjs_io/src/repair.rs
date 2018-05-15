@@ -1,8 +1,9 @@
 //! An implementation of TreeRePair http://www.eti.uni-siegen.de/ti/veroeffentlichungen/12-repair.pdf
 
 use bytes;
+use bytes::varnum::WriteVarNum;
 
-use ::TokenWriterError;
+use ::{ NumberingStrategy, TokenWriterError };
 use io::TokenWriter;
 
 use std;
@@ -17,7 +18,9 @@ use itertools::Itertools;
 pub struct Options {
     /// If specified, reduce all nodes (including lists) to ensure that they have at
     /// most `max_rank` children. The original paper recomments a value of 4.
-    pub max_rank: Option<usize>
+    pub max_rank: Option<usize>,
+
+    pub numbering_strategy: NumberingStrategy,
 }
 
 type SharedCell<T> = Rc<RefCell<T>>;
@@ -160,37 +163,35 @@ impl Label {
         }
     }
 
-    fn serialize<W: Write>(&self, labels: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
+    fn serialize<W: Write>(&self, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
         use self::Label::*;
 
-        let (varnum, _, seen) = labels.get(self)
-            .unwrap_or_else(|| panic!("Label {:?} is not in the table of labels", self));
-        // No matter what, write our varnum.
-        out.write_all(varnum).unwrap();
-        // If this is the first time we see the header, write our definition.
-        let mut borrow_seen = seen.borrow_mut();
-        if *borrow_seen {
-            // We're done here.
-            return;
-        }
-        *borrow_seen = true;
-        match *self {
-            Leaf(ref buf) => {
-                *headers += buf.len();
-                out.write_all(&buf).unwrap()
-            },
-            Named { ref label, ..} => {
-                *headers += label.as_bytes().len();
-                out.write_all(label.as_bytes()).unwrap()
-            },
-            List { .. } => { /* Nothing else to write */ }
-            Generated { ref digram, .. } => {
-                use bytes::varnum::WriteVarNum;
-                // The definition of a digram requires writing its labels, possibly for the first time,
-                // which may in turn contain digrams, etc.
-                digram.parent.serialize(labels, headers, out);
-                *headers += out.write_varnum(digram.position as u32).unwrap();
-                digram.child.serialize(labels, headers, out);
+        let index = mru.get_index(self);
+        // Write the number.
+        out.write_varnum(index.index() as u32).unwrap();
+
+        if index.is_first() {
+            // Never seen: write the smallest possible "unknown" value, then the definition.
+            info!(target: "repair", "Adding to dictionary: {}", *self);
+
+            match *self {
+                Leaf(ref buf) => {
+                    *headers += buf.len();
+                    out.write_all(&buf).unwrap()
+                },
+                Named { ref label, ..} => {
+                    *headers += label.as_bytes().len();
+                    out.write_all(label.as_bytes()).unwrap()
+                },
+                List { .. } => { /* Nothing else to write */ }
+                Generated { ref digram, .. } => {
+                    use bytes::varnum::WriteVarNum;
+                    // The definition of a digram requires writing its labels, possibly for the first time,
+                    // which may in turn contain digrams, etc.
+                    digram.parent.serialize(mru, headers, out);
+                    *headers += out.write_varnum(digram.position as u32).unwrap();
+                    digram.child.serialize(mru, headers, out);
+                }
             }
         }
     }
@@ -311,17 +312,17 @@ impl SubTree {
         aux(self, &mut map);
         map
     }
-    fn serialize<W: Write>(&self, substitutions: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, out: &mut W) {
+    fn serialize<W: Write>(&self, mru: &mut ::io::NumberingStrategy<Label>, out: &mut W) {
         let mut dictionary_size = 0;
-        fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
+        fn aux<W: Write>(tree: &SubTree, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
             // Write header.
-            tree.label.serialize(labels, headers, out);
+            tree.label.serialize(mru, headers, out);
             // Then write children in the order.
             for child in &tree.children {
-                aux(&*child.borrow(), labels, headers, out)
+                aux(&*child.borrow(), mru, headers, out)
             }
         }
-        aux(self, substitutions, &mut dictionary_size, out);
+        aux(self, mru, &mut dictionary_size, out);
         info!(target: "repair", "Inline dictionary takes {} bytes", dictionary_size);
     }
 }
@@ -451,6 +452,7 @@ pub struct Encoder {
     root: Root,
     digram_counter: GenericCounter<DigramIndex>,
     pending_digrams: HashMap<Digram, Rc<DigramInstances>>,
+    numbering_strategy: NumberingStrategy,
 }
 
 impl TokenWriter for Encoder {
@@ -526,40 +528,19 @@ impl TokenWriter for Encoder {
         // Rewrite tree with digrams.
         info!(target: "repair", "Compressing tree to digrams.");
         self.proceed_with_tree_repair();
-        // Collect statistics on most commonly labels.
-        info!(target: "repair", "Collecting data for efficient binary representation.");
-        let statistics = self.root.tree.borrow()
-            .collect_labels()
-            .into_iter()
-            .sorted_by(|a, b| Ord::cmp(&a.1, &b.1));
-        let number_of_labels = statistics.len();
-        info!(target: "repair", "Generating efficient binary representation.");
-        // FIXME We could eliminate lookup by making this part of the label itself.
-        let label_representation : HashMap<_, _> = statistics.into_iter().enumerate()
-            .map(|(position, (label, instances))| {
-                use bytes::varnum::WriteVarNum;
 
-                info!(target: "repair", "`{}` appears {} times, rank {}, representing as {}.",
-                    label,
-                    instances,
-                    position,
-                    number_of_labels - position - 1);
-
-                let mut encoded = vec![];
-                if instances == 1 {
-                    // Special value 0 is reserved for inlining.
-                    encoded.write_varnum(0).unwrap();
-                } else {
-                    encoded.write_varnum(/* not zero, which is reserved for inlining*/(number_of_labels - position) as u32).unwrap();
-                }
-
-                (label, (encoded, instances,/* encountered */ RefCell::new(false)))
-            })
-            .collect();
+        info!(target: "repair", "Generating numbering strategy.");
+        let mut strategy = match self.numbering_strategy {
+            NumberingStrategy::MRU => ::io::NumberingStrategy::mru(),
+            NumberingStrategy::GlobalFrequency => {
+                let frequency = self.root.tree.borrow().collect_labels();
+                ::io::NumberingStrategy::frequency(frequency)
+            }
+        };
 
         info!(target: "repair", "Generating binary.");
         let mut buf = vec![];
-        self.root.tree.borrow().serialize(&label_representation, &mut buf);
+        self.root.tree.borrow().serialize(&mut strategy, &mut buf);
 
         info!(target: "repair", "Done.");
         Ok((buf, 0))
@@ -678,6 +659,7 @@ impl Encoder {
     pub fn new(options: Options) -> Self {
         Self {
             root: Root::new(options.max_rank),
+            numbering_strategy: options.numbering_strategy,
             digram_counter: GenericCounter::new(),
             pending_digrams: HashMap::with_capacity(4096),
         }

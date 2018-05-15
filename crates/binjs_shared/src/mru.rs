@@ -1,3 +1,5 @@
+//! Naive implementation of a MRU numbering scheme.
+
 use std::collections::LinkedList;
 use std::hash::Hash;
 
