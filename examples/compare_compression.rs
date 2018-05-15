@@ -8,7 +8,7 @@ extern crate rand;
 
 use binjs::io::bytes::compress::*;
 use binjs::io::multipart::{ SectionOption, WriteOptions };
-use binjs::io::{ Format, TokenSerializer };
+use binjs::io::{ Format, NumberingStrategy, TokenSerializer };
 use binjs::generic::FromJSON;
 use binjs::source::*;
 
