@@ -70,8 +70,6 @@ pub mod xml;
 
 mod util;
 
-pub mod mru;
-
 #[derive(Clone)]
 pub enum NumberingStrategy {
     MRU,
