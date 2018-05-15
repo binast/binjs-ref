@@ -147,8 +147,8 @@ fn handle_path<'a>(options: &Options<'a>,
                 *borrow += stats;
                 Box::new(data)
             }
-            Format::TreeRePair => {
-                let writer = binjs::io::repair::Encoder::new();
+            Format::TreeRePair { ref options } => {
+                let writer = binjs::io::repair::Encoder::new(options.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)
                     .expect("Could not encode AST");
@@ -253,6 +253,10 @@ fn main_aux() {
                 .takes_value(true)
                 .possible_values(&["simple", "multipart", "trp", "xml"])
                 .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
+            Arg::with_name("trp-rank")
+                .long("trp-rank")
+                .takes_value(true)
+                .help("Maximal rank for trp. Ignored if the format isn't trp. Number of 'none'."),
             Arg::with_name("strings")
                 .long("strings")
                 .takes_value(true)
@@ -288,6 +292,9 @@ fn main_aux() {
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
         ])
+        .group(ArgGroup::with_name("trp")
+            .args(&["rank"])
+        )
         .group(ArgGroup::with_name("multipart")
             .args(&["strings", "grammar", "tree"])
             .multiple(true)
@@ -336,7 +343,17 @@ fn main_aux() {
                 }
             }
         },
-        Some("trp") => Format::TreeRePair,
+        Some("trp") => {
+            let max_rank = match matches.value_of("trp-rank") {
+                None | Some("none") => None,
+                Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
+            };
+            Format::TreeRePair {
+                options: binjs::io::repair::Options {
+                    max_rank
+                }
+            }
+        }
         Some("xml") => Format::XML,
         Some("simple") => Format::Simple {
             stats: Rc::new(RefCell::new(binjs::io::simple::Statistics::default()))

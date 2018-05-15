@@ -78,7 +78,9 @@ pub enum Format {
         options: multipart::WriteOptions,
         stats: Rc<RefCell<multipart::Statistics>>
     },
-    TreeRePair,
+    TreeRePair {
+        options: repair::Options,
+    },
     XML,
 }
 impl Format {
@@ -90,7 +92,7 @@ impl Format {
                 stats: Default::default(),
                 options: WriteOptions::new(options),
             },
-            Format::TreeRePair => Format::TreeRePair,
+            Format::TreeRePair { ref options } => Format::TreeRePair { options: options.clone() },
             Format::XML => Format::XML,
         }
     }

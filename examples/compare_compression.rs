@@ -114,6 +114,10 @@ fn main() {
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "br", "deflate", "trp"])
                 .help("Compression format for the binjs files"),
+            Arg::with_name("trp-rank")
+                .long("trp-rank")
+                .takes_value(true)
+                .help("Maximal rank for trp. Ignored if the format isn't trp. Number of 'none'."),
         ])
         .get_matches();
 
@@ -133,7 +137,17 @@ fn main() {
             Some("identity") => make_multipart(Compression::Identity),
             Some("gzip") => make_multipart(Compression::Gzip),
             Some("br") => make_multipart(Compression::Brotli),
-            Some("trp") => Format::TreeRePair,
+            Some("trp") => {
+                let max_rank = match matches.value_of("trp-rank") {
+                    None | Some("none") => None,
+                    Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
+                };
+                Format::TreeRePair {
+                    options: binjs::io::repair::Options {
+                        max_rank
+                    }
+                }
+            }
             otherwise => panic!("Unsupported compression: {:?}", otherwise)
         }
     };
@@ -167,8 +181,8 @@ fn main() {
                         .expect("Could not finalize AST encoding");
                     Box::new(data)
                 }
-                Format::TreeRePair => {
-                    let writer = binjs::io::repair::Encoder::new();
+                Format::TreeRePair { ref options }=> {
+                    let writer = binjs::io::repair::Encoder::new(options.clone());
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                     serializer.serialize(&ast)
                         .expect("Could not encode AST");

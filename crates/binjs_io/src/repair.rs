@@ -13,7 +13,12 @@ use std::rc::{ Rc, Weak };
 
 use itertools::Itertools;
 
-const MAX_RANK: usize = 2;
+#[derive(Clone)]
+pub struct Options {
+    /// If specified, reduce all nodes (including lists) to ensure that they have at
+    /// most `max_rank` children. The original paper recomments a value of 4.
+    pub max_rank: Option<usize>
+}
 
 type SharedCell<T> = Rc<RefCell<T>>;
 
@@ -121,6 +126,14 @@ impl Label {
             Named { ref children, .. }
             | Generated { ref children, .. } => *children,
             List { ref len, .. } => *len
+        }
+    }
+    fn set_len(&mut self, len: usize)  {
+        use self::Label::*;
+        match *self {
+            Named { ref mut children,  .. } => *children = len,
+            List { len: ref mut children , ..} => *children = len,
+            _ => panic!()
         }
     }
 
@@ -317,15 +330,35 @@ struct Root {
     tree: SharedCell<SubTree>,
     node_counter: GenericCounter<NodeIndex>,
     generated_label_counter: GenericCounter<GeneratedLabel>,
+
+    /// See `Options`.
+    max_rank: Option<usize>,
+
+    /// If `options.max_rank` is specified, this is a cache of labels for nodes
+    /// injected when we need to fit a node that otherwise has too many children.
+    rank_labels: Vec<Label>,
 }
 impl Root {
-    fn new() -> Self {
+    fn new(max_rank: Option<usize>) -> Self {
         let mut node_counter = GenericCounter::new();
         let generated_label_counter = GenericCounter::new();
         let index = node_counter.next();
+        let rank_labels = match max_rank {
+            None => vec![],
+            Some(ref size) => {
+                (0 .. *size + 1).map(|i| {
+                    Label::Named {
+                        label: Rc::new(format!("_{}", i)),
+                        children: i,
+                    }
+                }).collect()
+            }
+        };
         Root {
             node_counter,
             generated_label_counter,
+            max_rank,
+            rank_labels,
             tree: Rc::new(RefCell::new(SubTree {
                 index,
                 label: Label::Leaf(Rc::new(vec![])),
@@ -359,7 +392,7 @@ impl Root {
             children,
         }
     }
-    fn new_subtree(&mut self, label: Label, mut children: Vec<SharedCell<SubTree>>) -> SharedCell<SubTree> {
+    fn new_subtree(&mut self, mut label: Label, mut children: Vec<SharedCell<SubTree>>) -> SharedCell<SubTree> {
         debug_assert!{
             children.iter()
                 .find(|child| {
@@ -370,29 +403,28 @@ impl Root {
                 .is_none(),
             "We shouldn't be calling `new_subtree` once we have started filling the digrams."
         }
-        if MAX_RANK == 2 {
-            // FIXME: For the moment, we assume that MAX_RANK is either 2 or MAX_INT
-            if children.len() > MAX_RANK {
-                debug_assert_eq!(MAX_RANK, 2);
-                let single = self.new_named_label("_Single", 1);
-                let cons   = self.new_named_label("_Cons", 2);
+        if self.max_rank.is_some() {
+            let max_rank = self.max_rank.clone().unwrap();
+            if children.len() > max_rank {
+                // Too many children, we need to group them into chunks.
+                // Consider 31 children for a max rank of 5.
+                // ceil(31/5) = 7, so we end up with 4 chunks of 7 and one chunk of 3
+
+                let chunk_size = ((children.len() as f32) / (max_rank as f32)).ceil() as usize;
+
                 let mut new_children = vec![];
-                for chunk in &children.into_iter().chunks(MAX_RANK) {
+                for chunk in &children.into_iter().chunks(chunk_size) {
                     let chunk : Vec<_> = chunk.collect();
-                    let child = match chunk.len() {
-                        0 => self.new_leaf(vec![]),
-                        1 => self.new_subtree(single.clone(), chunk),
-                        2 => self.new_subtree(cons.clone(), chunk),
-                        _ => panic!()
-                    };
+                    let label = self.rank_labels[usize::min(chunk.len(), self.rank_labels.len() - 1)].clone();
+                    let child = self.new_subtree(label, chunk);
                     new_children.push(child);
                 }
-                return self.new_subtree(label, new_children);
+
+                // We now have at most `max_rank` children. Adapt label.
+                children = new_children;
+                label.set_len(children.len());
             } else if children.len() < label.len() {
-                let nil = self.new_named_label("_Nil", 0);
-                for _ in children.len()..label.len() {
-                    children.push(self.new_subtree(nil.clone(), vec![]));
-                }
+                panic!()
             }
         }
         let parent = Rc::new(RefCell::new(SubTree {
@@ -643,9 +675,9 @@ impl Ord for DigramInstances {
 const MINIMAL_NUMBER_OF_INSTANCE : usize = 2;
 
 impl Encoder {
-    pub fn new() -> Self {
+    pub fn new(options: Options) -> Self {
         Self {
-            root: Root::new(),
+            root: Root::new(options.max_rank),
             digram_counter: GenericCounter::new(),
             pending_digrams: HashMap::with_capacity(4096),
         }
