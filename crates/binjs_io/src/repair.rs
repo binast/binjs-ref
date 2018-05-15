@@ -1,8 +1,9 @@
 //! An implementation of TreeRePair http://www.eti.uni-siegen.de/ti/veroeffentlichungen/12-repair.pdf
 
 use bytes;
+use bytes::varnum::WriteVarNum;
 
-use ::TokenWriterError;
+use ::{ NumberingStrategy, TokenWriterError };
 use io::TokenWriter;
 
 use std;
@@ -11,7 +12,15 @@ use std::collections::{ BinaryHeap, HashMap, LinkedList };
 use std::rc::{ Rc, Weak };
 
 use itertools::Itertools;
-use priority_queue::PriorityQueue;
+
+#[derive(Clone)]
+pub struct Options {
+    /// If specified, reduce all nodes (including lists) to ensure that they have at
+    /// most `max_rank` children. The original paper recomments a value of 4.
+    pub max_rank: Option<usize>,
+
+    pub numbering_strategy: NumberingStrategy,
+}
 
 type SharedCell<T> = Rc<RefCell<T>>;
 
@@ -69,7 +78,72 @@ impl Label {
         match *self {
             Leaf(_) => 0,
             Named { ref children, .. }
-            | Generated { ref children, .. } => *children
+            | Generated { ref children, .. } => *children,
+            List { ref len, .. } => *len
+        }
+    }
+    fn set_len(&mut self, len: usize)  {
+        use self::Label::*;
+        match *self {
+            Named { ref mut children,  .. } => *children = len,
+            List { len: ref mut children , ..} => *children = len,
+            _ => panic!()
+        }
+    }
+
+    /// Return an approximation of the number of bytes taken by an instance of a label.
+    fn byte_len(&self) -> usize {
+        use self::Label::*;
+        match *self {
+            Leaf(ref buf) => buf.len(),
+            Named { ref label, .. } => label.len(),
+            Generated { .. } => 4, /* FIXME: let's say it takes 32 bits */
+            List { .. } => 4
+        }
+    }
+
+    fn collect(&self, labels: &mut HashMap<Label, usize> ){
+        {
+            let entry = labels.entry(self.clone())
+                .or_insert(0);
+            *entry += 1;
+        }
+        if let Label::Generated { ref digram, .. } = *self {
+            digram.parent.collect(labels);
+            digram.child.collect(labels);
+        }
+    }
+
+    fn serialize<W: Write>(&self, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
+        use self::Label::*;
+
+        let index = mru.get_index(self);
+        // Write the number.
+        out.write_varnum(index.index() as u32).unwrap();
+
+        if index.is_first() {
+            // Never seen: write the smallest possible "unknown" value, then the definition.
+            info!(target: "repair", "Adding to dictionary: {}", *self);
+
+            match *self {
+                Leaf(ref buf) => {
+                    *headers += buf.len();
+                    out.write_all(&buf).unwrap()
+                },
+                Named { ref label, ..} => {
+                    *headers += label.as_bytes().len();
+                    out.write_all(label.as_bytes()).unwrap()
+                },
+                List { .. } => { /* Nothing else to write */ }
+                Generated { ref digram, .. } => {
+                    use bytes::varnum::WriteVarNum;
+                    // The definition of a digram requires writing its labels, possibly for the first time,
+                    // which may in turn contain digrams, etc.
+                    digram.parent.serialize(mru, headers, out);
+                    *headers += out.write_varnum(digram.position as u32).unwrap();
+                    digram.child.serialize(mru, headers, out);
+                }
+            }
         }
     }
 }
@@ -136,17 +210,17 @@ impl SubTree {
         aux(self, &mut map);
         map
     }
-    fn serialize<W: Write>(&self, substitutions: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, out: &mut W) {
+    fn serialize<W: Write>(&self, mru: &mut ::io::NumberingStrategy<Label>, out: &mut W) {
         let mut dictionary_size = 0;
-        fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
+        fn aux<W: Write>(tree: &SubTree, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
             // Write header.
-            tree.label.serialize(labels, headers, out);
+            tree.label.serialize(mru, headers, out);
             // Then write children in the order.
             for child in &tree.children {
-                aux(&*child.borrow(), labels, headers, out)
+                aux(&*child.borrow(), mru, headers, out)
             }
         }
-        aux(self, substitutions, &mut dictionary_size, out);
+        aux(self, mru, &mut dictionary_size, out);
         info!(target: "repair", "Inline dictionary takes {} bytes", dictionary_size);
     }
 }
@@ -177,46 +251,11 @@ pub struct Encoder {
     node_counter: usize,
     generated_counter: usize,
     root: Root,
+    digram_counter: GenericCounter<DigramIndex>,
+    pending_digrams: HashMap<Digram, Rc<DigramInstances>>,
+    numbering_strategy: NumberingStrategy,
 }
 
-fn take(item: &<Encoder as TokenWriter>::Tree) -> trees::Tree<Label> {
-    let mut borrow = item.borrow_mut();
-    let child = borrow.take();
-    if let Some(child) = child {
-        return child;
-    } else {
-        panic!()
-    }
-}
-
-
-impl Encoder {
-    fn leaf(&mut self, data: Rc<Vec<u8>>) -> Label {
-        let index = NodeIndex(self.node_counter);
-        self.node_counter += 1;
-        Label {
-            index,
-            data: LabelData::Leaf(data)
-        }
-    }
-    fn internal(&mut self, label: String, size: usize) -> Label {
-        let index = NodeIndex(self.node_counter);
-        self.node_counter += 1;
-        Label {
-            index,
-            data: LabelData::Labelled(Rc::new(label), size)
-        }
-    }
-
-    /// Convert a list into a binary representation.
-    fn list_aux(&mut self, items: &[<Self as TokenWriter>::Tree]) -> Result<<Self as TokenWriter>::Tree, <Self as TokenWriter>::Error> {
-        if items.len() == 0 {
-            return self.tagged_tuple("_Nil", &[])
-        }
-        let children = [("hd" /* ignored*/, items[0].clone()), ("tl", /*ignored */ self.list_aux(&items[1..])?) ];
-        self.tagged_tuple("_List", &children)
-    }
-}
 impl TokenWriter for Encoder {
     type Error = TokenWriterError;
     type Statistics = u32; // Ignored for the time being.
@@ -277,40 +316,19 @@ impl TokenWriter for Encoder {
         // Rewrite tree with digrams.
         info!(target: "repair", "Compressing tree to digrams.");
         self.proceed_with_tree_repair();
-        // Collect statistics on most commonly labels.
-        info!(target: "repair", "Collecting data for efficient binary representation.");
-        let statistics = self.root.tree.borrow()
-            .collect_labels()
-            .into_iter()
-            .sorted_by(|a, b| Ord::cmp(&a.1, &b.1));
-        let number_of_labels = statistics.len();
-        info!(target: "repair", "Generating efficient binary representation.");
-        // FIXME We could eliminate lookup by making this part of the label itself.
-        let label_representation : HashMap<_, _> = statistics.into_iter().enumerate()
-            .map(|(position, (label, instances))| {
-                use bytes::varnum::WriteVarNum;
 
-                info!(target: "repair", "`{}` appears {} times, rank {}, representing as {}.",
-                    label,
-                    instances,
-                    position,
-                    number_of_labels - position - 1);
-
-                let mut encoded = vec![];
-                if instances == 1 {
-                    // Special value 0 is reserved for inlining.
-                    encoded.write_varnum(0).unwrap();
-                } else {
-                    encoded.write_varnum(/* not zero, which is reserved for inlining*/(number_of_labels - position) as u32).unwrap();
-                }
-
-                (label, (encoded, instances,/* encountered */ RefCell::new(false)))
-            })
-            .collect();
+        info!(target: "repair", "Generating numbering strategy.");
+        let mut strategy = match self.numbering_strategy {
+            NumberingStrategy::MRU => ::io::NumberingStrategy::mru(),
+            NumberingStrategy::GlobalFrequency => {
+                let frequency = self.root.tree.borrow().collect_labels();
+                ::io::NumberingStrategy::frequency(frequency)
+            }
+        };
 
         info!(target: "repair", "Generating binary.");
         let mut buf = vec![];
-        self.root.tree.borrow().serialize(&label_representation, &mut buf);
+        self.root.tree.borrow().serialize(&mut strategy, &mut buf);
 
         info!(target: "repair", "Done.");
         Ok((buf, 0))
@@ -377,22 +395,72 @@ impl Ord for DigramInstances {
 }
 
 impl Encoder {
-    fn compute_startup_digrams(tree: &SharedCell<SubTree>) -> Digrams {
-        use std::borrow::BorrowMut;
-        let mut digrams = HashMap::new();
-        fn aux(node: &SharedCell<SubTree>, set: &mut Digrams) {
-            let parent_borrow = node.borrow();
-            let parent_label = parent_borrow.label.clone();
-            for (position, child) in parent_borrow.children().enumerate() {
-                let child_borrow = child.borrow();
-                let child_label = child_borrow.label.clone();
-                let digram = Digram {
-                    parent: node.data.clone(),
-                    position,
-                    child: child.data.clone()
-                };
-                let this_digram = set.entry(digram)
-                    .or_insert_with(|| Rc::new(RefCell::new(vec![node.clone()])));
+    pub fn new(options: Options) -> Self {
+        Self {
+            root: Root::new(options.max_rank),
+            numbering_strategy: options.numbering_strategy,
+            digram_counter: GenericCounter::new(),
+            pending_digrams: HashMap::with_capacity(4096),
+        }
+    }
+
+    /// Compute a single digram for a node.
+    fn compute_digram_at(&mut self, node: &Rc<RefCell<SubTree>>, index: NodeIndex) {
+        debug_assert!(node.sanity_check());
+        let mut borrow_node = node.borrow_mut();
+        let position = borrow_node.children.iter()
+            .position(|child| child.borrow().index == index);
+        let position = match position {
+            // This child was already removed
+            None => { return; }
+            Some(position) => position
+        };
+        let digram = Digram {
+            parent: borrow_node.label.clone(),
+            position,
+            child: borrow_node.children[position].borrow().label.clone(),
+        };
+        let next = self.digram_counter.next();
+        let instances = self.pending_digrams
+            .entry(digram.clone())
+            .or_insert_with(|| {
+                debug!(target: "repair", "compute_digram_at: new DigramInstances for {:?}", digram);
+                Rc::new(DigramInstances::new(digram, next))
+            });
+        instances.insert_borrowed(node, &mut borrow_node);
+    }
+
+    /// Compute all digrams for a node.
+    fn compute_digrams_for_node(&mut self, node: &Rc<RefCell<SubTree>>) {
+        debug_assert!(node.sanity_check());
+        let mut borrow_node = node.borrow_mut();
+        let parent = borrow_node.label.clone();
+        let children : Vec<_> = borrow_node.children.iter().cloned().collect(); // FIXME: Find a better way to workaround sharing issues
+        for (position, child) in children.into_iter().enumerate() {
+            let digram = Digram {
+                parent: parent.clone(),
+                position,
+                child: child.borrow().label.clone(),
+            };
+            let next = self.digram_counter.next();
+//            debug!(target: "repair", "compute_digrams_for_node: Pending digrams has {} entries, looking for DigramInstances for {:?}", self.pending_digrams.len(), digram);
+            let instances = self.pending_digrams
+                .entry(digram.clone())
+                .or_insert_with(|| {
+                    debug!(target: "repair", "compute_digrams_for_node: new DigramInstances for {:?}", digram);
+                    Rc::new(DigramInstances::new(digram, next))
+                });
+            instances.insert_borrowed(node, &mut borrow_node);
+        }
+    }
+
+    /// Compute all digrams for a subtree
+    fn compute_digrams_for_subtree(&mut self, node: &Rc<RefCell<SubTree>>) {
+        {
+            let borrow_node = node.borrow();
+            // First, the children.
+            for child in borrow_node.children.iter() {
+                self.compute_digrams_for_subtree(child)
             }
         }
         aux(tree, &mut digrams);

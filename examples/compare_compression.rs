@@ -130,22 +130,11 @@ fn main() {
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "br", "deflate"])
                 .help("Compression format for the binjs files"),
-            Arg::with_name("format")
-                .long("format")
-                .required(true)
-                .takes_value(true)
-                .possible_values(&["multipart", "trp", "multistream"])
-                .help("Encoding for the binjs files"),
             Arg::with_name("numbering")
                 .long("numbering")
                 .takes_value(true)
-                .possible_values(&["mru", "frequency", "parent"])
+                .possible_values(&["mru", "frequency"])
                 .help("Numbering strategy for the tree. Defaults to frequency."),
-            Arg::with_name("dictionary")
-                .long("dictionary")
-                .takes_value(true)
-                .possible_values(&["inline", "header"])
-                .help("Where to place the dictionary."),
             Arg::with_name("trp-rank")
                 .long("trp-rank")
                 .takes_value(true)
@@ -176,26 +165,37 @@ fn main() {
             let stats = Rc::new(RefCell::new(Statistics::default()
                 .with_source_bytes(0)));
             Format::Multipart {
-                targets: Targets {
-                    strings_table: CompressionTarget::new(compression.clone()),
-                    grammar_table: CompressionTarget::new(compression.clone()),
-                    tree: CompressionTarget::new(compression.clone()),
-                },
-                stats
-            }
-        },
-        Some("trp") => {
-            let max_rank = match matches.value_of("trp-rank") {
-                None | Some("none") => None,
-                Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
-            };
-            Format::TreeRePair {
-                options: binjs::io::repair::Options {
-                    max_rank,
-                    numbering_strategy,
-                    dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
+                stats: Rc::new(RefCell::new(binjs::io::multipart::Statistics::default()
+                    .with_source_bytes(0))),
+                options: WriteOptions {
+                    grammar_table: SectionOption::Compression(compression.clone()),
+                    strings_table: SectionOption::Compression(compression.clone()),
+                    tree: SectionOption::Compression(compression)
                 }
             }
+        };
+        match matches.value_of("compression") {
+            Some("identity") => make_multipart(Compression::Identity),
+            Some("gzip") => make_multipart(Compression::Gzip),
+            Some("br") => make_multipart(Compression::Brotli),
+            Some("trp") => {
+                let max_rank = match matches.value_of("trp-rank") {
+                    None | Some("none") => None,
+                    Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
+                };
+                let numbering_strategy = match matches.value_of("numbering") {
+                    None | Some("frequency") => NumberingStrategy::GlobalFrequency,
+                    Some("mru") => NumberingStrategy::MRU,
+                    Some(other) => panic!("Unexpected argument {}", other)
+                };
+                Format::TreeRePair {
+                    options: binjs::io::repair::Options {
+                        max_rank,
+                        numbering_strategy,
+                    }
+                }
+            }
+            otherwise => panic!("Unsupported compression: {:?}", otherwise)
         }
         Some("xml") => Format::XML,
         Some("multistream") => {

@@ -6,8 +6,8 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 
-use binjs::io::bytes::compress::Compression;
-use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, NumberingStrategy, TokenSerializer };
+use binjs::io::{ Format, NumberingStrategy, TokenSerializer };
+use binjs::io::multipart::{ SectionOption, WriteOptions };
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
 use binjs::specialized::es6::ast::Walker;
@@ -317,13 +317,8 @@ fn main_aux() {
             Arg::with_name("numbering")
                 .long("numbering")
                 .takes_value(true)
-                .possible_values(&["mru", "frequency", "parent"])
+                .possible_values(&["mru", "frequency"])
                 .help("Numbering strategy for the tree. Defaults to frequency."),
-            Arg::with_name("dictionary")
-                .long("dictionary")
-                .takes_value(true)
-                .possible_values(&["inline", "header"])
-                .help("Where to place the dictionary."),
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
@@ -410,7 +405,23 @@ fn main_aux() {
                 }
             }
         },
-        Some("trp") => Format::TreeRePair,
+        Some("trp") => {
+            let max_rank = match matches.value_of("trp-rank") {
+                None | Some("none") => None,
+                Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
+            };
+            let numbering_strategy = match matches.value_of("numbering") {
+                None | Some("frequency") => NumberingStrategy::GlobalFrequency,
+                Some("mru") => NumberingStrategy::MRU,
+                Some(other) => panic!("Unexpected argument {}", other)
+            };
+            Format::TreeRePair {
+                options: binjs::io::repair::Options {
+                    max_rank,
+                    numbering_strategy,
+                }
+            }
+        }
         Some("xml") => Format::XML,
         Some("simple") => Format::Simple {
             stats: Rc::new(RefCell::new(binjs::io::simple::Statistics::default()))
