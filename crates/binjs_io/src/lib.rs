@@ -10,6 +10,7 @@ extern crate log;
 extern crate priority_queue;
 extern crate rand;
 extern crate vec_map;
+extern crate xml as xml_rs;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -64,6 +65,8 @@ pub mod multipart;
 /// A tree comperssion mechanism.
 pub mod repair;
 
+pub mod xml;
+
 mod util;
 
 
@@ -75,7 +78,8 @@ pub enum Format {
         options: multipart::WriteOptions,
         stats: Rc<RefCell<multipart::Statistics>>
     },
-    TreeRePair
+    TreeRePair,
+    XML,
 }
 impl Format {
     pub fn new(format: &Format) -> Format {
@@ -86,7 +90,8 @@ impl Format {
                 stats: Default::default(),
                 options: WriteOptions::new(options),
             },
-            Format::TreeRePair => Format::TreeRePair
+            Format::TreeRePair => Format::TreeRePair,
+            Format::XML => Format::XML,
         }
     }
 }

@@ -157,6 +157,16 @@ fn handle_path<'a>(options: &Options<'a>,
 
                 Box::new(data)
             }
+            Format::XML => {
+                let writer = binjs::io::xml::Encoder::new();
+                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                serializer.serialize(&ast)
+                    .expect("Could not encode AST");
+                let (data, _) = serializer.done()
+                    .expect("Could not finalize AST encoding");
+
+                Box::new(data)
+            }
             Format::Multipart {
                 stats: ref my_stats,
                 options: ref compression,
@@ -241,7 +251,7 @@ fn main_aux() {
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
-                .possible_values(&["simple", "multipart", "trp"])
+                .possible_values(&["simple", "multipart", "trp", "xml"])
                 .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
             Arg::with_name("strings")
                 .long("strings")
@@ -327,6 +337,7 @@ fn main_aux() {
             }
         },
         Some("trp") => Format::TreeRePair,
+        Some("xml") => Format::XML,
         Some("simple") => Format::Simple {
             stats: Rc::new(RefCell::new(binjs::io::simple::Statistics::default()))
         },

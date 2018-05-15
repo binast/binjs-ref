@@ -12,6 +12,7 @@ log = "*"
 priority-queue = "*"
 rand = "*"
 vec_map = "*"
+xml-rs = "*"
 
 [dev-dependencies]
 env_logger = "*"

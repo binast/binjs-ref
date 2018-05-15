@@ -106,7 +106,7 @@ impl std::fmt::Display for Label {
                     child = digram.child,
                 )
             }
-            List { .. } => write!(formatter, "[...]"),
+            List { ref len } => write!(formatter, "[{}]", len),
             Leaf(..) => write!(formatter, "(leaf)"),
         }
     }
@@ -299,7 +299,7 @@ impl SubTree {
         map
     }
     fn serialize<W: Write>(&self, substitutions: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, out: &mut W) {
-        let mut headers = 0;
+        let mut dictionary_size = 0;
         fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
             // Write header.
             tree.label.serialize(labels, headers, out);
@@ -308,8 +308,8 @@ impl SubTree {
                 aux(&*child.borrow(), labels, headers, out)
             }
         }
-        aux(self, substitutions, &mut headers, out);
-        debug!(target: "repair", "Total headers bytes {}", headers);
+        aux(self, substitutions, &mut dictionary_size, out);
+        info!(target: "repair", "Inline dictionary takes {} bytes", dictionary_size);
     }
 }
 
@@ -492,22 +492,22 @@ impl TokenWriter for Encoder {
 
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
         // Rewrite tree with digrams.
-        debug!(target: "repair", "Compressing tree to digrams.");
+        info!(target: "repair", "Compressing tree to digrams.");
         self.proceed_with_tree_repair();
         // Collect statistics on most commonly labels.
-        debug!(target: "repair", "Collecting data for efficient binary representation.");
+        info!(target: "repair", "Collecting data for efficient binary representation.");
         let statistics = self.root.tree.borrow()
             .collect_labels()
             .into_iter()
             .sorted_by(|a, b| Ord::cmp(&a.1, &b.1));
         let number_of_labels = statistics.len();
-        debug!(target: "repair", "Generating efficient binary representation.");
+        info!(target: "repair", "Generating efficient binary representation.");
         // FIXME We could eliminate lookup by making this part of the label itself.
         let label_representation : HashMap<_, _> = statistics.into_iter().enumerate()
             .map(|(position, (label, instances))| {
                 use bytes::varnum::WriteVarNum;
 
-                debug!(target: "repair", "`{}` appears {} times, rank {}, representing as {}.",
+                info!(target: "repair", "`{}` appears {} times, rank {}, representing as {}.",
                     label,
                     instances,
                     position,
@@ -525,11 +525,11 @@ impl TokenWriter for Encoder {
             })
             .collect();
 
-        debug!(target: "repair", "Generating binary.");
+        info!(target: "repair", "Generating binary.");
         let mut buf = vec![];
         self.root.tree.borrow().serialize(&label_representation, &mut buf);
 
-        debug!(target: "repair", "Done.");
+        info!(target: "repair", "Done.");
         Ok((buf, 0))
     }
 }
@@ -725,7 +725,7 @@ impl Encoder {
                 .map(|instances| instances.as_ref().instances.borrow().len())
                 .max()
                 .expect("No digrams found!");
-            debug!(target: "repair", "During startup, the highest digram priority found was {}", highest_priority);
+            info!(target: "repair", "During startup, the highest digram priority found was {}", highest_priority);
             let mut digrams_per_priority = DigramPriorityQueue::with_capacity(highest_priority);
             for (_, instances) in self.pending_digrams.drain() {
                 digrams_per_priority.insert(&instances);
