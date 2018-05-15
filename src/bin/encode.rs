@@ -194,6 +194,16 @@ fn handle_path<'a>(options: &mut Options<'a>,
 
                 Box::new(data)
             }
+            Format::XML => {
+                let writer = binjs::io::xml::Encoder::new();
+                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                serializer.serialize(&ast)
+                    .expect("Could not encode AST");
+                let (data, _) = serializer.done()
+                    .expect("Could not finalize AST encoding");
+
+                Box::new(data)
+            }
             Format::Multipart {
                 stats: ref my_stats,
                 ref mut targets,
@@ -278,7 +288,7 @@ fn main_aux() {
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
-                .possible_values(&["simple", "multipart", "trp", "xml", "multistream"])
+                .possible_values(&["simple", "multipart", "trp", "xml"])
                 .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
             Arg::with_name("trp-rank")
                 .long("trp-rank")
@@ -372,52 +382,36 @@ fn main_aux() {
             use binjs::io::multipart::{ Statistics, Targets };
             let stats = Rc::new(RefCell::new(Statistics::default()
                 .with_source_bytes(0)));
-            Format::Multipart {
-                targets: Targets {
-                    strings_table: CompressionTarget::new(compression.clone()),
-                    grammar_table: CompressionTarget::new(compression.clone()),
-                    tree: CompressionTarget::new(compression.clone()),
-                },
-                stats
-            }
-        },
-        Some("trp") => {
-            let max_rank = match matches.value_of("trp-rank") {
-                None | Some("none") => None,
-                Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
-            };
-            Format::TreeRePair {
-                options: binjs::io::repair::Options {
-                    max_rank,
-                    numbering_strategy,
-                    dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
-                }
-            }
-        }
-        Some("xml") => Format::XML,
-        Some("multistream") => {
-            use binjs::io::multistream::{ Options, PerCategory, Targets };
-            Format::MultiStream {
-                options: Options {
-                    sibling_labels_together: false,
-                    dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
-                },
-                targets: Targets {
-                    contents: PerCategory {
-                        declarations: CompressionTarget::new(compression.clone()),
-                        idrefs: CompressionTarget::new(compression.clone()),
-                        strings: CompressionTarget::new(compression.clone()),
-                        numbers: CompressionTarget::new(compression.clone()),
-                        bools: CompressionTarget::new(compression.clone()),
-                        lists: CompressionTarget::new(compression.clone()),
-                        tags: CompressionTarget::new(compression.clone()),
+            if let Some(ref spec) = matches.value_of("sections") {
+                let compression = parse_compression(Some(spec))
+                    .expect("Could not parse sections compression format");
+                Format::Multipart {
+                    options: WriteOptions {
+                        strings_table: compression.clone(),
+                        grammar_table: compression.clone(),
+                        tree: compression,
                     },
-                    header_strings: CompressionTarget::new(compression.clone()), // FIXME: A different compression might be useful.
-                    header_tags: CompressionTarget::new(compression.clone()),
-                    header_identifiers: CompressionTarget::new(compression.clone()), // FIXME: A different compression might be useful.
+                    stats
+                }
+            } else {
+                let strings = parse_compression(matches.value_of("strings"))
+                    .expect("Could not parse string compression format");
+                let grammar = parse_compression(matches.value_of("grammar"))
+                    .expect("Could not parse grammar compression format");
+                let tree = parse_compression(matches.value_of("tree"))
+                    .expect("Could not parse tree compression format");
+                Format::Multipart {
+                    options: WriteOptions {
+                        strings_table: strings,
+                        grammar_table: grammar,
+                        tree
+                    },
+                    stats
                 }
             }
         },
+        Some("trp") => Format::TreeRePair,
+        Some("xml") => Format::XML,
         Some("simple") => Format::Simple {
             stats: Rc::new(RefCell::new(binjs::io::simple::Statistics::default()))
         },

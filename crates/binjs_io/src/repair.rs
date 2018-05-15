@@ -46,6 +46,23 @@ pub enum Label {
     Leaf(Rc<Vec<u8>>)
 }
 
+impl std::fmt::Display for Label {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        use self::Label::*;
+        match *self {
+            Named { ref label, .. } => label.fmt(formatter),
+            Generated { ref digram, .. } => {
+                write!(formatter, "{parent}(...{child}(...)...)",
+                    parent = digram.parent,
+                    child = digram.child,
+                )
+            }
+            List { ref len } => write!(formatter, "[{}]", len),
+            Leaf(..) => write!(formatter, "(leaf)"),
+        }
+    }
+}
+
 impl Label {
     fn len(&self) -> usize {
         use self::Label::*;
@@ -107,10 +124,30 @@ impl SubTree {
     fn children(&self) -> impl Iterator<Item = &SharedCell<SubTree>> {
         self.children.iter()
     }
-    fn replace(&mut self, label: Label, mut children: LinkedList<SharedCell<SubTree>>) {
-        // FIXME: Regenerate the unique index.
-        // FIXME: Replace the parent of `children`.
-        unimplemented!()
+
+    fn collect_labels(&self) -> HashMap<Label, usize> {
+        fn aux(tree: &SubTree, labels: &mut HashMap<Label, usize>) {
+            tree.label.collect(labels);
+            for child in &tree.children {
+                aux(&*child.borrow(), labels);
+            }
+        }
+        let mut map = HashMap::new();
+        aux(self, &mut map);
+        map
+    }
+    fn serialize<W: Write>(&self, substitutions: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, out: &mut W) {
+        let mut dictionary_size = 0;
+        fn aux<W: Write>(tree: &SubTree, labels: &HashMap<Label, (Vec<u8>, usize, RefCell<bool>)>, headers: &mut usize, out: &mut W) {
+            // Write header.
+            tree.label.serialize(labels, headers, out);
+            // Then write children in the order.
+            for child in &tree.children {
+                aux(&*child.borrow(), labels, headers, out)
+            }
+        }
+        aux(self, substitutions, &mut dictionary_size, out);
+        info!(target: "repair", "Inline dictionary takes {} bytes", dictionary_size);
     }
 }
 
@@ -236,8 +273,47 @@ impl TokenWriter for Encoder {
         unimplemented!()
     }
 
-    fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
-        unimplemented!()
+    fn done(mut self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
+        // Rewrite tree with digrams.
+        info!(target: "repair", "Compressing tree to digrams.");
+        self.proceed_with_tree_repair();
+        // Collect statistics on most commonly labels.
+        info!(target: "repair", "Collecting data for efficient binary representation.");
+        let statistics = self.root.tree.borrow()
+            .collect_labels()
+            .into_iter()
+            .sorted_by(|a, b| Ord::cmp(&a.1, &b.1));
+        let number_of_labels = statistics.len();
+        info!(target: "repair", "Generating efficient binary representation.");
+        // FIXME We could eliminate lookup by making this part of the label itself.
+        let label_representation : HashMap<_, _> = statistics.into_iter().enumerate()
+            .map(|(position, (label, instances))| {
+                use bytes::varnum::WriteVarNum;
+
+                info!(target: "repair", "`{}` appears {} times, rank {}, representing as {}.",
+                    label,
+                    instances,
+                    position,
+                    number_of_labels - position - 1);
+
+                let mut encoded = vec![];
+                if instances == 1 {
+                    // Special value 0 is reserved for inlining.
+                    encoded.write_varnum(0).unwrap();
+                } else {
+                    encoded.write_varnum(/* not zero, which is reserved for inlining*/(number_of_labels - position) as u32).unwrap();
+                }
+
+                (label, (encoded, instances,/* encountered */ RefCell::new(false)))
+            })
+            .collect();
+
+        info!(target: "repair", "Generating binary.");
+        let mut buf = vec![];
+        self.root.tree.borrow().serialize(&label_representation, &mut buf);
+
+        info!(target: "repair", "Done.");
+        Ok((buf, 0))
     }
 }
 
@@ -326,35 +402,18 @@ impl Encoder {
     fn proceed_with_tree_repair(&mut self) {
         // Replacement phase.
 
-        // We use a sorted vector rather than a binary heap, as we regularly need
-        // to change the order.
-        let mut digrams_per_priority : PriorityQueue<_, _> = {
-            let startup_digrams = Self::compute_startup_digrams(&self.root.tree);
-            startup_digrams.into_iter()
-                .filter_map(|(digram, instances)| if instances.borrow().len() >= 2 {
-                    let digram = Rc::new(digram);
-                    Some((digram.clone(), DigramInstances {
-                        digram,
-                        instances,
-                        removed: RefCell::new(0)
-                    }))
-                } else {
-                    None
-                })
-                .collect()
-        };
-
-        // For each label, the list of digrams that may be affected if we substitute
-        // instances of this label.
-        let mut digrams_per_label : HashMap<Label, Vec<Rc<Digram>>> = HashMap::new();
-        for (digram, instances) in digrams_per_priority.iter() {
-            digrams_per_label.entry(digram.parent.clone())
-                .or_insert_with(|| vec![])
-                .push(digram.clone());
-            if digram.parent != digram.child {
-                digrams_per_label.entry(digram.child.clone())
-                    .or_insert_with(|| vec![])
-                    .push(digram.clone());
+        // Compute the initial set of digrams.
+        let mut digrams_per_priority = {
+            let root = self.root.tree.clone();
+            self.compute_digrams_for_subtree(&root);
+            let highest_priority = self.pending_digrams.values()
+                .map(|instances| instances.as_ref().instances.borrow().len())
+                .max()
+                .expect("No digrams found!");
+            info!(target: "repair", "During startup, the highest digram priority found was {}", highest_priority);
+            let mut digrams_per_priority = DigramPriorityQueue::with_capacity(highest_priority);
+            for (_, instances) in self.pending_digrams.drain() {
+                digrams_per_priority.insert(&instances);
             }
         }
 

@@ -69,6 +69,8 @@ pub mod multipart;
 /// A tree comperssion mechanism.
 pub mod repair;
 
+pub mod xml;
+
 mod util;
 
 /// A strategy for placing the dictionary.
@@ -174,12 +176,20 @@ pub enum Format {
         targets: multipart::Targets,
         stats: Rc<RefCell<multipart::Statistics>>
     },
-    TreeRePair {
-        options: repair::Options,
-    },
+    TreeRePair,
     XML,
-    MultiStream {
-        options: multistream::Options,
-        targets: multistream::Targets,
-    },
+}
+impl Format {
+    pub fn new(format: &Format) -> Format {
+        use multipart::WriteOptions;
+        match *format {
+            Format::Simple { .. } => Format::Simple { stats: Default::default() },
+            Format::Multipart { ref options, .. } => Format::Multipart {
+                stats: Default::default(),
+                options: WriteOptions::new(options),
+            },
+            Format::TreeRePair => Format::TreeRePair,
+            Format::XML => Format::XML,
+        }
+    }
 }
