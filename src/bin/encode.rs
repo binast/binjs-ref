@@ -4,7 +4,7 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::io::{ Format, NumberingStrategy, TokenSerializer };
+use binjs::io::{ DictionaryPlacement, Format, NumberingStrategy, TokenSerializer };
 use binjs::io::multipart::{ SectionOption, WriteOptions };
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
@@ -282,6 +282,11 @@ fn main_aux() {
                 .takes_value(true)
                 .possible_values(&["mru", "frequency"])
                 .help("Numbering strategy for the tree. Defaults to frequency."),
+            Arg::with_name("dictionary")
+                .long("dictionary-placement")
+                .takes_value(true)
+                .possible_values(&["inline", "header"])
+                .help("Where to place the dictionary."),
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
@@ -316,6 +321,17 @@ fn main_aux() {
         Some(path) => Some(Path::new(path).to_path_buf())
     };
 
+    let dictionary_placement = match matches.value_of("dictionary-placement") {
+        None => None,
+        Some("inline") => Some(DictionaryPlacement::Inline),
+        Some("header") => Some(DictionaryPlacement::Header),
+        Some(other) => panic!("Invalid dictionary-placement '{}'", other)
+    };
+    let numbering_strategy = match matches.value_of("numbering") {
+        None | Some("frequency") => NumberingStrategy::GlobalFrequency,
+        Some("mru") => NumberingStrategy::MRU,
+        Some(other) => panic!("Unexpected argument {}", other)
+    };
     let format = match matches.value_of("format") {
         None | Some("multipart") => {
             let stats = Rc::new(RefCell::new(binjs::io::multipart::Statistics::default()
@@ -353,15 +369,11 @@ fn main_aux() {
                 None | Some("none") => None,
                 Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
             };
-            let numbering_strategy = match matches.value_of("numbering") {
-                None | Some("frequency") => NumberingStrategy::GlobalFrequency,
-                Some("mru") => NumberingStrategy::MRU,
-                Some(other) => panic!("Unexpected argument {}", other)
-            };
             Format::TreeRePair {
                 options: binjs::io::repair::Options {
                     max_rank,
                     numbering_strategy,
+                    dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
                 }
             }
         }

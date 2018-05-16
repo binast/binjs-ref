@@ -3,13 +3,13 @@
 use bytes;
 use bytes::varnum::WriteVarNum;
 
-use ::{ NumberingStrategy, TokenWriterError };
+use ::{ DictionaryPlacement, NumberingStrategy, TokenWriterError };
 use io::TokenWriter;
 
 use std;
 use std::cell::{ RefCell, RefMut };
 use std::collections::{ HashMap };
-use std::io::Write;
+use std::io::{ Cursor, Seek, SeekFrom, Write };
 use std::rc::{ Rc, Weak };
 
 use itertools::Itertools;
@@ -20,7 +20,11 @@ pub struct Options {
     /// most `max_rank` children. The original paper recomments a value of 4.
     pub max_rank: Option<usize>,
 
+    /// The numbering strategy used for tree labels.
     pub numbering_strategy: NumberingStrategy,
+
+    /// Where to put the dictionary in the file.
+    pub dictionary_placement: DictionaryPlacement,
 }
 
 type SharedCell<T> = Rc<RefCell<T>>;
@@ -100,7 +104,10 @@ pub enum Label {
     List {
         len: usize
     },
-    Leaf(Rc<Vec<u8>>)
+    Leaf {
+        role: Rc<String>,
+        data: Rc<Vec<u8>>
+    }
 }
 
 impl std::fmt::Display for Label {
@@ -115,7 +122,7 @@ impl std::fmt::Display for Label {
                 )
             }
             List { ref len } => write!(formatter, "[{}]", len),
-            Leaf(..) => write!(formatter, "(leaf)"),
+            Leaf { ref role, .. } => write!(formatter, "({})", role),
         }
     }
 }
@@ -125,7 +132,7 @@ impl Label {
     fn len(&self) -> usize {
         use self::Label::*;
         match *self {
-            Leaf(_) => 0,
+            Leaf { .. } => 0,
             Named { ref children, .. }
             | Generated { ref children, .. } => *children,
             List { ref len, .. } => *len
@@ -144,7 +151,7 @@ impl Label {
     fn byte_len(&self) -> usize {
         use self::Label::*;
         match *self {
-            Leaf(ref buf) => buf.len(),
+            Leaf { ref data, .. } => data.len(),
             Named { ref label, .. } => label.len(),
             Generated { .. } => 4, /* FIXME: let's say it takes 32 bits */
             List { .. } => 4
@@ -163,9 +170,10 @@ impl Label {
         }
     }
 
-    fn serialize<W: Write>(&self, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
+    fn serialize<W: Write + Seek>(&self, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
         use self::Label::*;
 
+        debug!(target: "repair-io", "Writing reference to label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
         let index = mru.get_index(self);
         // Write the number.
         out.write_varnum(index.index() as u32).unwrap();
@@ -174,8 +182,9 @@ impl Label {
             // Never seen: write the smallest possible "unknown" value, then the definition.
             info!(target: "repair", "Adding to dictionary: {}", *self);
 
+            debug!(target: "repair-io", "Writing definition of label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
             match *self {
-                Leaf(ref buf) => {
+                Leaf { data: ref buf, .. } => {
                     *headers += buf.len();
                     out.write_all(&buf).unwrap()
                 },
@@ -312,9 +321,9 @@ impl SubTree {
         aux(self, &mut map);
         map
     }
-    fn serialize<W: Write>(&self, mru: &mut ::io::NumberingStrategy<Label>, out: &mut W) {
+    fn serialize<W: Write + Seek>(&self, mru: &mut ::io::NumberingStrategy<Label>, out: &mut W) {
         let mut dictionary_size = 0;
-        fn aux<W: Write>(tree: &SubTree, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
+        fn aux<W: Write + Seek>(tree: &SubTree, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
             // Write header.
             tree.label.serialize(mru, headers, out);
             // Then write children in the order.
@@ -362,17 +371,23 @@ impl Root {
             rank_labels,
             tree: Rc::new(RefCell::new(SubTree {
                 index,
-                label: Label::Leaf(Rc::new(vec![])),
+                label: Label::Leaf {
+                    role: Rc::new("empty tree".to_string()),
+                    data: Rc::new(vec![])
+                },
                 parent: Weak::default(),
                 digrams: vec![],
                 children: vec![]
             }))
         }
     }
-    fn new_leaf(&mut self, leaf: Vec<u8>) -> SharedCell<SubTree> {
+    fn new_leaf(&mut self, role: &str, leaf: Vec<u8>) -> SharedCell<SubTree> {
         let result = Rc::new(RefCell::new(SubTree {
             index: self.node_counter.next(),
-            label: Label::Leaf(Rc::new(leaf)),
+            label: Label::Leaf {
+                data: Rc::new(leaf),
+                role: Rc::new(role.to_string()),
+            },
             parent: Weak::default(),
             digrams: vec![],
             children: vec![],
@@ -463,12 +478,12 @@ impl TokenWriter for Encoder {
 
     fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, Self::Error> {
         let bytes = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
-        Ok(self.root.new_leaf(bytes))
+        Ok(self.root.new_leaf("bool", bytes))
     }
 
     fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
         let bytes = bytes::float::bytes_of_float(data).iter().cloned().collect();
-        Ok(self.root.new_leaf(bytes))
+        Ok(self.root.new_leaf("float", bytes))
     }
 
     fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, Self::Error> {
@@ -487,7 +502,7 @@ impl TokenWriter for Encoder {
             None => buf.extend_from_slice(&EMPTY_STRING),
             Some(ref x) => buf.extend(x.bytes())
         }
-        Ok(self.root.new_leaf(buf))
+        Ok(self.root.new_leaf("string", buf))
     }
 
     fn untagged_tuple(&mut self, _data: &[Self::Tree]) -> Result<Self::Tree, Self::Error> {
@@ -510,7 +525,7 @@ impl TokenWriter for Encoder {
         let mut buf = Vec::new();
         buf.write_varnum(items.len() as u32).unwrap();
 
-        children.push(self.root.new_leaf(buf));
+        children.push(self.root.new_leaf("list length", buf));
 
         for item in items.into_iter() {
             children.push(item);
@@ -539,11 +554,11 @@ impl TokenWriter for Encoder {
         };
 
         info!(target: "repair", "Generating binary.");
-        let mut buf = vec![];
-        self.root.tree.borrow().serialize(&mut strategy, &mut buf);
+        let mut cursor = Cursor::new(vec![]);
+        self.root.tree.borrow().serialize(&mut strategy, &mut cursor);
 
         info!(target: "repair", "Done.");
-        Ok((buf, 0))
+        Ok((cursor.into_inner(), 0))
     }
 }
 

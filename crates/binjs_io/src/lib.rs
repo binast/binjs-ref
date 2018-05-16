@@ -70,9 +70,29 @@ pub mod xml;
 
 mod util;
 
+/// A strategy for placing the dictionary.
+#[derive(Clone)]
+pub enum DictionaryPlacement {
+    /// Place the entire dictionary before the contents.
+    Header,
+
+    /// Inline the dictionary. The first instance of a node is followed
+    /// immediately by its definition.
+    Inline
+}
+
+/// A strategy for numbering nodes, labels, strings, ...
 #[derive(Clone)]
 pub enum NumberingStrategy {
+    /// Relative to the most recently used.
+    ///
+    /// Using twice the same value in a row will mean that the second index will be 0.
     MRU,
+
+    /// Use global frequencey.
+    ///
+    /// The most common value will be numbered 0, the second most common will be numbered
+    /// 1, etc.
     GlobalFrequency,
 }
 
