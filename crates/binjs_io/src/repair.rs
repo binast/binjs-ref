@@ -170,38 +170,39 @@ impl Label {
         }
     }
 
-    fn serialize<W: Write + Seek>(&self, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
+    fn serialize_definition<W: Write + Seek>(&self, numbering: &mut ::io::NumberingStrategy<Label>, header_bytes: &mut usize, out: &mut W) {
         use self::Label::*;
-
+        debug!(target: "repair-io", "Writing definition of label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
+        match *self {
+            Leaf { data: ref buf, .. } => {
+                *header_bytes += buf.len();
+                out.write_all(&buf).unwrap()
+            },
+            Named { ref label, ..} => {
+                *header_bytes += label.as_bytes().len();
+                out.write_all(label.as_bytes()).unwrap()
+            },
+            List { .. } => { /* Nothing else to write */ }
+            Generated { ref digram, .. } => {
+                use bytes::varnum::WriteVarNum;
+                // The definition of a digram requires writing its labels, possibly for the first time,
+                // which may in turn contain digrams, etc.
+                digram.parent.serialize(numbering, header_bytes, out);
+                *header_bytes += out.write_varnum(digram.position as u32).unwrap();
+                digram.child.serialize(numbering, header_bytes, out);
+            }
+        }
+    }
+    fn serialize<W: Write + Seek>(&self, mru: &mut ::io::NumberingStrategy<Label>, header_bytes: &mut usize, out: &mut W) {
         debug!(target: "repair-io", "Writing reference to label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
         let index = mru.get_index(self);
         // Write the number.
         out.write_varnum(index.index() as u32).unwrap();
 
         if index.is_first() {
-            // Never seen: write the smallest possible "unknown" value, then the definition.
+            // Never seen: the number os the smallest possible "unknown" value, now write the definition.
             info!(target: "repair", "Adding to dictionary: {}", *self);
-
-            debug!(target: "repair-io", "Writing definition of label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
-            match *self {
-                Leaf { data: ref buf, .. } => {
-                    *headers += buf.len();
-                    out.write_all(&buf).unwrap()
-                },
-                Named { ref label, ..} => {
-                    *headers += label.as_bytes().len();
-                    out.write_all(label.as_bytes()).unwrap()
-                },
-                List { .. } => { /* Nothing else to write */ }
-                Generated { ref digram, .. } => {
-                    use bytes::varnum::WriteVarNum;
-                    // The definition of a digram requires writing its labels, possibly for the first time,
-                    // which may in turn contain digrams, etc.
-                    digram.parent.serialize(mru, headers, out);
-                    *headers += out.write_varnum(digram.position as u32).unwrap();
-                    digram.child.serialize(mru, headers, out);
-                }
-            }
+            self.serialize_definition(mru, header_bytes, out);
         }
     }
 }
@@ -321,18 +322,16 @@ impl SubTree {
         aux(self, &mut map);
         map
     }
-    fn serialize<W: Write + Seek>(&self, mru: &mut ::io::NumberingStrategy<Label>, out: &mut W) {
-        let mut dictionary_size = 0;
-        fn aux<W: Write + Seek>(tree: &SubTree, mru: &mut ::io::NumberingStrategy<Label>, headers: &mut usize, out: &mut W) {
+    fn serialize<W: Write + Seek>(&self, mru: &mut ::io::NumberingStrategy<Label>, header_bytes: &mut usize, out: &mut W) {
+        fn aux<W: Write + Seek>(tree: &SubTree, mru: &mut ::io::NumberingStrategy<Label>, header_bytes: &mut usize, out: &mut W) {
             // Write header.
-            tree.label.serialize(mru, headers, out);
+            tree.label.serialize(mru, header_bytes, out);
             // Then write children in the order.
             for child in &tree.children {
-                aux(&*child.borrow(), mru, headers, out)
+                aux(&*child.borrow(), mru, header_bytes, out)
             }
         }
-        aux(self, mru, &mut dictionary_size, out);
-        info!(target: "repair", "Inline dictionary takes {} bytes", dictionary_size);
+        aux(self, mru, header_bytes, out);
     }
 }
 
@@ -468,6 +467,7 @@ pub struct Encoder {
     digram_counter: GenericCounter<DigramIndex>,
     pending_digrams: HashMap<Digram, Rc<DigramInstances>>,
     numbering_strategy: NumberingStrategy,
+    dictionary_placement: DictionaryPlacement,
 }
 
 impl TokenWriter for Encoder {
@@ -554,8 +554,31 @@ impl TokenWriter for Encoder {
         };
 
         info!(target: "repair", "Generating binary.");
+        let mut header_bytes = 0;
         let mut cursor = Cursor::new(vec![]);
-        self.root.tree.borrow().serialize(&mut strategy, &mut cursor);
+        match self.dictionary_placement {
+            DictionaryPlacement::Header => {
+                // Recollect the labels. All of this could definitely be made more efficient.
+                let frequency = self.root.tree.borrow().collect_labels();
+                for label in frequency.keys() {
+                    // Mark everything as read.
+                    let _ = strategy.get_index(&label);
+                }
+                // Write everything by increasing order.
+                let sorted = frequency.into_iter()
+                    .sorted_by(|(_, ref count_1), (_, ref count_2)| usize::cmp(&count_2, &count_1));
+                for (label, _) in sorted.into_iter() {
+                    label.serialize_definition(&mut strategy, &mut header_bytes, &mut cursor)
+                }
+            }
+            DictionaryPlacement::Inline => {
+                // Nothing to do.
+            }
+        }
+
+        self.root.tree.borrow().serialize(&mut strategy, &mut header_bytes, &mut cursor);
+
+        info!(target: "repair", "Dictionary takes {} bytes", header_bytes);
 
         info!(target: "repair", "Done.");
         Ok((cursor.into_inner(), 0))
@@ -677,6 +700,7 @@ impl Encoder {
             numbering_strategy: options.numbering_strategy,
             digram_counter: GenericCounter::new(),
             pending_digrams: HashMap::with_capacity(4096),
+            dictionary_placement: options.dictionary_placement,
         }
     }
 
