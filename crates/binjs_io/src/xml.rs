@@ -37,19 +37,18 @@ impl SubTree {
                 }
             }
             Node { ref name, ref children } => {
-                let null = "_null";
-                let name = if name.len() == 0 {
-                    null
+                if name.len() == 0 {
+                    assert_eq!(children.len(), 0);
+                    // Nothing to write
                 } else {
-                    name.as_str()
-                };
-                out.write(XmlEvent::start_element(name))?;
-                for (ref name, ref c) in children {
                     out.write(XmlEvent::start_element(name.as_str()))?;
-                    c.write(out)?;
+                    for (ref name, ref c) in children {
+                        out.write(XmlEvent::start_element(name.as_str()))?;
+                        c.write(out)?;
+                        out.write(XmlEvent::end_element())?;
+                    }
                     out.write(XmlEvent::end_element())?;
                 }
-                out.write(XmlEvent::end_element())?;
             }
         }
         Ok(())
