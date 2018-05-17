@@ -4,7 +4,7 @@ use bytes;
 use bytes::varnum::WriteVarNum;
 
 use ::{ DictionaryPlacement, NumberingStrategy, TokenWriterError };
-use io::TokenWriter;
+use io::{ LabelingStrategy, TokenWriter };
 
 use std;
 use std::cell::{ RefCell, RefMut };
@@ -170,7 +170,7 @@ impl Label {
         }
     }
 
-    fn serialize_definition<W: Write + Seek>(&self, numbering: &mut ::io::NumberingStrategy<Label>, header_bytes: &mut usize, out: &mut W) {
+    fn serialize_definition<W: Write + Seek, L: LabelingStrategy<Label, usize>>(&self, numbering: &mut L, parent: Option<&Self>, header_bytes: &mut usize, out: &mut W) {
         use self::Label::*;
         debug!(target: "repair-io", "Writing definition of label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
         match *self {
@@ -187,22 +187,26 @@ impl Label {
                 use bytes::varnum::WriteVarNum;
                 // The definition of a digram requires writing its labels, possibly for the first time,
                 // which may in turn contain digrams, etc.
-                digram.parent.serialize(numbering, header_bytes, out);
+                digram.parent.serialize(numbering, parent, header_bytes, out);
                 *header_bytes += out.write_varnum(digram.position as u32).unwrap();
-                digram.child.serialize(numbering, header_bytes, out);
+                digram.child.serialize(numbering, parent, header_bytes, out);
             }
         }
     }
-    fn serialize<W: Write + Seek>(&self, mru: &mut ::io::NumberingStrategy<Label>, header_bytes: &mut usize, out: &mut W) {
+    fn serialize<W: Write + Seek, L: LabelingStrategy<Label, usize>>(&self, labeling: &mut L, parent: Option<&Self>, header_bytes: &mut usize, out: &mut W) {
         debug!(target: "repair-io", "Writing reference to label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
-        let index = mru.get_index(self);
-        // Write the number.
-        out.write_varnum(index.index() as u32).unwrap();
 
-        if index.is_first() {
+        let is_first = {
+            let index = labeling.get_label(self, parent);
+            // Write the number.
+            out.write_varnum(index.label() as u32).unwrap();
+            index.is_first()
+        };
+
+        if is_first {
             // Never seen: the number os the smallest possible "unknown" value, now write the definition.
             info!(target: "repair", "Adding to dictionary: {}", *self);
-            self.serialize_definition(mru, header_bytes, out);
+            self.serialize_definition(labeling, parent, header_bytes, out);
         }
     }
 }
@@ -322,16 +326,20 @@ impl SubTree {
         aux(self, &mut map);
         map
     }
-    fn serialize<W: Write + Seek>(&self, mru: &mut ::io::NumberingStrategy<Label>, header_bytes: &mut usize, out: &mut W) {
-        fn aux<W: Write + Seek>(tree: &SubTree, mru: &mut ::io::NumberingStrategy<Label>, header_bytes: &mut usize, out: &mut W) {
+    fn serialize<W, L>(&self, mru: &mut L, header_bytes: &mut usize, out: &mut W)
+        where W: Write + Seek, L: LabelingStrategy<Label, usize>
+    {
+        fn aux<W, L>(tree: &SubTree, mru: &mut L, parent: Option<&Label>, header_bytes: &mut usize, out: &mut W)
+            where W: Write + Seek, L: LabelingStrategy<Label, usize>
+        {
             // Write header.
-            tree.label.serialize(mru, header_bytes, out);
+            tree.label.serialize(mru, parent, header_bytes, out);
             // Then write children in the order.
             for child in &tree.children {
-                aux(&*child.borrow(), mru, header_bytes, out)
+                aux(&*child.borrow(), mru, Some(&tree.label), header_bytes, out)
             }
         }
-        aux(self, mru, header_bytes, out);
+        aux(self, mru, None, header_bytes, out);
     }
 }
 
@@ -469,7 +477,40 @@ pub struct Encoder {
     numbering_strategy: NumberingStrategy,
     dictionary_placement: DictionaryPlacement,
 }
+impl Encoder {
+    fn serialize_all<L: LabelingStrategy<Label, usize>>(&self, strategy: &mut L) -> Result<(Vec<u8>, /* ignored */u32), TokenWriterError> {
+        let mut header_bytes = 0;
+        let mut cursor = Cursor::new(vec![]);
+        match self.dictionary_placement {
+            DictionaryPlacement::Header => {
+                info!(target: "repair", "Generating header.");
+                // Recollect the labels. All of this could definitely be made more efficient.
+                let frequency = self.root.tree.borrow().collect_labels();
+                for label in frequency.keys() {
+                    // Mark everything as read.
+                    strategy.mark_as_seen(&label);
+                }
+                // Write everything by increasing order.
+                let sorted = frequency.into_iter()
+                    .sorted_by(|(_, ref count_1), (_, ref count_2)| usize::cmp(&count_2, &count_1));
+                for (label, _) in sorted.into_iter() {
+                    label.serialize_definition(strategy, None, &mut header_bytes, &mut cursor)
+                }
+            }
+            DictionaryPlacement::Inline => {
+                info!(target: "repair", "No headers.");
+                // Nothing to do.
+            }
+        }
 
+        self.root.tree.borrow().serialize(strategy, &mut header_bytes, &mut cursor);
+
+        info!(target: "repair", "Dictionary takes {} bytes", header_bytes);
+
+        info!(target: "repair", "Done.");
+        Ok((cursor.into_inner(), 0))
+    }
+}
 impl TokenWriter for Encoder {
     type Error = TokenWriterError;
     type Statistics = u32; // Ignored for the time being.
@@ -544,44 +585,24 @@ impl TokenWriter for Encoder {
         info!(target: "repair", "Compressing tree to digrams.");
         self.proceed_with_tree_repair();
 
-        info!(target: "repair", "Generating numbering strategy.");
-        let mut strategy = match self.numbering_strategy {
-            NumberingStrategy::MRU => ::io::NumberingStrategy::mru(),
+        let result = match self.numbering_strategy {
+            NumberingStrategy::MRU => {
+                info!(target: "repair", "Using strategy: MRU.");
+                self.serialize_all(&mut ::io::MRULabeler::new())
+            }
             NumberingStrategy::GlobalFrequency => {
+                info!(target: "repair", "Using strategy: Global frequency.");
                 let frequency = self.root.tree.borrow().collect_labels();
-                ::io::NumberingStrategy::frequency(frequency)
+                let len = frequency.len();
+                let dictionary = frequency.into_iter()
+                    .map(|(label, instances)| (label, len - instances))
+                    .collect();
+                self.serialize_all(&mut ::io::DictionaryLabeler::new(dictionary))
             }
         };
 
-        info!(target: "repair", "Generating binary.");
-        let mut header_bytes = 0;
-        let mut cursor = Cursor::new(vec![]);
-        match self.dictionary_placement {
-            DictionaryPlacement::Header => {
-                // Recollect the labels. All of this could definitely be made more efficient.
-                let frequency = self.root.tree.borrow().collect_labels();
-                for label in frequency.keys() {
-                    // Mark everything as read.
-                    let _ = strategy.get_index(&label);
-                }
-                // Write everything by increasing order.
-                let sorted = frequency.into_iter()
-                    .sorted_by(|(_, ref count_1), (_, ref count_2)| usize::cmp(&count_2, &count_1));
-                for (label, _) in sorted.into_iter() {
-                    label.serialize_definition(&mut strategy, &mut header_bytes, &mut cursor)
-                }
-            }
-            DictionaryPlacement::Inline => {
-                // Nothing to do.
-            }
-        }
-
-        self.root.tree.borrow().serialize(&mut strategy, &mut header_bytes, &mut cursor);
-
-        info!(target: "repair", "Dictionary takes {} bytes", header_bytes);
-
         info!(target: "repair", "Done.");
-        Ok((cursor.into_inner(), 0))
+        result
     }
 }
 

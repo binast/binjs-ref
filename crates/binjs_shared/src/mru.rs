@@ -1,7 +1,6 @@
 //! Naive implementation of a MRU numbering scheme.
 
 use std::collections::LinkedList;
-use std::hash::Hash;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Seen {
@@ -33,10 +32,10 @@ pub enum Seen {
 /// assert_eq!(mru.access(&'a'), Seen::Age(0),   "Accessing previous a, again");
 /// assert_eq!(mru.access(&'b'), Seen::Age(2),   "Accessing previous b");
 ///```
-pub struct MRU<T> where T: Hash + Eq + Clone {
+pub struct MRU<T> where T: Eq + Clone {
     items: LinkedList<T>,
 }
-impl<T> MRU<T> where T: Hash + Eq + Clone {
+impl<T> MRU<T> where T: Eq + Clone {
     pub fn new() -> Self {
         Self {
             items: LinkedList::new(),

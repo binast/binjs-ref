@@ -9,7 +9,7 @@
 
 use binjs_shared;
 
-use std::collections::HashMap;
+use std::collections::{ HashMap, HashSet };
 use std::fmt::{ Debug, Display };
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -232,56 +232,312 @@ pub trait InnerDeserialization<R, T> where R: TokenReader, T: Sized {
     fn deserialize_inner(&mut self) -> Result<T, R::Error>;
 }
 
-#[derive(Debug, Clone)]
-pub struct Numbering {
-    is_first: bool,
-    index: usize
+trait Label {
+    fn serialize_definition<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error>;
 }
-impl Numbering {
+
+pub struct Labeling<T> {
+    label: T,
+    is_first: bool,
+}
+impl<T> Labeling<T> where T: Clone {
+    pub fn label(&self) -> T {
+        self.label.clone()
+    }
+}
+impl<T> Labeling<T> {
     pub fn is_first(&self) -> bool {
         self.is_first
     }
+}
+pub trait LabelingStrategy<T, U> {
+    fn mark_as_seen(&mut self, label: &T);
+
+    fn write_label<W>(&mut self, label: &T, parent: Option<&T>, out: &mut T) -> Result<bool, std::io::Error>;
+}
+
+/// Most recently used.
+///
+/// This strategy ensures that the most recently used name has a value of 0,
+/// the second-most recently used has a value of 1, etc.
+///
+/// ```
+/// use binjs_io::io::{ MRULabeler, LabelingStrategy };
+///
+/// let mut strategy = MRULabeler::mru();
+///
+/// let abc = strategy.get_index(&"abc");
+/// assert_eq!(abc.is_first(), true);
+/// assert_eq!(abc.index(), 0);
+///
+/// let abc = strategy.get_index(&"abc");
+/// assert_eq!(abc.is_first(), false);
+/// assert_eq!(abc.index(), 0);
+///
+/// let def = strategy.get_index(&"def");
+/// assert_eq!(abc.is_first(), true);
+/// assert_eq!(abc.index(), 1);
+///
+/// let abc = strategy.get_index(&"abc");
+/// assert_eq!(abc.is_first(), false);
+/// assert_eq!(abc.index(), 1);
+///
+/// let def = strategy.get_index(&"def");
+/// assert_eq!(abc.is_first(), false);
+/// assert_eq!(abc.index(), 1);
+/// ```
+pub struct MRULabeler<T> where T: Eq + Clone {
+    mru: binjs_shared::mru::MRU<T>
+}
+impl<T> MRULabeler<T> where T: Eq + Clone {
+    pub fn new() -> Self {
+        Self {
+            mru: binjs_shared::mru::MRU::new()
+        }
+    }
+}
+impl<T> LabelingStrategy<T, usize> for MRULabeler<T> where T: Eq + Clone {
+    fn mark_as_seen(&mut self, label: &T) {
+        self.mru.access(label);
+    }
+    fn get_label(&mut self, label: &T, _: Option<&T>) -> Labeling<usize> {
+        use binjs_shared::mru::Seen::*;
+        match self.mru.access(label) {
+            Age(index) => Labeling {
+                label: index,
+                is_first: false,
+            },
+            Never(index) => Labeling {
+                label: index,
+                is_first: true
+            }
+        }
+    }
+}
+
+/// Label entries with a dictionary.
+///
+/// Typically used for labeling with global frequencies.
+pub struct DictionaryLabeler<T, U> where T: Eq + Hash, U: Clone {
+    dictionary: HashMap<T, Labeling<U>>
+}
+impl<T, U> DictionaryLabeler<T, U> where T: Eq + Hash, U: Clone {
+    pub fn new(mut dictionary: HashMap<T, U>) -> Self {
+        Self {
+            dictionary: dictionary.drain()
+                .map(|(k, v)| (k, Labeling {
+                    is_first: true,
+                    label: v
+                }))
+                .collect()
+        }
+    }
+}
+impl<T, U> LabelingStrategy<T, U> for DictionaryLabeler<T, U> where T: Debug + Eq + Hash, U: Clone {
+    fn mark_as_seen(&mut self, label: &T) {
+        self.dictionary.get_mut(label)
+            .unwrap_or_else(|| panic!("Could not find label {:?} in DictionaryLabeler"))
+            .is_first = false;
+    }
+    fn get_label(&mut self, label: &T, _: Option<&T>) -> Labeling<U> {
+        let found = self.dictionary.get_mut(label)
+            .unwrap_or_else(|| panic!("Could not find label {:?} in DictionaryLabeler"));
+        let result = Labeling {
+            is_first: found.is_first,
+            label: found.label.clone(),
+        };
+        found.is_first = false;
+        result
+    }
+}
+
+pub struct ParentPredictionLabeler<T, U, V> where T: Eq + Hash, U: Clone {
+    /// A mapping from label to an index in the table.
+    dictionary_labeler: DictionaryLabeler<T, U>,
+    per_parent: HashMap<T, HashMap<T, usize>>,
+}
+impl<T, U> ParentPredictionLabeler<T, U> where T: Eq + Hash + Clone, U: Clone {
+    pub fn new(dictionary: HashMap<T, U>) -> Self {
+        Self {
+            per_parent: HashMap::new(),
+            dictionary_labeler: DictionaryLabeler::new(dictionary),
+        }
+    }
+}
+impl<T, U> LabelingStrategy<T, U> for ParentPredictionLabeler<T, U> where T: Debug + Eq + Hash + Clone, U: Clone + Default + From<usize> {
+    fn mark_as_seen(&mut self, label: &T) {
+        self.dictionary_labeler.mark_as_seen(label)
+    }
+    fn get_label(&mut self, label: &T, parent: Option<&T>) -> Labeling<U> {
+        use std::collections::hash_map::Entry::*;
+        if let Some(parent) = parent {
+            let this_parent = self.per_parent.entry(parent.clone())
+                .or_insert_with(|| HashMap::new());
+            let number_of_children = this_parent.len();
+            let (index, found) = match this_parent.entry(label.clone()) {
+                Occupied(entry) => {
+                    // Thils parent/child pair has already been seen, nothing to do.
+                    (*entry.get(), true)
+                }
+                Vacant(entry) => {
+                    entry.insert(number_of_children);
+                    (number_of_children, false)
+                }
+            };
+            if found {
+                Labeling {
+                    is_first: false,
+                    label: index.into()
+                }
+            } else {
+                unimplemented!()
+                // Fall back to the dictionary.
+                // FIXME: We need `number_of_children` to fill this custom inline dictionary.
+                // FIXME: We need `self.dictionary` afterwards with the index back into the header (or the inline definition).
+                // FIXME: In other words, we need to ignore the fact that `self.dictionary` may count the data as already seen.
+            }
+        } else {
+            // FIXME: This is a root. It always needs its definition.
+            // FIXME: It's always the first, right?
+            unimplemented!()
+            // Always use the Default as a label
+
+        }
+    }
+}
+
+/*
+pub struct MRUStrategy {
+
+}
+
+
+
+
+pub enum Definition<'a, T, U> where T: 'a, U: 'a {
+    Label(&'a T),
+    Definition(&'a U),
+    AlreadySeen,
+}
+
+/// A number associated with a label in an AST.
+///
+/// The actual strategy to generate these numbers
+/// is specified by the instance of `NumberingStrategy`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Numbering<'a, T, U> where T: 'a, U: 'a {
+    /// The actual number to use.
+    index: usize,
+    definition: Definition<'a, T, U>,
+}
+impl<'a, T, U> Numbering<'a, T, U> where T: 'a, U: 'a {
+    /// The actual number to use. If this is the first instance
+    /// of this label, it may have never been seen.
     pub fn index(&self) -> usize {
         self.index
     }
+
+    pub fn definition(&self) -> &Definition {
+        &self.definition
+    }
 }
 
-pub enum NumberingStrategy<T> where T: Eq + Hash + Clone {
+enum NumberingTactics<T> where T: Eq + Hash + Clone {
+    /// Most recently used.
+    ///
+    /// This strategy ensures that the most recently used name has a value of 0,
+    /// the second-most recently used has a value of 1, etc.
     MRU(binjs_shared::mru::MRU<T>),
-    Frequency(HashMap<T, Numbering>)
+
+    Frequency(HashMap<T, (bool /* has been seen */, usize )>),
+
+    ParentNamespacing(HashMap<T, HashMap<T, usize>>),
 }
 
-impl<T> NumberingStrategy<T> where T: Eq + Hash + Clone {
-    pub fn mru() -> Self {
+/// A strategy for associating an integer value to a label when generating an AST.
+pub struct NumberingStrategy<T, U> where T: Eq + Hash + Clone {
+    tactics: NumberingTactics<T>,
+    dictionary: Option<HashMap<T, U>>,
+}
+
+impl<T, U> NumberingStrategy<T, U> where T: Eq + Hash + Clone {
+
+    pub fn mru(dictionary: Option<HashMap<T, U>>) -> Self {
         let mru = binjs_shared::mru::MRU::new();
-        NumberingStrategy::MRU(mru)
+        Self {
+            tactics: NumberingTactics::MRU(mru),
+            dictionary,
+        }
     }
 
-    pub fn frequency(occurrences: HashMap<T, usize>) -> Self {
+    /// Global frequency.
+    ///
+    /// This strategy ensures that the most common name has a value of 0,
+    /// the second-most common name has a value of 1, etc.
+    pub fn frequency(dictionary: Option<HashMap<T, U>>, occurrences: HashMap<T, usize>) -> Self {
         let sorted = occurrences.into_iter()
             .sorted_by(|(_, v), (_, v2)| usize::cmp(v2, v)); // Sort from largest to smallest
         let numbered = sorted.into_iter()
             .enumerate()
             .map(|(position, (label, _))| (label, Numbering { is_first: true, index: position }))
             .collect();
-        NumberingStrategy::Frequency(numbered)
+        Self {
+            tactics: NumberingTactics::Frequency(numbered),
+            dictionary,
+        }
     }
 
-    pub fn get_index(&mut self, label: &T) -> Numbering {
-        match *self {
-            NumberingStrategy::MRU(ref mut mru) => {
+    pub fn get_index<'a>(&'a mut self, label: &'a T, parent: &'a T) -> Numbering<'a, T, U> {
+        match self.tactics {
+            NumberingTactics::MRU(ref mut mru) => {
                 use binjs_shared::mru::Seen::*;
-                match mru.access(label) {
-                    Age(index) => Numbering { is_first: false, index },
-                    Never(index) => Numbering { is_first: true, index }
-                }
+                let result = match mru.access(label).clone() {
+                    Age(index) => Numbering {
+                        index,
+                        definition: Definition::AlreadySeen
+                    },
+                    Never(index) => {
+                        match self.dictionary.get(label) {
+                            None => Numbering {
+                                index,
+                                definition: Definition::Label(label)
+                            },
+                            Some(def) => Numbering {
+                                index,
+                                definition: Definition::Definition(def)
+                            }
+                        }
+                    }
+                };
+                result
             }
-            NumberingStrategy::Frequency(ref mut frequency) => {
+            NumberingTactics::Frequency(ref mut frequency) => {
                 let mut found = frequency.get_mut(label).unwrap();
                 let result = found.clone();
                 found.is_first = false;
                 result
             }
+            NumberingTactics::ParentNamespacing(ref mut namespacing) => {
+                use std::collections::hash_map::Entry::*;
+                let mut per_parent = namespacing.entry(parent.clone())
+                    .or_insert_with(|| HashMap::new());
+                let children = per_parent.len();
+                match per_parent.entry(label.clone()) {
+                    Occupied(entry) => Numbering {
+                        is_first: false,
+                        index: *entry.get()
+                    },
+                    Vacant(entry) => {
+                        entry.insert(children);
+                        Numbering {
+                            is_first: true,
+                            index: children
+                        }
+                    }
+                }
+            }
         }
     }
 }
+
+*/
