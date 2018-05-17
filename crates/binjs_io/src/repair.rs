@@ -1,20 +1,21 @@
 //! An implementation of TreeRePair http://www.eti.uni-siegen.de/ti/veroeffentlichungen/12-repair.pdf
 
 use bytes;
-use bytes::varnum::WriteVarNum;
 
 use ::{ DictionaryPlacement, NumberingStrategy, TokenWriterError };
-use io::{ LabelingStrategy, TokenWriter };
+use io::TokenWriter;
+use labels:: { self, Label as WritableLabel, Dictionary };
+use util::Pos;
 
 use std;
 use std::cell::{ RefCell, RefMut };
 use std::collections::{ HashMap };
-use std::io::{ Cursor, Seek, SeekFrom, Write };
+use std::io::{ Cursor, Write };
 use std::rc::{ Rc, Weak };
 
 use itertools::Itertools;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Options {
     /// If specified, reduce all nodes (including lists) to ensure that they have at
     /// most `max_rank` children. The original paper recomments a value of 4.
@@ -109,7 +110,6 @@ pub enum Label {
         data: Rc<Vec<u8>>
     }
 }
-
 impl std::fmt::Display for Label {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
         use self::Label::*;
@@ -124,6 +124,30 @@ impl std::fmt::Display for Label {
             List { ref len } => write!(formatter, "[{}]", len),
             Leaf { ref role, .. } => write!(formatter, "({})", role),
         }
+    }
+}
+
+impl WritableLabel for Label {
+    fn write_definition<W: Write, L: Dictionary<Self>>(&self, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
+        use self::Label::*;
+        match *self {
+            Leaf { data: ref buf, .. } => {
+                out.write_all(&buf)?;
+            },
+            Named { ref label, ..} => {
+                out.write_all(label.as_bytes())?
+            },
+            List { .. } => { /* Nothing else to write */ }
+            Generated { ref digram, .. } => {
+                use bytes::varnum::WriteVarNum;
+                // The definition of a digram requires writing its labels, possibly for the first time,
+                // which may in turn contain digrams, etc.
+                strategy.write_label(&digram.parent, parent, out)?;
+                out.write_varnum(digram.position as u32)?;
+                strategy.write_label(&digram.child, parent, out)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -170,43 +194,17 @@ impl Label {
         }
     }
 
-    fn serialize_definition<W: Write + Seek, L: LabelingStrategy<Label, usize>>(&self, numbering: &mut L, parent: Option<&Self>, header_bytes: &mut usize, out: &mut W) {
-        use self::Label::*;
-        debug!(target: "repair-io", "Writing definition of label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
-        match *self {
-            Leaf { data: ref buf, .. } => {
-                *header_bytes += buf.len();
-                out.write_all(&buf).unwrap()
-            },
-            Named { ref label, ..} => {
-                *header_bytes += label.as_bytes().len();
-                out.write_all(label.as_bytes()).unwrap()
-            },
-            List { .. } => { /* Nothing else to write */ }
-            Generated { ref digram, .. } => {
-                use bytes::varnum::WriteVarNum;
-                // The definition of a digram requires writing its labels, possibly for the first time,
-                // which may in turn contain digrams, etc.
-                digram.parent.serialize(numbering, parent, header_bytes, out);
-                *header_bytes += out.write_varnum(digram.position as u32).unwrap();
-                digram.child.serialize(numbering, parent, header_bytes, out);
-            }
-        }
-    }
-    fn serialize<W: Write + Seek, L: LabelingStrategy<Label, usize>>(&self, labeling: &mut L, parent: Option<&Self>, header_bytes: &mut usize, out: &mut W) {
-        debug!(target: "repair-io", "Writing reference to label {} at index {}", self, out.seek(SeekFrom::Current(0)).unwrap());
+    fn serialize<W: Write + Pos, L: Dictionary<Label>>(&self, labeling: &mut L, parent: Option<&Self>, out: &mut W) {
+        debug!(target: "repair-io", "Writing reference to label {} at index {}", self, out.pos());
 
-        let is_first = {
-            let index = labeling.get_label(self, parent);
-            // Write the number.
-            out.write_varnum(index.label() as u32).unwrap();
-            index.is_first()
-        };
+        let start = out.pos();
+        let was_first = labeling.write_label(self, parent, out).expect("IO Error");
+        let stop = out.pos();
 
-        if is_first {
+        if was_first {
             // Never seen: the number os the smallest possible "unknown" value, now write the definition.
-            info!(target: "repair", "Adding to dictionary: {}", *self);
-            self.serialize_definition(labeling, parent, header_bytes, out);
+            info!(target: "repair", "Added to dictionary {}", *self);
+            debug!(target: "repair", "Added to dictionary {} at {}-{}", *self, start, stop);
         }
     }
 }
@@ -326,20 +324,20 @@ impl SubTree {
         aux(self, &mut map);
         map
     }
-    fn serialize<W, L>(&self, mru: &mut L, header_bytes: &mut usize, out: &mut W)
-        where W: Write + Seek, L: LabelingStrategy<Label, usize>
+    fn serialize<W, L>(&self, mru: &mut L, out: &mut W)
+        where W: Write + Pos, L: Dictionary<Label>
     {
-        fn aux<W, L>(tree: &SubTree, mru: &mut L, parent: Option<&Label>, header_bytes: &mut usize, out: &mut W)
-            where W: Write + Seek, L: LabelingStrategy<Label, usize>
+        fn aux<W, L>(tree: &SubTree, mru: &mut L, parent: Option<&Label>, out: &mut W)
+            where W: Write + Pos, L: Dictionary<Label>
         {
             // Write header.
-            tree.label.serialize(mru, parent, header_bytes, out);
+            tree.label.serialize(mru, parent, out);
             // Then write children in the order.
             for child in &tree.children {
-                aux(&*child.borrow(), mru, Some(&tree.label), header_bytes, out)
+                aux(&*child.borrow(), mru, Some(&tree.label), out)
             }
         }
-        aux(self, mru, None, header_bytes, out);
+        aux(self, mru, None, out);
     }
 }
 
@@ -466,6 +464,19 @@ impl Root {
         self.tree = parent.clone();
         parent
     }
+
+    /// Return the labels ranked by most frequent (0) to least frequent (len() - 1).
+    fn get_frequency(&self) -> HashMap<Label, usize> {
+        let frequency = self.tree.borrow()
+            .collect_labels();
+        let max = frequency.values()
+            .cloned()
+            .max()
+            .unwrap_or(0); // The case of the empty tree is not terribly interesting...
+        frequency.into_iter()
+            .map(|(label, instances)| (label, max - instances))
+            .collect()
+    }
 }
 
 type SharedTree = SharedCell<SubTree>;
@@ -478,24 +489,21 @@ pub struct Encoder {
     dictionary_placement: DictionaryPlacement,
 }
 impl Encoder {
-    fn serialize_all<L: LabelingStrategy<Label, usize>>(&self, strategy: &mut L) -> Result<(Vec<u8>, /* ignored */u32), TokenWriterError> {
-        let mut header_bytes = 0;
+    fn serialize_all<L: Dictionary<Label>>(&self, strategy: &mut L) -> Result<(Vec<u8>, /* ignored */u32), TokenWriterError> {
         let mut cursor = Cursor::new(vec![]);
         match self.dictionary_placement {
             DictionaryPlacement::Header => {
                 info!(target: "repair", "Generating header.");
                 // Recollect the labels. All of this could definitely be made more efficient.
                 let frequency = self.root.tree.borrow().collect_labels();
-                for label in frequency.keys() {
-                    // Mark everything as read.
-                    strategy.mark_as_seen(&label);
-                }
                 // Write everything by increasing order.
                 let sorted = frequency.into_iter()
                     .sorted_by(|(_, ref count_1), (_, ref count_2)| usize::cmp(&count_2, &count_1));
                 for (label, _) in sorted.into_iter() {
-                    label.serialize_definition(strategy, None, &mut header_bytes, &mut cursor)
+                    strategy.write_label(&label, None, &mut cursor)
+                        .unwrap(); // No write errors on a cursor.
                 }
+                info!(target: "repair", "Headers takes {} bytes", cursor.pos());
             }
             DictionaryPlacement::Inline => {
                 info!(target: "repair", "No headers.");
@@ -503,9 +511,7 @@ impl Encoder {
             }
         }
 
-        self.root.tree.borrow().serialize(strategy, &mut header_bytes, &mut cursor);
-
-        info!(target: "repair", "Dictionary takes {} bytes", header_bytes);
+        self.root.tree.borrow().serialize(strategy, &mut cursor);
 
         info!(target: "repair", "Done.");
         Ok((cursor.into_inner(), 0))
@@ -577,6 +583,7 @@ impl TokenWriter for Encoder {
 
     fn offset(&mut self) -> Result<Self::Tree, Self::Error> {
         // FIXME: We'll want to build a forest and put skippable stuff after the rest.
+        // FIXME: This also means that we may need to partially reset our numbering strategy.
         unimplemented!()
     }
 
@@ -588,16 +595,18 @@ impl TokenWriter for Encoder {
         let result = match self.numbering_strategy {
             NumberingStrategy::MRU => {
                 info!(target: "repair", "Using strategy: MRU.");
-                self.serialize_all(&mut ::io::MRULabeler::new())
+                self.serialize_all(&mut labels::MRULabeler::new())
             }
             NumberingStrategy::GlobalFrequency => {
                 info!(target: "repair", "Using strategy: Global frequency.");
-                let frequency = self.root.tree.borrow().collect_labels();
-                let len = frequency.len();
-                let dictionary = frequency.into_iter()
-                    .map(|(label, instances)| (label, len - instances))
-                    .collect();
-                self.serialize_all(&mut ::io::DictionaryLabeler::new(dictionary))
+                let dictionary = self.root.get_frequency();
+                self.serialize_all(&mut labels::ExplicitIndexLabeler::new(dictionary))
+            }
+            NumberingStrategy::Prediction => {
+                info!(target: "repair", "Using strategy: Prediction.");
+                let dictionary = self.root.get_frequency();
+                let inner_strategy = labels::ExplicitIndexLabeler::new(dictionary);
+                self.serialize_all(&mut labels::ParentPredictionLabeler::new(inner_strategy))
             }
         };
 
@@ -716,6 +725,7 @@ const MINIMAL_NUMBER_OF_INSTANCE : usize = 2;
 
 impl Encoder {
     pub fn new(options: Options) -> Self {
+        info!(target: "repair", "Repair compression with options {:?}", options);
         Self {
             root: Root::new(options.max_rank),
             numbering_strategy: options.numbering_strategy,

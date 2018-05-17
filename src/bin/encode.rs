@@ -280,10 +280,10 @@ fn main_aux() {
             Arg::with_name("numbering")
                 .long("numbering")
                 .takes_value(true)
-                .possible_values(&["mru", "frequency"])
+                .possible_values(&["mru", "frequency", "parent"])
                 .help("Numbering strategy for the tree. Defaults to frequency."),
             Arg::with_name("dictionary")
-                .long("dictionary-placement")
+                .long("dictionary")
                 .takes_value(true)
                 .possible_values(&["inline", "header"])
                 .help("Where to place the dictionary."),
@@ -321,15 +321,16 @@ fn main_aux() {
         Some(path) => Some(Path::new(path).to_path_buf())
     };
 
-    let dictionary_placement = match matches.value_of("dictionary-placement") {
+    let dictionary_placement = match matches.value_of("dictionary") {
         None => None,
         Some("inline") => Some(DictionaryPlacement::Inline),
         Some("header") => Some(DictionaryPlacement::Header),
-        Some(other) => panic!("Invalid dictionary-placement '{}'", other)
+        Some(other) => panic!("Invalid dictionary '{}'", other)
     };
     let numbering_strategy = match matches.value_of("numbering") {
         None | Some("frequency") => NumberingStrategy::GlobalFrequency,
         Some("mru") => NumberingStrategy::MRU,
+        Some("parent") => NumberingStrategy::Prediction,
         Some(other) => panic!("Unexpected argument {}", other)
     };
     let format = match matches.value_of("format") {

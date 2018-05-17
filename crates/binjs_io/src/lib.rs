@@ -54,6 +54,8 @@ pub mod bytes;
 mod io;
 pub use io::*;
 
+pub mod labels;
+
 /// A simple implementation of TokenReader/TokenWriter,
 /// designed specifically to help debug implementations
 /// of grammar encoders/decoders.
@@ -71,7 +73,7 @@ pub mod xml;
 mod util;
 
 /// A strategy for placing the dictionary.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum DictionaryPlacement {
     /// Place the entire dictionary before the contents.
     Header,
@@ -82,7 +84,7 @@ pub enum DictionaryPlacement {
 }
 
 /// A strategy for numbering nodes, labels, strings, ...
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum NumberingStrategy {
     /// Relative to the most recently used.
     ///
@@ -94,6 +96,8 @@ pub enum NumberingStrategy {
     /// The most common value will be numbered 0, the second most common will be numbered
     /// 1, etc.
     GlobalFrequency,
+
+    Prediction,
 }
 
 pub enum Format {
