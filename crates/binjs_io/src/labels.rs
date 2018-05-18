@@ -92,7 +92,7 @@ impl<T> ExplicitIndexLabeler<T> where T: Eq + Hash + Label {
 }
 impl<T, W: Write> Dictionary<T, W> for ExplicitIndexLabeler<T> where T: Eq + Hash + Label + Debug {
     fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
-        let is_first = {
+        let (index, is_first) = {
             let found = self.dictionary.get_mut(label)
                 .unwrap_or_else(|| panic!("Could not find label {:?} in ExplicitIndexLabeler"));
             let is_first = found.is_first;
@@ -100,13 +100,15 @@ impl<T, W: Write> Dictionary<T, W> for ExplicitIndexLabeler<T> where T: Eq + Has
 
             // Write the index.
             out.write_varnum(found.index as u32)?;
-            is_first
+            (found.index, is_first)
         };
 
         if is_first {
             // Write the definition.
             debug!(target: "dictionary", "ExplicitIndexLabeler writing definition {:?}", label);
             label.write_definition(parent, self, out)?;
+        } else {
+            debug!(target: "dictionary", "ExplicitIndexLabeler reusing {} for {:?}", index, label);
         }
         Ok(is_first)
     }
@@ -149,7 +151,7 @@ impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq 
                 }
                 Occupied(entry) => {
                     debug!(target: "dictionary", "ParentPredictionLabel reusing number {} for {:?} > {:?}",
-                        number_of_children,
+                        *entry.get(),
                         parent,
                         label);
                     // Reuse existing number, no need to write the definition.
@@ -169,3 +171,5 @@ impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq 
         }
     }
 }
+
+// FIXME: We need a RecentFrequencyLabeler for strings

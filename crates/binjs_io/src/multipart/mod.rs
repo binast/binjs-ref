@@ -139,7 +139,7 @@ impl FormatInTable for Option<String> {
 }
 
 pub use self::read::TreeTokenReader;
-pub use self::write::{ TreeTokenWriter, Statistics, SectionOption, WriteOptions };
+pub use self::write::{ TreeTokenWriter, Statistics, WriteOptions };
 
 
 #[test]

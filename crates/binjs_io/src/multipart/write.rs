@@ -2,7 +2,7 @@ use bytes;
 use bytes::compress::*;
 use bytes::varnum::*;
 use io::*;
-use ::TokenWriterError;
+use ::{ SectionOption, TokenWriterError };
 use multipart::*;
 
 use std;
@@ -19,26 +19,6 @@ use rand::{ Rand, Rng };
 use vec_map;
 use vec_map::*;
 
-/// Instructions for a single section (grammar, strings, tree, ...)
-#[derive(Clone, Debug)]
-pub enum SectionOption {
-    /// Compress.
-    Compression(Compression),
-
-    /// Append to an in-memory buffer.
-    AppendToBuffer(Rc<RefCell<Vec<u8>>>),
-
-    Discard,
-}
-impl SectionOption {
-    pub fn new(option: &SectionOption) -> SectionOption {
-        match *option {
-            SectionOption::Compression(ref c) => SectionOption::Compression(c.clone()),
-            SectionOption::Discard => SectionOption::Discard,
-            SectionOption::AppendToBuffer(_) => SectionOption::AppendToBuffer(Default::default())
-        }
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct WriteOptions {

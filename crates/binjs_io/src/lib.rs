@@ -102,6 +102,27 @@ pub enum NumberingStrategy {
     Prediction,
 }
 
+/// Instructions for a single section (grammar, strings, tree, ...)
+#[derive(Clone, Debug)]
+pub enum SectionOption {
+    /// Compress.
+    Compression(bytes::compress::Compression),
+
+    /// Append to an in-memory buffer.
+    AppendToBuffer(Rc<RefCell<Vec<u8>>>),
+
+    Discard,
+}
+impl SectionOption {
+    pub fn new(option: &SectionOption) -> SectionOption {
+        match *option {
+            SectionOption::Compression(ref c) => SectionOption::Compression(c.clone()),
+            SectionOption::Discard => SectionOption::Discard,
+            SectionOption::AppendToBuffer(_) => SectionOption::AppendToBuffer(Default::default())
+        }
+    }
+}
+
 pub enum Format {
     Simple {
         stats: Rc<RefCell<simple::Statistics>>

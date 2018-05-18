@@ -267,30 +267,63 @@ impl TokenWriter for TreeTokenWriter {
                 _ => {}
             }
         });
-        let string_frequencies : HashMap<_, _> = string_instances.into_iter()
-            .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
-            .into_iter()
-            .enumerate()
-            .map(|(position, (s, _))| (s, position))
-            .collect();
-        debug!(target: "multistream", "Strings, by index: {:?}", string_frequencies.iter()
-            .sorted_by(|a, b| usize::cmp(&a.1, &b.1)));
+        debug!(target: "multistream", "Detected {} tag definitions, {} occurrences",
+            tag_instances.len(),
+            tag_instances.values()
+                .cloned()
+                .sum::<usize>()
+        );
+        debug!(target: "multistream", "Detected {} strings definitions, {} occurrences",
+            string_instances.len(),
+            string_instances.values()
+                .cloned()
+                .sum::<usize>()
+        );
+
         let tag_frequencies : HashMap<_, _> = tag_instances.into_iter()
             .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
             .into_iter()
             .enumerate()
             .map(|(position, (s, _))| (s, position))
             .collect();
-        debug!(target: "multistream", "Tags, by index: {:?}", tag_frequencies.iter()
-            .sorted_by(|a, b| usize::cmp(&a.1, &b.1)));
+        let tag_frequency_dictionary = ExplicitIndexLabeler::new(tag_frequencies.clone());
 
-        let tags: Box<Dictionary<Label, Vec<u8>>> = Box::new(ParentPredictionLabeler::new(ExplicitIndexLabeler::new(tag_frequencies)));
+        let string_frequencies : HashMap<_, _> = string_instances.into_iter()
+            .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
+            .into_iter()
+            .enumerate()
+            .map(|(position, (s, _))| (s, position))
+            .collect();
+        let string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
+
+        let mut tags = Compressor {
+            dictionary: Box::new(ParentPredictionLabeler::new(tag_frequency_dictionary)),
+            stream: vec![],
+        };
+        let mut strings = Compressor {
+            dictionary: Box::new(string_frequency_dictionary), // FIXME: Experiment with ParentPredictionLabeler
+            stream: vec![],
+        };
+
+        if let DictionaryPlacement::Header = self.options.dictionary_placement {
+            // Pre-write tags and strings.
+            for tag in tag_frequencies.keys() {
+                tags.dictionary.write_label(tag, None, &mut tags.stream).unwrap();
+            }
+            debug!(target: "multistream", "Wrote {} bytes ({} tags) to header",
+                tags.stream.len(),
+                tag_frequencies.len());
+
+            for string in string_frequencies.keys() {
+                strings.dictionary.write_label(string, None, &mut strings.stream).unwrap();
+            }
+            debug!(target: "multistream", "Wrote {} bytes ({} strings) to header",
+                strings.stream.len(),
+                string_frequencies.len());
+        }
 
         let mut compressors = PerCategory {
-            tags: Compressor {
-                dictionary: tags,
-                stream: vec![],
-            },
+            tags,
             numbers: Compressor {
                 dictionary: Box::new(RawLabeler::new()), // FIXME: Experiment with MRULabeler
                 stream: vec![],
@@ -303,11 +336,10 @@ impl TokenWriter for TreeTokenWriter {
                 dictionary: Box::new(RawLabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
                 stream: vec![],
             },
-            strings: Compressor {
-                dictionary: Box::new(ExplicitIndexLabeler::new(string_frequencies)), // FIXME: Experiment with ParentPredictionLabeler
-                stream: vec![],
-            }
+            strings,
         };
+
+        // Now write actual tree.
         self.root.borrow().serialize_label(None, &mut compressors)
             .unwrap_or_else(|_| unimplemented!());
         self.root.borrow().serialize_children(&self.options, None, &mut compressors)

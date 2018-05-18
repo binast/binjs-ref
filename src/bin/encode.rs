@@ -4,8 +4,8 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::io::{ DictionaryPlacement, Format, NumberingStrategy, TokenSerializer };
-use binjs::io::multipart::{ SectionOption, WriteOptions };
+use binjs::io::{ DictionaryPlacement, Format, NumberingStrategy, SectionOption, TokenSerializer };
+use binjs::io::multipart::{ WriteOptions };
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
 use binjs::specialized::es6::ast::Walker;
