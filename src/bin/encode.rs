@@ -4,8 +4,8 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::io::{ DictionaryPlacement, Format, NumberingStrategy, SectionOption, TokenSerializer };
-use binjs::io::multipart::{ WriteOptions };
+use binjs::io::bytes::compress::Compression;
+use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, NumberingStrategy, TokenSerializer };
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
 use binjs::specialized::es6::ast::Walker;
@@ -19,30 +19,29 @@ use std::rc::Rc;
 
 use clap::*;
 
-fn parse_compression(option: Option<&str>) -> std::result::Result<SectionOption, String> {
-    use binjs::io::bytes::compress::Compression;
+fn parse_compression(option: Option<&str>) -> std::result::Result<Option<CompressionTarget>, String> {
     let result = match option {
-        None | Some("identity") => SectionOption::Compression(Compression::Identity),
-        Some("gzip") => SectionOption::Compression(Compression::Gzip),
-        Some("deflate") => SectionOption::Compression(Compression::Deflate),
-        Some("lzw") => SectionOption::Compression(Compression::Lzw),
-        Some("export") => SectionOption::AppendToBuffer(std::rc::Rc::new(RefCell::new(Vec::new()))),
+        None => None,
+        Some("identity") => Some(CompressionTarget::new(Compression::Identity)),
+        Some("gzip") => Some(CompressionTarget::new(Compression::Gzip)),
+        Some("deflate") => Some(CompressionTarget::new(Compression::Deflate)),
+        Some("lzw") => Some(CompressionTarget::new(Compression::Lzw)),
         Some(other) => return Err(other.to_string())
     };
     Ok(result)
 }
 
-fn write_extract(dest_bin_path: &Option<PathBuf>, option: &SectionOption, extension: &str) {
-    if let SectionOption::AppendToBuffer(ref buf) = *option {
-        let path = dest_bin_path
-            .clone()
-            .expect("Cannot write partial file without a destination")
-            .with_extension(extension);
-        let mut file = File::create(path.clone())
-            .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", path, e));
-        file.write(buf.borrow().as_ref())
-            .expect("Could not write destination file");
-    }
+fn export_section(dest_bin_path: &Option<PathBuf>, target: &mut CompressionTarget, extension: &str) {
+    let path = dest_bin_path
+        .clone()
+        .expect("Cannot write partial file without a destination")
+        .with_extension(extension);
+    let mut file = File::create(path.clone())
+        .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", path, e));
+    let data = target.reset();
+    let borrow = data.borrow();
+    file.write(borrow.as_ref())
+        .expect("Could not write destination file");
 }
 
 struct Options<'a> {
@@ -53,7 +52,7 @@ struct Options<'a> {
     show_ast: bool,
 }
 
-fn handle_path<'a>(options: &Options<'a>,
+fn handle_path<'a>(options: &mut Options<'a>,
     source_path: &Path,
     sub_dir: &Path)
 {
@@ -134,7 +133,7 @@ fn handle_path<'a>(options: &Options<'a>,
 
     println!("Encoding.");
     let data: Box<AsRef<[u8]>> = {
-        match Format::new(&options.format) {
+        match options.format {
             Format::Simple { stats: ref my_stats } => {
                 let writer = binjs::io::simple::TreeTokenWriter::new();
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
@@ -167,7 +166,7 @@ fn handle_path<'a>(options: &Options<'a>,
 
                 Box::new(data)
             }
-            Format::MultiStream { ref options } => {
+            Format::MultiStream { ref options, ref targets } => {
                 let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)
@@ -179,18 +178,18 @@ fn handle_path<'a>(options: &Options<'a>,
             }
             Format::Multipart {
                 stats: ref my_stats,
-                options: ref compression,
+                ref mut targets,
             } => {
-                let writer = binjs::io::multipart::TreeTokenWriter::new(compression.clone());
+                let writer = binjs::io::multipart::TreeTokenWriter::new(targets.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)
                     .expect("Could not encode AST");
                 let (data, stats) = serializer.done()
                     .expect("Could not finalize AST encoding");
 
-                write_extract(&dest_bin_path, &compression.grammar_table, "grammar");
-                write_extract(&dest_bin_path, &compression.strings_table, "strings");
-                write_extract(&dest_bin_path, &compression.tree, "tree");
+                export_section(&dest_bin_path, &mut targets.grammar_table, "grammar");
+                export_section(&dest_bin_path, &mut targets.strings_table, "strings");
+                export_section(&dest_bin_path, &mut targets.tree, "tree");
 
 
                 let mut borrow = my_stats.borrow_mut();
@@ -270,17 +269,17 @@ fn main_aux() {
             Arg::with_name("strings")
                 .long("strings")
                 .takes_value(true)
-                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
+                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for strings. Defaults to identity."),
             Arg::with_name("sections")
                 .long("sections")
                 .takes_value(true)
-                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
+                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for all sections. Defaults to identity."),
             Arg::with_name("grammar")
                 .long("grammar")
                 .takes_value(true)
-                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
+                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for the grammar table. Defaults to identity."),
             Arg::with_name("tree")
                 .long("tree")
@@ -303,6 +302,9 @@ fn main_aux() {
             Arg::with_name("show-ast")
                 .long("show-ast")
                 .help("Show pos-processed ast"),
+            Arg::with_name("export-sections")
+                .long("export-sections")
+                .help("If specified, write sections to individual files, for easier analysis"),
             Arg::with_name("lazify")
                 .long("lazify")
                 .takes_value(true)
@@ -343,33 +345,41 @@ fn main_aux() {
         Some("parent") => NumberingStrategy::Prediction,
         Some(other) => panic!("Unexpected argument {}", other)
     };
+    let compression = parse_compression(matches.value_of("sections"))
+        .expect("Unknown value for `sections`");
+    let compression_strings = parse_compression(matches.value_of("strings"))
+        .expect("Unknown value for `strings`");
+    let compression_grammar = parse_compression(matches.value_of("grammar"))
+        .expect("Unknown value for `grammar`");
+    let compression_tree = parse_compression(matches.value_of("tree"))
+        .expect("Unknown value for `tree`");
+    let compression_bool = parse_compression(matches.value_of("bools"))
+        .expect("Unknown value for `bools`");
+    let compression_lists = parse_compression(matches.value_of("lists"))
+        .expect("Unknown value for `lists`");
+    let compression_numbers = parse_compression(matches.value_of("numbers"))
+        .expect("Unknown value for `numbers`");
+
     let format = match matches.value_of("format") {
         None | Some("multipart") => {
-            let stats = Rc::new(RefCell::new(binjs::io::multipart::Statistics::default()
+            use binjs::io::multipart::{ Statistics, Targets };
+            let stats = Rc::new(RefCell::new(Statistics::default()
                 .with_source_bytes(0)));
-            if let Some(ref spec) = matches.value_of("sections") {
-                let compression = parse_compression(Some(spec))
-                    .expect("Could not parse sections compression format");
+            if let Some(ref compression) = compression {
                 Format::Multipart {
-                    options: WriteOptions {
+                    targets: Targets {
                         strings_table: compression.clone(),
                         grammar_table: compression.clone(),
-                        tree: compression,
+                        tree: compression.clone(),
                     },
                     stats
                 }
             } else {
-                let strings = parse_compression(matches.value_of("strings"))
-                    .expect("Could not parse string compression format");
-                let grammar = parse_compression(matches.value_of("grammar"))
-                    .expect("Could not parse grammar compression format");
-                let tree = parse_compression(matches.value_of("tree"))
-                    .expect("Could not parse tree compression format");
                 Format::Multipart {
-                    options: WriteOptions {
-                        strings_table: strings,
-                        grammar_table: grammar,
-                        tree
+                    targets: Targets {
+                        strings_table: compression_strings.unwrap_or_else(|| CompressionTarget::default()),
+                        grammar_table: compression_grammar.unwrap_or_else(|| CompressionTarget::default()),
+                        tree: compression_tree.unwrap_or_else(|| CompressionTarget::default()),
                     },
                     stats
                 }
@@ -389,11 +399,23 @@ fn main_aux() {
             }
         }
         Some("xml") => Format::XML,
-        Some("multistream") => Format::MultiStream {
-            options: {
-                binjs::io::multistream::Options {
+        Some("multistream") => {
+            use binjs::io::multistream::{ Options, PerCategory, Targets };
+            Format::MultiStream {
+                options: Options {
                     sibling_labels_together: false,
                     dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
+                },
+                targets: Targets {
+                    contents: PerCategory {
+                        strings: compression_strings.clone().unwrap_or_default(),
+                        numbers: compression_numbers.unwrap_or_default(),
+                        bools: compression_bool.unwrap_or_default(),
+                        lists: compression_lists.unwrap_or_default(),
+                        tags: compression_tree.unwrap_or_default(),
+                    },
+                    header_strings: compression_strings.unwrap_or_default(), // FIXME: A different compression might be useful.
+                    header_tags: compression_grammar.unwrap_or_default(),
                 }
             }
         },
@@ -410,7 +432,7 @@ fn main_aux() {
     let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
         .expect("Invalid number");
 
-    let options = Options {
+    let mut options = Options {
         parser: &parser,
         format,
         dest_dir,
@@ -419,7 +441,7 @@ fn main_aux() {
     };
 
     for source_path in sources {
-        handle_path(&options, source_path, PathBuf::new().as_path());
+        handle_path(&mut options, source_path, PathBuf::new().as_path());
     }
 
     if show_stats {

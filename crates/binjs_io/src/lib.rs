@@ -104,22 +104,43 @@ pub enum NumberingStrategy {
 
 /// Instructions for a single section (grammar, strings, tree, ...)
 #[derive(Clone, Debug)]
-pub enum SectionOption {
-    /// Compress.
-    Compression(bytes::compress::Compression),
-
-    /// Append to an in-memory buffer.
-    AppendToBuffer(Rc<RefCell<Vec<u8>>>),
-
-    Discard,
+pub struct CompressionTarget {
+    destination: Rc<RefCell<Vec<u8>>>,
+    format: bytes::compress::Compression,
+    stats: Option<bytes::compress::CompressionResult>,
 }
-impl SectionOption {
-    pub fn new(option: &SectionOption) -> SectionOption {
-        match *option {
-            SectionOption::Compression(ref c) => SectionOption::Compression(c.clone()),
-            SectionOption::Discard => SectionOption::Discard,
-            SectionOption::AppendToBuffer(_) => SectionOption::AppendToBuffer(Default::default())
+impl CompressionTarget {
+    pub fn new(format: bytes::compress::Compression) -> Self {
+        Self {
+            destination: Rc::new(RefCell::new(vec![])),
+            stats: None,
+            format,
         }
+    }
+    pub fn data(&self) -> &RefCell<Vec<u8>> {
+        self.destination.as_ref()
+    }
+    pub fn reset(&mut self) -> Rc<RefCell<Vec<u8>>> {
+        let mut buffer = Rc::new(RefCell::new(vec![]));
+        std::mem::swap(&mut buffer, &mut self.destination);
+        buffer
+    }
+    pub fn stats(&self) -> Option<bytes::compress::CompressionResult> {
+        self.stats.clone()
+    }
+}
+impl std::io::Write for CompressionTarget {
+    fn write(&mut self, data: &[u8]) -> std::result::Result<usize, std::io::Error> {
+        self.stats = Some(self.format.compress(data, &mut *self.destination.borrow_mut())?);
+        Ok(data.len())
+    }
+    fn flush(&mut self) -> std::result::Result<(), std::io::Error> {
+        Ok(())
+    }
+}
+impl Default for CompressionTarget {
+    fn default() -> Self {
+        Self::new(bytes::compress::Compression::Identity)
     }
 }
 
@@ -128,7 +149,7 @@ pub enum Format {
         stats: Rc<RefCell<simple::Statistics>>
     },
     Multipart {
-        options: multipart::WriteOptions,
+        targets: multipart::Targets,
         stats: Rc<RefCell<multipart::Statistics>>
     },
     TreeRePair {
@@ -137,20 +158,6 @@ pub enum Format {
     XML,
     MultiStream {
         options: multistream::Options,
+        targets: multistream::Targets,
     },
-}
-impl Format {
-    pub fn new(format: &Format) -> Format {
-        use multipart::WriteOptions;
-        match *format {
-            Format::Simple { .. } => Format::Simple { stats: Default::default() },
-            Format::Multipart { ref options, .. } => Format::Multipart {
-                stats: Default::default(),
-                options: WriteOptions::new(options),
-            },
-            Format::TreeRePair { ref options } => Format::TreeRePair { options: options.clone() },
-            Format::XML => Format::XML,
-            Format::MultiStream { ref options} => Format::MultiStream { options: options.clone() },
-        }
-    }
 }

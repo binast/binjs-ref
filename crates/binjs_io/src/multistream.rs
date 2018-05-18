@@ -14,7 +14,7 @@
 
 use io::TokenWriter;
 use labels::{ Dictionary, Label as WritableLabel };
-use ::{ DictionaryPlacement, TokenWriterError };
+use ::{ DictionaryPlacement, CompressionTarget, TokenWriterError };
 
 use std;
 use std::cell::RefCell;
@@ -30,14 +30,35 @@ pub struct Options {
     pub sibling_labels_together: bool,
     pub dictionary_placement: DictionaryPlacement,
 }
+pub struct Targets {
+    pub contents: PerCategory<CompressionTarget>,
+    pub header_strings: CompressionTarget,
+    pub header_tags: CompressionTarget,
+}
+impl Targets {
+    pub fn reset(&mut self) {
+        self.contents.reset();
+        self.header_strings.reset();
+        self.header_tags.reset();
+    }
+}
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PerCategory<T> {
-    strings: T,
-    numbers: T,
-    bools: T,
-    lists: T,
-    tags: T,
+    pub strings: T,
+    pub numbers: T,
+    pub bools: T,
+    pub lists: T,
+    pub tags: T,
+}
+impl PerCategory<CompressionTarget> {
+    pub fn reset(&mut self) {
+        self.strings.reset();
+        self.numbers.reset();
+        self.bools.reset();
+        self.lists.reset();
+        self.tags.reset();
+    }
 }
 
 impl std::ops::Add<Self> for PerCategory<usize> {
@@ -339,7 +360,7 @@ impl TokenWriter for TreeTokenWriter {
             strings,
         };
 
-        // Now write actual tree.
+        // Write the tree to the various streams.
         self.root.borrow().serialize_label(None, &mut compressors)
             .unwrap_or_else(|_| unimplemented!());
         self.root.borrow().serialize_children(&self.options, None, &mut compressors)
