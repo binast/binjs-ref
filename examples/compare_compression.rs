@@ -112,7 +112,7 @@ fn main() {
                 .short("c")
                 .required(true)
                 .takes_value(true)
-                .possible_values(&["identity", "gzip", "br", "deflate", "trp"])
+                .possible_values(&["identity", "gzip", "br", "deflate", "trp", "multistream"])
                 .help("Compression format for the binjs files"),
             Arg::with_name("numbering")
                 .long("numbering")
@@ -160,6 +160,7 @@ fn main() {
             Some("identity") => make_multipart(Compression::Identity),
             Some("gzip") => make_multipart(Compression::Gzip),
             Some("br") => make_multipart(Compression::Brotli),
+            Some("multistream") => Format::MultiStream,
             Some("trp") => {
                 let max_rank = match matches.value_of("trp-rank") {
                     None | Some("none") => None,
@@ -208,6 +209,15 @@ fn main() {
                 }
                 Format::TreeRePair { ref options }=> {
                     let writer = binjs::io::repair::Encoder::new(options.clone());
+                    let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                    serializer.serialize(&ast)
+                        .expect("Could not encode AST");
+                    let (data, _) = serializer.done()
+                        .expect("Could not finalize AST encoding");
+                    Box::new(data)
+                }
+                Format::MultiStream => {
+                    let writer = binjs::io::multistream::TreeTokenWriter::new();
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                     serializer.serialize(&ast)
                         .expect("Could not encode AST");

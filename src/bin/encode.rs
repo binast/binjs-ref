@@ -167,6 +167,16 @@ fn handle_path<'a>(options: &Options<'a>,
 
                 Box::new(data)
             }
+            Format::MultiStream => {
+                let writer = binjs::io::multistream::TreeTokenWriter::new();
+                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                serializer.serialize(&ast)
+                    .expect("Could not encode AST");
+                let (data, _) = serializer.done()
+                    .expect("Could not finalize AST encoding");
+
+                Box::new(data)
+            }
             Format::Multipart {
                 stats: ref my_stats,
                 options: ref compression,
@@ -251,7 +261,7 @@ fn main_aux() {
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
-                .possible_values(&["simple", "multipart", "trp", "xml"])
+                .possible_values(&["simple", "multipart", "trp", "xml", "multistream"])
                 .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
             Arg::with_name("trp-rank")
                 .long("trp-rank")
@@ -379,6 +389,7 @@ fn main_aux() {
             }
         }
         Some("xml") => Format::XML,
+        Some("multistream") => Format::MultiStream,
         Some("simple") => Format::Simple {
             stats: Rc::new(RefCell::new(binjs::io::simple::Statistics::default()))
         },

@@ -128,7 +128,7 @@ impl std::fmt::Display for Label {
 }
 
 impl WritableLabel for Label {
-    fn write_definition<W: Write, L: Dictionary<Self>>(&self, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
+    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
         use self::Label::*;
         match *self {
             Leaf { data: ref buf, .. } => {
@@ -194,7 +194,7 @@ impl Label {
         }
     }
 
-    fn serialize<W: Write + Pos, L: Dictionary<Label>>(&self, labeling: &mut L, parent: Option<&Self>, out: &mut W) {
+    fn serialize<W: Write + Pos, L: Dictionary<Label, W>>(&self, labeling: &mut L, parent: Option<&Self>, out: &mut W) {
         debug!(target: "repair-io", "Writing reference to label {} at index {}", self, out.pos());
 
         let start = out.pos();
@@ -325,10 +325,10 @@ impl SubTree {
         map
     }
     fn serialize<W, L>(&self, mru: &mut L, out: &mut W)
-        where W: Write + Pos, L: Dictionary<Label>
+        where W: Write + Pos, L: Dictionary<Label, W>
     {
         fn aux<W, L>(tree: &SubTree, mru: &mut L, parent: Option<&Label>, out: &mut W)
-            where W: Write + Pos, L: Dictionary<Label>
+            where W: Write + Pos, L: Dictionary<Label, W>
         {
             // Write header.
             tree.label.serialize(mru, parent, out);
@@ -489,7 +489,7 @@ pub struct Encoder {
     dictionary_placement: DictionaryPlacement,
 }
 impl Encoder {
-    fn serialize_all<L: Dictionary<Label>>(&self, strategy: &mut L) -> Result<(Vec<u8>, /* ignored */u32), TokenWriterError> {
+    fn serialize_all<L: Dictionary<Label, Cursor<Vec<u8>>>>(&self, strategy: &mut L) -> Result<(Vec<u8>, /* ignored */u32), TokenWriterError> {
         let mut cursor = Cursor::new(vec![]);
         match self.dictionary_placement {
             DictionaryPlacement::Header => {

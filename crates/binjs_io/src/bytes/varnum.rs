@@ -1,7 +1,15 @@
 use std;
 use std::io::{Read, Write};
 
+pub const VARNUM_INVALID_ZERO_1: [u8; 2] = [1, 0];
+pub const VARNUM_INVALID_ZERO_2: [u8; 3] = [1, 1, 0];
+pub const VARNUM_INVALID_ZERO_3: [u8; 4] = [1, 1, 1, 0];
+pub const VARNUM_INVALID_ZERO_4: [u8; 5] = [1, 1, 1, 1, 0];
+pub const VARNUM_INVALID_ZERO_5: [u8; 6] = [1, 1, 1, 1, 1, 0];
+pub const VARNUM_INVALID_ZERO_6: [u8; 7] = [1, 1, 1, 1, 1, 1, 0];
+
 pub trait WriteVarNum {
+    fn write_maybe_varnum(&mut self, value: Option<u32>) -> Result<usize, std::io::Error>;
     fn write_varnum(&mut self, num: u32) -> Result<usize, std::io::Error>;
 }
 
@@ -11,6 +19,15 @@ pub trait ReadVarNum {
 }
 
 impl<T> WriteVarNum for T where T: Write {
+    fn write_maybe_varnum(&mut self, value: Option<u32>) -> Result<usize, std::io::Error> {
+        match value {
+            Some(v) => self.write_varnum(v),
+            None => {
+                self.write_all(&VARNUM_INVALID_ZERO_1)?;
+                Ok(VARNUM_INVALID_ZERO_1.len())
+            }
+        }
+    }
     fn write_varnum(&mut self, mut value: u32) -> Result<usize, std::io::Error> {
         let mut bytes = Vec::with_capacity(4);
         loop {
@@ -24,11 +41,32 @@ impl<T> WriteVarNum for T where T: Write {
                 break
             }
         }
-        self.write(&bytes)
+        self.write_all(&bytes)?;
+        Ok(bytes.len())
     }
 }
 
 impl<T> ReadVarNum for T where T: Read {
+    /// ```
+    /// use binjs_io::bytes::varnum::*;
+    /// use std::io::Cursor;
+    ///
+    /// let source = vec![0];
+    /// eprintln!("Test {:?}", source);
+    /// assert_eq!(Cursor::new(source).read_varnum_2().unwrap(), 0);
+    ///
+    /// // This odd encoding of 0 may be reserved as a magic header:
+    /// let source = vec![1, 0];
+    /// assert!(Cursor::new(source).read_varnum_2().is_err());
+    ///
+    /// // This odd encoding of 0 may be reserved as a magic header:
+    /// let source = vec![1,1,0];
+    /// assert!(Cursor::new(source).read_varnum_2().is_err());
+    ///
+    /// // This odd encoding of 0 may be reserved as a magic header:
+    /// let source = vec![1,1,1,0];
+    /// assert!(Cursor::new(source).read_varnum_2().is_err());
+    /// ```
     fn read_varnum_2(&mut self) -> Result<u32, std::io::Error> {
         let mut result = 0;
         self.read_varnum(&mut result)?;
@@ -41,16 +79,22 @@ impl<T> ReadVarNum for T where T: Read {
         let mut shift : u32 = 0;
         let mut buf : [u8;1] = [0];
         loop {
-            debug_assert!(shift < 32);
+            if shift >= 32 {
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid varnum (doesn't fit in 32 bits)"))
+            }
             bytes += self.read(&mut buf)?;
 
             let byte = buf[0];
             result |= (byte as u32 >> 1) << shift;
-            shift += 7;
             if byte & 1 == 0 {
-                *num = result;
-                return Ok(bytes);
+                if result == 0 && shift != 0 {
+                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid varnum (invalid 0)"))
+                } else {
+                    *num = result;
+                    return Ok(bytes);
+                }
             }
+            shift += 7;
         }
     }
 }

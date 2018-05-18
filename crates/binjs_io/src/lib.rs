@@ -65,6 +65,8 @@ pub mod simple;
 /// designed to minimize the size of the file.
 pub mod multipart;
 
+pub mod multistream;
+
 /// A tree comperssion mechanism.
 pub mod repair;
 
@@ -112,6 +114,7 @@ pub enum Format {
         options: repair::Options,
     },
     XML,
+    MultiStream,
 }
 impl Format {
     pub fn new(format: &Format) -> Format {
@@ -124,6 +127,7 @@ impl Format {
             },
             Format::TreeRePair { ref options } => Format::TreeRePair { options: options.clone() },
             Format::XML => Format::XML,
+            Format::MultiStream => Format::MultiStream,
         }
     }
 }

@@ -9,13 +9,33 @@ use std::hash::Hash;
 use std::io::Write;
 
 pub trait Label : Sized {
-    fn write_definition<W: Write, L: Dictionary<Self>>(&self, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error>;
+    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error>;
 }
 
-pub trait Dictionary<T> {
+pub trait Dictionary<T, W: Write> {
     /// Return `true` if we just added the definition of the label to the dictionary,
     /// `false` if it was already present.
-    fn write_label<W: Write>(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error>;
+    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error>;
+}
+
+/// The dumbest possible labeler: always copy the definition.
+///
+/// Useful for numbers, booleans, etc.
+pub struct RawLabeler<T> {
+    phantom: std::marker::PhantomData<T>,
+}
+impl<T> RawLabeler<T> {
+    pub fn new() -> Self {
+        Self {
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+impl<T, W: Write> Dictionary<T, W> for RawLabeler<T> where T: Label {
+    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+        label.write_definition(parent, self, out)?;
+        Ok(true)
+    }
 }
 
 pub struct MRULabeler<T> where T: Eq + Label + Clone {
@@ -28,8 +48,8 @@ impl<T> MRULabeler<T> where T: Eq + Label + Clone {
         }
     }
 }
-impl<T> Dictionary<T> for MRULabeler<T> where T: Eq + Label + Clone {
-    fn write_label<W: Write>(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+impl<T, W: Write> Dictionary<T, W> for MRULabeler<T> where T: Eq + Label + Clone {
+    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
         use binjs_shared::mru::Seen::*;
         match self.mru.access(label) {
             Age(index) => {
@@ -70,8 +90,8 @@ impl<T> ExplicitIndexLabeler<T> where T: Eq + Hash + Label {
         }
     }
 }
-impl<T> Dictionary<T> for ExplicitIndexLabeler<T> where T: Eq + Hash + Label + Debug {
-    fn write_label<W: Write>(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+impl<T, W: Write> Dictionary<T, W> for ExplicitIndexLabeler<T> where T: Eq + Hash + Label + Debug {
+    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
         let is_first = {
             let found = self.dictionary.get_mut(label)
                 .unwrap_or_else(|| panic!("Could not find label {:?} in ExplicitIndexLabeler"));
@@ -92,21 +112,25 @@ impl<T> Dictionary<T> for ExplicitIndexLabeler<T> where T: Eq + Hash + Label + D
     }
 }
 
-pub struct ParentPredictionLabeler<T, U> where T: Eq + Hash + Label + Clone, U: Dictionary<T> {
+/// The first time a node `A` contains a node `B`, assign a new number to `A > B`. For each
+/// `A`, numbers start at 0.
+pub struct ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
     per_parent: HashMap<T, HashMap<T, usize>>,
     strategy: U,
+    phantom: std::marker::PhantomData<W>,
 }
-impl<T, U> ParentPredictionLabeler<T, U> where T: Eq + Hash + Label + Clone, U: Dictionary<T> {
+impl<T, U, W> ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
     pub fn new(strategy: U) -> Self {
         Self {
             per_parent: HashMap::new(),
+            phantom: std::marker::PhantomData,
             strategy
         }
     }
 }
 
-impl<T, U> Dictionary<T> for ParentPredictionLabeler<T, U> where T: Eq + Hash + Label + Clone + Debug, U: Dictionary<T> {
-    fn write_label<W: Write>(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clone + Debug, U: Dictionary<T, W>, W: Write {
+    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
         use std::collections::hash_map::Entry::*;
         let introduced_namespaced_number = if let Some(parent) = parent {
             let this_parent = self.per_parent.entry(parent.clone())
