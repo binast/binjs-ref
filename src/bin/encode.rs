@@ -167,8 +167,8 @@ fn handle_path<'a>(options: &Options<'a>,
 
                 Box::new(data)
             }
-            Format::MultiStream => {
-                let writer = binjs::io::multistream::TreeTokenWriter::new();
+            Format::MultiStream { ref options } => {
+                let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)
                     .expect("Could not encode AST");
@@ -389,7 +389,14 @@ fn main_aux() {
             }
         }
         Some("xml") => Format::XML,
-        Some("multistream") => Format::MultiStream,
+        Some("multistream") => Format::MultiStream {
+            options: {
+                binjs::io::multistream::Options {
+                    sibling_labels_together: false,
+                    dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
+                }
+            }
+        },
         Some("simple") => Format::Simple {
             stats: Rc::new(RefCell::new(binjs::io::simple::Statistics::default()))
         },
