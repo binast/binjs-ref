@@ -12,11 +12,9 @@
 // FIXME: Since we're going to inline the definition of node kinds, we could try and toy with
 // with the bytes used to represent child instances to make them use the same alphabet.
 
-
-
 use io::TokenWriter;
 use labels::{ Dictionary, Label as WritableLabel };
-use ::{ TokenWriterError };
+use ::{ DictionaryPlacement, TokenWriterError };
 
 use std;
 use std::cell::RefCell;
@@ -26,6 +24,12 @@ use std::io::Write;
 use std::rc::Rc;
 
 use itertools::Itertools;
+
+#[derive(Clone)]
+pub struct Options {
+    pub sibling_labels_together: bool,
+    pub dictionary_placement: DictionaryPlacement,
+}
 
 #[derive(Debug, Default)]
 pub struct PerCategory<T> {
@@ -60,8 +64,11 @@ impl std::fmt::Display for PerCategory<usize> {
     }
 }
 
-type Streams<W> = PerCategory<W>;
-type Dictionaries<W> = PerCategory<Box<Dictionary<Label, W>>>;
+struct Compressor<W: Write> {
+    stream: W,
+    dictionary: Box<Dictionary<Label, W>>,
+}
+
 pub type Statistics = PerCategory<usize>;
 
 
@@ -79,21 +86,40 @@ impl SubTree {
             child.borrow().with_labels(f);
         }
     }
-    fn serialize<W: Write>(&self, parent: Option<&Label>, dictionaries: &mut Dictionaries<W>, streams: &mut Streams<W>) -> Result<(), std::io::Error> {
-        let new_parent = {
-            let (new_parent, dictionary, stream) = match self.label {
-                Label::String(_) => (parent,     &mut dictionaries.strings, &mut streams.strings),
-                Label::Number(_) => (parent,     &mut dictionaries.numbers, &mut streams.numbers),
-                Label::Bool(_)   => (parent,     &mut dictionaries.bools,   &mut streams.bools),
-                Label::List(_)   => (parent,     &mut dictionaries.lists,   &mut streams.lists),
-                Label::Tag(_)    => (Some(&self.label), &mut dictionaries.tags,    &mut streams.tags),
-            };
-            dictionary.write_label(&self.label, parent, stream)?;
-            new_parent
+    fn serialize_label<W: Write>(&self, parent: Option<&Label>, compressors: &mut PerCategory<Compressor<W>>) -> Result<(), std::io::Error> {
+        let compressor = match self.label {
+            Label::String(_) => &mut compressors.strings,
+            Label::Number(_) => &mut compressors.numbers,
+            Label::Bool(_)   => &mut compressors.bools,
+            Label::List(_)   => &mut compressors.lists,
+            Label::Tag(_)    => &mut compressors.tags,
         };
-        for child in &self.children {
-            let borrow = child.borrow();
-            borrow.serialize(new_parent, dictionaries, streams)?;
+        compressor.dictionary.write_label(&self.label, parent, &mut compressor.stream)?;
+        Ok(())
+    }
+    fn serialize_children<W: Write>(&self, options: &Options, parent: Option<&Label>, compressors: &mut PerCategory<Compressor<W>>) -> Result<(), std::io::Error> {
+        let new_parent = match self.label {
+            Label::Tag(_) => Some(&self.label),
+            _ => parent
+        };
+        if options.sibling_labels_together {
+            // First all the labels of children.
+            for child in &self.children {
+                let borrow = child.borrow();
+                borrow.serialize_label(new_parent, compressors)?;
+            }
+            // Then actually walk the children.
+            for child in &self.children {
+                let borrow = child.borrow();
+                borrow.serialize_children(options, new_parent, compressors)?;
+            }
+        } else {
+            // Everything at once.
+            for child in &self.children {
+                let borrow = child.borrow();
+                borrow.serialize_label(new_parent, compressors)?;
+                borrow.serialize_children(options, new_parent, compressors)?;
+            }
         }
         Ok(())
     }
@@ -154,10 +180,12 @@ impl WritableLabel for Label {
 
 pub struct TreeTokenWriter {
     root: SharedTree,
+    options: Options,
 }
 impl TreeTokenWriter {
-    pub fn new() -> Self {
+    pub fn new(options: Options) -> Self {
         Self {
+            options,
             root: Rc::new(RefCell::new(SubTree {
                 label: Label::String(None),
                 children: vec![]
@@ -239,54 +267,68 @@ impl TokenWriter for TreeTokenWriter {
                 _ => {}
             }
         });
-        let string_frequencies = string_instances.into_iter()
+        let string_frequencies : HashMap<_, _> = string_instances.into_iter()
             .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
             .into_iter()
             .enumerate()
             .map(|(position, (s, _))| (s, position))
             .collect();
-        let tag_frequencies = tag_instances.into_iter()
+        debug!(target: "multistream", "Strings, by index: {:?}", string_frequencies.iter()
+            .sorted_by(|a, b| usize::cmp(&a.1, &b.1)));
+        let tag_frequencies : HashMap<_, _> = tag_instances.into_iter()
             .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
             .into_iter()
             .enumerate()
             .map(|(position, (s, _))| (s, position))
             .collect();
+        debug!(target: "multistream", "Tags, by index: {:?}", tag_frequencies.iter()
+            .sorted_by(|a, b| usize::cmp(&a.1, &b.1)));
 
-         let tags: Box<Dictionary<Label, Vec<u8>>> = Box::new(ParentPredictionLabeler::new(ExplicitIndexLabeler::new(tag_frequencies)));
+        let tags: Box<Dictionary<Label, Vec<u8>>> = Box::new(ParentPredictionLabeler::new(ExplicitIndexLabeler::new(tag_frequencies)));
 
-        let mut dictionaries = PerCategory {
-            tags,
-            numbers: Box::new(RawLabeler::new()), // FIXME: Experiment with MRULabeler
-            bools: Box::new(RawLabeler::new()),
-            lists: Box::new(RawLabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
-            strings: Box::new(ExplicitIndexLabeler::new(string_frequencies)), // FIXME: Experiment with ParentPredictionLabeler
+        let mut compressors = PerCategory {
+            tags: Compressor {
+                dictionary: tags,
+                stream: vec![],
+            },
+            numbers: Compressor {
+                dictionary: Box::new(RawLabeler::new()), // FIXME: Experiment with MRULabeler
+                stream: vec![],
+            },
+            bools: Compressor {
+                dictionary: Box::new(RawLabeler::new()),
+                stream: vec![],
+            },
+            lists: Compressor {
+                dictionary: Box::new(RawLabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
+                stream: vec![],
+            },
+            strings: Compressor {
+                dictionary: Box::new(ExplicitIndexLabeler::new(string_frequencies)), // FIXME: Experiment with ParentPredictionLabeler
+                stream: vec![],
+            }
         };
-        let mut streams = PerCategory {
-            tags: vec![],
-            numbers: vec![],
-            bools: vec![],
-            lists: vec![],
-            strings: vec![],
-        };
-        self.root.borrow().serialize(None, &mut dictionaries, &mut streams)
+        self.root.borrow().serialize_label(None, &mut compressors)
+            .unwrap_or_else(|_| unimplemented!());
+        self.root.borrow().serialize_children(&self.options, None, &mut compressors)
             .unwrap_or_else(|_| unimplemented!());
 
         let stats = Statistics {
-            tags: streams.tags.len(),
-            numbers: streams.numbers.len(),
-            bools: streams.bools.len(),
-            lists: streams.lists.len(),
-            strings: streams.strings.len(),
+            tags: compressors.tags.stream.len(),
+            numbers: compressors.numbers.stream.len(),
+            bools: compressors.bools.stream.len(),
+            lists: compressors.lists.stream.len(),
+            strings: compressors.strings.stream.len(),
         };
 
         debug!(target: "multistream", "Statistics: {:?}", stats);
 
         // For the end value, we can concatenate in any order, as long as we start with `tags`.
-        let mut result = streams.tags;
-        result.extend(streams.strings.into_iter());
-        result.extend(streams.numbers.into_iter());
-        result.extend(streams.bools.into_iter());
-        result.extend(streams.lists.into_iter());
+        let mut result = compressors.tags.stream;
+        result.extend(compressors.strings.stream.into_iter());
+        result.extend(compressors.numbers.stream.into_iter());
+        result.extend(compressors.bools.stream.into_iter());
+        result.extend(compressors.lists.stream.into_iter());
 
         Ok((result, stats))
     }

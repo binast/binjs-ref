@@ -114,7 +114,9 @@ pub enum Format {
         options: repair::Options,
     },
     XML,
-    MultiStream,
+    MultiStream {
+        options: multistream::Options,
+    },
 }
 impl Format {
     pub fn new(format: &Format) -> Format {
@@ -127,7 +129,7 @@ impl Format {
             },
             Format::TreeRePair { ref options } => Format::TreeRePair { options: options.clone() },
             Format::XML => Format::XML,
-            Format::MultiStream => Format::MultiStream,
+            Format::MultiStream { ref options} => Format::MultiStream { options: options.clone() },
         }
     }
 }

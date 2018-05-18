@@ -4,6 +4,7 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 extern crate glob;
+extern crate itertools;
 extern crate rand;
 
 use binjs::io::bytes::compress::*;
@@ -13,6 +14,8 @@ use binjs::generic::FromJSON;
 use binjs::source::*;
 
 use clap::*;
+
+use itertools::Itertools;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -160,7 +163,14 @@ fn main() {
             Some("identity") => make_multipart(Compression::Identity),
             Some("gzip") => make_multipart(Compression::Gzip),
             Some("br") => make_multipart(Compression::Brotli),
-            Some("multistream") => Format::MultiStream,
+            Some("multistream") => Format::MultiStream {
+                options: {
+                    binjs::io::multistream::Options {
+                        sibling_labels_together: false,
+                        dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
+                    }
+                }
+            },
             Some("trp") => {
                 let max_rank = match matches.value_of("trp-rank") {
                     None | Some("none") => None,
@@ -216,8 +226,8 @@ fn main() {
                         .expect("Could not finalize AST encoding");
                     Box::new(data)
                 }
-                Format::MultiStream => {
-                    let writer = binjs::io::multistream::TreeTokenWriter::new();
+                Format::MultiStream { ref options } => {
+                    let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone());
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                     serializer.serialize(&ast)
                         .expect("Could not encode AST");
@@ -259,8 +269,11 @@ fn main() {
     }
 
     eprintln!("*** Done");
+
+    let all_stats = all_stats.into_iter()
+        .sorted_by(|a, b| Ord::cmp(&a.0, &b.0));
     println!("File, Source (b), Source+Gzip (b), Source+Brotli (b), Source+BZip2 (b), BinAST (b), BinAST/Source, BinAST+GZip (b), BinAST+GZip/Source+GZip, BinAST+GZip/BinAST, BinAST+Brotli (b), BinAST+Brotli/Source+Brotli, BinAST+Brotli/BinAST, BinAST+BZip2 (b), BinAST+BZip2/Source+BZip2, BinAST+BZip2/BinAST");
-    for (path, file_stats) in &all_stats {
+    for (path, file_stats) in all_stats {
         println!("{path:?}, {source}, {source_gzip}, {source_brotli}, {source_bzip2}, {binjs}, {uncompressed_to_uncompressed:2}, {binjs_gzip}, {gzip_to_gzip:2}, {gzip_to_uncompressed:2}, {binjs_brotli}, {brotli_to_brotli:2}, {brotli_to_uncompressed:2}, {binjs_bzip2}, {bzip2_to_bzip2:2}, {bzip2_to_uncompressed:2}",
             source = file_stats.from_text.uncompressed,
             source_gzip = file_stats.from_text.gzip,
