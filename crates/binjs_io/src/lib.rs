@@ -154,7 +154,7 @@ impl std::io::Write for CompressionTarget {
             Compressing::Uncompressed(ref buf) => {
                 let mut borrow = buf.borrow_mut();
                 borrow.extend_from_slice(data);
-                Ok(borrow.len())
+                Ok(data.len())
             },
             _ => panic!("Attempting to add data to a CompressionTarget that is already closed")
         }

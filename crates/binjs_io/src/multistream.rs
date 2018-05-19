@@ -182,12 +182,13 @@ pub enum Label {
 impl Label {
     // FIXME: Make this more robust.
     fn string_byte_len(&self) -> usize {
-        match *self {
+        let result = match *self {
             Label::String(None) => 2, // FIXME: We could turn this into `0`, if we wanted. Not really necessary, though.
             Label::String(Some(ref string)) => string.len(),
             Label::Tag(ref string) => string.len(),
-            _ => panic!(),
-        }
+            _ => panic!("string_byte_len not implemented for this case"),
+        };
+        result
     }
 }
 impl Eq for Label { /* Yes, it's probably not entirely true for f64 */ }
@@ -316,7 +317,7 @@ impl TokenWriter for TreeTokenWriter {
     }
 
     fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
-        use labels:: { RawLabeler, ExplicitIndexLabeler, ParentPredictionLabeler };
+        use labels:: { ExplicitIndexLabeler, MRULabeler, ParentPredictionLabeler, RawLabeler };
         let mut tag_instances = HashMap::new();
         let mut string_instances = HashMap::new();
         self.root.borrow_mut().with_labels(&mut |label: &Label| {
@@ -368,11 +369,12 @@ impl TokenWriter for TreeTokenWriter {
             stream: self.targets.header_tags.clone(),
         };
         let mut header_strings = Compressor {
-            dictionary: Box::new(string_frequency_dictionary), // FIXME: Experiment with ParentPredictionLabeler
+            dictionary: Box::new(MRULabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
             stream: self.targets.header_strings,
         };
 
         if let DictionaryPlacement::Header = self.options.dictionary_placement {
+            debug!(target: "multistream", "Writing header");
             use bytes::varnum::WriteVarNum;
             // Pre-write tags and strings.
             // First, list of lengths (probably hard to compress), followed by a single concatenated string (normally, easy to compress).
@@ -389,10 +391,13 @@ impl TokenWriter for TreeTokenWriter {
                 tag_frequencies.len());
 
             header_strings.stream.write_varnum(string_frequencies.len() as u32).unwrap();
-            for string in string_frequencies.keys() {
+            // Write from least common to most common.
+            let string_keys = string_frequencies.iter()
+                .sorted_by(|a,b| usize::cmp(&b.1, &a.1));
+            for (ref string, _) in &string_keys {
                 header_strings.stream.write_varnum(string.string_byte_len() as u32).unwrap();
             }
-            for string in string_frequencies.keys() {
+            for (ref string, _) in &string_keys {
                 header_strings.dictionary.write_label(string, None, &mut header_strings.stream).unwrap();
             }
             debug!(target: "multistream", "Wrote {} bytes ({} strings) to header",
