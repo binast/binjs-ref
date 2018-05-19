@@ -181,26 +181,13 @@ fn handle_path<'a>(options: &mut Options<'a>,
                 let (data, _) = serializer.done()
                     .expect("Could not finalize AST encoding");
 
-                export_section(&dest_bin_path, &mut targets.header_strings, "dict.strings");
-                export_section(&dest_bin_path, &mut targets.header_tags, "dict.grammar");
-                export_section(&dest_bin_path, &mut targets.header_identifiers, "dict.identifiers");
+                export_section(&dest_bin_path, &mut targets.header_strings, "strings");
+                export_section(&dest_bin_path, &mut targets.header_tags, "grammar");
                 export_section(&dest_bin_path, &mut targets.contents.strings, "stringrefs");
-                export_section(&dest_bin_path, &mut targets.contents.idrefs, "idrefs");
-                export_section(&dest_bin_path, &mut targets.contents.declarations, "declarations");
                 export_section(&dest_bin_path, &mut targets.contents.numbers, "numbers");
                 export_section(&dest_bin_path, &mut targets.contents.bools, "bools");
                 export_section(&dest_bin_path, &mut targets.contents.lists, "lists");
                 export_section(&dest_bin_path, &mut targets.contents.tags, "tree");
-
-                Box::new(data)
-            }
-            Format::XML => {
-                let writer = binjs::io::xml::Encoder::new();
-                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                serializer.serialize(&ast)
-                    .expect("Could not encode AST");
-                let (data, _) = serializer.done()
-                    .expect("Could not finalize AST encoding");
 
                 Box::new(data)
             }

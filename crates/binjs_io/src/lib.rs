@@ -79,6 +79,75 @@ pub mod mru;
 pub enum NumberingStrategy {
     MRU,
     GlobalFrequency,
+
+    Prediction,
+}
+
+#[derive(Clone, Debug)]
+enum Compressing {
+    Uncompressed(Rc<RefCell<Vec<u8>>>),
+    Compressed {
+        data: Rc<Vec<u8>>,
+        result: bytes::compress::CompressionResult,
+    },
+}
+/// Instructions for a single section (grammar, strings, tree, ...)
+#[derive(Clone, Debug)]
+pub struct CompressionTarget {
+    data: Compressing,
+    format: bytes::compress::Compression,
+}
+impl CompressionTarget {
+    pub fn new(format: bytes::compress::Compression) -> Self {
+        Self {
+            data: Compressing::Uncompressed(Rc::new(RefCell::new(vec![]))),
+            format,
+        }
+    }
+    pub fn done(&mut self) -> std::result::Result<(Rc<Vec<u8>>, bytes::compress::CompressionResult), std::io::Error> {
+        let (data, result) = match self.data {
+            Compressing::Compressed { ref result, ref data } => return Ok((data.clone(), result.clone())),
+            Compressing::Uncompressed(ref data) => {
+                let mut buf = vec![];
+                let result = self.format.compress(&data.borrow().as_ref(), &mut buf)?;
+                (Rc::new(buf), result)
+            }
+        };
+        self.data = Compressing::Compressed {
+            result: result.clone(),
+            data: data.clone(),
+        };
+        Ok((data, result))
+    }
+    pub fn reset(&mut self) {
+        self.data = Compressing::Uncompressed(Rc::new(RefCell::new(vec![])));
+    }
+    pub fn len(&self) -> usize {
+        match self.data {
+            Compressing::Uncompressed(ref data) => data.borrow().len(),
+            Compressing::Compressed { ref result, .. } => result.before_bytes,
+        }
+    }
+}
+impl std::io::Write for CompressionTarget {
+    fn write(&mut self, data: &[u8]) -> std::result::Result<usize, std::io::Error> {
+        match self.data {
+            Compressing::Uncompressed(ref buf) => {
+                let mut borrow = buf.borrow_mut();
+                borrow.extend_from_slice(data);
+                Ok(borrow.len())
+            },
+            _ => panic!("Attempting to add data to a CompressionTarget that is already closed")
+        }
+    }
+    fn flush(&mut self) -> std::result::Result<(), std::io::Error> {
+        Ok(())
+    }
+}
+impl Default for CompressionTarget {
+    fn default() -> Self {
+        Self::new(bytes::compress::Compression::Identity)
+    }
 }
 
 pub enum Format {

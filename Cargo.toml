@@ -16,9 +16,6 @@ binjs_meta = { path = "crates/binjs_meta", version = "*" }
 binjs_shared = { path = "crates/binjs_shared", version = "*" }
 assert_matches = "*"
 bencher = "^0.1"
-# brotli = "*"
-# Latest release of brotli is incompatible with Rust Nightly.
-brotli = { git = "https://github.com/dropbox/rust-brotli", commit = "ae6d9d2db756e41af37f5164f0b5dec65c4c0825" }
 clap = "*"
 env_logger = "^0.5"
 glob = "*"

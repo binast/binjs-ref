@@ -85,9 +85,7 @@ impl std::ops::Add<Self> for PerCategory<usize> {
 }
 impl std::fmt::Display for PerCategory<usize> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(fmt, "declarations (b): {declarations}, idrefs (b): {idrefs}, strings (b): {strings}, tags (b): {tags}, numbers (b): {numbers}, bools (b): {bools}, lists (b): {lists}",
-            declarations = self.declarations,
-            idrefs = self.idrefs,
+        write!(fmt, "strings (b): {strings}, tags (b): {tags}, numbers (b): {numbers}, bools (b): {bools}, lists (b): {lists}",
             strings = self.strings,
             numbers = self.numbers,
             bools = self.bools,
@@ -238,17 +236,25 @@ pub enum Label {
 impl Label {
     // FIXME: Make this more robust.
     fn string_byte_len(&self) -> usize {
-        let result = match *self {
-            Label::String(None) // FIXME: We could turn this into `0`, if we wanted. Not really necessary, though.
-            | Label::Declare(None)
-            | Label::LiteralReference(None) => 2,
-            Label::String(Some(ref string))
-            | Label::Declare(Some(ref string))
-            | Label::LiteralReference(Some(ref string)) => string.len(),
+        match *self {
+            Label::String(None) => 2, // FIXME: We could turn this into `0`, if we wanted. Not really necessary, though.
+            Label::String(Some(ref string)) => string.len(),
             Label::Tag(ref string) => string.len(),
-            _ => panic!("string_byte_len not implemented for this case {:?}", self),
-        };
-        result
+            _ => panic!(),
+        }
+    }
+}
+impl Eq for Label { /* Yes, it's probably not entirely true for f64 */ }
+impl Hash for Label {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+        use self::Label::*;
+        match *self {
+            String(ref s) => s.hash(state),
+            Bool(ref b) => b.hash(state),
+            List(ref l) => l.hash(state),
+            Tag(ref s) => s.hash(state),
+            Number(ref num) => num.map(f64::to_bits).hash(state),
+        }
     }
 }
 
@@ -282,11 +288,6 @@ impl WritableLabel for Label {
             Tag(ref s) => {
                 out.write_all(s.as_bytes())?;
             }
-            NumberedReference(maybe_index) => {
-                use ::bytes::varnum::*;
-                out.write_maybe_varnum(maybe_index)?;
-            }
-            _ => unimplemented!("{:?}", self)
         }
         Ok(())
     }
@@ -296,14 +297,12 @@ pub struct TreeTokenWriter {
     root: SharedTree,
     options: Options,
     targets: Targets,
-    scope_counter: GenericCounter<ScopeIndex>,
 }
 impl TreeTokenWriter {
     pub fn new(options: Options, targets: Targets) -> Self {
         Self {
             options,
             targets,
-            scope_counter: GenericCounter::new(),
             root: Rc::new(RefCell::new(SubTree {
                 label: Label::String(None),
                 children: vec![]
@@ -450,49 +449,6 @@ impl TokenWriter for TreeTokenWriter {
         })
     }
 
-    fn identifier_definition(&mut self, value: Option<&str>) -> Result<Self::Tree, Self::Error> {
-        let value = match (value, &self.options.dictionary_placement) {
-            (None, _) => None,
-            (Some(ref s), &DictionaryPlacement::Inline) => {
-                let mut string = s.to_string();
-                string.push('\0');
-                Some(string)
-            }
-            (Some(ref s), _) => Some(s.to_string())
-        };
-
-        self.new_tree(SubTree {
-            label: Label::Declare(value.map(Rc::new)),
-            children: vec![]
-        })
-    }
-
-    fn identifier_reference(&mut self, value: Option<&str>) -> Result<Self::Tree, Self::Error> {
-        let value = match (value, &self.options.dictionary_placement) {
-            (None, _) => None,
-            (Some(ref s), &DictionaryPlacement::Inline) => {
-                let mut string = s.to_string();
-                string.push('\0');
-                Some(string)
-            }
-            (Some(ref s), _) => Some(s.to_string())
-        };
-
-        self.new_tree(SubTree {
-            label: Label::LiteralReference(value.map(Rc::new)),
-            children: vec![]
-        })
-    }
-
-    fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
-        let tuple = self.tagged_tuple(tag, children)?;
-        let scope_index = self.scope_counter.next();
-        self.new_tree(SubTree {
-            label: Label::Scope(scope_index),
-            children: vec![tuple]
-        })
-    }
-
     fn list(&mut self, children: Vec<Self::Tree>) -> Result<Self::Tree, Self::Error> {
         self.new_tree(SubTree {
             label: Label::List(Some(children.len() as u32)),
@@ -510,8 +466,6 @@ impl TokenWriter for TreeTokenWriter {
 
         let mut tag_instances = HashMap::new();
         let mut string_instances = HashMap::new();
-        let mut identifier_definition_instances = HashMap::new();
-        let mut identifier_reference_instances = HashMap::new();
         self.root.borrow_mut().with_labels(&mut |label: &Label| {
             match *label {
                 Label::String(_) => {
@@ -597,43 +551,18 @@ impl TokenWriter for TreeTokenWriter {
             .enumerate()
             .map(|(position, (s, _))| (s, position))
             .collect();
-        let mut string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
-        let mut string_frequency_stream = self.targets.header_strings;
-
-        let identifier_reference_frequencies : HashMap<_, _> = identifier_reference_instances.into_iter()
-            .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
-            .into_iter()
-            .enumerate()
-            .map(|(position, (s, _))| (s, position))
-            .collect();
-        let identifier_reference_frequency_dictionary = ExplicitIndexLabeler::new(identifier_reference_frequencies.clone());
-
-        let identifier_definition_frequencies : HashMap<_, _> = identifier_definition_instances.into_iter()
-            .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
-            .into_iter()
-            .enumerate()
-            .map(|(position, (s, _))| (s, position))
-            .collect();
-        let identifier_definition_frequency_dictionary = ExplicitIndexLabeler::new(identifier_definition_frequencies.clone());
+        let string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
 
         let mut header_tags = Compressor {
-            dictionary: Box::new(ParentPredictionFrequencyLabeler::new(tag_frequency_dictionary)),
+            dictionary: Box::new(ParentPredictionLabeler::new(tag_frequency_dictionary)),
             stream: self.targets.header_tags.clone(),
         };
-
-        let mut header_identifiers = Compressor {
-            dictionary: Box::new(identifier_definition_frequency_dictionary),
-            stream: self.targets.header_identifiers.clone(),
-        };
-/*
         let mut header_strings = Compressor {
-            //dictionary: Box::new(MRULabeler::new()), // FIXME: Experiment with ParentPredictionFrequencyLabeler
-            dictionary: Box::new(string_frequency_dictionary),
+            dictionary: Box::new(string_frequency_dictionary), // FIXME: Experiment with ParentPredictionLabeler
             stream: self.targets.header_strings,
         };
-*/
+
         if let DictionaryPlacement::Header = self.options.dictionary_placement {
-            debug!(target: "multistream", "Writing header");
             use bytes::varnum::WriteVarNum;
             // Pre-write tags and strings.
             // First, list of lengths (probably hard to compress), followed by a single concatenated string (normally, easy to compress).
@@ -649,41 +578,19 @@ impl TokenWriter for TreeTokenWriter {
                 header_tags.stream.len(),
                 tag_frequencies.len());
 
-            header_identifiers.stream.write_varnum(identifier_definition_frequencies.len() as u32).unwrap();
-            for id in identifier_definition_frequencies.keys() {
-                header_identifiers.stream.write_varnum(id.string_byte_len() as u32).unwrap();
+            header_strings.stream.write_varnum(string_frequencies.len() as u32).unwrap();
+            for string in string_frequencies.keys() {
+                header_strings.stream.write_varnum(string.string_byte_len() as u32).unwrap();
             }
-            for id in identifier_definition_frequencies.keys() {
-                header_identifiers.dictionary.write_label(id, None, &mut header_identifiers.stream).unwrap();
-            }
-            debug!(target: "multistream", "Wrote {} bytes ({} identifiers) to header",
-                header_identifiers.stream.len(),
-                identifier_definition_frequencies.len());
-
-            string_frequency_stream.write_varnum(string_frequencies.len() as u32).unwrap();
-            // Write from least common to most common.
-            let string_keys = string_frequencies.iter()
-                .sorted_by(|a,b| usize::cmp(&b.1, &a.1));
-            for (ref string, _) in &string_keys {
-                string_frequency_stream.write_varnum(string.string_byte_len() as u32).unwrap();
-            }
-            for (ref string, _) in &string_keys {
-                string_frequency_dictionary.write_label(string, None, &mut string_frequency_stream).unwrap();
+            for string in string_frequencies.keys() {
+                header_strings.dictionary.write_label(string, None, &mut header_strings.stream).unwrap();
             }
             debug!(target: "multistream", "Wrote {} bytes ({} strings) to header",
-                string_frequency_stream.len(),
+                header_strings.stream.len(),
                 string_frequencies.len());
         }
 
         let mut compressors = PerCategory {
-            declarations: Compressor {
-                dictionary: header_identifiers.dictionary, // Reuse dictionary.
-                stream: self.targets.contents.declarations,
-            },
-            idrefs: Compressor {
-                dictionary: Box::new(RawLabeler::new()), // FIXME: Could possibly use ParentPrediction where the `Scope` is the parent
-                stream: self.targets.contents.idrefs,
-            },
             tags: Compressor {
                 dictionary: header_tags.dictionary, // Reuse dictionary.
                 stream: self.targets.contents.tags,
@@ -697,11 +604,11 @@ impl TokenWriter for TreeTokenWriter {
                 stream: self.targets.contents.bools,
             },
             lists: Compressor {
-                dictionary: Box::new(RawLabeler::new()), // FIXME: Experiment with ParentPredictionFrequencyLabeler
+                dictionary: Box::new(RawLabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
                 stream: self.targets.contents.lists,
             },
             strings: Compressor {
-                dictionary: Box::new(string_frequency_dictionary), // Reuse dictionary.
+                dictionary: header_strings.dictionary, // Reuse dictionary.
                 stream: self.targets.contents.strings,
             },
         };
@@ -714,10 +621,8 @@ impl TokenWriter for TreeTokenWriter {
 
         let stats = Statistics {
             header_tags: header_tags.stream.len(),
-            header_strings: string_frequency_stream.len(),
+            header_strings: header_strings.stream.len(),
             contents: PerCategory {
-                declarations: compressors.declarations.stream.len(),
-                idrefs: compressors.idrefs.stream.len(),
                 tags: compressors.tags.stream.len(),
                 strings: compressors.strings.stream.len(),
                 numbers: compressors.numbers.stream.len(),
@@ -730,10 +635,7 @@ impl TokenWriter for TreeTokenWriter {
 
         let mut result = vec![];
         result.extend_from_slice(header_tags.stream.done().unwrap().0.as_ref());
-        result.extend_from_slice(header_identifiers.stream.done().unwrap().0.as_ref());
-        result.extend_from_slice(string_frequency_stream.done().unwrap().0.as_ref());
-        result.extend_from_slice(compressors.declarations.stream.done().unwrap().0.as_ref());
-        result.extend_from_slice(compressors.idrefs.stream.done().unwrap().0.as_ref());
+        result.extend_from_slice(header_strings.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.tags.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.strings.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.numbers.stream.done().unwrap().0.as_ref());
