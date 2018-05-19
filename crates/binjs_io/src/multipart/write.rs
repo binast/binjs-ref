@@ -532,10 +532,10 @@ impl TreeTokenWriter {
         {
             self.grammar_table.write(&mut self.targets.grammar_table)
                 .map_err(TokenWriterError::WriteError)?;
-            self.data.write_all(&*self.targets.grammar_table.data().borrow())
+            let (data, compression) = self.targets.grammar_table.done()
                 .map_err(TokenWriterError::WriteError)?;
-            let compression = self.targets.grammar_table.stats()
-                .unwrap();
+            self.data.write_all(data.as_ref())
+                .map_err(TokenWriterError::WriteError)?;
             self.statistics.grammar_table.entries = self.grammar_table.map.len();
             self.statistics.grammar_table.max_entries = self.grammar_table.map.len();
             self.statistics.grammar_table.compression = compression;
@@ -547,10 +547,10 @@ impl TreeTokenWriter {
         {
             self.strings_table.write(&mut self.targets.strings_table)
                 .map_err(TokenWriterError::WriteError)?;
-            self.data.write_all(&*self.targets.strings_table.data().borrow())
+            let (data, compression) = self.targets.strings_table.done()
                 .map_err(TokenWriterError::WriteError)?;
-            let compression = self.targets.strings_table.stats()
-                .unwrap();
+            self.data.write_all(data.as_ref())
+                .map_err(TokenWriterError::WriteError)?;
             self.statistics.strings_table.entries = self.strings_table.map.len();
             self.statistics.strings_table.max_entries = self.strings_table.map.len();
             self.statistics.strings_table.compression = compression;
@@ -598,10 +598,10 @@ impl TreeTokenWriter {
             {
                 tree_buf.write(&mut self.targets.tree)
                     .map_err(TokenWriterError::WriteError)?;
-                self.data.write_all(&*self.targets.tree.data().borrow())
+                let (data, compression) = self.targets.tree.done()
                     .map_err(TokenWriterError::WriteError)?;
-                let compression = self.targets.tree.stats()
-                    .unwrap();
+                self.data.write_all(data.as_ref())
+                    .map_err(TokenWriterError::WriteError)?;
                 self.statistics.tree.entries = 1;
                 self.statistics.tree.max_entries = 1;
                 self.statistics.tree.compression = compression;

@@ -3,6 +3,8 @@
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
+#[macro_use]
+extern crate log;
 
 use binjs::io::bytes::compress::Compression;
 use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, NumberingStrategy, TokenSerializer };
@@ -38,10 +40,11 @@ fn export_section(dest_bin_path: &Option<PathBuf>, target: &mut CompressionTarge
         .with_extension(extension);
     let mut file = File::create(path.clone())
         .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", path, e));
-    let data = target.reset();
-    let borrow = data.borrow();
-    file.write(borrow.as_ref())
+    let (data, _) = target.done()
+        .expect("Could not finalize compression");
+    file.write(data.as_ref())
         .expect("Could not write destination file");
+    target.reset();
 }
 
 struct Options<'a> {
@@ -166,13 +169,25 @@ fn handle_path<'a>(options: &mut Options<'a>,
 
                 Box::new(data)
             }
-            Format::MultiStream { ref options, ref targets } => {
-                let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone());
+            Format::MultiStream { ref options, ref mut targets } => {
+                targets.reset();
+
+                debug!(target: "encode", "Multistream with options {:?}", options);
+
+                let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)
                     .expect("Could not encode AST");
                 let (data, _) = serializer.done()
                     .expect("Could not finalize AST encoding");
+
+                export_section(&dest_bin_path, &mut targets.header_strings, "strings");
+                export_section(&dest_bin_path, &mut targets.header_tags, "grammar");
+                export_section(&dest_bin_path, &mut targets.contents.strings, "stringrefs");
+                export_section(&dest_bin_path, &mut targets.contents.numbers, "numbers");
+                export_section(&dest_bin_path, &mut targets.contents.bools, "bools");
+                export_section(&dest_bin_path, &mut targets.contents.lists, "lists");
+                export_section(&dest_bin_path, &mut targets.contents.tags, "tree");
 
                 Box::new(data)
             }

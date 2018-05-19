@@ -5,7 +5,8 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [dependencies]
 binjs_shared = { path = "../binjs_shared", version = "*" }
-brotli = "*"
+#  brotli = "*"
+brotli = { git = "https://github.com/dropbox/rust-brotli", commit = "ae6d9d2db756e41af37f5164f0b5dec65c4c0825" }
 flate2 = "^1.0"
 itertools = "*"
 lzw = "*"
