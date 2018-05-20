@@ -2,8 +2,10 @@
 
 typedef FrozenArray<(SpreadElement or Expression)> Arguments;
 typedef DOMString string;
-typedef string Identifier;
-typedef string IdentifierName;
+
+typedef [IdentifierDefinition] string IdentifierDefinition;
+
+typedef [IdentifierReference] string IdentifierReference;
 typedef string Label;
 
 enum VariableDeclarationKind {
@@ -75,29 +77,29 @@ enum UpdateOperator {
 
 interface AssertedBlockScope {
   // checked eagerly during transformation
-  attribute FrozenArray<IdentifierName> lexicallyDeclaredNames;
+  attribute FrozenArray<IdentifierDefinition> lexicallyDeclaredNames;
 
   // checked lazily as inner functions are invoked
-  attribute FrozenArray<IdentifierName> capturedNames;
+  attribute FrozenArray<IdentifierReference> capturedNames;
   attribute boolean hasDirectEval;
 };
 
 interface AssertedVarScope {
   // checked eagerly during transformation
-  attribute FrozenArray<IdentifierName> lexicallyDeclaredNames;
-  attribute FrozenArray<IdentifierName> varDeclaredNames;
+  attribute FrozenArray<IdentifierDefinition> lexicallyDeclaredNames;
+  attribute FrozenArray<IdentifierDefinition> varDeclaredNames;
 
   // checked lazily as inner functions are invoked
-  attribute FrozenArray<IdentifierName> capturedNames;
+  attribute FrozenArray<IdentifierReference> capturedNames;
   attribute boolean hasDirectEval;
 };
 
 interface AssertedParameterScope {
   // checked eagerly during transformation
-  attribute FrozenArray<IdentifierName> parameterNames;
+  attribute FrozenArray<IdentifierDefinition> parameterNames;
 
   // checked lazily as inner functions are invoked
-  attribute FrozenArray<IdentifierName> capturedNames;
+  attribute FrozenArray<IdentifierReference> capturedNames;
   attribute boolean hasDirectEval;
 };
 
@@ -205,7 +207,7 @@ typedef (EagerArrowExpression or SkippableArrowExpression) ArrowExpression;
 // bindings
 
 interface BindingIdentifier : Node {
-  attribute Identifier name;
+  attribute IdentifierReference name;
 };
 
 typedef (ObjectBinding or
@@ -238,7 +240,7 @@ interface BindingWithInitializer : Node {
 };
 
 interface AssignmentTargetIdentifier : Node {
-  attribute Identifier name;
+  attribute IdentifierReference name;
 };
 
 interface ComputedMemberAssignmentTarget : Node {
@@ -252,7 +254,7 @@ interface StaticMemberAssignmentTarget : Node {
   // The object whose property is being assigned.
   attribute (Expression or Super) _object;
   // The name of the property to be accessed.
-  attribute IdentifierName property;
+  attribute IdentifierDefinition property;
 };
 
 // `ArrayBindingPattern`
@@ -341,6 +343,7 @@ interface ClassElement : Node {
 
 // modules
 
+[Scope]
 interface Module : Node {
   attribute AssertedVarScope? scope;
   attribute FrozenArray<Directive> directives;
@@ -366,7 +369,7 @@ interface ImportNamespace : Node {
 interface ImportSpecifier : Node {
   // The `IdentifierName` in the production `ImportSpecifier :: IdentifierName as ImportedBinding`;
   // absent if this specifier represents the production `ImportSpecifier :: ImportedBinding`.
-  attribute IdentifierName? name;
+  attribute IdentifierDefinition? name;
   attribute BindingIdentifier binding;
 };
 
@@ -402,10 +405,10 @@ interface ExportDefault : Node {
 interface ExportFromSpecifier : Node {
   // The only `IdentifierName in `ExportSpecifier :: IdentifierName`,
   // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
-  attribute IdentifierName name;
+  attribute IdentifierDefinition name;
   // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`,
   // if that is the production represented.
-  attribute IdentifierName? exportedName;
+  attribute IdentifierDefinition? exportedName;
 };
 
 // `ExportSpecifier`, as part of an `ExportLocals`.
@@ -414,7 +417,7 @@ interface ExportLocalSpecifier : Node {
   // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
   attribute IdentifierExpression name;
   // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`, if present.
-  attribute IdentifierName? exportedName;
+  attribute IdentifierDefinition? exportedName;
 };
 
 
@@ -423,6 +426,7 @@ interface ExportLocalSpecifier : Node {
 // `MethodDefinition :: PropertyName ( UniqueFormalParameters ) { FunctionBody }`,
 // `GeneratorMethod :: * PropertyName ( UniqueFormalParameters ) { GeneratorBody }`,
 // `AsyncMethod :: async PropertyName ( UniqueFormalParameters ) { AsyncFunctionBody }`
+[Scope]
 interface EagerMethod : Node {
   // True for `AsyncMethod`, false otherwise.
   attribute boolean isAsync;
@@ -441,6 +445,7 @@ interface EagerMethod : Node {
 };
 
 // `get PropertyName ( ) { FunctionBody }`
+[Scope]
 interface EagerGetter : Node {
   attribute PropertyName name;
   attribute AssertedVarScope? bodyScope;
@@ -452,6 +457,7 @@ interface EagerGetter : Node {
 };
 
 // `set PropertyName ( PropertySetParameterList ) { FunctionBody }`
+[Scope]
 interface EagerSetter : Node {
   attribute PropertyName name;
   attribute AssertedParameterScope? parameterScope;
@@ -528,6 +534,7 @@ interface ArrayExpression : Node {
 
 // `ArrowFunction`,
 // `AsyncArrowFunction`
+[Scope]
 interface EagerArrowExpression : Node {
   // True for `AsyncArrowFunction`, false otherwise.
   attribute boolean isAsync;
@@ -602,6 +609,7 @@ interface ConditionalExpression : Node {
 // `FunctionExpression`,
 // `GeneratorExpression`,
 // `AsyncFunctionExpression`,
+[Scope]
 interface EagerFunctionExpression : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -618,7 +626,7 @@ interface EagerFunctionExpression : Node {
 
 // `IdentifierReference`
 interface IdentifierExpression : Node {
-  attribute Identifier name;
+  attribute IdentifierReference name;
 };
 
 interface NewExpression : Node {
@@ -641,7 +649,7 @@ interface StaticMemberExpression : Node {
   // The object whose property is being accessed.
   attribute (Expression or Super) _object;
   // The name of the property to be accessed.
-  attribute IdentifierName property;
+  attribute IdentifierDefinition property;
 };
 
 // `TemplateLiteral`,
@@ -823,12 +831,14 @@ interface WithStatement : Node {
 
 // other nodes
 
+[Scope]
 interface Block : Node {
   attribute AssertedBlockScope? scope;
   attribute FrozenArray<Statement> statements;
 };
 
 // `Catch`
+[Scope]
 interface CatchClause : Node {
   // `AssertedParameterScope` is used for catch bindings so the declared names
   // are checked using BoundNames.
@@ -857,6 +867,7 @@ interface FunctionBody : Node {
 // `FunctionDeclaration`,
 // `GeneratorDeclaration`,
 // `AsyncFunctionDeclaration`
+[Scope]
 interface EagerFunctionDeclaration : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -871,6 +882,7 @@ interface EagerFunctionDeclaration : Node {
   attribute EagerFunctionDeclaration skipped;
 };
 
+[Scope]
 interface Script : Node {
   attribute AssertedVarScope? scope;
   attribute FrozenArray<Directive> directives;

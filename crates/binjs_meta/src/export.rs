@@ -187,6 +187,8 @@ impl TypeDeanonymizer {
             TypeSpec::Number |
             TypeSpec::String |
             TypeSpec::Offset |
+            TypeSpec::IdentifierDefinition |
+            TypeSpec::IdentifierReference |
             TypeSpec::Void    => {
                 if let Some(ref my_name) = public_name {
                     if let Some(ref mut typedef) = self.builder.add_typedef(&my_name) {
@@ -366,6 +368,10 @@ impl TypeName {
                 "_String".to_string(),
             TypeSpec::Void =>
                 "_Void".to_string(),
+            TypeSpec::IdentifierDefinition =>
+                "IdentifierDefinition".to_string(),
+            TypeSpec::IdentifierReference =>
+                "IdentifierReference".to_string(),
             TypeSpec::TypeSum(ref sum) => {
                 format!("{}", sum.types()
                     .iter()
@@ -399,6 +405,10 @@ impl ToWebidl {
                 "bool".to_string(),
             TypeSpec::String =>
                 "string".to_string(),
+            TypeSpec::IdentifierDefinition =>
+                "[IdentifierDefinition] string".to_string(),
+            TypeSpec::IdentifierReference =>
+                "[IdentifierReference] string".to_string(),
             TypeSpec::Number =>
                 "number".to_string(),
             TypeSpec::NamedType(ref name) =>

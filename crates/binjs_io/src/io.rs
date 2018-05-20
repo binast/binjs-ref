@@ -126,6 +126,9 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
     ///
     /// The interface MUST have a Tag.
     fn tagged_tuple(&mut self, tag: &str, &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error>;
+    fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error> {
+        self.tagged_tuple(tag, children)
+    }
 
     /// Write an untagged tuple.
     ///
@@ -152,6 +155,14 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
 
     /// Write the number of bytes left in this tuple.
     fn offset(&mut self) -> Result<Self::Tree, Self::Error>;
+
+    fn identifier_definition(&mut self, name: Option<&str>) -> Result<Self::Tree, Self::Error> {
+        self.string(name)
+    }
+
+    fn identifier_reference(&mut self, name: Option<&str>) -> Result<Self::Tree, Self::Error> {
+        self.string(name)
+    }
 }
 
 

@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use json;
 use json::JsonValue as JSON;
 
@@ -145,3 +147,28 @@ impl ToJSON for ::Offset {
         self.0.export()
     }
 }
+
+impl FromJSON for ::IdentifierDefinition {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        String::import(value)
+            .map(|x| ::IdentifierDefinition(Rc::new(x)))
+    }
+}
+impl ToJSON for ::IdentifierDefinition {
+    fn export(&self) -> JSON {
+        self.0.export()
+    }
+}
+
+impl FromJSON for ::IdentifierReference {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        String::import(value)
+            .map(|x| ::IdentifierReference(Rc::new(x)))
+    }
+}
+impl ToJSON for ::IdentifierReference {
+    fn export(&self) -> JSON {
+        self.0.export()
+    }
+}
+

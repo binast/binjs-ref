@@ -1,6 +1,8 @@
 extern crate json;
 extern crate itertools;
 
+use std::rc::Rc;
+
 mod json_conversion;
 pub use json_conversion::*;
 
@@ -11,6 +13,11 @@ pub mod mru;
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Offset(pub u32);
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct IdentifierDefinition(pub Rc<String>);
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct IdentifierReference(pub Rc<String>);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VisitMe<T> {

@@ -160,6 +160,10 @@ pub enum TypeSpec {
     /// A string.
     String,
 
+    IdentifierDefinition,
+
+    IdentifierReference,
+
     /// A number, as per JavaScript specifications.
     Number,
 
@@ -508,6 +512,8 @@ pub struct InterfaceDeclaration {
 
     /// If `true`, objects of this interface may be skipped during parsing.
     is_skippable: bool,
+
+    is_scope: bool,
 }
 
 impl InterfaceDeclaration {
@@ -529,6 +535,10 @@ impl InterfaceDeclaration {
     }
     pub fn with_skippable(&mut self, value: bool) -> &mut Self {
         self.is_skippable = value;
+        self
+    }
+    pub fn with_scope(&mut self, value: bool) -> &mut Self {
+        self.is_scope = value;
         self
     }
     pub fn is_skippable(&self) -> bool {
@@ -604,6 +614,7 @@ impl SpecBuilder {
             name: name.clone(),
             contents: Obj::new(),
             is_skippable: false,
+            is_scope: false,
         });
         self.interfaces_by_name.insert(name.clone(), result);
         self.interfaces_by_name.get(name)
@@ -750,7 +761,7 @@ impl SpecBuilder {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Array
                     },
-                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void | TypeSpec::Offset => {
+                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void | TypeSpec::Offset | TypeSpec::IdentifierDefinition | TypeSpec::IdentifierReference => {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Primitive
                     }
@@ -895,6 +906,10 @@ impl Interface {
     /// interface.
     pub fn is_skippable(&self) -> bool {
         self.declaration.is_skippable
+    }
+
+    pub fn is_scope(&self) -> bool {
+        self.declaration.is_scope
     }
 }
 
