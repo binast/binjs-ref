@@ -1,3 +1,4 @@
+#![feature(box_patterns)]
 #![feature(vec_resize_default)]
 
 extern crate binjs_shared;

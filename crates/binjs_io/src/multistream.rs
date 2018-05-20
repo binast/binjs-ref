@@ -86,14 +86,14 @@ impl std::fmt::Display for PerCategory<usize> {
     }
 }
 
-struct Compressor<W: Write> {
+struct Compressor<W: Write + Sized> {
     stream: W,
     dictionary: Box<Dictionary<Label, W>>,
 }
 
 #[derive(Debug, Default)]
 pub struct Statistics {
-    pub header_strings: usize,
+//    pub header_strings: usize,
     pub header_tags: usize,
     pub contents: PerCategory<usize>,
 }
@@ -101,7 +101,7 @@ impl std::ops::Add<Self> for Statistics {
     type Output = Self;
     fn add(self, other: Self) -> Self {
         Self {
-            header_strings: self.header_strings + other.header_strings,
+//            header_strings: self.header_strings + other.header_strings,
             header_tags: self.header_tags + other.header_tags,
             contents: self.contents + other.contents,
         }
@@ -110,11 +110,14 @@ impl std::ops::Add<Self> for Statistics {
 
 impl std::fmt::Display for Statistics {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        unimplemented!()
+/*
         write!(fmt, "Header strings (b): {strings}, header tags (b): {tags}, {rest}",
             strings = self.header_strings,
             tags = self.header_tags,
             rest = self.contents,
         )
+*/
     }
 }
 
@@ -366,17 +369,20 @@ impl TokenWriter for TreeTokenWriter {
             .enumerate()
             .map(|(position, (s, _))| (s, position))
             .collect();
-        let string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
+        let mut string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
+        let mut string_frequency_stream = self.targets.header_strings;
 
         let mut header_tags = Compressor {
             dictionary: Box::new(ParentPredictionLabeler::new(tag_frequency_dictionary)),
             stream: self.targets.header_tags.clone(),
         };
+/*
         let mut header_strings = Compressor {
-            dictionary: Box::new(MRULabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
+            //dictionary: Box::new(MRULabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
+            dictionary: Box::new(string_frequency_dictionary),
             stream: self.targets.header_strings,
         };
-
+*/
         if let DictionaryPlacement::Header = self.options.dictionary_placement {
             debug!(target: "multistream", "Writing header");
             use bytes::varnum::WriteVarNum;
@@ -394,18 +400,18 @@ impl TokenWriter for TreeTokenWriter {
                 header_tags.stream.len(),
                 tag_frequencies.len());
 
-            header_strings.stream.write_varnum(string_frequencies.len() as u32).unwrap();
+            string_frequency_stream.write_varnum(string_frequencies.len() as u32).unwrap();
             // Write from least common to most common.
             let string_keys = string_frequencies.iter()
                 .sorted_by(|a,b| usize::cmp(&b.1, &a.1));
             for (ref string, _) in &string_keys {
-                header_strings.stream.write_varnum(string.string_byte_len() as u32).unwrap();
+                string_frequency_stream.write_varnum(string.string_byte_len() as u32).unwrap();
             }
             for (ref string, _) in &string_keys {
-                header_strings.dictionary.write_label(string, None, &mut header_strings.stream).unwrap();
+                string_frequency_dictionary.write_label(string, None, &mut string_frequency_stream).unwrap();
             }
             debug!(target: "multistream", "Wrote {} bytes ({} strings) to header",
-                header_strings.stream.len(),
+                string_frequency_stream.len(),
                 string_frequencies.len());
         }
 
@@ -427,7 +433,7 @@ impl TokenWriter for TreeTokenWriter {
                 stream: self.targets.contents.lists,
             },
             strings: Compressor {
-                dictionary: header_strings.dictionary, // Reuse dictionary.
+                dictionary: Box::new(ParentPredictionLabeler::new(string_frequency_dictionary)), // Reuse dictionary.
                 stream: self.targets.contents.strings,
             },
         };
@@ -440,7 +446,7 @@ impl TokenWriter for TreeTokenWriter {
 
         let stats = Statistics {
             header_tags: header_tags.stream.len(),
-            header_strings: header_strings.stream.len(),
+//            header_strings: header_strings.stream.len(),
             contents: PerCategory {
                 tags: compressors.tags.stream.len(),
                 strings: compressors.strings.stream.len(),
@@ -454,7 +460,8 @@ impl TokenWriter for TreeTokenWriter {
 
         let mut result = vec![];
         result.extend_from_slice(header_tags.stream.done().unwrap().0.as_ref());
-        result.extend_from_slice(header_strings.stream.done().unwrap().0.as_ref());
+//        result.extend_from_slice(header_strings.stream.done().unwrap().0.as_ref());
+        result.extend_from_slice(string_frequency_stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.tags.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.strings.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.numbers.stream.done().unwrap().0.as_ref());

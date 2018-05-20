@@ -34,6 +34,19 @@ fn add_baseline(index: usize, baseline: Option<usize>) -> usize {
     }
 }
 
+impl<T, U, W: Write> Dictionary<T, W> for Box<U> where U: Dictionary<T, W> {
+    /// Return `true` if we just added the definition of the label to the dictionary,
+    /// `false` if it was already present.
+    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+        self.write_label_at(None, label, parent, out)
+    }
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+        use std::ops::DerefMut;
+        self.deref_mut().write_label_at(baseline, label, parent, out)
+    }
+}
+
+
 /// The dumbest possible labeler: always copy the definition.
 ///
 /// Useful for numbers, booleans, etc.
