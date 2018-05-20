@@ -1,7 +1,8 @@
 use ast::*;
 use binjs_shared::{ FromJSON, IdentifierDefinition, IdentifierReference, ToJSON, VisitMe };
 
-use std::collections::{  HashSet, HashMap };
+use std::collections::{  HashSet };
+use std::rc::Rc;
 
 use itertools::Itertools;
 use json::JsonValue as JSON;

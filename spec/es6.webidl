@@ -4,6 +4,7 @@ typedef FrozenArray<(SpreadElement or Expression)> Arguments;
 typedef DOMString string;
 
 typedef [IdentifierDefinition] string IdentifierDefinition;
+
 typedef [IdentifierReference] string IdentifierReference;
 typedef string Label;
 
@@ -253,7 +254,7 @@ interface StaticMemberAssignmentTarget : Node {
   // The object whose property is being assigned.
   attribute (Expression or Super) _object;
   // The name of the property to be accessed.
-  attribute string property;
+  attribute IdentifierDefinition property;
 };
 
 // `ArrayBindingPattern`
@@ -648,7 +649,7 @@ interface StaticMemberExpression : Node {
   // The object whose property is being accessed.
   attribute (Expression or Super) _object;
   // The name of the property to be accessed.
-  attribute string property;
+  attribute IdentifierDefinition property;
 };
 
 // `TemplateLiteral`,
