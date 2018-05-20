@@ -206,8 +206,12 @@ impl Hash for Label {
 }
 
 impl WritableLabel for Label {
-    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, _: Option<&Self>, _: &mut L, out: &mut W) -> Result<(), std::io::Error> {
+    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, _parent: Option<&Self>, _strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
         use self::Label::*;
+        if let Some(index) = index {
+            use bytes::varnum::WriteVarNum;
+            out.write_varnum(index as u32)?;
+        }
         match *self {
             String(Some(ref s)) => {
                 out.write_all(s.as_bytes())?;

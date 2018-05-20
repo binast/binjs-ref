@@ -9,13 +9,29 @@ use std::hash::Hash;
 use std::io::Write;
 
 pub trait Label : Sized {
-    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error>;
+    /// Write the definition of the label.
+    ///
+    /// `index`: The index assigned to the label. May be `None` for a dictionary
+    /// that doesn't use indices.
+    /// `parent`: The parent of the label. May be `None` for a root or a dictionary
+    /// that doesn't use parents.
+    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error>;
 }
 
 pub trait Dictionary<T, W: Write> {
     /// Return `true` if we just added the definition of the label to the dictionary,
     /// `false` if it was already present.
-    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error>;
+    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+        self.write_label_at(None, label, parent, out)
+    }
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error>;
+}
+
+fn add_baseline(index: usize, baseline: Option<usize>) -> usize {
+    match baseline {
+        None => index,
+        Some(x) => index + x,
+    }
 }
 
 /// The dumbest possible labeler: always copy the definition.
@@ -32,8 +48,8 @@ impl<T> RawLabeler<T> {
     }
 }
 impl<T, W: Write> Dictionary<T, W> for RawLabeler<T> where T: Label {
-    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
-        label.write_definition(parent, self, out)?;
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+        label.write_definition(baseline, parent, self, out)?;
         Ok(true)
     }
 }
@@ -49,18 +65,17 @@ impl<T> MRULabeler<T> where T: Eq + Label + Clone {
     }
 }
 impl<T, W: Write> Dictionary<T, W> for MRULabeler<T> where T: Eq + Label + Clone {
-    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
         use binjs_shared::mru::Seen::*;
         match self.mru.access(label) {
             Age(index) => {
-                // The label has already been seen, just wrote how many accesses ago.
-                out.write_varnum(index as u32)?;
+                // The label has already been seen, just write how many accesses ago.
+                out.write_varnum(add_baseline(index, baseline) as u32)?;
                 Ok(false)
             }
             Never(index) => {
-                // This is the first time the label is seen. Write the "new" index followed by its definition.
-                out.write_varnum(index as u32)?;
-                label.write_definition(parent, self, out)?;
+                // This is the first time the label is seen. Write the "new" and its definition.
+                label.write_definition(Some(add_baseline(index, baseline)), parent, self, out)?;
                 Ok(true)
             }
         }
@@ -91,25 +106,20 @@ impl<T> ExplicitIndexLabeler<T> where T: Eq + Hash + Label {
     }
 }
 impl<T, W: Write> Dictionary<T, W> for ExplicitIndexLabeler<T> where T: Eq + Hash + Label + Debug {
-    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
         let (index, is_first) = {
             let found = self.dictionary.get_mut(label)
                 .unwrap_or_else(|| panic!("Could not find label {:?} in ExplicitIndexLabeler"));
             let is_first = found.is_first;
             found.is_first = false;
-
-            // Write the index.
-            out.write_varnum(found.index as u32)?;
             (found.index, is_first)
         };
-
         if is_first {
-            // Write the definition.
-            debug!(target: "dictionary", "ExplicitIndexLabeler writing definition {:?}", label);
-            label.write_definition(parent, self, out)?;
+            label.write_definition(Some(add_baseline(index, baseline)), parent, self, out)?;
         } else {
-            debug!(target: "dictionary", "ExplicitIndexLabeler reusing {} for {:?}", index, label);
-        }
+            out.write_varnum(add_baseline(index, baseline) as u32)?;
+        };
+
         Ok(is_first)
     }
 }
@@ -132,7 +142,7 @@ impl<T, U, W> ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clon
 }
 
 impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clone + Debug, U: Dictionary<T, W>, W: Write {
-    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
         use std::collections::hash_map::Entry::*;
         let introduced_namespaced_number = if let Some(parent) = parent {
             let this_parent = self.per_parent.entry(parent.clone())
@@ -146,8 +156,7 @@ impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq 
                         parent,
                         label);
                     entry.insert(number_of_children);
-                    out.write_varnum(number_of_children as u32)?;
-                    true
+                    Some(number_of_children)
                 }
                 Occupied(entry) => {
                     debug!(target: "dictionary", "ParentPredictionLabel reusing number {} for {:?} > {:?}",
@@ -155,17 +164,17 @@ impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq 
                         parent,
                         label);
                     // Reuse existing number, no need to write the definition.
-                    out.write_varnum(*entry.get() as u32)?;
-                    false
+                    out.write_varnum(add_baseline(*entry.get(), baseline) as u32)?;
+                    None
                 }
             }
         } else {
-            true
+            Some(0)
         };
-        if introduced_namespaced_number {
+        if let Some(index) = introduced_namespaced_number {
             // We have introduced a namespaced number.
             // Whether we write the actual definition of the label depends on whether we have already done this globally.
-            self.strategy.write_label(label, parent, out)
+            self.strategy.write_label_at(Some(add_baseline(index, baseline)), label, parent, out)
         } else {
             Ok(false)
         }

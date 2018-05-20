@@ -128,8 +128,12 @@ impl std::fmt::Display for Label {
 }
 
 impl WritableLabel for Label {
-    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
+    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
         use self::Label::*;
+        if let Some(index) = index {
+            use bytes::varnum::WriteVarNum;
+            out.write_varnum(index as u32)?;
+        }
         match *self {
             Leaf { data: ref buf, .. } => {
                 out.write_all(&buf)?;
