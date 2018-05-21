@@ -278,7 +278,7 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
         let str = match *value {{
 {variants}
         }};
-        (self as &mut Serialization<W, &'a str>).serialize(str)
+        self.writer.tagged_tuple(str, &[])
     }}
 }}
 ",

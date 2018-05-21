@@ -85,7 +85,9 @@ impl std::ops::Add<Self> for PerCategory<usize> {
 }
 impl std::fmt::Display for PerCategory<usize> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(fmt, "strings (b): {strings}, tags (b): {tags}, numbers (b): {numbers}, bools (b): {bools}, lists (b): {lists}",
+        write!(fmt, "declarations (b): {declarations}, idrefs (b): {idrefs}, strings (b): {strings}, tags (b): {tags}, numbers (b): {numbers}, bools (b): {bools}, lists (b): {lists}",
+            declarations = self.declarations,
+            idrefs = self.idrefs,
             strings = self.strings,
             numbers = self.numbers,
             bools = self.bools,
@@ -102,7 +104,7 @@ struct Compressor<W: Write + Sized> {
 
 #[derive(Debug, Default)]
 pub struct Statistics {
-//    pub header_strings: usize,
+    pub header_strings: usize,
     pub header_tags: usize,
     pub contents: PerCategory<usize>,
 }
@@ -110,7 +112,7 @@ impl std::ops::Add<Self> for Statistics {
     type Output = Self;
     fn add(self, other: Self) -> Self {
         Self {
-//            header_strings: self.header_strings + other.header_strings,
+            header_strings: self.header_strings + other.header_strings,
             header_tags: self.header_tags + other.header_tags,
             contents: self.contents + other.contents,
         }
@@ -119,14 +121,11 @@ impl std::ops::Add<Self> for Statistics {
 
 impl std::fmt::Display for Statistics {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        unimplemented!()
-/*
         write!(fmt, "Header strings (b): {strings}, header tags (b): {tags}, {rest}",
             strings = self.header_strings,
             tags = self.header_tags,
             rest = self.contents,
         )
-*/
     }
 }
 
@@ -200,7 +199,7 @@ impl SubTree {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ScopeIndex(usize);
 impl Counter for ScopeIndex {
     fn internal_make(value: usize) -> Self {
@@ -208,10 +207,20 @@ impl Counter for ScopeIndex {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+/// A trivial wrapping of f64 with Hash and Eq.
+#[derive(Clone, Debug, PartialEq, Copy)]
+pub struct F64(pub f64);
+impl Eq for F64 { } // Not strictly true.
+impl Hash for F64 {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+        self.0.to_bits().hash(state)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Label {
     String(Option<Rc<String>>),
-    Number(Option<f64>),
+    Number(Option<F64>),
     Bool(Option<bool>),
     List(Option<u32>),
     Tag(Rc<String>),
@@ -242,23 +251,6 @@ impl Label {
         result
     }
 }
-impl Eq for Label { /* Yes, it's probably not entirely true for f64 */ }
-impl Hash for Label {
-    fn hash<H>(&self, state: &mut H) where H: Hasher {
-        use self::Label::*;
-        match *self {
-            String(ref s) => s.hash(state),
-            Bool(ref b) => b.hash(state),
-            List(ref l) => l.hash(state),
-            Tag(ref s) => s.hash(state),
-            Number(ref num) => num.map(f64::to_bits).hash(state),
-            Scope(_) => state.write_u8(0),
-            Declare(ref d) => d.hash(state),
-            LiteralReference(ref r) => r.hash(state),
-            NumberedReference(ref u) => u.hash(state),
-        }
-    }
-}
 
 impl WritableLabel for Label {
     fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, _parent: Option<&Self>, _strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
@@ -278,7 +270,7 @@ impl WritableLabel for Label {
               out.write_all(&[255, 0])?;
             },
             Number(maybe_num) => {
-              out.write_all(&::bytes::float::varbytes_of_float(maybe_num))?;
+              out.write_all(&::bytes::float::varbytes_of_float(maybe_num.map(|x| x.0)))?;
             }
             Bool(maybe_bool) => {
               out.write_all(&::bytes::bool::bytes_of_bool(maybe_bool))?;
@@ -436,7 +428,7 @@ impl TokenWriter for TreeTokenWriter {
 
     fn float(&mut self, value: Option<f64>) -> Result<Self::Tree, Self::Error> {
         self.new_tree(SubTree {
-            label: Label::Number(value),
+            label: Label::Number(value.map(F64)),
             children: vec![]
         })
     }
@@ -545,30 +537,51 @@ impl TokenWriter for TreeTokenWriter {
                 _ => {}
             }
         });
-        debug!(target: "multistream", "Detected {} identifier definitions, {} occurrences",
+        debug!(target: "multistream", "Detected {} identifier definitions, {} occurrences (max occurrences of each {})",
             identifier_definition_instances.len(),
             identifier_definition_instances.values()
                 .cloned()
-                .sum::<usize>()
+                .sum::<usize>(),
+            identifier_definition_instances.values()
+                .cloned()
+                .max()
+                .unwrap_or(0),
         );
-        debug!(target: "multistream", "Detected {} identifier references, {} occurrences",
+        debug!(target: "multistream", "Detected {} identifier references, {} occurrences (max occurrences of each {})",
             identifier_reference_instances.len(),
             identifier_reference_instances.values()
                 .cloned()
-                .sum::<usize>()
+                .sum::<usize>(),
+            identifier_reference_instances.values()
+                .cloned()
+                .max()
+                .unwrap_or(0),
         );
-        debug!(target: "multistream", "Detected {} tag definitions, {} occurrences",
+        debug!(target: "multistream", "Detected {} tag definitions, {} occurrences (max occurrences of each {})",
             tag_instances.len(),
             tag_instances.values()
                 .cloned()
-                .sum::<usize>()
+                .sum::<usize>(),
+            tag_instances.values()
+                .cloned()
+                .max()
+                .unwrap_or(0),
         );
-        debug!(target: "multistream", "Detected {} strings definitions, {} occurrences",
+        debug!(target: "multistream", "Detected {} strings definitions, {} occurrences (max occurrences of each {})",
             string_instances.len(),
             string_instances.values()
                 .cloned()
-                .sum::<usize>()
+                .sum::<usize>(),
+            string_instances.values()
+                .cloned()
+                .max()
+                .unwrap_or(0),
         );
+        debug!(target: "multistream", "Strings {:?}",
+            string_instances.iter()
+                .sorted_by(|a, b| usize::cmp(&b.1, &a.1))
+                .into_iter()
+                .format("\n"));
 
         let tag_frequencies : HashMap<_, _> = tag_instances.into_iter()
             .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
@@ -688,7 +701,7 @@ impl TokenWriter for TreeTokenWriter {
                 stream: self.targets.contents.lists,
             },
             strings: Compressor {
-                dictionary: Box::new(ParentPredictionLabeler::new(string_frequency_dictionary)), // Reuse dictionary.
+                dictionary: Box::new(string_frequency_dictionary), // Reuse dictionary.
                 stream: self.targets.contents.strings,
             },
         };
@@ -701,7 +714,7 @@ impl TokenWriter for TreeTokenWriter {
 
         let stats = Statistics {
             header_tags: header_tags.stream.len(),
-//            header_strings: header_strings.stream.len(),
+            header_strings: string_frequency_stream.len(),
             contents: PerCategory {
                 declarations: compressors.declarations.stream.len(),
                 idrefs: compressors.idrefs.stream.len(),
@@ -717,7 +730,7 @@ impl TokenWriter for TreeTokenWriter {
 
         let mut result = vec![];
         result.extend_from_slice(header_tags.stream.done().unwrap().0.as_ref());
-//        result.extend_from_slice(header_strings.stream.done().unwrap().0.as_ref());
+        result.extend_from_slice(header_identifiers.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(string_frequency_stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.declarations.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.idrefs.stream.done().unwrap().0.as_ref());
