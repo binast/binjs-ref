@@ -21,13 +21,13 @@ use std::rc::Rc;
 
 use clap::*;
 
-fn parse_compression(option: Option<&str>) -> std::result::Result<Option<CompressionTarget>, String> {
+fn parse_compression(option: Option<&str>) -> std::result::Result<Option<Compression>, String> {
     let result = match option {
         None => None,
-        Some("identity") => Some(CompressionTarget::new(Compression::Identity)),
-        Some("gzip") => Some(CompressionTarget::new(Compression::Gzip)),
-        Some("deflate") => Some(CompressionTarget::new(Compression::Deflate)),
-        Some("lzw") => Some(CompressionTarget::new(Compression::Lzw)),
+        Some("identity") => Some(Compression::Identity),
+        Some("gzip") => Some(Compression::Gzip),
+        Some("deflate") => Some(Compression::Deflate),
+        Some("lzw") => Some(Compression::Lzw),
         Some(other) => return Err(other.to_string())
     };
     Ok(result)
@@ -363,44 +363,22 @@ fn main_aux() {
         Some("parent") => NumberingStrategy::Prediction,
         Some(other) => panic!("Unexpected argument {}", other)
     };
-    let compression = parse_compression(matches.value_of("sections"))
-        .expect("Unknown value for `sections`");
-    let compression_strings = parse_compression(matches.value_of("strings"))
-        .expect("Unknown value for `strings`");
-    let compression_grammar = parse_compression(matches.value_of("grammar"))
-        .expect("Unknown value for `grammar`");
-    let compression_tree = parse_compression(matches.value_of("tree"))
-        .expect("Unknown value for `tree`");
-    let compression_bool = parse_compression(matches.value_of("bools"))
-        .expect("Unknown value for `bools`");
-    let compression_lists = parse_compression(matches.value_of("lists"))
-        .expect("Unknown value for `lists`");
-    let compression_numbers = parse_compression(matches.value_of("numbers"))
-        .expect("Unknown value for `numbers`");
+    let compression = parse_compression(matches.value_of("compression"))
+        .expect("Unknown value for `compression`")
+        .unwrap_or(Compression::Identity);
 
     let format = match matches.value_of("format") {
         None | Some("multipart") => {
             use binjs::io::multipart::{ Statistics, Targets };
             let stats = Rc::new(RefCell::new(Statistics::default()
                 .with_source_bytes(0)));
-            if let Some(ref compression) = compression {
-                Format::Multipart {
-                    targets: Targets {
-                        strings_table: compression.clone(),
-                        grammar_table: compression.clone(),
-                        tree: compression.clone(),
-                    },
-                    stats
-                }
-            } else {
-                Format::Multipart {
-                    targets: Targets {
-                        strings_table: compression_strings.unwrap_or_else(|| CompressionTarget::default()),
-                        grammar_table: compression_grammar.unwrap_or_else(|| CompressionTarget::default()),
-                        tree: compression_tree.unwrap_or_else(|| CompressionTarget::default()),
-                    },
-                    stats
-                }
+            Format::Multipart {
+                targets: Targets {
+                    strings_table: CompressionTarget::new(compression.clone()),
+                    grammar_table: CompressionTarget::new(compression.clone()),
+                    tree: CompressionTarget::new(compression.clone()),
+                },
+                stats
             }
         },
         Some("trp") => {
@@ -426,17 +404,17 @@ fn main_aux() {
                 },
                 targets: Targets {
                     contents: PerCategory {
-                        declarations: compression_strings.clone().unwrap_or_default(), // FIXME: A different compression might be useful.
-                        idrefs: compression_numbers.clone().unwrap_or_default(),
-                        strings: compression_strings.clone().unwrap_or_default(),
-                        numbers: compression_numbers.unwrap_or_default(),
-                        bools: compression_bool.unwrap_or_default(),
-                        lists: compression_lists.unwrap_or_default(),
-                        tags: compression_tree.unwrap_or_default(),
+                        declarations: CompressionTarget::new(compression.clone()),
+                        idrefs: CompressionTarget::new(compression.clone()),
+                        strings: CompressionTarget::new(compression.clone()),
+                        numbers: CompressionTarget::new(compression.clone()),
+                        bools: CompressionTarget::new(compression.clone()),
+                        lists: CompressionTarget::new(compression.clone()),
+                        tags: CompressionTarget::new(compression.clone()),
                     },
-                    header_strings: compression_strings.clone().unwrap_or_default(), // FIXME: A different compression might be useful.
-                    header_tags: compression_grammar.unwrap_or_default(),
-                    header_identifiers: compression_strings.unwrap_or_default(), // FIXME: A different compression might be useful.
+                    header_strings: CompressionTarget::new(compression.clone()), // FIXME: A different compression might be useful.
+                    header_tags: CompressionTarget::new(compression.clone()),
+                    header_identifiers: CompressionTarget::new(compression.clone()), // FIXME: A different compression might be useful.
                 }
             }
         },

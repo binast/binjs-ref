@@ -1,5 +1,7 @@
 //! Compare compression results
 
+#![feature(result_unwrap_or_default)]
+
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
@@ -8,8 +10,7 @@ extern crate itertools;
 extern crate rand;
 
 use binjs::io::bytes::compress::*;
-use binjs::io::multipart::{ WriteOptions };
-use binjs::io::{ DictionaryPlacement, Format, NumberingStrategy, SectionOption, TokenSerializer };
+use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, NumberingStrategy, TokenSerializer };
 use binjs::generic::FromJSON;
 use binjs::source::*;
 
@@ -22,6 +23,19 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::Command;
 use std::rc::Rc;
+
+fn parse_compression(option: Option<&str>) -> std::result::Result<Option<Compression>, String> {
+    let result = match option {
+        None => None,
+        Some("identity") => Some(Compression::Identity),
+        Some("gzip") => Some(Compression::Gzip),
+        Some("deflate") => Some(Compression::Deflate),
+        Some("lzw") => Some(Compression::Lzw),
+        Some(other) => return Err(other.to_string())
+    };
+    Ok(result)
+}
+
 
 #[derive(Clone)]
 struct Sizes {
@@ -113,10 +127,15 @@ fn main() {
             Arg::with_name("compression")
                 .long("compression")
                 .short("c")
+                .takes_value(true)
+                .possible_values(&["identity", "gzip", "br", "deflate"])
+                .help("Compression format for the binjs files"),
+            Arg::with_name("format")
+                .long("format")
                 .required(true)
                 .takes_value(true)
-                .possible_values(&["identity", "gzip", "br", "deflate", "trp", "multistream"])
-                .help("Compression format for the binjs files"),
+                .possible_values(&["multipart", "trp", "multistream"])
+                .help("Encoding for the binjs files"),
             Arg::with_name("numbering")
                 .long("numbering")
                 .takes_value(true)
@@ -147,45 +166,65 @@ fn main() {
         Some(other) => panic!("Invalid dictionary '{}'", other)
     };
 
-    let format = {
-        let make_multipart = |compression: Compression| {
+    let compression = parse_compression(matches.value_of("compression"))
+        .expect("Unknown value for `compression`")
+        .unwrap_or(Compression::Identity);
+
+    let mut format = match matches.value_of("format") {
+        None | Some("multipart") => {
+            use binjs::io::multipart::{ Statistics, Targets };
+            let stats = Rc::new(RefCell::new(Statistics::default()
+                .with_source_bytes(0)));
             Format::Multipart {
-                stats: Rc::new(RefCell::new(binjs::io::multipart::Statistics::default()
-                    .with_source_bytes(0))),
-                options: WriteOptions {
-                    grammar_table: SectionOption::Compression(compression.clone()),
-                    strings_table: SectionOption::Compression(compression.clone()),
-                    tree: SectionOption::Compression(compression)
+                targets: Targets {
+                    strings_table: CompressionTarget::new(compression.clone()),
+                    grammar_table: CompressionTarget::new(compression.clone()),
+                    tree: CompressionTarget::new(compression.clone()),
+                },
+                stats
+            }
+        },
+        Some("trp") => {
+            let max_rank = match matches.value_of("trp-rank") {
+                None | Some("none") => None,
+                Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
+            };
+            Format::TreeRePair {
+                options: binjs::io::repair::Options {
+                    max_rank,
+                    numbering_strategy,
+                    dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
                 }
             }
-        };
-        match matches.value_of("compression") {
-            Some("identity") => make_multipart(Compression::Identity),
-            Some("gzip") => make_multipart(Compression::Gzip),
-            Some("br") => make_multipart(Compression::Brotli),
-            Some("multistream") => Format::MultiStream {
-                options: {
-                    binjs::io::multistream::Options {
-                        sibling_labels_together: false,
-                        dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
-                    }
-                }
-            },
-            Some("trp") => {
-                let max_rank = match matches.value_of("trp-rank") {
-                    None | Some("none") => None,
-                    Some(ref num) => Some(usize::from_str_radix(num, 10).expect("Could not parse trp-rank"))
-                };
-                Format::TreeRePair {
-                    options: binjs::io::repair::Options {
-                        max_rank,
-                        numbering_strategy,
-                        dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
-                    }
-                }
-            }
-            otherwise => panic!("Unsupported compression: {:?}", otherwise)
         }
+        Some("xml") => Format::XML,
+        Some("multistream") => {
+            use binjs::io::multistream::{ Options, PerCategory, Targets };
+            Format::MultiStream {
+                options: Options {
+                    sibling_labels_together: false,
+                    dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Inline),
+                },
+                targets: Targets {
+                    contents: PerCategory {
+                        declarations: CompressionTarget::new(compression.clone()),
+                        idrefs: CompressionTarget::new(compression.clone()),
+                        strings: CompressionTarget::new(compression.clone()),
+                        numbers: CompressionTarget::new(compression.clone()),
+                        bools: CompressionTarget::new(compression.clone()),
+                        lists: CompressionTarget::new(compression.clone()),
+                        tags: CompressionTarget::new(compression.clone()),
+                    },
+                    header_strings: CompressionTarget::new(compression.clone()), // FIXME: A different compression might be useful.
+                    header_tags: CompressionTarget::new(compression.clone()),
+                    header_identifiers: CompressionTarget::new(compression.clone()), // FIXME: A different compression might be useful.
+                }
+            }
+        },
+        Some("simple") => Format::Simple {
+            stats: Rc::new(RefCell::new(binjs::io::simple::Statistics::default()))
+        },
+        _ => panic!()
     };
 
     let parser = Shift::new();
@@ -208,8 +247,9 @@ fn main() {
                 .annotate_script(&mut ast);
 
             let data: Box<AsRef<[u8]>>  = match format {
-                Format::Multipart { ref options, .. } => {
-                    let writer = binjs::io::multipart::TreeTokenWriter::new(options.clone());
+                Format::Multipart { ref mut targets, .. } => {
+                    targets.reset();
+                    let writer = binjs::io::multipart::TreeTokenWriter::new(targets.clone());
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                     serializer.serialize(&ast)
                         .expect("Could not encode AST");
@@ -217,7 +257,7 @@ fn main() {
                         .expect("Could not finalize AST encoding");
                     Box::new(data)
                 }
-                Format::TreeRePair { ref options }=> {
+                Format::TreeRePair { ref options } => {
                     let writer = binjs::io::repair::Encoder::new(options.clone());
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                     serializer.serialize(&ast)
@@ -226,8 +266,9 @@ fn main() {
                         .expect("Could not finalize AST encoding");
                     Box::new(data)
                 }
-                Format::MultiStream { ref options } => {
-                    let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone());
+                Format::MultiStream { ref mut targets, ref options } => {
+                    targets.reset();
+                    let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                     serializer.serialize(&ast)
                         .expect("Could not encode AST");
