@@ -122,7 +122,7 @@ impl<T, W: Write> Dictionary<T, W> for ExplicitIndexLabeler<T> where T: Eq + Has
     fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
         let (index, is_first) = {
             let found = self.dictionary.get_mut(label)
-                .unwrap_or_else(|| panic!("Could not find label {:?} in ExplicitIndexLabeler"));
+                .unwrap_or_else(|| panic!("Could not find label {:?} in ExplicitIndexLabeler", label));
             let is_first = found.is_first;
             found.is_first = false;
             (found.index, is_first)

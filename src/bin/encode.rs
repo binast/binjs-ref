@@ -181,9 +181,12 @@ fn handle_path<'a>(options: &mut Options<'a>,
                 let (data, _) = serializer.done()
                     .expect("Could not finalize AST encoding");
 
-                export_section(&dest_bin_path, &mut targets.header_strings, "strings");
-                export_section(&dest_bin_path, &mut targets.header_tags, "grammar");
+                export_section(&dest_bin_path, &mut targets.header_strings, "dict.strings");
+                export_section(&dest_bin_path, &mut targets.header_tags, "dict.grammar");
+                export_section(&dest_bin_path, &mut targets.header_identifiers, "dict.identifiers");
                 export_section(&dest_bin_path, &mut targets.contents.strings, "stringrefs");
+                export_section(&dest_bin_path, &mut targets.contents.idrefs, "idrefs");
+                export_section(&dest_bin_path, &mut targets.contents.declarations, "declarations");
                 export_section(&dest_bin_path, &mut targets.contents.numbers, "numbers");
                 export_section(&dest_bin_path, &mut targets.contents.bools, "bools");
                 export_section(&dest_bin_path, &mut targets.contents.lists, "lists");
@@ -423,14 +426,17 @@ fn main_aux() {
                 },
                 targets: Targets {
                     contents: PerCategory {
+                        declarations: compression_strings.clone().unwrap_or_default(), // FIXME: A different compression might be useful.
+                        idrefs: compression_numbers.clone().unwrap_or_default(),
                         strings: compression_strings.clone().unwrap_or_default(),
                         numbers: compression_numbers.unwrap_or_default(),
                         bools: compression_bool.unwrap_or_default(),
                         lists: compression_lists.unwrap_or_default(),
                         tags: compression_tree.unwrap_or_default(),
                     },
-                    header_strings: compression_strings.unwrap_or_default(), // FIXME: A different compression might be useful.
+                    header_strings: compression_strings.clone().unwrap_or_default(), // FIXME: A different compression might be useful.
                     header_tags: compression_grammar.unwrap_or_default(),
+                    header_identifiers: compression_strings.unwrap_or_default(), // FIXME: A different compression might be useful.
                 }
             }
         },

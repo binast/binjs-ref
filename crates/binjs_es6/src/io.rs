@@ -210,7 +210,7 @@ impl<'a, W> Serialization<W, &'a IdentifierDefinition> for Serializer<W> where W
 }
 impl<'a, W> Serialization<W, &'a IdentifierReference> for Serializer<W> where W: TokenWriter {
     fn serialize(&mut self, value: &'a IdentifierReference) -> Result<W::Tree, W::Error> {
-         self.writer.identifier_definition(Some(&value.0))
+         self.writer.identifier_reference(Some(&value.0))
    }
 }
 impl<'a, W> Serialization<W, &'a Option<IdentifierDefinition>> for Serializer<W> where W: TokenWriter {

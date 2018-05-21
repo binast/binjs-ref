@@ -90,3 +90,25 @@ impl<S> PoisonLock<S> {
     }
 }
 
+
+pub trait Counter {
+    fn internal_make(value: usize) -> Self;
+}
+#[derive(Default)]
+pub struct GenericCounter<T> where T: Counter {
+    count: usize,
+    phantom: std::marker::PhantomData<T>,
+}
+impl<T> GenericCounter<T> where T: Counter {
+    pub fn new() -> Self {
+        GenericCounter {
+            count: 0,
+            phantom: std::marker::PhantomData,
+        }
+    }
+    pub fn next(&mut self) -> T {
+        let result = T::internal_make(self.count);
+        self.count += 1;
+        result
+    }
+}

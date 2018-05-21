@@ -5,7 +5,7 @@ use bytes;
 use ::{ DictionaryPlacement, NumberingStrategy, TokenWriterError };
 use io::TokenWriter;
 use labels:: { self, Label as WritableLabel, Dictionary };
-use util::Pos;
+use util::{ Counter, GenericCounter, Pos };
 
 use std;
 use std::cell::{ RefCell, RefMut };
@@ -30,27 +30,7 @@ pub struct Options {
 
 type SharedCell<T> = Rc<RefCell<T>>;
 
-trait Counter {
-    fn internal_make(value: usize) -> Self;
-}
-#[derive(Default)]
-struct GenericCounter<T> where T: Counter {
-    count: usize,
-    phantom: std::marker::PhantomData<T>,
-}
-impl<T> GenericCounter<T> where T: Counter {
-    pub fn new() -> Self {
-        GenericCounter {
-            count: 0,
-            phantom: std::marker::PhantomData,
-        }
-    }
-    pub fn next(&mut self) -> T {
-        let result = T::internal_make(self.count);
-        self.count += 1;
-        result
-    }
-}
+
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 struct NodeIndex(usize);

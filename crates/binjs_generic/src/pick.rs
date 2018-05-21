@@ -75,7 +75,8 @@ impl Pick for TypeSpec {
             TypeSpec::Void =>
                 JSON::Null,
             TypeSpec::Offset =>
-                json::from(rng.gen_range(0, u32::max_value()))
+                json::from(rng.gen_range(0, u32::max_value())),
+            _ => unimplemented!(),
         }
     }
 }

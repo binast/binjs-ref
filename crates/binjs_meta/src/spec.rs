@@ -375,6 +375,12 @@ impl Type {
     pub fn void() -> TypeSpec {
         TypeSpec::Void
     }
+    pub fn identifier_definition() -> TypeSpec {
+        TypeSpec::IdentifierDefinition
+    }
+    pub fn identifier_reference() -> TypeSpec {
+        TypeSpec::IdentifierReference
+    }
 
     /// An `offset` type, holding a number of bytes in the binary file.
     pub fn offset() -> TypeSpec {
