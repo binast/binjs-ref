@@ -1,23 +1,35 @@
+use TokenWriterError;
+
 use bytes;
-use bytes::compress::*;
-use bytes::varnum::*;
-use io::*;
-use ::TokenWriterError;
-use multipart::*;
+use bytes::compress::Compression;
+use bytes::compress::CompressionResult;
+use bytes::varnum::WriteVarNum;
+use io::TokenWriter;
+
+use multipart::FormatInTable;
+use multipart::HEADER_GRAMMAR_TABLE;
+use multipart::HEADER_STRINGS_TABLE;
+use multipart::HEADER_TREE;
 
 use std;
-use std::collections::{ HashMap, HashSet };
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::cell::RefCell;
-use std::fmt::{ Debug, Display, Formatter };
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::hash::Hash;
 use std::io::Write;
-use std::ops::{ Add, AddAssign };
+use std::ops::Add;
+use std::ops::AddAssign;
 use std::rc::Rc;
 
-use rand::{ Rand, Rng };
+use rand::Rand;
+use rand::Rng;
 
 use vec_map;
-use vec_map::*;
+use vec_map::VecMap;
+
 
 /// Instructions for a single section (grammar, strings, tree, ...)
 #[derive(Clone, Debug)]
