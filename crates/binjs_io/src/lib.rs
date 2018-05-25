@@ -70,6 +70,7 @@ pub mod multistream;
 
 /// A tree comperssion mechanism.
 pub mod repair;
+pub mod repair2;
 
 pub mod xml;
 

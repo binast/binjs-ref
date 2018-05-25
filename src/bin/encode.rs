@@ -289,8 +289,8 @@ fn main_aux() {
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for strings. Defaults to identity."),
-            Arg::with_name("sections")
-                .long("sections")
+            Arg::with_name("compression")
+                .long("compression")
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for all sections. Defaults to identity."),
