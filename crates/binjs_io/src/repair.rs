@@ -590,7 +590,7 @@ impl TokenWriter for Encoder {
                 info!(target: "repair", "Using strategy: Prediction.");
                 let dictionary = self.root.get_frequency();
                 let inner_strategy = labels::ExplicitIndexLabeler::new(dictionary);
-                self.serialize_all(&mut labels::ParentPredictionLabeler::new(inner_strategy))
+                self.serialize_all(&mut labels::ParentPredictionDumbLabeler::new(inner_strategy))
             }
         };
 

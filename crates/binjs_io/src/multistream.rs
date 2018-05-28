@@ -505,7 +505,7 @@ impl TokenWriter for TreeTokenWriter {
     }
 
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), Self::Error> {
-        use labels:: { ExplicitIndexLabeler, MRULabeler, ParentPredictionLabeler, RawLabeler };
+        use labels:: { ExplicitIndexLabeler, MRULabeler, ParentPredictionFrequencyLabeler, RawLabeler };
         self.number_references()?;
 
         let mut tag_instances = HashMap::new();
@@ -617,7 +617,7 @@ impl TokenWriter for TreeTokenWriter {
         let identifier_definition_frequency_dictionary = ExplicitIndexLabeler::new(identifier_definition_frequencies.clone());
 
         let mut header_tags = Compressor {
-            dictionary: Box::new(ParentPredictionLabeler::new(tag_frequency_dictionary)),
+            dictionary: Box::new(ParentPredictionFrequencyLabeler::new(tag_frequency_dictionary)),
             stream: self.targets.header_tags.clone(),
         };
 
@@ -627,7 +627,7 @@ impl TokenWriter for TreeTokenWriter {
         };
 /*
         let mut header_strings = Compressor {
-            //dictionary: Box::new(MRULabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
+            //dictionary: Box::new(MRULabeler::new()), // FIXME: Experiment with ParentPredictionFrequencyLabeler
             dictionary: Box::new(string_frequency_dictionary),
             stream: self.targets.header_strings,
         };
@@ -697,7 +697,7 @@ impl TokenWriter for TreeTokenWriter {
                 stream: self.targets.contents.bools,
             },
             lists: Compressor {
-                dictionary: Box::new(RawLabeler::new()), // FIXME: Experiment with ParentPredictionLabeler
+                dictionary: Box::new(RawLabeler::new()), // FIXME: Experiment with ParentPredictionFrequencyLabeler
                 stream: self.targets.contents.lists,
             },
             strings: Compressor {

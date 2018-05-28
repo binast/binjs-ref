@@ -139,12 +139,12 @@ impl<T, W: Write> Dictionary<T, W> for ExplicitIndexLabeler<T> where T: Eq + Has
 
 /// The first time a node `A` contains a node `B`, assign a new number to `A > B`. For each
 /// `A`, numbers start at 0.
-pub struct ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
-    per_parent: HashMap<T, HashMap<T, usize>>,
+pub struct ParentPredictionDumbLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
+    per_parent: HashMap<Option<T>, HashMap<T, usize>>,
     strategy: U,
     phantom: std::marker::PhantomData<W>,
 }
-impl<T, U, W> ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
+impl<T, U, W> ParentPredictionDumbLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
     pub fn new(strategy: U) -> Self {
         Self {
             per_parent: HashMap::new(),
@@ -154,11 +154,11 @@ impl<T, U, W> ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clon
     }
 }
 
-impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq + Hash + Label + Clone + Debug, U: Dictionary<T, W>, W: Write {
+impl<T, U, W> Dictionary<T, W> for ParentPredictionDumbLabeler<T, U, W> where T: Eq + Hash + Label + Clone + Debug, U: Dictionary<T, W>, W: Write {
     fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
         use std::collections::hash_map::Entry::*;
-        let introduced_namespaced_number = if let Some(parent) = parent {
-            let this_parent = self.per_parent.entry(parent.clone())
+        let introduced_namespaced_number = {
+            let this_parent = self.per_parent.entry(parent.map(T::clone))
                 .or_insert_with(|| HashMap::new());
             let number_of_children = this_parent.len();
             match this_parent.entry(label.clone()) {
@@ -181,8 +181,6 @@ impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq 
                     None
                 }
             }
-        } else {
-            Some(0)
         };
         if let Some(index) = introduced_namespaced_number {
             // We have introduced a namespaced number.
@@ -194,4 +192,67 @@ impl<T, U, W> Dictionary<T, W> for ParentPredictionLabeler<T, U, W> where T: Eq 
     }
 }
 
-// FIXME: We need a RecentFrequencyLabeler for strings
+struct Entries<T> {
+    label: T,
+    instances: usize,
+}
+
+/// The most common child of a label `A` so far gets number 0,
+/// the second most common gets number 1, etc.
+pub struct ParentPredictionFrequencyLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
+    per_parent: HashMap<Option<T>, Vec<Entries<T>>>, // Invariant: always sorted by decreasing order of `instances`.
+    strategy: U,
+    phantom: std::marker::PhantomData<W>,
+}
+impl<T, U, W> ParentPredictionFrequencyLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
+    pub fn new(strategy: U) -> Self {
+        Self {
+            per_parent: HashMap::new(),
+            phantom: std::marker::PhantomData,
+            strategy
+        }
+    }
+}
+
+impl<T, U, W> Dictionary<T, W> for ParentPredictionFrequencyLabeler<T, U, W> where T: Eq + Hash + Label + Clone + Debug, U: Dictionary<T, W>, W: Write {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+        use std::collections::hash_map::Entry::*;
+        let this_parent = self.per_parent.entry(parent.map(T::clone))
+            .or_insert_with(|| Vec::new());
+
+        if let Some(position) = this_parent.iter().position(|entries| entries.label == *label) {
+            // This label has already shown up.
+            // Reuse the index previously computed.
+            out.write_varnum(add_baseline(position, baseline) as u32)?;
+
+
+            // Before leaving, update statistics.
+            let number_of_instances = this_parent[position].instances + 1;
+            this_parent[position].instances = number_of_instances;
+
+            // Bubble entry to ensure that no entry with a lower index has more instances.
+            if let Some(prefix) = this_parent[0..position]
+                .iter()
+                .position(|entry| {
+                    entry.instances < number_of_instances
+                })
+            {
+                this_parent[prefix .. position + 1].rotate_right(1);
+            }
+
+            Ok(false)
+        } else {
+            // First time we see this label.
+            // Delegate writing to the underlying strategy.
+            let is_newdef = self.strategy.write_label_at(Some(add_baseline(this_parent.len(), baseline)), label, parent, out)?;
+
+            // Before leaving, update statistics.
+            this_parent.push(Entries {
+                instances: 1,
+                label: label.clone(),
+            });
+            Ok(is_newdef)
+        }
+    }
+}
+
