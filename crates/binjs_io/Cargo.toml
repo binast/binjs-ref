@@ -4,15 +4,14 @@ version = "0.2.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [dependencies]
-binjs_shared = { path = "../binjs_shared", version = "*" }
-#  brotli = "*"
+# brotli = "*"
+# Latest release of brotli is incompatible with Rust Nightly.
 brotli = { git = "https://github.com/dropbox/rust-brotli", commit = "ae6d9d2db756e41af37f5164f0b5dec65c4c0825" }
 flate2 = "^1.0"
 itertools = "*"
 lzw = "*"
 log = "*"
-priority-queue = "*"
-rand = "*"
+rand = "^0.4"
 vec_map = "*"
 xml-rs = "*"
 
