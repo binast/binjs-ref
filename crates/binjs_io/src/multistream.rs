@@ -197,7 +197,7 @@ impl SubTree {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ScopeIndex(usize);
 impl Counter for ScopeIndex {
     fn internal_make(value: usize) -> Self {
@@ -206,16 +206,21 @@ impl Counter for ScopeIndex {
 }
 
 /// A trivial wrapping of f64 with Hash and Eq.
-#[derive(Clone, Debug, PartialEq, Copy)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Copy)]
 pub struct F64(pub f64);
 impl Eq for F64 { } // Not strictly true.
+impl Ord for F64 {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+} // Not strictly true.
 impl Hash for F64 {
     fn hash<H>(&self, state: &mut H) where H: Hasher {
         self.0.to_bits().hash(state)
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Label {
     String(Option<Rc<String>>),
     Number(Option<F64>),
@@ -551,17 +556,39 @@ impl TokenWriter for TreeTokenWriter {
             .enumerate()
             .map(|(position, (s, _))| (s, position))
             .collect();
+//        let mut string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
+//        let mut string_frequency_stream = self.targets.header_strings;
+
+        let identifier_reference_frequencies : HashMap<_, _> = identifier_reference_instances.into_iter()
+            .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
+            .into_iter()
+            .enumerate()
+            .map(|(position, (s, _))| (s, position))
+            .collect();
+        let identifier_reference_frequency_dictionary = ExplicitIndexLabeler::new(identifier_reference_frequencies.clone());
+
+        let identifier_definition_frequencies : HashMap<_, _> = identifier_definition_instances.into_iter()
+            .sorted_by(|a,b| usize::cmp(&b.1, &a.1))
+            .into_iter()
+            .enumerate()
+            .map(|(position, (s, _))| (s, position))
+            .collect();
         let string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
 
         let mut header_tags = Compressor {
             dictionary: Box::new(ParentPredictionLabeler::new(tag_frequency_dictionary)),
             stream: self.targets.header_tags.clone(),
         };
-        let mut header_strings = Compressor {
-            dictionary: Box::new(string_frequency_dictionary), // FIXME: Experiment with ParentPredictionLabeler
-            stream: self.targets.header_strings,
+
+        let mut header_identifiers = Compressor {
+            dictionary: Box::new(identifier_definition_frequency_dictionary),
+            stream: self.targets.header_identifiers.clone(),
         };
 
+        let mut header_strings = Compressor {
+            dictionary: Box::new(ParentPredictionFrequencyLabeler::new(ExplicitIndexLabeler::new(string_frequencies.clone()))),
+            stream: self.targets.header_strings,
+        };
         if let DictionaryPlacement::Header = self.options.dictionary_placement {
             use bytes::varnum::WriteVarNum;
             // Pre-write tags and strings.
@@ -578,11 +605,24 @@ impl TokenWriter for TreeTokenWriter {
                 header_tags.stream.len(),
                 tag_frequencies.len());
 
+            header_identifiers.stream.write_varnum(identifier_definition_frequencies.len() as u32).unwrap();
+            for id in identifier_definition_frequencies.keys() {
+                header_identifiers.stream.write_varnum(id.string_byte_len() as u32).unwrap();
+            }
+            for id in identifier_definition_frequencies.keys() {
+                header_identifiers.dictionary.write_label(id, None, &mut header_identifiers.stream).unwrap();
+            }
+            debug!(target: "multistream", "Wrote {} bytes ({} identifiers) to header",
+                header_identifiers.stream.len(),
+                identifier_definition_frequencies.len());
+
             header_strings.stream.write_varnum(string_frequencies.len() as u32).unwrap();
-            for string in string_frequencies.keys() {
+            let string_keys = string_frequencies.iter()
+                .sorted_by(|a,b| usize::cmp(&a.0.string_byte_len(), &b.0.string_byte_len()).reverse());
+            for (ref string, _) in &string_keys {
                 header_strings.stream.write_varnum(string.string_byte_len() as u32).unwrap();
             }
-            for string in string_frequencies.keys() {
+            for (ref string, _) in &string_keys {
                 header_strings.dictionary.write_label(string, None, &mut header_strings.stream).unwrap();
             }
             debug!(target: "multistream", "Wrote {} bytes ({} strings) to header",
@@ -635,7 +675,10 @@ impl TokenWriter for TreeTokenWriter {
 
         let mut result = vec![];
         result.extend_from_slice(header_tags.stream.done().unwrap().0.as_ref());
+        result.extend_from_slice(header_identifiers.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(header_strings.stream.done().unwrap().0.as_ref());
+        result.extend_from_slice(compressors.declarations.stream.done().unwrap().0.as_ref());
+        result.extend_from_slice(compressors.idrefs.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.tags.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.strings.stream.done().unwrap().0.as_ref());
         result.extend_from_slice(compressors.numbers.stream.done().unwrap().0.as_ref());

@@ -256,3 +256,21 @@ impl<T, U, W> Dictionary<T, W> for ParentPredictionFrequencyLabeler<T, U, W> whe
     }
 }
 
+/// Remove any parent information.
+pub struct GlobalLabeler<T, U, W> where U: Dictionary<T, W>, W: Write {
+    strategy: U,
+    phantom: std::marker::PhantomData<(T, W)>,
+}
+impl<T, U, W> GlobalLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dictionary<T, W>, W: Write {
+    pub fn new(strategy: U) -> Self {
+        Self {
+            strategy,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+impl<T, U, W> Dictionary<T, W> for GlobalLabeler<T, U, W> where U: Dictionary<T, W>, W: Write {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, _: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+        self.strategy.write_label_at(baseline, label, None, out)
+    }
+}
