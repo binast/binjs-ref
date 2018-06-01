@@ -1,7 +1,7 @@
 use ast::*;
 use binjs_shared::{ FromJSON, IdentifierDefinition, IdentifierReference, ToJSON, VisitMe };
 
-use std::collections::{  HashSet };
+use std::collections::{ HashMap, HashSet };
 use std::rc::Rc;
 
 use itertools::Itertools;
@@ -30,7 +30,7 @@ pub struct AnnotationVisitor {
 
     // 'true' if the free name has already cross a function boundary
     // 'false' until then.
-    free_names_in_block_stack: Vec<HashMap<String, bool>>,
+    free_names_in_block_stack: Vec<HashMap<Rc<String>, bool>>,
 }
 impl AnnotationVisitor {
     fn pop_captured_names(&mut self, bindings: &[&HashSet<Rc<String>>]) -> Vec<Rc<String>> {
@@ -55,7 +55,7 @@ impl AnnotationVisitor {
     fn push_free_names(&mut self) {
         self.free_names_in_block_stack.push(HashMap::new());
     }
-    fn pop_free_names(&mut self, bindings: &[&HashSet<String>], is_leaving_function_scope: bool) {
+    fn pop_free_names(&mut self, bindings: &[&HashSet<Rc<String>>], is_leaving_function_scope: bool) {
         let mut free_names_in_current_block = self.free_names_in_block_stack.pop().unwrap();
         for (name, old_cross_function) in free_names_in_current_block.drain() {
             let is_bound = bindings.iter()
@@ -265,18 +265,18 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn exit_identifier_expression(&mut self, _path: &Path, node: &mut IdentifierExpression) -> Result<Option<IdentifierExpression>, ()> {
-        debug!(target: "annotating", "exit_identifier_expression {} at {:?}", node.name, _path);
+        debug!(target: "annotating", "exit_identifier_expression {} at {:?}", node.name.name(), _path);
         let names = self.free_names_in_block_stack.last_mut().unwrap();
-        if !names.contains_key(&node.name) {
-            names.insert(node.name.clone(), false);
+        if !names.contains_key(node.name.name()) {
+            names.insert(node.name.name().clone(), false);
         }
         Ok(None)
     }
 
     fn exit_assignment_target_identifier(&mut self, _path: &Path, node: &mut AssignmentTargetIdentifier) -> Result<Option<AssignmentTargetIdentifier>, ()> {
         let names = self.free_names_in_block_stack.last_mut().unwrap();
-        if !names.contains_key(&node.name) {
-            names.insert(node.name.clone(), false);
+        if !names.contains_key(node.name.name()) {
+            names.insert(node.name.name().clone(), false);
         }
         Ok(None)
     }

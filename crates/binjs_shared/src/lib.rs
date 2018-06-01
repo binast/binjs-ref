@@ -15,9 +15,19 @@ pub struct Offset(pub u32);
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct IdentifierDefinition(pub Rc<String>);
+impl IdentifierDefinition {
+    pub fn name(&self) -> &Rc<String> {
+        &self.0
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct IdentifierReference(pub Rc<String>);
+impl IdentifierReference {
+    pub fn name(&self) -> &Rc<String> {
+        &self.0
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VisitMe<T> {
