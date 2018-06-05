@@ -65,18 +65,39 @@ pub mod simple;
 /// designed to minimize the size of the file.
 pub mod multipart;
 
+pub mod multistream;
+
 /// A tree comperssion mechanism.
 pub mod repair;
+pub mod repair2;
 
 pub mod xml;
 
 mod util;
 
-pub mod mru;
+/// A strategy for placing the dictionary.
+#[derive(Clone, Debug)]
+pub enum DictionaryPlacement {
+    /// Place the entire dictionary before the contents.
+    Header,
 
-#[derive(Clone)]
+    /// Inline the dictionary. The first instance of a node is followed
+    /// immediately by its definition.
+    Inline
+}
+
+/// A strategy for numbering nodes, labels, strings, ...
+#[derive(Clone, Debug)]
 pub enum NumberingStrategy {
+    /// Relative to the most recently used.
+    ///
+    /// Using twice the same value in a row will mean that the second index will be 0.
     MRU,
+
+    /// Use global frequencey.
+    ///
+    /// The most common value will be numbered 0, the second most common will be numbered
+    /// 1, etc.
     GlobalFrequency,
 
     Prediction,
@@ -134,7 +155,7 @@ impl std::io::Write for CompressionTarget {
             Compressing::Uncompressed(ref buf) => {
                 let mut borrow = buf.borrow_mut();
                 borrow.extend_from_slice(data);
-                Ok(borrow.len())
+                Ok(data.len())
             },
             _ => panic!("Attempting to add data to a CompressionTarget that is already closed")
         }
@@ -157,20 +178,12 @@ pub enum Format {
         targets: multipart::Targets,
         stats: Rc<RefCell<multipart::Statistics>>
     },
-    TreeRePair,
+    TreeRePair {
+        options: repair::Options,
+    },
     XML,
-}
-impl Format {
-    pub fn new(format: &Format) -> Format {
-        use multipart::WriteOptions;
-        match *format {
-            Format::Simple { .. } => Format::Simple { stats: Default::default() },
-            Format::Multipart { ref options, .. } => Format::Multipart {
-                stats: Default::default(),
-                options: WriteOptions::new(options),
-            },
-            Format::TreeRePair => Format::TreeRePair,
-            Format::XML => Format::XML,
-        }
-    }
+    MultiStream {
+        options: multistream::Options,
+        targets: multistream::Targets,
+    },
 }

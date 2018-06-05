@@ -220,7 +220,7 @@ impl Hash for F64 {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Ord)]
 pub enum Label {
     String(Option<Rc<String>>),
     Number(Option<F64>),
@@ -258,7 +258,11 @@ impl Hash for Label {
             Bool(ref b) => b.hash(state),
             List(ref l) => l.hash(state),
             Tag(ref s) => s.hash(state),
-            Number(ref num) => num.map(f64::to_bits).hash(state),
+            Number(ref num) => num.map(|x| f64::to_bits(x.0)).hash(state), // Not really true for a f64.
+            Scope(ref s) => s.hash(state),
+            Declare(ref d) => d.hash(state),
+            LiteralReference(ref r) => r.hash(state),
+            NumberedReference(ref r) => r.hash(state),
         }
     }
 }
@@ -276,7 +280,8 @@ impl WritableLabel for Label {
                 out.write_all(s.as_bytes())?;
             },
             String(None)
-            | Declare(None) => {
+            | Declare(None)
+            | NumberedReference(None) => {
               // FIXME: Put this magic constant safely in a module
               out.write_all(&[255, 0])?;
             },
@@ -293,6 +298,16 @@ impl WritableLabel for Label {
             Tag(ref s) => {
                 out.write_all(s.as_bytes())?;
             }
+            Scope(_) => {
+                // Nothing to do.
+            }
+            LiteralReference(_) => {
+                panic!("We shouldn't be writing literal references")
+            }
+            NumberedReference(ref val) => {
+                use bytes::varnum::WriteVarNum;
+                out.write_maybe_varnum(val.map(|x| x))?;
+            }
         }
         Ok(())
     }
@@ -302,12 +317,14 @@ pub struct TreeTokenWriter {
     root: SharedTree,
     options: Options,
     targets: Targets,
+    scope_counter: GenericCounter<ScopeIndex>,
 }
 impl TreeTokenWriter {
     pub fn new(options: Options, targets: Targets) -> Self {
         Self {
             options,
             targets,
+            scope_counter: GenericCounter::new(),
             root: Rc::new(RefCell::new(SubTree {
                 label: Label::String(None),
                 children: vec![]
@@ -471,6 +488,8 @@ impl TokenWriter for TreeTokenWriter {
 
         let mut tag_instances = HashMap::new();
         let mut string_instances = HashMap::new();
+        let mut identifier_definition_instances = HashMap::new();
+        let mut identifier_reference_instances = HashMap::new();
         self.root.borrow_mut().with_labels(&mut |label: &Label| {
             match *label {
                 Label::String(_) => {
@@ -556,6 +575,7 @@ impl TokenWriter for TreeTokenWriter {
             .enumerate()
             .map(|(position, (s, _))| (s, position))
             .collect();
+        let string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
 //        let mut string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
 //        let mut string_frequency_stream = self.targets.header_strings;
 
@@ -573,10 +593,10 @@ impl TokenWriter for TreeTokenWriter {
             .enumerate()
             .map(|(position, (s, _))| (s, position))
             .collect();
-        let string_frequency_dictionary = ExplicitIndexLabeler::new(string_frequencies.clone());
+        let identifier_definition_frequency_dictionary = ExplicitIndexLabeler::new(identifier_definition_frequencies.clone());
 
         let mut header_tags = Compressor {
-            dictionary: Box::new(ParentPredictionLabeler::new(tag_frequency_dictionary)),
+            dictionary: Box::new(ParentPredictionFrequencyLabeler::new(tag_frequency_dictionary)),
             stream: self.targets.header_tags.clone(),
         };
 
@@ -651,6 +671,14 @@ impl TokenWriter for TreeTokenWriter {
                 dictionary: header_strings.dictionary, // Reuse dictionary.
                 stream: self.targets.contents.strings,
             },
+            declarations: Compressor {
+                dictionary: header_identifiers.dictionary,
+                stream: self.targets.contents.declarations,
+            },
+            idrefs: Compressor {
+                dictionary: Box::new(ExplicitIndexLabeler::new(identifier_reference_frequencies)),
+                stream: self.targets.contents.idrefs,
+            }
         };
 
         // Write the tree to the various streams.
@@ -668,6 +696,8 @@ impl TokenWriter for TreeTokenWriter {
                 numbers: compressors.numbers.stream.len(),
                 bools: compressors.bools.stream.len(),
                 lists: compressors.lists.stream.len(),
+                declarations: compressors.declarations.stream.len(),
+                idrefs: compressors.idrefs.stream.len(),
             }
         };
 

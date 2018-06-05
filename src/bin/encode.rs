@@ -6,8 +6,8 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 
-use binjs::io::{ Format, NumberingStrategy, TokenSerializer };
-use binjs::io::multipart::{ SectionOption, WriteOptions };
+use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, NumberingStrategy, TokenSerializer };
+use binjs::io::bytes::compress::Compression;
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
 use binjs::specialized::es6::ast::Walker;
@@ -281,26 +281,11 @@ fn main_aux() {
                 .long("trp-rank")
                 .takes_value(true)
                 .help("Maximal rank for trp. Ignored if the format isn't trp. Number of 'none'."),
-            Arg::with_name("strings")
-                .long("strings")
-                .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for strings. Defaults to identity."),
             Arg::with_name("compression")
                 .long("compression")
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
                 .help("Compression format for all sections. Defaults to identity."),
-            Arg::with_name("grammar")
-                .long("grammar")
-                .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for the grammar table. Defaults to identity."),
-            Arg::with_name("tree")
-                .long("tree")
-                .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for the tree. Defaults to identity."),
             Arg::with_name("numbering")
                 .long("numbering")
                 .takes_value(true)
@@ -364,32 +349,13 @@ fn main_aux() {
             use binjs::io::multipart::{ Statistics, Targets };
             let stats = Rc::new(RefCell::new(Statistics::default()
                 .with_source_bytes(0)));
-            if let Some(ref spec) = matches.value_of("sections") {
-                let compression = parse_compression(Some(spec))
-                    .expect("Could not parse sections compression format");
-                Format::Multipart {
-                    options: WriteOptions {
-                        strings_table: compression.clone(),
-                        grammar_table: compression.clone(),
-                        tree: compression,
-                    },
-                    stats
-                }
-            } else {
-                let strings = parse_compression(matches.value_of("strings"))
-                    .expect("Could not parse string compression format");
-                let grammar = parse_compression(matches.value_of("grammar"))
-                    .expect("Could not parse grammar compression format");
-                let tree = parse_compression(matches.value_of("tree"))
-                    .expect("Could not parse tree compression format");
-                Format::Multipart {
-                    options: WriteOptions {
-                        strings_table: strings,
-                        grammar_table: grammar,
-                        tree
-                    },
-                    stats
-                }
+            Format::Multipart {
+                targets: Targets {
+                    strings_table: CompressionTarget::new(compression.clone()),
+                    grammar_table: CompressionTarget::new(compression.clone()),
+                    tree: CompressionTarget::new(compression.clone()),
+                },
+                stats
             }
         },
         Some("trp") => {
@@ -406,6 +372,7 @@ fn main_aux() {
                 options: binjs::io::repair::Options {
                     max_rank,
                     numbering_strategy,
+                    dictionary_placement: dictionary_placement.unwrap_or(DictionaryPlacement::Header),
                 }
             }
         }
