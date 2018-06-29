@@ -496,7 +496,8 @@ impl<T> Serializable for TableIndex<T> {
 
 
 impl TreeTokenWriter {
-    pub fn new(targets: Targets) -> Self {
+    pub fn new(mut targets: Targets) -> Self {
+        targets.reset();
         TreeTokenWriter {
             grammar_table: WriterTable::new(),
             strings_table: WriterTable::new(),

@@ -57,10 +57,6 @@ fn main() {
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
         ])
-        .group(ArgGroup::with_name("multipart")
-            .args(&["strings", "grammar", "tree"])
-            .multiple(true)
-        )
         .get_matches();
 
     let mut format = binjs::io::Format::parse(matches.value_of("format"))

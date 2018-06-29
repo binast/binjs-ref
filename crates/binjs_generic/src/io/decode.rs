@@ -190,7 +190,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     .map_err(Error::TokenReaderError)?;
                 Ok(self.register(JSON::Array(values)))
             }
-            String => {
+            String | IdentifierDefinition | IdentifierReference => {
                 let extracted = self.extractor.string()
                     .map_err(Error::TokenReaderError)?;
                 match extracted {

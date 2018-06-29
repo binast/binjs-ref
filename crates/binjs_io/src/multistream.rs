@@ -502,6 +502,10 @@ impl TokenWriter for TreeTokenWriter {
         })
     }
 
+    fn string_enum(&mut self, value: &str) -> Result<Self::Tree, TokenWriterError> {
+        self.tagged_tuple(value, &[])
+    }
+
     fn list(&mut self, children: Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError> {
         self.new_tree(SubTree {
             label: Label::List(Some(children.len() as u32)),

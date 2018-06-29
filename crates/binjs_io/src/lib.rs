@@ -13,6 +13,7 @@ extern crate rand;
 extern crate vec_map;
 extern crate xml as xml_rs;
 
+use std::fmt::{ Debug, Formatter };
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -122,10 +123,15 @@ enum Compressing {
     },
 }
 /// Instructions for a single section (grammar, strings, tree, ...)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct CompressionTarget {
     data: Compressing,
     format: bytes::compress::Compression,
+}
+impl Debug for CompressionTarget {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        self.format.fmt(f)
+    }
 }
 impl CompressionTarget {
     pub fn new(format: bytes::compress::Compression) -> Self {

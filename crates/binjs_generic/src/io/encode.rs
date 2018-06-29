@@ -150,12 +150,12 @@ impl<'a, B, Tree> Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
                 return self.builder.borrow_mut().bool(Some(b))
                     .map_err(Error::TokenWriterError)
             }
-            (&String, _) if value.is_string() => {
+            (&String, _) | (&IdentifierReference, _) | (&IdentifierDefinition, _) if value.is_string() => {
                 let string = value.as_str().unwrap(); // Checked just above.
                 return self.builder.borrow_mut().string(Some(string))
                     .map_err(Error::TokenWriterError)
             }
-            (&String, &JSON::Null) if is_optional => {
+            (&String, &JSON::Null) | (&IdentifierReference, &JSON::Null) | (&IdentifierDefinition, &JSON::Null) if is_optional  => {
                 return self.builder.borrow_mut().string(None)
                     .map_err(Error::TokenWriterError)
             }

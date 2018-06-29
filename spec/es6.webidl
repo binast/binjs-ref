@@ -405,7 +405,7 @@ interface ExportDefault : Node {
 interface ExportFromSpecifier : Node {
   // The only `IdentifierName in `ExportSpecifier :: IdentifierName`,
   // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
-  attribute IdentifierDefinition name;
+  attribute string name;
   // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`,
   // if that is the production represented.
   attribute IdentifierDefinition? exportedName;

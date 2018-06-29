@@ -174,19 +174,21 @@ fn test_multipart_io() {
         vec
     };
 
-    for options in all_options {
+    for mut options in all_options {
         println!("Options {:?}", options);
         let suffix = format!("{:?}-{:?}-{:?}", options.grammar_table, options.strings_table, options.tree);
 
 
         {
+            options.reset();
             let mut writer : ::multipart::TreeTokenWriter = TreeTokenWriter::new(options.clone());
             writer.string(Some("simple string"))
                 .expect("Writing simple string");
 
             let (output, _) = writer.done()
                 .expect("Finalizing data");
-            File::create(format!("/tmp/test-simple-string-{}.binjs", suffix)).unwrap()
+            File::create(format!("/tmp/test-simple-string-{}.binjs", suffix))
+                .expect("Could not create file")
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output))
@@ -199,6 +201,7 @@ fn test_multipart_io() {
 
 
         {
+            options.reset();
             let data = "string with escapes \u{0}\u{1}\u{0}";
             let mut writer = TreeTokenWriter::new(options.clone());
             writer.string(Some(data))
@@ -219,6 +222,7 @@ fn test_multipart_io() {
         println!("Testing untagged tuple I/O");
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
             writer.untagged_tuple(&[])
                 .expect("Writing empty untagged tuple");
@@ -238,6 +242,7 @@ fn test_multipart_io() {
         }
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
             let item_0 = writer.string(Some("foo")).unwrap();
             let item_1 = writer.string(Some("bar")).unwrap();
@@ -268,6 +273,7 @@ fn test_multipart_io() {
         println!("Testing tagged tuple I/O");
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
             let item_0 = writer.string(Some("foo")).unwrap();
             let item_1 = writer.string(Some("bar")).unwrap();
@@ -312,6 +318,7 @@ fn test_multipart_io() {
         println!("Testing list I/O");
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
             writer.list(vec![])
                 .expect("Writing empty list");
@@ -331,6 +338,7 @@ fn test_multipart_io() {
         }
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
             let item_0 = writer.string(Some("foo")).unwrap();
             let item_1 = writer.string(Some("bar")).unwrap();
@@ -361,6 +369,7 @@ fn test_multipart_io() {
         }
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
             let item_0 = writer.string(Some("foo")).unwrap();
             let item_1 = writer.string(Some("bar")).unwrap();

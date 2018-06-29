@@ -65,7 +65,7 @@ pub trait TokenReader where Self::Error: Debug + From<::TokenReaderError>,
     fn string(&mut self) -> Result<Option<String>, Self::Error>;
     fn string_enum(&mut self) -> Result<String, Self::Error> {
         self.string()?
-            .ok_or_else(|| ::TokenReaderError::invalid_value(&"Empty string enum").into())
+            .ok_or_else(|| ::TokenReaderError::EmptyVariant.into())
     }
 
     /// Read a single `f64`. Note that all numbers are `f64`.
