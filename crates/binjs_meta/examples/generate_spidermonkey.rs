@@ -1,3 +1,11 @@
+// !!!! WARNING !!!!
+// This is a snapshot of the code generator for SpiderMonkey, for demonstrating
+// how to use binjs_meta crate in order to generate a parser.
+//
+// The latest version of this code is available as
+// js/src/frontend/binsource/src/main.rs in the following repository:
+//   https://hg.mozilla.org/mozilla-central/
+
 extern crate binjs_meta;
 extern crate clap;
 extern crate env_logger;
