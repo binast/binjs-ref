@@ -12,17 +12,145 @@ use std::marker::PhantomData;
 use std::ops::Add;
 use std::rc::Rc;
 
+/// An API for printing the binary representation and its structural
+/// interpretation of the file.
+///
+/// A struct which implements this trait is supposed to print the binary
+/// representation of the file in the first column internally, and print the
+/// structural interpretation in the second column, which is triggered by
+/// print_file_structure!() macro below, from various places that interprets
+/// the file structure.
+///
+/// ```ignore
+/// (first column)   (second column)
+/// 01             # Script {
+///                # .scope
+/// 08             # AssertedScriptGlobalScope {
+///                # .declared_names
+/// 02             # list (length=0) [
+/// ...            # ...
+///                # ]
+///                # }
+///                # }
+/// ```
+///
+/// Default no-op implementations are provided for all methods, which can be
+/// used by the following declaration:
+///
+/// ```ignore
+/// impl FileStructurePrinter for T {}
+/// ```
+///
+pub trait FileStructurePrinter {
+    /// Enables printing the binary representation and the structural
+    /// interpretation.
+    fn enable_file_structure_print(&mut self) {}
+
+    /// Disables printing the binary representation and the structural
+    /// interpretation.
+    fn disable_file_structure_print(&mut self) {}
+
+    /// True if file structure print is enabled.
+    /// With default implementation, nothing is printed.
+    fn is_file_structure_print_enabled(&mut self) -> bool {
+        false
+    }
+
+    /// Prints the column separator ("# " characters), and padding before it
+    /// if necessary.
+    ///
+    /// Before calling this method, the output is supposed to be the following:
+    ///
+    /// ```ignore
+    /// 00 01 02<= cursor position
+    /// ```
+    ///
+    /// After calling this method, the output is supposed to be the following:
+    ///
+    /// ```ignore
+    /// 00 01 02     # <= cursor position
+    /// ```
+    ///
+    /// The column width is not defined but the implementation is supposed to
+    /// keep the same column width through the entire output, regardless of the
+    /// number of bytes it reads for each line.
+    fn prepare_file_structure_column(&mut self) {}
+
+    /// Prints newline after printing the structural interpretation column.
+    /// The implementation is supposed to print newline character(s) and also
+    /// reset the current column position internally, in order to print the
+    /// right number of spaces in prepare_file_structure_column.
+    ///
+    /// Before calling this method, the output is supposed to be the following:
+    ///
+    /// ```ignore
+    /// 00 01 02     # string="hello"<= cursor position
+    /// ```
+    ///
+    /// After calling this method, the output is supposed to be the following:
+    ///
+    /// ```ignore
+    /// 00 01 02     # string="hello"
+    /// <= cursor position
+    /// ```
+    ///
+    fn newline_for_file_structure_print(&mut self) {}
+}
+
+/// Prints the structural interpretation of the data read after the last time
+/// this macro is called.
+///
+/// Before calling this macro, the output is supposed to be the following:
+///
+/// ```ignore
+/// 00 01 02<= cursor position
+/// ```
+///
+/// After calling this macro with the following code:
+///
+/// ```ignore
+/// print_file_structure!(reader, "string=\"hello\"");
+/// ```
+///
+/// the output is supposed to be the following:
+///
+/// ```ignore
+/// 00 01 02     # string="hello"
+/// <= cursor position
+/// ```
+///
+/// This macro may be called multiple times before reading any data, and in
+/// that case the output is supposed to be the following:
+///
+/// ```ignore
+/// 00 01 02     # string="hello"
+///              # }
+///              # .directives
+/// <= cursor position
+/// ```
+///
+#[macro_export]
+macro_rules! print_file_structure(
+    ( $reader:expr, $fmt:expr $( , $more:expr )* ) => (
+        if $reader.is_file_structure_print_enabled() {
+            $reader.prepare_file_structure_column();
+            print!( $fmt $( , $more )* );
+            $reader.newline_for_file_structure_print();
+        }
+    )
+);
+
 /// An API for reading tokens.
 ///
 /// Note that a `TokenReader` by itself *cannot* determine the nature of the
 /// following token. Rather, the driver of the `TokenReader` must be able to
 /// deduce the nature of the following token from what it has previously
 /// read.
-pub trait TokenReader where Self::Error: Debug + From<::TokenReaderError>,
-                            Self::ListGuard: Guard<Error = Self::Error>,
-                            Self::TaggedGuard: Guard<Error = Self::Error>,
-                            Self::UntaggedGuard: Guard<Error = Self::Error>,
-                            Self: Sized
+pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::TokenReaderError>,
+                                                  Self::ListGuard: Guard<Error = Self::Error>,
+                                                  Self::TaggedGuard: Guard<Error = Self::Error>,
+                                                  Self::UntaggedGuard: Guard<Error = Self::Error>,
+                                                  Self: Sized
 {
     /// An error returned by the extractor.
     ///

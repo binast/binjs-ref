@@ -3,6 +3,7 @@
 #![feature(box_patterns)]
 #![recursion_limit="128"] // We have deeply nested data structures...
 
+#[macro_use]
 extern crate binjs_io;
 extern crate binjs_shared;
 

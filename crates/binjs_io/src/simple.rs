@@ -195,6 +195,7 @@ impl<R> TreeTokenReader<R> where R: Read + Seek {
     }
 }
 
+impl<R> FileStructurePrinter for TreeTokenReader<R> where R: Read + Seek {}
 
 impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     type ListGuard = ListGuard<R>;

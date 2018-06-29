@@ -45,6 +45,12 @@ cargo run --bin binjs_decode -- --help
 ```
 **Note** The JS parser may choke on very large JS source files. If so, you'll need to set the environment variable `NODE_MAX_OLD_SPACE_SIZE=xxxx`. This will instruct the Node-based parser to allocate more memory. The default value is 2048 (Mb). This is equivalent to passing `--max_old_space_size` to the Node process.
 
+4. Dump tree structure.
+```
+cargo run --bin binjs_dump -- --help
+```
+**Note** `binjs_dump` supports only `multipart` format.
+
 ## Compatibility with JavaScript source code
 
 Preserved:

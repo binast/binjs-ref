@@ -41,6 +41,7 @@ pub enum TokenReaderError {
 pub mod bytes;
 
 /// Definition of TokenReader/TokenWriter traits.
+#[macro_use]
 mod io;
 pub use io::*;
 

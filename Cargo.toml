@@ -34,12 +34,19 @@ webidl = "*"
 yaml-rust = "*"
 
 [[bin]]
+# Encode a text source to a BinJS.
 name = "binjs_encode"
 path = "src/bin/encode.rs"
 
 [[bin]]
+# Decode a BinJS to a text source
 name = "binjs_decode"
 path = "src/bin/decode.rs"
+
+[[bin]]
+# Dump a BinJS file structure to stdout.
+name = "binjs_dump"
+path = "src/bin/dump.rs"
 
 [[bench]]
 name = "bench_fb"
