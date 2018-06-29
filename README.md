@@ -81,4 +81,4 @@ by letting parsers jump over (functions) in a single operation.
 # Specifications
 
 - The semantics are specified [here](https://binast.github.io/ecmascript-binary-ast/).
-- The binary format is specified [here](https://binast.github.io/binjs-ref/binjs/io/multipart.html).
+- The binary format is specified [here](https://binast.github.io/binjs-ref/binjs_io/multipart/).
