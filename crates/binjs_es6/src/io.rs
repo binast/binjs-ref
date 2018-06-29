@@ -67,9 +67,17 @@ impl<R> Deserialization<R, String> for Deserializer<R> where R: TokenReader {
 impl<R, T> Deserialization<R, Vec<T>> for Deserializer<R> where R: TokenReader, Self: Deserialization<R, T> {
     fn deserialize(&mut self) -> Result<Vec<T>, R::Error> {
         let (len, guard) = self.reader.list()?;
+        if len > 0 {
+            print_file_structure!(self.reader, "list (length={}) [", len);
+        } else {
+            print_file_structure!(self.reader, "list (length=0) []");
+        }
         let mut result = Vec::with_capacity(len as usize);
         for _ in 0..len {
             result.push(self.deserialize()?);
+        }
+        if len > 0 {
+            print_file_structure!(self.reader, "]");
         }
         guard.done()?;
         Ok(result)

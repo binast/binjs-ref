@@ -1,6 +1,6 @@
 use std;
 use std::cell::RefCell;
-use std::io::{ Cursor, Read, Seek };
+use std::io::{ Cursor, Read, Seek, SeekFrom };
 use std::rc::Rc;
 
 use vec_map::VecMap;
@@ -142,11 +142,83 @@ impl Deserializer for NodeDescriptionDeserializer {
     }
 }
 
+/// A wrapper of Cursor which prints the the binary representation and
+/// handles printing structural interpretation.
+/// The underlying implementation for FileStructurePrinter for TreeTokenReader.
+struct DumpCursor {
+    reader: Cursor<Vec<u8>>,
+    file_format_print_enabled: bool,
+    newline: bool,
+}
+impl DumpCursor {
+    fn new(buf: Vec<u8>) -> DumpCursor {
+        DumpCursor {
+            reader: Cursor::new(buf),
+            file_format_print_enabled: false,
+            newline: false,
+        }
+    }
+
+    fn enable_file_structure_print(&mut self) {
+        self.file_format_print_enabled = true;
+    }
+    fn disable_file_structure_print(&mut self) {
+        self.file_format_print_enabled = false;
+    }
+    fn is_file_structure_print_enabled(&self) -> bool {
+        self.file_format_print_enabled
+    }
+    fn prepare_file_structure_column(&mut self) {
+        if self.is_file_structure_print_enabled() {
+            if self.newline {
+                self.newline = false;
+                print!("{:5} : {:<24}# ", "", "");
+            } else {
+                print!(" ");
+            }
+        };
+    }
+    fn newline_for_file_structure_print(&mut self) {
+        if self.is_file_structure_print_enabled() {
+            println!("");
+            self.newline = true;
+        };
+    }
+    fn newline_for_file_structure_print_if_necessary(&mut self) {
+        if !self.newline {
+            self.newline_for_file_structure_print();
+        };
+    }
+}
+impl std::io::Read for DumpCursor {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let offset = self.seek(SeekFrom::Current(0))?;
+        let x = self.reader.read(buf);
+        if self.is_file_structure_print_enabled() {
+            self.newline_for_file_structure_print_if_necessary();
+            print!("{:5} : {:<24}#",
+                   offset,
+                   buf
+                   .iter()
+                   .map(|b| format!("{:02x}", b))
+                   .collect::<Vec<String>>()
+                   .join(" "));
+            self.newline = false;
+        }
+        x
+    }
+}
+impl std::io::Seek for DumpCursor {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.reader.seek(pos)
+    }
+}
+
 /// The state of the `TreeTokenReader`.
 ///
 /// Use a `PoisonLock` to access this state.
 pub struct ReaderState {
-    reader: Cursor<Vec<u8>>,
+    reader: DumpCursor,
     pub strings_table: Table<Option<String>>,
     pub grammar_table: Table<NodeDescription>,
 }
@@ -204,7 +276,7 @@ impl TreeTokenReader {
         let implem = ReaderState {
             strings_table,
             grammar_table,
-            reader: Cursor::new(decompressed_tree)
+            reader: DumpCursor::new(decompressed_tree)
         };
 
         Ok(TreeTokenReader {
@@ -290,6 +362,14 @@ impl TokenReader for TreeTokenReader {
             match state.strings_table.get(index) {
                 Some(result) => {
                     debug!(target: "multipart", "Reading string {:?} => {:?}", index, result);
+                    match result {
+                        Some(s) => {
+                            print_file_structure!(state.reader, "string=\"{}\"", s);
+                        },
+                        None => {
+                            print_file_structure!(state.reader, "string=None");
+                        }
+                    };
                     Ok(result.clone())
                 }
                 None => Err(TokenReaderError::BadStringIndex(index))
@@ -306,6 +386,14 @@ impl TokenReader for TreeTokenReader {
                 .map_err(TokenReaderError::ReadError)?;
             let result = bytes::float::float_of_bytes(&buf);
             debug!(target: "multipart", "Reading float {:?} => {:?}", buf, result);
+            match result {
+                Some(f) => {
+                    print_file_structure!(state.reader, "float={}", f);
+                },
+                None => {
+                    print_file_structure!(state.reader, "float=None");
+                }
+            };
             Ok(result)
         })
     }
@@ -319,6 +407,15 @@ impl TokenReader for TreeTokenReader {
             let result = bytes::bool::bool_of_bytes(&buf)
                 .map_err(|_| TokenReaderError::InvalidValue);
             debug!(target: "multipart", "Reading bool {:?} => {:?}", buf, result);
+            match result {
+                Ok(Some(b)) => {
+                    print_file_structure!(state.reader, "bool={}", b);
+                },
+                Ok(None) => {
+                    print_file_structure!(state.reader, "bool=None");
+                },
+                Err(_) => {}
+            };
             result
         })
     }
@@ -328,6 +425,10 @@ impl TokenReader for TreeTokenReader {
         self.owner.borrow_mut().try(|state| {
             let byte_len = state.reader.read_varnum_2()
                 .map_err(TokenReaderError::ReadError)?;
+            let offset = state.reader.seek(SeekFrom::Current(0))
+                .map_err(TokenReaderError::ReadError)?;
+            print_file_structure!(state.reader, "offset=+{} ({})",
+                                  byte_len, offset + byte_len as u64);
             Ok(byte_len)
         })
     }
@@ -375,5 +476,42 @@ impl TokenReader for TreeTokenReader {
         let clone = self.owner.clone();
         debug!(target: "multipart", "Reading untagged tuple");
         Ok(SimpleGuard::new(clone))
+    }
+}
+
+impl FileStructurePrinter for TreeTokenReader {
+    fn enable_file_structure_print(&mut self) {
+        let _: Result<(),()> = self.owner.borrow_mut().try(|state| {
+            state.reader.enable_file_structure_print();
+            Ok(())
+        });
+    }
+    fn disable_file_structure_print(&mut self) {
+        let _: Result<(),()> = self.owner.borrow_mut().try(|state| {
+            state.reader.disable_file_structure_print();
+            Ok(())
+        });
+    }
+
+    fn is_file_structure_print_enabled(&mut self) -> bool {
+        let result: Result<bool,()> = self.owner.borrow_mut().try(|state| {
+            Ok(state.reader.is_file_structure_print_enabled())
+        });
+        match result {
+            Ok(b) => b,
+            Err(_) => false
+        }
+    }
+    fn prepare_file_structure_column(&mut self) {
+        let _: Result<(),()> = self.owner.borrow_mut().try(|state| {
+            state.reader.prepare_file_structure_column();
+            Ok(())
+        });
+    }
+    fn newline_for_file_structure_print(&mut self) {
+        let _: Result<(),()> = self.owner.borrow_mut().try(|state| {
+            state.reader.newline_for_file_structure_print();
+            Ok(())
+        });
     }
 }
