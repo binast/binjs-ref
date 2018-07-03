@@ -1,4 +1,4 @@
-use spec::{ self, SpecBuilder, TypeSum };
+use spec::{ self, Laziness, SpecBuilder, TypeSum };
 
 use webidl::ast::*;
 
@@ -129,9 +129,23 @@ impl Importer {
         let mut fields = Vec::new();
         for member in &interface.members {
             if let InterfaceMember::Attribute(Attribute::Regular(ref attribute)) = *member {
+                use webidl::ast::ExtendedAttribute::NoArguments;
+                use webidl::ast::Other::Identifier;
+
                 let name = self.builder.field_name(&attribute.name);
                 let type_ = self.convert_type(&*attribute.type_);
-                fields.push((name, type_));
+
+                let is_lazy = attribute.extended_attributes.iter()
+                    .find(|attribute| {
+                        if let &NoArguments(Identifier(ref id)) = attribute.as_ref() {
+                            if &*id == "Lazy" {
+                                return true;
+                            }
+                        }
+                        false
+                    })
+                    .is_some();
+                fields.push((name, type_, if is_lazy { Laziness::Lazy } else { Laziness:: Eager }));
             } else {
                 panic!("Expected an attribute, got {:?}", member);
             }
@@ -139,8 +153,8 @@ impl Importer {
         let name = self.builder.node_name(&interface.name);
         let mut node = self.builder.add_interface(&name)
             .expect("Name already present");
-        for (field_name, field_type) in fields.drain(..) {
-            node.with_field(&field_name, field_type);
+        for (field_name, field_type, laziness) in fields.drain(..) {
+            node.with_field_lazy(&field_name, field_type, laziness);
         }
 
         for extended_attribute in &interface.extended_attributes {
@@ -148,6 +162,7 @@ impl Importer {
             use webidl::ast::Other::Identifier;
             if let &NoArguments(Identifier(ref id)) = extended_attribute.as_ref() {
                 if &*id == "Skippable" {
+                    warn!("Encountered deprecated attribute [Skippable]");
                     node.with_skippable(true);
                 }
                 if &*id == "Scope" {

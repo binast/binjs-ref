@@ -273,7 +273,6 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 self.decode_object_contents(interface, mapped_field_names, guard)
             }
             Void => Ok(self.register(JSON::Null)),
-            _ => unimplemented!(),
         }
     }
 }

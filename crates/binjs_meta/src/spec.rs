@@ -9,6 +9,14 @@ use std::fmt::{ Debug, Display };
 use std::hash::*;
 use std::rc::*;
 
+/// Whether an attribute is eager or lazy.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Laziness {
+    /// An eager attribute is designed to be parsed immediately.
+    Eager,
+    /// A lazy attribute is designed for deferred parsing.
+    Lazy
+}
 
 /// The name of an interface or enum.
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,8 +120,7 @@ pub struct Field {
     /// Documentation for the field. Ignored for the time being.
     documentation: Option<String>,
 
-    /// If `true`, the field is designed to be read/written later.
-    is_lazy: bool,
+    laziness: Laziness
 }
 impl Hash for Field {
     fn hash<H>(&self, state: &mut H) where H: Hasher {
@@ -126,7 +133,7 @@ impl Field {
             name,
             type_,
             documentation: None,
-            is_lazy: false,
+            laziness: Laziness::Eager,
         }
     }
     pub fn name(&self) -> &FieldName {
@@ -141,8 +148,8 @@ impl Field {
             Some(ref s) => Some(&*s)
         }
     }
-    pub fn with_laziness(mut self, is_lazy: bool) -> Self {
-        self.is_lazy = is_lazy;
+    pub fn with_laziness(mut self, laziness: Laziness) -> Self {
+        self.laziness = laziness;
         self
     }
     pub fn with_doc(mut self, doc: Option<String>) -> Self {
@@ -472,14 +479,15 @@ impl Obj {
         self
     }
 
-    fn with_field_aux(self, name: &FieldName, type_: Type, doc: Option<&str>) -> Self {
+    fn with_field_aux(self, name: &FieldName, type_: Type, doc: Option<&str>, laziness: Laziness) -> Self {
         if self.field(name).is_some() {
             warn!("Field: attempting to overwrite {:?}", name);
             return self
         }
         let mut fields = self.fields;
         fields.push(Field::new(name.clone(), type_)
-            .with_doc(doc.map(str::to_string)));
+            .with_doc(doc.map(str::to_string))
+            .with_laziness(laziness));
         Obj {
             fields
         }
@@ -488,11 +496,15 @@ impl Obj {
 
     /// Extend a structure with a field.
     pub fn with_field(self, name: &FieldName, type_: Type) -> Self {
-        self.with_field_aux(name, type_, None)
+        self.with_field_aux(name, type_, None, Laziness::Eager)
     }
 
     pub fn with_field_doc(self, name: &FieldName, type_: Type, doc: &str) -> Self {
-        self.with_field_aux(name, type_, Some(doc))
+        self.with_field_aux(name, type_, Some(doc), Laziness::Eager)
+    }
+
+    pub fn with_field_lazy(self, name: &FieldName, type_: Type) -> Self {
+        self.with_field_aux(name, type_, None, Laziness::Lazy)
     }
 }
 
@@ -542,15 +554,18 @@ impl InterfaceDeclaration {
         self
     }
     pub fn with_field(&mut self, name: &FieldName, type_: Type) -> &mut Self {
-        self.with_field_aux(name, type_, None)
+        self.with_field_aux(name, type_, None, Laziness::Eager)
+    }
+    pub fn with_field_lazy(&mut self, name: &FieldName, type_: Type, laziness: Laziness) -> &mut Self {
+        self.with_field_aux(name, type_, None, laziness)
     }
     pub fn with_field_doc(&mut self, name: &FieldName, type_: Type, doc: &str) -> &mut Self {
-        self.with_field_aux(name, type_, Some(doc))
+        self.with_field_aux(name, type_, Some(doc), Laziness::Eager)
     }
-    fn with_field_aux(&mut self, name: &FieldName, type_: Type, doc: Option<&str>) -> &mut Self {
+    fn with_field_aux(&mut self, name: &FieldName, type_: Type, doc: Option<&str>, laziness: Laziness) -> &mut Self {
         let mut contents = Obj::new();
         std::mem::swap(&mut self.contents, &mut contents);
-        self.contents = contents.with_field_aux(name, type_, doc);
+        self.contents = contents.with_field_aux(name, type_, doc, laziness);
         self
     }
     pub fn with_skippable(&mut self, value: bool) -> &mut Self {
