@@ -103,9 +103,17 @@ impl TypeSum {
 /// Representation of a field in an interface.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Field {
+    /// The name of the field.
     name: FieldName,
+
+    /// The type of the field.
     type_: Type,
+
+    /// Documentation for the field. Ignored for the time being.
     documentation: Option<String>,
+
+    /// If `true`, the field is designed to be read/written later.
+    is_lazy: bool,
 }
 impl Hash for Field {
     fn hash<H>(&self, state: &mut H) where H: Hasher {
@@ -118,6 +126,7 @@ impl Field {
             name,
             type_,
             documentation: None,
+            is_lazy: false,
         }
     }
     pub fn name(&self) -> &FieldName {
@@ -131,6 +140,14 @@ impl Field {
             None => None,
             Some(ref s) => Some(&*s)
         }
+    }
+    pub fn with_laziness(mut self, is_lazy: bool) -> Self {
+        self.is_lazy = is_lazy;
+        self
+    }
+    pub fn with_doc(mut self, doc: Option<String>) -> Self {
+        self.documentation = doc;
+        self
     }
 }
 
@@ -461,11 +478,8 @@ impl Obj {
             return self
         }
         let mut fields = self.fields;
-        fields.push(Field {
-            name: name.clone(),
-            type_,
-            documentation: doc.map(str::to_string),
-        });
+        fields.push(Field::new(name.clone(), type_)
+            .with_doc(doc.map(str::to_string)));
         Obj {
             fields
         }
