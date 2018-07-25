@@ -13,18 +13,18 @@ pub trait Label : Sized {
     ///
     /// `index`: The index assigned to the label. May be `None` for a dictionary
     /// that doesn't use indices.
-    /// `parent`: The parent of the label. May be `None` for a root or a dictionary
-    /// that doesn't use parents.
-    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error>;
+    /// `parent`: The parent of the label, along with the child index. May be `None`
+    /// for a root or a dictionary that doesn't use parents.
+    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, parent: Option<(&Self, usize)>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error>;
 }
 
 pub trait Dictionary<T, W: Write> {
     /// Return `true` if we just added the definition of the label to the dictionary,
     /// `false` if it was already present.
-    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label(&mut self, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
         self.write_label_at(None, label, parent, out)
     }
-    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error>;
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error>;
 }
 
 fn add_baseline(index: usize, baseline: Option<usize>) -> usize {
@@ -37,10 +37,10 @@ fn add_baseline(index: usize, baseline: Option<usize>) -> usize {
 impl<T, U, W: Write> Dictionary<T, W> for Box<U> where U: Dictionary<T, W> {
     /// Return `true` if we just added the definition of the label to the dictionary,
     /// `false` if it was already present.
-    fn write_label(&mut self, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label(&mut self, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
         self.write_label_at(None, label, parent, out)
     }
-    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
         use std::ops::DerefMut;
         self.deref_mut().write_label_at(baseline, label, parent, out)
     }
@@ -61,7 +61,7 @@ impl<T> RawLabeler<T> {
     }
 }
 impl<T, W: Write> Dictionary<T, W> for RawLabeler<T> where T: Label {
-    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
         label.write_definition(baseline, parent, self, out)?;
         Ok(true)
     }
@@ -78,7 +78,7 @@ impl<T> MRULabeler<T> where T: Eq + Label + Clone {
     }
 }
 impl<T, W: Write> Dictionary<T, W> for MRULabeler<T> where T: Eq + Label + Clone {
-    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
         use binjs_shared::mru::Seen::*;
         match self.mru.access(label) {
             Age(index) => {
@@ -119,7 +119,7 @@ impl<T> ExplicitIndexLabeler<T> where T: Eq + Hash + Label {
     }
 }
 impl<T, W: Write> Dictionary<T, W> for ExplicitIndexLabeler<T> where T: Eq + Hash + Label + Debug {
-    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
         let (index, is_first) = {
             let found = self.dictionary.get_mut(label)
                 .unwrap_or_else(|| panic!("Could not find label {:?} in ExplicitIndexLabeler", label));
@@ -155,10 +155,10 @@ impl<T, U, W> ParentPredictionDumbLabeler<T, U, W> where T: Eq + Hash + Label + 
 }
 
 impl<T, U, W> Dictionary<T, W> for ParentPredictionDumbLabeler<T, U, W> where T: Eq + Hash + Label + Clone + Debug, U: Dictionary<T, W>, W: Write {
-    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
         use std::collections::hash_map::Entry::*;
         let introduced_namespaced_number = {
-            let this_parent = self.per_parent.entry(parent.map(T::clone))
+            let this_parent = self.per_parent.entry(parent.map(|(label, _)| label.clone()))
                 .or_insert_with(|| HashMap::new());
             let number_of_children = this_parent.len();
             match this_parent.entry(label.clone()) {
@@ -215,8 +215,8 @@ impl<T, U, W> ParentPredictionFrequencyLabeler<T, U, W> where T: Eq + Hash + Lab
 }
 
 impl<T, U, W> Dictionary<T, W> for ParentPredictionFrequencyLabeler<T, U, W> where T: Eq + Hash + Label + Clone + Debug, U: Dictionary<T, W>, W: Write {
-    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
-        let this_parent = self.per_parent.entry(parent.map(T::clone))
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, parent: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
+        let this_parent = self.per_parent.entry(parent.map(|(label, _)| label.clone()))
             .or_insert_with(|| Vec::new());
 
         if let Some(position) = this_parent.iter().position(|entries| entries.label == *label) {
@@ -269,7 +269,7 @@ impl<T, U, W> GlobalLabeler<T, U, W> where T: Eq + Hash + Label + Clone, U: Dict
     }
 }
 impl<T, U, W> Dictionary<T, W> for GlobalLabeler<T, U, W> where U: Dictionary<T, W>, W: Write {
-    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, _: Option<&T>, out: &mut W) -> Result<bool, std::io::Error> {
+    fn write_label_at(&mut self, baseline: Option<usize>, label: &T, _: Option<(&T, usize)>, out: &mut W) -> Result<bool, std::io::Error> {
         self.strategy.write_label_at(baseline, label, None, out)
     }
 }

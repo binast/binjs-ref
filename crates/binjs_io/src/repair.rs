@@ -108,7 +108,7 @@ impl std::fmt::Display for Label {
 }
 
 impl WritableLabel for Label {
-    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, parent: Option<&Self>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
+    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, parent: Option<(&Self, usize)>, strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
         use self::Label::*;
         if let Some(index) = index {
             use bytes::varnum::WriteVarNum;
@@ -178,15 +178,16 @@ impl Label {
         }
     }
 
-    fn serialize<W: Write + Pos, L: Dictionary<Label, W>>(&self, labeling: &mut L, parent: Option<&Self>, out: &mut W) {
+    fn serialize<W: Write + Pos, L: Dictionary<Label, W>>(&self, labeling: &mut L, parent: Option<(&Self, usize)>, out: &mut W) {
         debug!(target: "repair-io", "Writing reference to label {} at index {}", self, out.pos());
 
         let start = out.pos();
-        let was_first = labeling.write_label(self, parent, out).expect("IO Error");
+        let was_first = labeling.write_label(self, parent, out)
+            .expect("IO Error");
         let stop = out.pos();
 
         if was_first {
-            // Never seen: the number os the smallest possible "unknown" value, now write the definition.
+            // Never seen: the number is the smallest possible "unknown" value, now write the definition.
             info!(target: "repair", "Added to dictionary {}", *self);
             debug!(target: "repair", "Added to dictionary {} at {}-{}", *self, start, stop);
         }
@@ -311,14 +312,14 @@ impl SubTree {
     fn serialize<W, L>(&self, mru: &mut L, out: &mut W)
         where W: Write + Pos, L: Dictionary<Label, W>
     {
-        fn aux<W, L>(tree: &SubTree, mru: &mut L, parent: Option<&Label>, out: &mut W)
+        fn aux<W, L>(tree: &SubTree, mru: &mut L, parent: Option<(&Label, usize)>, out: &mut W)
             where W: Write + Pos, L: Dictionary<Label, W>
         {
             // Write header.
             tree.label.serialize(mru, parent, out);
             // Then write children in the order.
-            for child in &tree.children {
-                aux(&*child.borrow(), mru, Some(&tree.label), out)
+            for (i, child) in tree.children.iter().enumerate() {
+                aux(&*child.borrow(), mru, Some((&tree.label, i)), out)
             }
         }
         aux(self, mru, None, out);

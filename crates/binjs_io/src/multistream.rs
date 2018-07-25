@@ -186,7 +186,7 @@ impl SubTree {
         }
         f(Direction::Exit, &mut self.label);
     }
-    fn serialize_label<W: Write>(&self, parent: Option<&Label>, compressors: &mut PerCategory<Compressor<W>>) -> Result<(), std::io::Error> {
+    fn serialize_label<W: Write>(&self, parent: Option<(&Label, usize)>, compressors: &mut PerCategory<Compressor<W>>) -> Result<(), std::io::Error> {
         let compressor = match self.label {
             Label::String(_) => &mut compressors.strings,
             Label::Number(_) => &mut compressors.numbers,
@@ -208,9 +208,10 @@ impl SubTree {
         };
         if options.sibling_labels_together {
             // First all the labels of children.
-            for child in &self.children {
+            for (i, child) in self.children.iter().enumerate() {
+                let my_parent = new_parent.map(|label| (label, i));
                 let borrow = child.borrow();
-                borrow.serialize_label(new_parent, compressors)?;
+                borrow.serialize_label(my_parent, compressors)?;
             }
             // Then actually walk the children.
             for child in &self.children {
@@ -219,9 +220,10 @@ impl SubTree {
             }
         } else {
             // Everything at once.
-            for child in &self.children {
+            for (i, child) in self.children.iter().enumerate() {
+                let my_parent = new_parent.map(|label| (label, i));
                 let borrow = child.borrow();
-                borrow.serialize_label(new_parent, compressors)?;
+                borrow.serialize_label(my_parent, compressors)?;
                 borrow.serialize_children(options, new_parent, compressors)?;
             }
         }
@@ -300,7 +302,7 @@ impl Hash for Label {
 }
 
 impl WritableLabel for Label {
-    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, _parent: Option<&Self>, _strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
+    fn write_definition<W: Write, L: Dictionary<Self, W>>(&self, index: Option<usize>, _parent: Option<(&Self, usize)>, _strategy: &mut L, out: &mut W) -> Result<(), std::io::Error> {
         use self::Label::*;
         if let Some(index) = index {
             use bytes::varnum::WriteVarNum;
