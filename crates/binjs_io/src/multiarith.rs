@@ -27,7 +27,9 @@
 //! # Extensibility
 //!
 //! While we can have a built-in initial dictionary, the list of symbols cannot be
-//! hardcoded.
+//! fully hardcoded, as there is no guarantee that the decoder won't be designed
+//! for a more recent version of the language, which may have different nodes/enums,
+//! etc.
 //!
 //!
 //!
@@ -53,6 +55,7 @@ use std::io::Write;
 use std::rc::Rc;
 
 use itertools::Itertools;
+use vec_map::VecMap;
 
 struct BitWriter; // Placeholder
 
@@ -64,7 +67,7 @@ enum Appearance {
 }
 
 /// Instructions for serializing a symbol.
-struct Serial {
+struct Symbol {
     /// The index for this symbol.
     ///
     /// For instance, in
@@ -84,11 +87,10 @@ struct Serial {
     ///
     /// FIXME: How do we make this future-proof? If the order of values changes in
     /// the `enum` or if we add a new value in the middle? Or should we forbid this?
-    index: u64,
-
-    /// FIXME: How do we make sure that we *can* add new symbols?
-    probability: u64,
-    appearance: Appearance,
+    index: usize,
+    instances: usize,
+    low: usize,
+    high: usize,
 }
 
 /*
@@ -146,83 +148,140 @@ struct Context<'a> {
     parent: Option<(&'a SharedTree, usize)>,
 }
 
+/// One-level prediction, using the label of the parent and the index of the child.
+#[derive(Default)]
+struct Predict1<K, T> where K: Eq + Hash {
+    by_parent: HashMap<Option<Tag> /* parent */, VecMap< /* child index */ HashMap<K /* child */, T>>>,
+}
 struct Compressor {
+    tags: Predict1<Tag, (Symbol, RefCell<Appearance>)>,
 }
 impl Compressor {
-    fn compress(&mut self, subtree: &SharedTree, path: &mut Vec<(SharedTree, usize)>) -> Result<(), std::io::Error> {
+    fn compute_instances(predict_1: &mut Predict1<Tag, /* instances */ usize>, subtree: &SharedTree, parent: Option<(&Tag, usize)>)
+    {
+        use std::collections::hash_map::Entry::*;
         let borrow = subtree.borrow();
         match borrow.label {
             Label::Tag(ref tag) => {
-                // FIXME: Check latest probability of `(subtree, parent)`.
-                // FIXME: Deduce probability range.
-                // FIXME: Update latest probability.
-                // FIXME: Find out if we have already seen `(subtree, parent)`. If not, write to BitWriter.
+                let mut by_index = match parent {
+                    None => {
+                        let mut by_parent = predict_1.by_parent.entry(None)
+                            .or_insert_with(|| VecMap::with_capacity(1));
+                        by_parent.entry(0)
+                            .or_insert_with(|| HashMap::new())
+                    }
+                    Some((parent, index)) => {
+                        let mut by_parent = predict_1.by_parent.entry(Some(parent.clone()))
+                            .or_insert_with(|| VecMap::with_capacity(5));
+                        by_parent.entry(index)
+                            .or_insert_with(|| HashMap::new())
+                    }
+                };
+                let symbols = by_index.len();
+                by_index.entry(tag.clone())
+                    .and_modify(|instances| {
+                        *instances += 1
+                    })
+                    .or_insert(1);
+
+            }
+            _ => {
+                warn!(target: "multiarith", "Skipping initialization of predictor for label {:?} (not implemented yet)", borrow.label);
+            }
+        }
+        // Recur towards children.
+        match borrow.label {
+            Label::Tag(ref tag) => {
+                for (index, child) in borrow.children.iter().enumerate() {
+                    Self::compute_instances(predict_1, child, Some((tag, index)));
+                }
+            }
+            _ => {
+                for (index, child) in borrow.children.iter().enumerate() {
+                    Self::compute_instances(predict_1, child, parent);
+                }
+            }
+        }
+    }
+    fn new(tree: &SharedTree) -> Self {
+        let mut predict_instances_1 = Predict1::default();
+        // Initialize number of instances.
+        Self::compute_instances(&mut predict_instances_1, tree, None);
+
+        // Deduce probabilities.
+        let probabilities = predict_instances_1.by_parent.drain()
+            .map(|(parent, mut by_child_index)| {
+                let by_child_index = by_child_index.drain()
+                    .map(|(child_index, mut by_symbol)| {
+                        let number_of_symbols = by_symbol.len();
+                        let total_instances : usize = by_symbol.values()
+                            .sum();
+                        let mut cursor = 0;
+                        let by_symbol = by_symbol.drain()
+                            .enumerate()
+                            .map(|(index, (tag, instances))| {
+                                let low = cursor;
+                                cursor += instances;
+                                let high = cursor;
+                                let symbol = Symbol {
+                                    low,
+                                    high,
+                                    instances,
+                                    index
+                                };
+                                (tag, (symbol, RefCell::new(Appearance::First)))
+                            })
+                            .collect();
+                        (child_index, by_symbol)
+                    })
+                    .collect();
+                (parent, by_child_index)
+            }).collect();
+        Compressor {
+            tags: Predict1 {
+                by_parent: probabilities
+            }
+        }
+    }
+    fn compress(&mut self, subtree: &SharedTree, parent: Option<(&Tag, usize)>) -> Result<(), std::io::Error> {
+        let borrow = subtree.borrow();
+        match borrow.label {
+            Label::Tag(ref tag) => {
+                let (parent, index) = match parent {
+                    None => (None, 0),
+                    Some((parent, index)) => (Some(parent.clone()), index)
+                };
+                let (ref symbol, ref appearance) = self.tags.by_parent.get(&parent)
+                    .expect("Could not find parent")
+                    .get(index)
+                    .expect("Could not find index")
+                    .get(tag)
+                    .expect("Could not find tag");
+                unimplemented!("FIXME: We now have the probability of `(subtree, parent)`. Use it to refine the current segment");
+                let appearance = appearance.borrow_mut();
+                if let Appearance::First = *appearance {
+                    unimplemented!("FIXME: Add definition of the current label");
+                }
             }
             _ => {
                 warn!(target: "multiarith", "Skipping serialization of label {:?} (not implemented yet)", borrow.label);
             }
         }
-        // Compress children.
-        if borrow.children.len() == 0 {
-            return Ok(())
-        }
-        if let Label::List(_) = borrow.label {
-            // We don't care about the position in a label.
-            for child in borrow.children.iter() {
-                self.compress(child, path)?;
-            }
-        } else {
-            for (i, child) in borrow.children.iter().enumerate() {
-                path.push((subtree.clone(), i)); // FIXME: We don't need that much cloning.
-                self.compress(child, path)?;
-                path.pop();
-            }
-        }
-        Ok(())
-    }
-
-/*
-    fn serialize_label<M>(&self, parent: &Option<(SharedTree, usize)>, compressors: &mut PerCategory<Compressor<M>>) -> Result<(), std::io::Error>
-        where M: Model<Label = Label, Context = Context>
-    {
-        match self.label {
+        // Recur towards children.
+        match borrow.label {
             Label::Tag(ref tag) => {
-                if compressors.tags.compress(&parent, &self.label)? {
-                    // This is the first time we encounter the label, we need to define it.
-                    compressors.tags.add_definition(tag.as_bytes())?
+                for (index, child) in borrow.children.iter().enumerate() {
+                    self.compress(child, Some((tag, index)))?;
                 }
             }
             _ => {
-                warn!(target: "multiarith", "Skipping serialization of label {:?} (not implemented yet)", self.label);
-                return Ok(())
+                for (index, child) in borrow.children.iter().enumerate() {
+                    self.compress(child, parent)?;
+                }
             }
         }
         Ok(())
     }
-    fn serialize_children<M>(&self, parent: &Option<SharedTree>, compressors: &mut PerCategory<Compressor<M>>) -> Result<(), std::io::Error>
-        where M: Model<Label = Label, Context = Context>
-    {
-        let new_parent = match self.label {
-            Label::Tag(_) => Some(self.clone()),
-            _ => (*parent).clone(), // FIXME: We could do without so much cloning.
-        };
-        // Serialize children in order.
-        for (i, child) in self.children.iter().enumerate() {
-            let my_parent = match new_parent {
-                None => None,
-                Some(rc) => Some((rc.clone(), i)) // FIXME: We could do without so much cloning.
-            };
-            let borrow = child.borrow();
-            borrow.serialize_label(my_parent, compressors)?;
-            borrow.serialize_children(new_parent, compressors)?;
-        }
-        Ok(())
-    }
-
-
-    }
-*/
-
 }
 
 impl SubTree {
@@ -264,13 +323,26 @@ impl Hash for F64 {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Tag(Rc<String>);
+impl Default for Tag {
+    fn default() -> Tag {
+        Self::new("")
+    }
+}
+impl Tag {
+    fn new(s: &str) -> Self {
+        Tag(Rc::new(s.to_string()))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord)]
 pub enum Label {
     String(Option<Rc<String>>),
     Number(Option<F64>),
     Bool(Option<bool>),
     List(Option<u32>),
-    Tag(Rc<String>),
+    Tag(Tag),
     /// Scope. Any `Declare` within the `Scope`
     /// stays in the `Scope`.
     Scope(ScopeIndex),
@@ -393,7 +465,7 @@ impl TreeTokenWriter {
             })))
             .collect();
         let declared_undeclared_variables = self.new_tree(SubTree {
-            label: Label::Tag(Rc::new("_undeclared_variables".to_string())),
+            label: Label::Tag(Tag::new("_undeclared_variables")),
             children: top
         })?;
         let scope_index = self.scope_counter.next();
@@ -413,7 +485,7 @@ impl TokenWriter for TreeTokenWriter {
 
     fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         self.new_tree(SubTree {
-            label: Label::Tag(Rc::new(tag.to_string())),
+            label: Label::Tag(Tag::new(tag)),
             children: children.iter()
                 .map(|(_, tree)| tree.clone())
                 .collect()
