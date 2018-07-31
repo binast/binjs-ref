@@ -77,6 +77,7 @@ pub mod simple;
 pub mod multipart;
 
 pub mod multistream;
+pub mod multiarith;
 
 /// A tree comperssion mechanism.
 pub mod repair;

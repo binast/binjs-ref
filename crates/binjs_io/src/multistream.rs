@@ -5,12 +5,11 @@
 //! - One stream of floats
 //! - ...
 //!
-//! Each stream is compressed separately, which should increase compressibility.
-
-// FIXME: Can we easily interleave streams of e.g. gzip, brotli?
-
-// FIXME: Since we're going to inline the definition of node kinds, we could try and toy with
-// with the bytes used to represent child instances to make them use the same alphabet.
+//! Each stream is compressed separately, which should increase compressibility. Also, we attempt
+//! to reduce the size of the alphabet by encouraging small numbers. We do this through PPM-style
+//! predictions.
+//!
+//! Eventually, the objective is to interleave streams of e.g. gzip, brotli into a single streaming format.
 
 use io::TokenWriter;
 use labels::{ Dictionary, Label as WritableLabel };
