@@ -864,7 +864,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                 .sorted();
             for name in &names {
                 let interface = source.get(name).unwrap();
-                let field_specs : HashMap<_, _> = interface.contents().fields()
+                let field_specs : Vec<_> = interface.contents().fields()
                     .iter()
                     .map(|field| {
                         let spec = if field.type_().is_optional() {
@@ -881,6 +881,12 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                             }
                         };
                         (field.name(), spec)
+                    })
+                    .collect();
+                let field_specs_map : HashMap<_, _> = field_specs
+                    .iter()
+                    .map(|(a, b)| {
+                        (a.clone(), b)
                     })
                     .collect();
                 let name = name.to_class_cases();
@@ -975,7 +981,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
         let data_{name} = (self.deserialize() as Result<{spec}, R::Error>)?;
 ",
                             name = field.name().to_rust_identifier_case(),
-                            spec = field_specs.get(field.name()).unwrap()))
+                            spec = field_specs_map.get(field.name()).unwrap()))
                         .format("\n"),
                     fields_use = interface.contents()
                         .fields()
