@@ -8,12 +8,10 @@ use util::GenericCounter;
 use std;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::hash::Hash;
+use std::io::Write;
 use std::rc::Rc;
 
 use vec_map::VecMap;
-
-struct BitWriter; // Placeholder
 
 #[derive(Clone, Copy, Debug)]
 enum Direction {
@@ -22,16 +20,12 @@ enum Direction {
 }
 
 
-struct Segment {
+struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
     /// Low value for this segment.
     ///
-    /// The probability of the segment is `(high - low)/context_total`.
-    low:  usize,
-
-    /// High value for this segment.
-    ///
-    /// MUST be greater or equal to `low`.
-    high: usize,
+    /// The probability of the segment is `(high - low)/context_length`.
+    low:  u32,
+    length: u32,
 
 
     /// The highest possible value of `high` in this context.
@@ -39,14 +33,14 @@ struct Segment {
     /// MUST be consistent across segments for the same context.
     ///
     /// MUST be greater or equal to `high`.
-    context_highest: usize,
+    context_length: u32,
 
     /// If `true`, this is the first occurrence of this symbol in the
     /// context, so a definition must be injected.
     needs_definition: bool,
 }
 
-trait EncodingModel {
+pub trait EncodingModel {
     /// Get the frequency of a tag as a child of a given parent.
     ///
     /// If the model is adaptative, this will increase the number of uses of the tag in this context by 1.
@@ -55,7 +49,7 @@ trait EncodingModel {
     fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>;
 }
 
-struct LinearAdaptiveEncodingModel {
+struct LinearAdaptiveEncodingPseudoModel {
     tags: Predict1<Tag, Segment>,
 }
 
@@ -142,11 +136,10 @@ impl ExactEncodingModel {
                             .map(|(index, (tag, instances))| {
                                 let low = cursor;
                                 cursor += instances;
-                                let high = cursor;
                                 let segment = Segment {
-                                    low,
-                                    high,
-                                    context_highest: total_instances,
+                                    low: low as u32,
+                                    length: instances as u32,
+                                    context_length: total_instances as u32,
                                     needs_definition: true,
                                 };
                                 (tag, segment)
@@ -163,52 +156,6 @@ impl ExactEncodingModel {
                 by_parent: probabilities
             }
         }
-    }
-}
-
-
-struct PerCategory<T> {
-    tags: T,
-}
-
-struct Context<'a> {
-    tree: &'a SharedTree,
-    parent: Option<(&'a SharedTree, usize)>,
-}
-
-struct Encoder<M> where M: EncodingModel {
-    model: M,
-}
-impl<M> Encoder<M> where M: EncodingModel {
-    fn compress(&mut self, subtree: &SharedTree, parent: Option<(&Tag, usize)>) -> Result<(), std::io::Error> {
-        let borrow = subtree.borrow();
-        match borrow.label {
-            Label::Tag(ref tag) => {
-                let segment = self.model.tag_frequency_for_encoding(tag, parent)
-                    .expect("Could not compute tag frequency");
-                unimplemented!("FIXME: We now have the probability of `(subtree, parent)`. Use it to refine the current segment");
-                if segment.needs_definition {
-                    unimplemented!("FIXME: Append definition of the current label");
-                }
-            }
-            _ => {
-                warn!(target: "multiarith", "Skipping serialization of label {:?} (not implemented yet)", borrow.label);
-            }
-        }
-        // Recur towards children.
-        match borrow.label {
-            Label::Tag(ref tag) => {
-                for (index, child) in borrow.children.iter().enumerate() {
-                    self.compress(child, Some((tag, index)))?;
-                }
-            }
-            _ => {
-                for (index, child) in borrow.children.iter().enumerate() {
-                    self.compress(child, parent)?;
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -229,16 +176,18 @@ impl SubTree {
 }
 
 
-
-
-pub struct TreeTokenWriter {
+pub struct TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
     root: SharedTree,
     scope_counter: GenericCounter<ScopeIndex>,
+    model: M,
+    encoder: SymbolEncoder<W>,
 }
-impl TreeTokenWriter {
-    pub fn new() -> Self {
+impl<M, W> TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
+    pub fn new(model: M, writer: W) -> Self {
         Self {
             scope_counter: GenericCounter::new(),
+            model,
+            encoder: SymbolEncoder::new(writer),
             root: Rc::new(RefCell::new(SubTree {
                 label: Label::String(None),
                 children: vec![]
@@ -334,8 +283,41 @@ impl TreeTokenWriter {
             ]
         })
     }
+
+    fn compress(&mut self, subtree: &SharedTree, parent: Option<(&Tag, usize)>) -> Result<(), std::io::Error> {
+        let borrow = subtree.borrow();
+        match borrow.label {
+            Label::Tag(ref tag) => {
+                let segment = self.model.tag_frequency_for_encoding(tag, parent)
+                    .expect("Could not compute tag frequency");
+                self.encoder.append_segment(&segment)?;
+                if segment.needs_definition {
+                    unimplemented!("FIXME: Append definition of the current label");
+                }
+            }
+            _ => {
+                warn!(target: "multiarith", "Skipping serialization of label {:?} (not implemented yet)", borrow.label);
+            }
+        }
+        // Recur towards children.
+        match borrow.label {
+            Label::Tag(ref tag) => {
+                for (index, child) in borrow.children.iter().enumerate() {
+                    self.compress(child, Some((tag, index)))?;
+                }
+            }
+            _ => {
+                for (index, child) in borrow.children.iter().enumerate() {
+                    self.compress(child, parent)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
-impl TokenWriter for TreeTokenWriter {
+
+
+impl<M, W> TokenWriter for TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
     type Statistics = usize; // Placeholder
     type Tree = SharedTree;
     type Data = Vec<u8>;
@@ -392,6 +374,88 @@ impl TokenWriter for TreeTokenWriter {
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
         self.number_references()?;
 
-        unimplemented!()
+        unimplemented!("FIXME: Compress")
+    }
+}
+
+struct SymbolEncoder<W> where W: Write {
+    low: u64,
+    length: Option<u64>,
+    /// Bits waiting to be written.
+    buffer: u8,
+    /// Number of bits waiting to be written.
+    ///
+    /// Invariant: < sizeof(buffer)
+    bits_ready: u8,
+    writer: W,
+}
+impl<W> SymbolEncoder<W> where W: Write {
+    pub fn new(writer: W) -> Self {
+        Self {
+            low: 0,
+            buffer: 0,
+            bits_ready: 0,
+            writer,
+            length: None, // Initialized upon the first call to `append_segment`.
+        }
+    }
+    pub fn append_segment(&mut self, segment: &Segment) -> Result<(), std::io::Error> {
+        // Update segment.
+        let length = match self.length {
+            None => {
+                debug_assert_eq!(self.bits_ready, 0);
+                debug_assert_eq!(self.buffer, 0);
+                let length = segment.length as u64;
+                self.low = segment.low as u64;
+                length
+            }
+            Some(ref length) => {
+                let context_length = segment.context_length as u64;
+                self.low = self.low + ((*length * segment.low as u64) / context_length);
+                *length * (segment.length as u64) / context_length
+            }
+        };
+        // Flush higher digits if possible.
+        // FIXME: Won't work on all endiannesses.
+        let high_bit: u64 = 1u64.rotate_right(1);
+        let mut high = self.low + length - 1;
+        loop {
+            use std::ops::Shl;
+            if self.low & high_bit == high & high_bit {
+                // We may now flush the highest bit.
+                let bit = self.low & high_bit;
+
+                // Renormalize low (last digit must always be 0)
+                self.low = self.low.shl(1);
+
+                // Renormalize high (last digit must always be 1)
+                high = high.shl(1) | 1u64;
+                debug_assert!(high >= self.low);
+
+                self.append_bit(bit == 1)?;
+            }
+        }
+        self.length = Some(high - self.low + 1);
+        Ok(())
+    }
+
+    fn append_bit(&mut self, bit: bool) -> Result<(), std::io::Error> {
+        assert!((self.bits_ready as usize) < std::mem::size_of_val(&self.buffer));
+        self.bits_ready += 1;
+        self.buffer = self.buffer * 2 + if bit { 1 } else { 0 };
+        if self.bits_ready as usize == std::mem::size_of_val(&self.buffer) {
+            self.flush_bits()?;
+        }
+        Ok(())
+    }
+
+    /// Flush `self.buffer`.
+    ///
+    /// Does NOT flush `self.writer`, `self.low` or `self.high`.
+    fn flush_bits -> Result<(), std::io::Error> {
+        self.writer.write(&[self.buffer])?;
+        self.bits_ready = 0;
+        self.buffer = 0;
+        Ok(())
     }
 }
