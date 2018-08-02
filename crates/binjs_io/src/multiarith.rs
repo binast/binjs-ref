@@ -24,7 +24,7 @@
 //! Similarly, we'll encode `left` and `right` in context C + `BinaryOperation`.
 //!
 //!
-//! # Format
+//! # Format // DEPRECATED!
 //!
 //! Magic Header:
 //!  TBD
@@ -190,71 +190,30 @@ struct Symbol {
     high: usize,
 }
 
-/*
-trait Model {
-    type Context;
-    type Label;
-    fn get_frequency(&mut self, context: &Self::Context, label: &Self::Label) -> Result<Serial, ()>;
+struct Segment {
+    low:  usize,
+    high: usize,
+    context_top: usize,
+
+    needs_definition: bool,
 }
 
-struct Compressor<M> where M: Model {
-    model: M,
-    sink: BitWriter,
-}
-impl<M> Compressor<M> where M: Model {
-    /// Change internal state to introduce a new symbol.
+trait EncodingModel {
+    /// Get the frequency of a tag as a child of a given parent.
     ///
-    /// This symbol will eventually be written to the sink.
+    /// If the model is adaptative, this will increase the number of uses of the tag in this context by 1.
     ///
-    /// `Ok(true)` if this is the first time the symbol is written
-    /// and we need to call `add_definition` to define it.
-    fn compress(&mut self, context: &M::Context, label: &M::Label) -> Result<bool, std::io::Error> {
-        unimplemented!()
-    }
-    fn add_definition(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
-        unimplemented!()
-    }
-    fn flush(&mut self) -> Result<(), std::io::Error> {
-        unimplemented!()
-    }
-    fn done(self) -> (M, BitWriter) {
-        unimplemented!()
-    }
-}
-*/
-
-#[derive(Clone, Debug)]
-pub struct SubTree {
-    label: Label,
-    children: Vec<SharedTree>,
-}
-pub type SharedTree = Rc<RefCell<SubTree>>;
-
-#[derive(Clone, Copy, Debug)]
-enum Direction {
-    Enter,
-    Exit
+    /// `needs_definition` will always be `false` after the first call for a given tag/parent.
+    fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>;
 }
 
-struct PerCategory<T> {
-    tags: T,
+/// An encoding model which starts by analyzing the full AST to determine
+/// exact statistics.
+struct ExactEncodingModel {
+    tags: Predict1<Tag, Segment>,
 }
-
-struct Context<'a> {
-    tree: &'a SharedTree,
-    parent: Option<(&'a SharedTree, usize)>,
-}
-
-/// One-level prediction, using the label of the parent and the index of the child.
-#[derive(Default)]
-struct Predict1<K, T> where K: Eq + Hash {
-    by_parent: HashMap<Option<Tag> /* parent */, VecMap< /* child index */ HashMap<K /* child */, T>>>,
-}
-struct Compressor {
-    tags: Predict1<Tag, (Symbol, RefCell<Appearance>)>,
-}
-impl Compressor {
-    fn compute_instances(predict_1: &mut Predict1<Tag, /* instances */ usize>, subtree: &SharedTree, parent: Option<(&Tag, usize)>)
+impl ExactEncodingModel {
+    fn init_tags(predict_1: &mut Predict1<Tag, /* instances */ usize>, subtree: &SharedTree, parent: Option<(&Tag, usize)>)
     {
         use std::collections::hash_map::Entry::*;
         let borrow = subtree.borrow();
@@ -290,12 +249,12 @@ impl Compressor {
         match borrow.label {
             Label::Tag(ref tag) => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    Self::compute_instances(predict_1, child, Some((tag, index)));
+                    Self::init_tags(predict_1, child, Some((tag, index)));
                 }
             }
             _ => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    Self::compute_instances(predict_1, child, parent);
+                    Self::init_tags(predict_1, child, parent);
                 }
             }
         }
@@ -303,7 +262,7 @@ impl Compressor {
     fn new(tree: &SharedTree) -> Self {
         let mut predict_instances_1 = Predict1::default();
         // Initialize number of instances.
-        Self::compute_instances(&mut predict_instances_1, tree, None);
+        Self::init_tags(&mut predict_instances_1, tree, None);
 
         // Deduce probabilities.
         let probabilities = predict_instances_1.by_parent.drain()
@@ -320,43 +279,68 @@ impl Compressor {
                                 let low = cursor;
                                 cursor += instances;
                                 let high = cursor;
-                                let symbol = Symbol {
+                                let segment = Segment {
                                     low,
                                     high,
-                                    instances,
-                                    index
+                                    context_top: total_instances,
+                                    needs_definition: true,
                                 };
-                                (tag, (symbol, RefCell::new(Appearance::First)))
+                                (tag, segment)
                             })
                             .collect();
+                        assert_eq!(cursor, total_instances);
                         (child_index, by_symbol)
                     })
                     .collect();
                 (parent, by_child_index)
             }).collect();
-        Compressor {
+        Self {
             tags: Predict1 {
                 by_parent: probabilities
             }
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct SubTree {
+    label: Label,
+    children: Vec<SharedTree>,
+}
+pub type SharedTree = Rc<RefCell<SubTree>>;
+
+#[derive(Clone, Copy, Debug)]
+enum Direction {
+    Enter,
+    Exit
+}
+
+struct PerCategory<T> {
+    tags: T,
+}
+
+struct Context<'a> {
+    tree: &'a SharedTree,
+    parent: Option<(&'a SharedTree, usize)>,
+}
+
+/// One-level prediction, using the label of the parent and the index of the child.
+#[derive(Default)]
+struct Predict1<K, T> where K: Eq + Hash {
+    by_parent: HashMap<Option<Tag> /* parent */, VecMap< /* child index */ HashMap<K /* child */, T>>>,
+}
+struct Encoder<M> where M: EncodingModel {
+    model: M,
+}
+impl<M> Encoder<M> where M: EncodingModel {
     fn compress(&mut self, subtree: &SharedTree, parent: Option<(&Tag, usize)>) -> Result<(), std::io::Error> {
         let borrow = subtree.borrow();
         match borrow.label {
             Label::Tag(ref tag) => {
-                let (parent, index) = match parent {
-                    None => (None, 0),
-                    Some((parent, index)) => (Some(parent.clone()), index)
-                };
-                let (ref symbol, ref appearance) = self.tags.by_parent.get(&parent)
-                    .expect("Could not find parent")
-                    .get(index)
-                    .expect("Could not find index")
-                    .get(tag)
-                    .expect("Could not find tag");
+                let segment = self.model.tag_frequency_for_encoding(tag, parent)
+                    .expect("Could not compute tag frequency");
                 unimplemented!("FIXME: We now have the probability of `(subtree, parent)`. Use it to refine the current segment");
-                let appearance = appearance.borrow_mut();
-                if let Appearance::First = *appearance {
+                if segment.needs_definition {
                     unimplemented!("FIXME: Append definition of the current label");
                 }
             }
