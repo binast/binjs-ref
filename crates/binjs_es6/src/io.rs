@@ -268,13 +268,14 @@ impl Encoder {
     pub fn new() -> Self {
         Encoder
     }
-    pub fn encode<'a, AST>(&self, format: &mut binjs_io::Format, ast: &'a AST) -> Result<Box<AsRef<[u8]>>, TokenWriterError>
+    pub fn encode<'a, AST>(&self, format: &'a mut binjs_io::Format, ast: &'a AST) -> Result<Box<AsRef<[u8]>>, TokenWriterError>
         where
             Serializer<binjs_io::simple::TreeTokenWriter> : Serialization<binjs_io::simple::TreeTokenWriter, &'a AST>,
             Serializer<binjs_io::multipart::TreeTokenWriter> : Serialization<binjs_io::multipart::TreeTokenWriter, &'a AST>,
             Serializer<binjs_io::multistream::TreeTokenWriter> : Serialization<binjs_io::multistream::TreeTokenWriter, &'a AST>,
             Serializer<binjs_io::repair::Encoder> : Serialization<binjs_io::repair::Encoder, &'a AST>,
             Serializer<binjs_io::xml::Encoder> : Serialization<binjs_io::xml::Encoder, &'a AST>,
+            Serializer<binjs_io::multiarith::write::TreeTokenWriter<'a>> : Serialization<binjs_io::multiarith::write::TreeTokenWriter<'a>, &'a AST>,
     {
         match *format {
             binjs_io::Format::Simple { .. } => {
@@ -310,6 +311,13 @@ impl Encoder {
             }
             binjs_io::Format::XML => {
                 let writer = binjs_io::xml::Encoder::new();
+                let mut serializer = Serializer::new(writer);
+                serializer.serialize(ast)?;
+                let (data, _) = serializer.done()?;
+                Ok(Box::new(data))
+            }
+            binjs_io::Format::Arithmetic { ref model } => {
+                let writer = binjs_io::multiarith::write::TreeTokenWriter::new(model.as_ref());
                 let mut serializer = Serializer::new(writer);
                 serializer.serialize(ast)?;
                 let (data, _) = serializer.done()?;

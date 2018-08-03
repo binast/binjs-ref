@@ -1,5 +1,5 @@
 
-use multiarith::{ F64, Label, Predict1, ScopeIndex, SharedTree, SubTree, Tag };
+use multiarith::{ EncodingModel, F64, Label, Model, Predict1, Segment, ScopeIndex, SharedTree, SubTree, Tag };
 
 use io::TokenWriter;
 use ::TokenWriterError;
@@ -19,32 +19,6 @@ enum Direction {
     Exit
 }
 
-#[derive(Clone, Debug)]
-pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
-    /// Low value for this segment.
-    ///
-    /// The probability of the segment is `(high - low)/context_length`.
-    low:  u32,
-
-    /// Length of the segment.
-    ///
-    /// MUST never be 0.
-    length: u32,
-
-
-    /// The highest possible value of `high` in this context.
-    ///
-    /// MUST be consistent across segments for the same context.
-    ///
-    /// MUST be greater or equal to `high`.
-    ///
-    /// MUST be > 0.
-    context_length: u32,
-
-    /// If `true`, this is the first occurrence of this symbol in the
-    /// context, so a definition must be injected.
-    needs_definition: bool,
-}
 
 impl Segment {
     /// Mark that a symbol has been defined in a context.
@@ -53,14 +27,6 @@ impl Segment {
     }
 }
 
-pub trait EncodingModel {
-    /// Get the frequency of a tag as a child of a given parent.
-    ///
-    /// If the model is adaptative, this will increase the number of uses of the tag in this context by 1.
-    ///
-    /// `needs_definition` will always be `false` after the first call for a given tag/parent.
-    fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>;
-}
 
 struct LinearAdaptiveEncodingPseudoModel {
     tags: Predict1<Tag, Segment>,
@@ -84,7 +50,7 @@ impl EncodingModel for ExactEncodingModel {
         }.ok_or(())?;
         let this_tag = by_tag.get_mut(tag)
             .ok_or(())?;
-        let mut result = (*this_tag).clone();
+        let result = (*this_tag).clone();
         this_tag.mark_as_defined();
         Ok(result)
     }
@@ -177,6 +143,7 @@ impl ExactEncodingModel {
     }
 }
 
+// FIXME: We don't need reference renumbering in this scheme.
 impl SubTree {
     fn with_labels<F: FnMut(&Label)>(&self, f: &mut F) {
         f(&self.label);
@@ -194,18 +161,18 @@ impl SubTree {
 }
 
 
-pub struct TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
+pub struct TreeTokenWriter<'a> {
     root: SharedTree,
     scope_counter: GenericCounter<ScopeIndex>,
-    model: M,
-    encoder: SymbolEncoder<W>,
+    model: &'a Model,
+    encoder: SymbolEncoder<Vec<u8>>,
 }
-impl<M, W> TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
-    pub fn new(model: M, writer: W) -> Self {
+impl<'a> TreeTokenWriter<'a> {
+    pub fn new(model: &'a Model) -> Self {
         Self {
             scope_counter: GenericCounter::new(),
             model,
-            encoder: SymbolEncoder::new(writer),
+            encoder: SymbolEncoder::new(Vec::new()),
             root: Rc::new(RefCell::new(SubTree {
                 label: Label::String(None),
                 children: vec![]
@@ -302,11 +269,11 @@ impl<M, W> TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
         })
     }
 
-    fn compress(&mut self, subtree: &SharedTree, parent: Option<(&Tag, usize)>) -> Result<(), std::io::Error> {
+    fn compress(&mut self, model: &mut Box<EncodingModel>, subtree: &SharedTree, parent: Option<(&Tag, usize)>) -> Result<(), std::io::Error> {
         let borrow = subtree.borrow();
         match borrow.label {
             Label::Tag(ref tag) => {
-                let segment = self.model.tag_frequency_for_encoding(tag, parent)
+                let segment = model.tag_frequency_for_encoding(tag, parent)
                     .expect("Could not compute tag frequency");
                 self.encoder.append_segment(&segment)?;
                 if segment.needs_definition {
@@ -322,12 +289,12 @@ impl<M, W> TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
         match borrow.label {
             Label::Tag(ref tag) => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    self.compress(child, Some((tag, index)))?;
+                    self.compress(model, child, Some((tag, index)))?;
                 }
             }
             _ => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    self.compress(child, parent)?;
+                    self.compress(model, child, parent)?;
                 }
             }
         }
@@ -336,7 +303,7 @@ impl<M, W> TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
 }
 
 
-impl<M, W> TokenWriter for TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
+impl<'a> TokenWriter for TreeTokenWriter<'a> {
     type Statistics = usize; // Placeholder
     type Tree = SharedTree;
     type Data = Vec<u8>;
@@ -391,9 +358,16 @@ impl<M, W> TokenWriter for TreeTokenWriter<M, W> where M: EncodingModel, W: Writ
     }
 
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
-        self.number_references()?;
+        self.number_references()?; // FIXME: Not necessary
+        let mut model = self.model.encoding(&self.root);
+        let root = self.root.clone();
+        self.compress(&mut model, &root, None)
+            .unwrap(); // FIXME: Handle errors
+        self.encoder.flush()
+            .unwrap(); // FIXME: Handle errors
+        let data = self.encoder.done();
 
-        unimplemented!("FIXME: Compress")
+        Ok((data, 0))
     }
 }
 

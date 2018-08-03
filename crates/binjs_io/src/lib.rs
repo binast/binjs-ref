@@ -208,6 +208,9 @@ pub enum Format {
         options: multistream::Options,
         targets: multistream::Targets,
     },
+    Arithmetic {
+        model: Box<multiarith::Model>,
+    }
 }
 
 impl Rand for Format {
@@ -278,6 +281,9 @@ impl Format {
             }
             Some("xml") => Some(Format::XML),
             Some("simple") => Some(Self::simple()),
+            Some("arithmetic") => Some(Format::Arithmetic {
+                model: Box::new(multiarith::ExactModel)
+            }),
             _ => None
         }
     }
@@ -415,7 +421,8 @@ impl Format {
         match *self {
             Format::Simple { .. } |
             Format::TreeRePair { .. } |
-            Format::XML => {
+            Format::XML |
+            Format::Arithmetic { ..} => {
                 // Nothing to do
                 Ok(())
             }

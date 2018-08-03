@@ -140,7 +140,7 @@
 //! ----- Initially, start with everything equi-likely. We'll add a predefined
 //! and/or custom dictionary later.
 
-mod write;
+pub mod write;
 
 use util::Counter;
 
@@ -240,4 +240,53 @@ impl Counter for ScopeIndex {
 #[derive(Default)]
 pub struct Predict1<K, T> where K: Eq + Hash {
     pub by_parent: HashMap<Option<Tag> /* parent */, VecMap< /* child index */ HashMap<K /* child */, T>>>,
+}
+
+
+#[derive(Clone, Debug)]
+pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
+    /// Low value for this segment.
+    ///
+    /// The probability of the segment is `(high - low)/context_length`.
+    low:  u32,
+
+    /// Length of the segment.
+    ///
+    /// MUST never be 0.
+    length: u32,
+
+
+    /// The highest possible value of `high` in this context.
+    ///
+    /// MUST be consistent across segments for the same context.
+    ///
+    /// MUST be greater or equal to `high`.
+    ///
+    /// MUST be > 0.
+    context_length: u32,
+
+    /// If `true`, this is the first occurrence of this symbol in the
+    /// context, so a definition must be injected.
+    needs_definition: bool,
+}
+
+pub trait EncodingModel {
+    /// Get the frequency of a tag as a child of a given parent.
+    ///
+    /// If the model is adaptative, this will increase the number of uses of the tag in this context by 1.
+    ///
+    /// `needs_definition` will always be `false` after the first call for a given tag/parent.
+    fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>;
+}
+
+pub trait Model {
+    fn encoding(&self, &SharedTree) -> Box<EncodingModel>;
+}
+
+pub struct ExactModel;
+
+impl Model for ExactModel {
+    fn encoding(&self, tree: &SharedTree) -> Box<EncodingModel> {
+        Box::new(write::ExactEncodingModel::new(tree))
+    }
 }
