@@ -19,8 +19,8 @@ enum Direction {
     Exit
 }
 
-
-struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
+#[derive(Clone, Debug)]
+pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
     /// Low value for this segment.
     ///
     /// The probability of the segment is `(high - low)/context_length`.
@@ -46,6 +46,13 @@ struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
     needs_definition: bool,
 }
 
+impl Segment {
+    /// Mark that a symbol has been defined in a context.
+    fn mark_as_defined(&mut self) {
+        self.needs_definition = false;
+    }
+}
+
 pub trait EncodingModel {
     /// Get the frequency of a tag as a child of a given parent.
     ///
@@ -62,20 +69,24 @@ struct LinearAdaptiveEncodingPseudoModel {
 
 /// An encoding model which starts by analyzing the full AST to determine
 /// exact statistics.
-struct ExactEncodingModel {
+pub struct ExactEncodingModel {
     tags: Predict1<Tag, Segment>,
 }
 impl EncodingModel for ExactEncodingModel {
     fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()> {
-        let mut by_index = match parent {
-            None => self.tags.by_parent.get(&None),
-            Some((parent_tag, _)) => self.tags.by_parent.get(&Some(parent_tag.clone()))
+        let by_index = match parent {
+            None => self.tags.by_parent.get_mut(&None),
+            Some((parent_tag, _)) => self.tags.by_parent.get_mut(&Some(parent_tag.clone()))
         }.ok_or(())?;
-        let mut by_tag = match parent {
-            None => by_index.get(0),
-            Some((_, index)) => by_index.get(index)
+        let by_tag = match parent {
+            None => by_index.get_mut(0),
+            Some((_, index)) => by_index.get_mut(index)
         }.ok_or(())?;
-        unimplemented!()
+        let this_tag = by_tag.get_mut(tag)
+            .ok_or(())?;
+        let mut result = (*this_tag).clone();
+        this_tag.mark_as_defined();
+        Ok(result)
     }
 }
 impl ExactEncodingModel {
@@ -123,7 +134,8 @@ impl ExactEncodingModel {
             }
         }
     }
-    fn new(tree: &SharedTree) -> Self {
+
+    pub fn new(tree: &SharedTree) -> Self {
         let mut predict_instances_1 = Predict1::default();
         // Initialize number of instances.
         Self::init_tags(&mut predict_instances_1, tree, None);
