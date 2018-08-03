@@ -189,7 +189,7 @@ fn main_aux() {
             Arg::with_name("format")
                 .long("format")
                 .takes_value(true)
-                .possible_values(&["simple", "multipart", "trp", "xml"])
+                .possible_values(&["simple", "multipart", "trp", "xml", "arithmetic"])
                 .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
             Arg::with_name("trp-rank")
                 .long("trp-rank")
@@ -225,10 +225,6 @@ fn main_aux() {
         ])
         .group(ArgGroup::with_name("trp")
             .args(&["trp-rank"])
-        )
-        .group(ArgGroup::with_name("multipart")
-            .args(&["strings", "grammar", "tree"])
-            .multiple(true)
         )
         .get_matches();
 
