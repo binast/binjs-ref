@@ -278,7 +278,7 @@ impl<'a> TreeTokenWriter<'a> {
                 self.encoder.append_segment(&segment)?;
                 if segment.needs_definition {
                     self.encoder.flush_symbols()?;
-                    unimplemented!("FIXME: Append definition of the current label");
+                    warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, parent);
                 }
             }
             _ => {
@@ -293,7 +293,7 @@ impl<'a> TreeTokenWriter<'a> {
                 }
             }
             _ => {
-                for (index, child) in borrow.children.iter().enumerate() {
+                for child in &borrow.children {
                     self.compress(model, child, parent)?;
                 }
             }
@@ -410,6 +410,8 @@ impl<W> SymbolEncoder<W> where W: Write {
     /// If you need to ensure that a symbol is written, you may want to call
     /// `flush_symbols()`.
     pub fn append_segment(&mut self, segment: &Segment) -> Result<(), std::io::Error> {
+        debug!(target: "multiarith", "Adding segment {:?}", segment);
+
         // Update segment.
         assert!(self.length != 0);
         let context_length = segment.context_length as u64;
@@ -427,7 +429,7 @@ impl<W> SymbolEncoder<W> where W: Write {
         let interval_half    = 1u32.rotate_right(1);
         let interval_three_quarters = interval_half + interval_quarter;
 
-        let mut high = self.low + self.length;
+        let mut high : u32 = self.low + self.length;
         'one_bit: loop {
             if high < interval_half {
                 // Information: we're in the first half of the interval.
@@ -447,32 +449,41 @@ impl<W> SymbolEncoder<W> where W: Write {
             self.low = self.low << 1;
             // Renormalize high (last digit must always be 1)
             high = high << 1 | 1u32;
+            assert!(high > self.low);
         }
 
+        // At this stage, we can't have high = low:
+        // - if we have not entered the loop
+        //    - by definition, high - low > interval/4, so high != low
+        // - otherwise
+        //    - at the end of the loop, we have set a different last digit for low and high, so high != low
+
         // Convert back to `self.length`.
-        self.length = high - self.low + 1;
-        assert!(self.length != 0); // FIXME: How do we ensure that this never happens?
+        debug!(target: "multiarith", "Converting back to length: [{}, {}(", self.low, high);
+        self.length = high - self.low;
+        assert!(self.length != 0); // In the loop, we ensure that the last digit of high and low is different, so it can't be 0.
         Ok(())
     }
 
     /// Flush all the symbols that haven't been written yet.
     pub fn flush_symbols(&mut self) -> Result<bool, std::io::Error> {
         // Write the digits of `self.low`.
-        let mut wrote = false;
         let high_bit: u32 = 1u32.rotate_right(1);
-        for _ in 0.. std::mem::size_of_val(&self.low) {
+        let mut wrote = false;
+        for _ in 0.. std::mem::size_of_val(&self.low) * 8 {
             let bit = self.low & high_bit != 0;
             wrote |= self.append_bit(bit)?;
             self.low = self.low << 1;
         }
         assert_eq!(self.low, 0);
         self.length = std::u32::MAX;
+        wrote |= self.flush_bits_always()?;
         Ok(wrote)
     }
 
     pub fn flush(&mut self) -> Result<(), std::io::Error> {
         self.flush_symbols()?;
-        self.flush_bits()?;
+        self.flush_bits_always()?;
         self.writer.flush()?;
         Ok(())
     }
@@ -486,7 +497,7 @@ impl<W> SymbolEncoder<W> where W: Write {
     }
 
     fn append_bit(&mut self, bit: bool) -> Result<bool, std::io::Error> {
-        assert!((self.bits_ready as usize) < std::mem::size_of_val(&self.buffer));
+        assert!((self.bits_ready as usize) < std::mem::size_of_val(&self.buffer) * 8);
         let mut wrote = false;
 
         self.bits_ready += 1;
@@ -502,17 +513,29 @@ impl<W> SymbolEncoder<W> where W: Write {
     }
 
     fn flush_bits_if_necessary(&mut self) -> Result<bool, std::io::Error> {
-        if self.bits_ready as usize == std::mem::size_of_val(&self.buffer) {
-            self.flush_bits()?;
+        if self.bits_ready as usize == std::mem::size_of_val(&self.buffer) * 8 {
+            self.flush_bits_internal()?;
             return Ok(true)
         }
         Ok(false)
     }
 
+    fn flush_bits_always(&mut self) -> Result<bool, std::io::Error> {
+        if self.bits_ready == 0 {
+            return Ok(false)
+        }
+        for _ in self.bits_ready..std::mem::size_of_val(&self.buffer) as u8 * 8 {
+            self.bits_ready += 1;
+            self.buffer *= 2;
+        }
+        self.flush_bits_internal()?;
+        Ok(true)
+    }
+
     /// Flush `self.buffer`.
     ///
     /// Does NOT flush `self.writer`, `self.low` or `self.high`.
-    fn flush_bits(&mut self) -> Result<(), std::io::Error> {
+    fn flush_bits_internal(&mut self) -> Result<(), std::io::Error> {
         self.writer.write(&[self.buffer])?;
         self.bits_ready = 0;
         self.buffer = 0;
