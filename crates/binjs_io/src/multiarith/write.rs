@@ -25,6 +25,10 @@ struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
     ///
     /// The probability of the segment is `(high - low)/context_length`.
     low:  u32,
+
+    /// Length of the segment.
+    ///
+    /// MUST never be 0.
     length: u32,
 
 
@@ -33,6 +37,8 @@ struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
     /// MUST be consistent across segments for the same context.
     ///
     /// MUST be greater or equal to `high`.
+    ///
+    /// MUST be > 0.
     context_length: u32,
 
     /// If `true`, this is the first occurrence of this symbol in the
@@ -292,6 +298,7 @@ impl<M, W> TreeTokenWriter<M, W> where M: EncodingModel, W: Write {
                     .expect("Could not compute tag frequency");
                 self.encoder.append_segment(&segment)?;
                 if segment.needs_definition {
+                    self.encoder.flush_symbols()?;
                     unimplemented!("FIXME: Append definition of the current label");
                 }
             }
@@ -379,14 +386,16 @@ impl<M, W> TokenWriter for TreeTokenWriter<M, W> where M: EncodingModel, W: Writ
 }
 
 struct SymbolEncoder<W> where W: Write {
-    low: u64,
-    length: Option<u64>,
+    low: u32,
+    /// Length of the current segment.
+    length: u32,
     /// Bits waiting to be written.
     buffer: u8,
     /// Number of bits waiting to be written.
     ///
     /// Invariant: < sizeof(buffer)
     bits_ready: u8,
+    recentering_bits: u8,
     writer: W,
 }
 impl<W> SymbolEncoder<W> where W: Write {
@@ -395,64 +404,129 @@ impl<W> SymbolEncoder<W> where W: Write {
             low: 0,
             buffer: 0,
             bits_ready: 0,
+            recentering_bits: 0,
             writer,
-            length: None, // Initialized upon the first call to `append_segment`.
+            length: std::u32::MAX,
         }
     }
+
+    /// Append a new symbol, as represented by its probability segment.
+    ///
+    /// Note that it may take an unbounded amount of operations between
+    /// the call to `append_segment` and the actual write of the symbol
+    /// to the underlying writer.
+    ///
+    /// Consider the extreme case of a succession of symbols of probability 1
+    /// (`symbol.low == 0`, `symbol.length == symbol.context_length`). As each
+    /// of these symbols has a probability 1, they will be coded as 0 bits,
+    /// and will therefore cause no write to the underlying writer.
+    ///
+    /// If you need to ensure that a symbol is written, you may want to call
+    /// `flush_symbols()`.
     pub fn append_segment(&mut self, segment: &Segment) -> Result<(), std::io::Error> {
         // Update segment.
-        let length = match self.length {
-            None => {
-                debug_assert_eq!(self.bits_ready, 0);
-                debug_assert_eq!(self.buffer, 0);
-                let length = segment.length as u64;
-                self.low = segment.low as u64;
-                length
-            }
-            Some(ref length) => {
-                let context_length = segment.context_length as u64;
-                self.low = self.low + ((*length * segment.low as u64) / context_length);
-                *length * (segment.length as u64) / context_length
-            }
-        };
-        // Flush higher digits if possible.
-        // FIXME: Won't work on all endiannesses.
-        let high_bit: u64 = 1u64.rotate_right(1);
-        let mut high = self.low + length - 1;
-        loop {
-            use std::ops::Shl;
-            if self.low & high_bit == high & high_bit {
-                // We may now flush the highest bit.
-                let bit = self.low & high_bit;
+        assert!(self.length != 0);
+        let context_length = segment.context_length as u64;
+        self.low = self.low + (((self.length as u64 * segment.low as u64) / context_length) as u32);
+        self.length = ((self.length as u64 * segment.length as u64) / context_length) as u32;
+            // Assuming that `segment.length <= context_length`, this is decreasing,
+            // so we can't overflow in the `as u32` conversion.
 
-                // Renormalize low (last digit must always be 0)
-                self.low = self.low.shl(1);
+        // Since `length` is decreasing, it will eventually become smaller than `u32::max/2`,
+        // which means that we have (at least) one bit of information. As soon as this
+        // happens, we need to flush the bits and regrow `length`, to ensure that we
+        // won't lose precision.
 
-                // Renormalize high (last digit must always be 1)
-                high = high.shl(1) | 1u64;
-                debug_assert!(high >= self.low);
+        let interval_quarter = 1u32.rotate_right(2);
+        let interval_half    = 1u32.rotate_right(1);
+        let interval_three_quarters = interval_half + interval_quarter;
 
-                self.append_bit(bit == 1)?;
-            }
+        let mut high = self.low + self.length;
+        'one_bit: loop {
+            if high < interval_half {
+                // Information: we're in the first half of the interval.
+                self.append_bit(false)?;
+            } else if self.low >= interval_half {
+                // Information: we're in the second half of the interval.
+                self.append_bit(true)?;
+            } else if self.low >= interval_quarter && high < interval_three_quarters {
+                // Information: we're in the half of the interval around the center.
+                self.low  -= interval_quarter;
+                high -= interval_quarter;
+                self.recentering_bits += 1;
+            } else {
+                break 'one_bit
+            };
+            // Renormalize low (last digit must always be 0)
+            self.low = self.low << 1;
+            // Renormalize high (last digit must always be 1)
+            high = high << 1 | 1u32;
         }
-        self.length = Some(high - self.low + 1);
+
+        // Convert back to `self.length`.
+        self.length = high - self.low + 1;
+        assert!(self.length != 0); // FIXME: How do we ensure that this never happens?
         Ok(())
     }
 
-    fn append_bit(&mut self, bit: bool) -> Result<(), std::io::Error> {
+    /// Flush all the symbols that haven't been written yet.
+    pub fn flush_symbols(&mut self) -> Result<bool, std::io::Error> {
+        // Write the digits of `self.low`.
+        let mut wrote = false;
+        let high_bit: u32 = 1u32.rotate_right(1);
+        for _ in 0.. std::mem::size_of_val(&self.low) {
+            let bit = self.low & high_bit != 0;
+            wrote |= self.append_bit(bit)?;
+            self.low = self.low << 1;
+        }
+        assert_eq!(self.low, 0);
+        self.length = std::u32::MAX;
+        Ok(wrote)
+    }
+
+    pub fn flush(&mut self) -> Result<(), std::io::Error> {
+        self.flush_symbols()?;
+        self.flush_bits()?;
+        self.writer.flush()?;
+        Ok(())
+    }
+
+    pub fn done(mut self) -> W {
+        if self.length != std::u32::MAX {
+            self.flush()
+                .expect("Could not flush SymbolEncoder");
+        }
+        self.writer
+    }
+
+    fn append_bit(&mut self, bit: bool) -> Result<bool, std::io::Error> {
         assert!((self.bits_ready as usize) < std::mem::size_of_val(&self.buffer));
+        let mut wrote = false;
+
         self.bits_ready += 1;
         self.buffer = self.buffer * 2 + if bit { 1 } else { 0 };
+        wrote = wrote || self.flush_bits_if_necessary()?;
+        for _ in 0 .. self.recentering_bits {
+            self.bits_ready += 1;
+            self.buffer = self.buffer * 2 + if bit { 0 } else { 1 };
+            wrote = wrote || self.flush_bits_if_necessary()?;
+        }
+        self.recentering_bits = 0;
+        Ok(wrote)
+    }
+
+    fn flush_bits_if_necessary(&mut self) -> Result<bool, std::io::Error> {
         if self.bits_ready as usize == std::mem::size_of_val(&self.buffer) {
             self.flush_bits()?;
+            return Ok(true)
         }
-        Ok(())
+        Ok(false)
     }
 
     /// Flush `self.buffer`.
     ///
     /// Does NOT flush `self.writer`, `self.low` or `self.high`.
-    fn flush_bits -> Result<(), std::io::Error> {
+    fn flush_bits(&mut self) -> Result<(), std::io::Error> {
         self.writer.write(&[self.buffer])?;
         self.bits_ready = 0;
         self.buffer = 0;
