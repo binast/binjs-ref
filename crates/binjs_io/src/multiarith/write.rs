@@ -37,50 +37,72 @@ struct LinearAdaptiveEncodingPseudoModel {
 /// exact statistics.
 pub struct ExactEncodingModel {
     tags: Predict1<Tag, Segment>,
+    strings: Predict1<Option<Rc<String>>, Segment>,
 }
-impl EncodingModel for ExactEncodingModel {
-    fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()> {
+impl ExactEncodingModel {
+    fn init_parent_1<T>(predictor: &mut Predict1<T, usize>, value: &T, parent: &Option<(&Tag, usize)>)
+        where T: Eq + std::hash::Hash + Clone
+    {
+        let mut by_index = match *parent {
+            None => {
+                let by_parent = predictor.by_parent.entry(None)
+                    .or_insert_with(|| VecMap::with_capacity(1));
+                by_parent.entry(0)
+                    .or_insert_with(|| HashMap::new())
+            }
+            Some((ref parent, index)) => {
+                let by_parent = predictor.by_parent.entry(Some((*parent).clone()))
+                    .or_insert_with(|| VecMap::with_capacity(5));
+                by_parent.entry(index)
+                    .or_insert_with(|| HashMap::new())
+            }
+        };
+        let symbols = by_index.len();
+        by_index.entry((*value).clone())
+            .and_modify(|instances| {
+                *instances += 1
+            })
+            .or_insert(1);
+    }
+    fn parent_1<T>(predictor: &mut Predict1<T, Segment>, value: &T, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>
+        where T: Eq + std::hash::Hash
+    {
         let by_index = match parent {
-            None => self.tags.by_parent.get_mut(&None),
-            Some((parent_tag, _)) => self.tags.by_parent.get_mut(&Some(parent_tag.clone()))
+            None => predictor.by_parent.get_mut(&None),
+            Some((parent_tag, _)) => predictor.by_parent.get_mut(&Some(parent_tag.clone()))
         }.ok_or(())?;
-        let by_tag = match parent {
+        let by_val = match parent {
             None => by_index.get_mut(0),
             Some((_, index)) => by_index.get_mut(index)
         }.ok_or(())?;
-        let this_tag = by_tag.get_mut(tag)
+        let this_val = by_val.get_mut(value)
             .ok_or(())?;
-        let result = (*this_tag).clone();
-        this_tag.mark_as_defined();
+        let result = (*this_val).clone();
+        this_val.mark_as_defined();
         Ok(result)
     }
 }
+impl EncodingModel for ExactEncodingModel {
+    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, parent: Option<(&Tag, usize)>) -> Result<Segment, ()> {
+        Self::parent_1(&mut self.strings, string, parent)
+    }
+    fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()> {
+        Self::parent_1(&mut self.tags, tag, parent)
+    }
+}
 impl ExactEncodingModel {
-    fn init_tags(predict_1: &mut Predict1<Tag, /* instances */ usize>, subtree: &SharedTree, parent: Option<(&Tag, usize)>) {
+    fn walk_parent_1(tags: &mut Predict1<Tag, /* instances */ usize>,
+                 strings: &mut Predict1<Option<Rc<String>>, usize>,
+                 subtree: &SharedTree,
+                 parent: Option<(&Tag, usize)>)
+        {
         let borrow = subtree.borrow();
         match borrow.label {
             Label::Tag(ref tag) => {
-                let mut by_index = match parent {
-                    None => {
-                        let mut by_parent = predict_1.by_parent.entry(None)
-                            .or_insert_with(|| VecMap::with_capacity(1));
-                        by_parent.entry(0)
-                            .or_insert_with(|| HashMap::new())
-                    }
-                    Some((parent, index)) => {
-                        let mut by_parent = predict_1.by_parent.entry(Some(parent.clone()))
-                            .or_insert_with(|| VecMap::with_capacity(5));
-                        by_parent.entry(index)
-                            .or_insert_with(|| HashMap::new())
-                    }
-                };
-                let symbols = by_index.len();
-                by_index.entry(tag.clone())
-                    .and_modify(|instances| {
-                        *instances += 1
-                    })
-                    .or_insert(1);
-
+                Self::init_parent_1(tags, tag, &parent);
+            }
+            Label::String(ref string) => {
+                Self::init_parent_1(strings, string, &parent);
             }
             _ => {
                 warn!(target: "multiarith", "Skipping initialization of predictor for label {:?} (not implemented yet)", borrow.label);
@@ -90,24 +112,21 @@ impl ExactEncodingModel {
         match borrow.label {
             Label::Tag(ref tag) => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    Self::init_tags(predict_1, child, Some((tag, index)));
+                    Self::walk_parent_1(tags, strings, child, Some((tag, index)));
                 }
             }
             _ => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    Self::init_tags(predict_1, child, parent);
+                    Self::walk_parent_1(tags, strings, child, parent);
                 }
             }
         }
     }
 
-    pub fn new(tree: &SharedTree) -> Self {
-        let mut predict_instances_1 = Predict1::default();
-        // Initialize number of instances.
-        Self::init_tags(&mut predict_instances_1, tree, None);
-
-        // Deduce probabilities.
-        let probabilities = predict_instances_1.by_parent.drain()
+    fn get_parent_1<T>(mut instances: Predict1<T, usize>) -> Predict1<T, Segment>
+        where T: Eq + std::hash::Hash + Clone
+    {
+        let probabilities = instances.by_parent.drain()
             .map(|(parent, mut by_child_index)| {
                 let by_child_index = by_child_index.drain()
                     .map(|(child_index, mut by_symbol)| {
@@ -135,10 +154,23 @@ impl ExactEncodingModel {
                     .collect();
                 (parent, by_child_index)
             }).collect();
+        Predict1 {
+            by_parent: probabilities
+        }
+    }
+
+    pub fn new(tree: &SharedTree) -> Self {
+        let mut tags = Predict1::default();
+        let mut strings = Predict1::default();
+
+        // Initialize number of instances.
+        Self::walk_parent_1(&mut tags, &mut strings, tree, None);
+
+        // Deduce probabilities.
+
         Self {
-            tags: Predict1 {
-                by_parent: probabilities
-            }
+            tags: Self::get_parent_1(tags),
+            strings: Self::get_parent_1(strings),
         }
     }
 }
@@ -281,6 +313,15 @@ impl<'a> TreeTokenWriter<'a> {
                     warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, parent);
                 }
             }
+            Label::String(ref string) => {
+                let segment = model.string_frequency_for_encoding(string, parent)
+                    .expect("Could not compute string frequency");
+                self.encoder.append_segment(&segment)?;
+                if segment.needs_definition {
+                    self.encoder.flush_symbols()?;
+                    warn!(target: "multiarith", "FIXME: Append definition of the current string {:?} in {:?}", string, parent);
+                }
+            }
             _ => {
                 warn!(target: "multiarith", "Skipping serialization of label {:?} (not implemented yet)", borrow.label);
             }
@@ -322,10 +363,13 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     }
 
     fn bool(&mut self, value: Option<bool>) -> Result<Self::Tree, TokenWriterError> {
-        self.new_tree(SubTree {
-            label: Label::Bool(value),
-            children: vec![]
-        })
+        // FIXME: Once we start introducing dictionaries, we won't want to use strings anymore.
+        let string = match value {
+            None => "",
+            Some(true) => "true",
+            Some(false) => "false"
+        };
+        self.tagged_tuple(&string, &[])
     }
 
     fn float(&mut self, value: Option<f64>) -> Result<Self::Tree, TokenWriterError> {
@@ -497,22 +541,24 @@ impl<W> SymbolEncoder<W> where W: Write {
     }
 
     fn append_bit(&mut self, bit: bool) -> Result<bool, std::io::Error> {
+        debug!(target: "multiarith", "append_bit with {} bits ready", self.bits_ready);
         assert!((self.bits_ready as usize) < std::mem::size_of_val(&self.buffer) * 8);
         let mut wrote = false;
 
         self.bits_ready += 1;
         self.buffer = self.buffer * 2 + if bit { 1 } else { 0 };
-        wrote = wrote || self.flush_bits_if_necessary()?;
+        wrote |= self.flush_bits_if_necessary()?;
         for _ in 0 .. self.recentering_bits {
             self.bits_ready += 1;
             self.buffer = self.buffer * 2 + if bit { 0 } else { 1 };
-            wrote = wrote || self.flush_bits_if_necessary()?;
+            wrote |= self.flush_bits_if_necessary()?;
         }
         self.recentering_bits = 0;
         Ok(wrote)
     }
 
     fn flush_bits_if_necessary(&mut self) -> Result<bool, std::io::Error> {
+        debug!(target: "multiarith", "flush_bits_if_necessary with {} bits ready", self.bits_ready);
         if self.bits_ready as usize == std::mem::size_of_val(&self.buffer) * 8 {
             self.flush_bits_internal()?;
             return Ok(true)
@@ -536,6 +582,7 @@ impl<W> SymbolEncoder<W> where W: Write {
     ///
     /// Does NOT flush `self.writer`, `self.low` or `self.high`.
     fn flush_bits_internal(&mut self) -> Result<(), std::io::Error> {
+        assert!(self.bits_ready as usize == std::mem::size_of_val(&self.buffer) * 8);
         self.writer.write(&[self.buffer])?;
         self.bits_ready = 0;
         self.buffer = 0;

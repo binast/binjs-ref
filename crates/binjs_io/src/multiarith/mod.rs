@@ -277,6 +277,13 @@ pub trait EncodingModel {
     ///
     /// `needs_definition` will always be `false` after the first call for a given tag/parent.
     fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>;
+
+    /// Get the frequency of a string as a child of a given parent.
+    ///
+    /// If the model is adaptative, this will increase the number of uses of the string in this context by 1.
+    ///
+    /// `needs_definition` will always be `false` after the first call for a given tag/parent.
+    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>;
 }
 
 pub trait Model {
