@@ -216,91 +216,6 @@ impl<'a> TreeTokenWriter<'a> {
         Ok(self.root.clone())
     }
 
-    fn number_references(&mut self) -> Result<SharedTree, TokenWriterError> {
-        // Undeclared references
-        let top = Rc::new(RefCell::new(vec![]));
-        let stack = Rc::new(RefCell::new(vec![top.clone()]));
-        self.root.borrow_mut().with_labels_mut(&mut |direction, label| {
-            let rewrite = match (direction, &label) {
-                (Direction::Enter, Label::Scope(_)) => {
-                    let mut borrow_stack = stack.borrow_mut();
-                    borrow_stack.push(Rc::new(RefCell::new(vec![])));
-                    None
-                }
-                (Direction::Exit, Label::Scope(_)) => {
-                    let mut borrow_stack = stack.borrow_mut();
-                    borrow_stack.pop();
-                    None
-                }
-                (Direction::Enter, Label::Declare(Some(ref s))) => {
-                    let borrow_stack = stack.borrow();
-                    let mut borrow_frame = borrow_stack.last()
-                        .unwrap()
-                        .borrow_mut();
-                    borrow_frame
-                        .push(s.clone());
-                    None
-                }
-                (Direction::Enter, Label::LiteralReference(None)) => {
-                    Some(Label::NumberedReference(None))
-                }
-                (Direction::Enter, Label::LiteralReference(Some(ref s))) => {
-                    let mut depth = 0;
-                    let mut found = None;
-                    {
-                        let borrow_stack = stack.borrow();
-                        'find_in_stack: for frame in borrow_stack.iter().rev() {
-                            let borrow_frame = frame.borrow();
-                            if let Some(index) = borrow_frame.iter()
-                                .position(|name| name == s)
-                            {
-                                found = Some(index);
-                                break 'find_in_stack;
-                            } else {
-                                depth += borrow_frame.len()
-                            }
-                        }
-                    }
-                    let index = match found {
-                        Some(found) => found,
-                        None => {
-                            let mut borrow_top = top.borrow_mut();
-                            borrow_top.push(s.clone());
-                            borrow_top.len()
-                        }
-                    };
-                    Some(Label::NumberedReference(Some((depth + index) as u32)))
-                }
-                _ => None,
-            };
-            if let Some(rewrite) = rewrite {
-                *label = rewrite;
-            }
-        });
-
-        // Now declare all undeclared variables.
-        let root = self.root.clone();
-        let top = top.borrow()
-            .iter()
-            .map(|name| Rc::new(RefCell::new(SubTree {
-                label: Label::Declare(Some(name.clone())),
-                children: vec![]
-            })))
-            .collect();
-        let declared_undeclared_variables = self.new_tree(SubTree {
-            label: Label::Tag(Tag::new("_undeclared_variables")),
-            children: top
-        })?;
-        let scope_index = self.scope_counter.next();
-        self.new_tree(SubTree {
-            label: Label::Scope(scope_index),
-            children: vec![
-                declared_undeclared_variables,
-                root
-            ]
-        })
-    }
-
     fn compress(&mut self, model: &mut Box<EncodingModel>, subtree: &SharedTree, parent: Option<(&Tag, usize)>) -> Result<(), std::io::Error> {
         let borrow = subtree.borrow();
         match borrow.label {
@@ -358,6 +273,15 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
         })
     }
 
+    fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+        let tuple = self.tagged_tuple(tag, children)?;
+        let index = self.scope_counter.next();
+        self.new_tree(SubTree {
+            label: Label::Scope(index),
+            children: vec![tuple]
+        })
+    }
+
     fn offset(&mut self) -> Result<Self::Tree, TokenWriterError> {
         unimplemented!()
     }
@@ -402,7 +326,6 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     }
 
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
-        self.number_references()?; // FIXME: Not necessary
         let mut model = self.model.encoding(&self.root);
         let root = self.root.clone();
         self.compress(&mut model, &root, None)
