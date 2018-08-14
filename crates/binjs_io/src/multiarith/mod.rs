@@ -39,7 +39,7 @@
 //!
 //! Tree:
 //!  Packet:
-//!    `packet_structure_len` bits, to be arithmetically decoded as a variable number
+//!    - `packet_structure_len` bits, to be arithmetically decoded as a variable number
 //!         of u32, based on known probability distribution.
 //!         The mapping from u32 to the AST is heavily dependent on the context.
 //!         The grammar determines the nature of the value:
@@ -53,7 +53,7 @@
 //!         - variable reference;
 //!         - nullable variants.
 //!
-//!     arbitrary length definition
+//!     - arbitrary length definition
 //!
 //! # Decoding and interpreting packet structure
 //!
@@ -150,8 +150,6 @@ use std::hash::{ Hash, Hasher };
 use std::rc::Rc;
 use std;
 
-use vec_map::VecMap;
-
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Tag(Rc<String>);
@@ -236,10 +234,92 @@ impl Counter for ScopeIndex {
     }
 }
 
-/// One-level prediction, using the label of the parent and the index of the child.
-#[derive(Default)]
-pub struct Predict1<K, T> where K: Eq + Hash {
-    pub by_parent: HashMap<Option<Tag> /* parent */, VecMap< /* child index */ HashMap<K /* child */, T>>>,
+pub type Path = Vec<(/* Parent tag */Tag, /* Child index */usize)>;
+
+pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
+    /// Depth to use for prediction.
+    ///
+    /// 0: no context
+    /// 1: use parent
+    /// 2: use parent + grand parent
+    /// ...
+    depth: usize,
+    by_path: HashMap<Path, HashMap<K /* child */, T>>,
+}
+
+impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
+    pub fn instances_to_probabilities(mut self) -> PathPredict<K, Segment> {
+        let probabilities = self.by_path.drain()
+            .map(|(path, mut by_value)| {
+                let number_of_symbols = by_value.len();
+                let total_instances : usize = by_value.values()
+                    .sum();
+                let mut cursor = 0;
+                let probability_by_value = by_value.drain()
+                    .map(|(key, instances)| {
+                        let low = cursor;
+                        cursor += instances;
+                        let segment = Segment {
+                            low: low as u32,
+                            length: instances as u32,
+                            context_length: total_instances as u32,
+                            needs_definition: true,
+                        };
+                        (key, segment)
+                    })
+                    .collect();
+                assert_eq!(cursor, total_instances);
+                (path, probability_by_value)
+            })
+            .collect();
+        PathPredict {
+            depth: self.depth,
+            by_path: probabilities
+        }
+    }
+}
+
+impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
+    pub fn new(depth: usize) -> Self {
+        PathPredict {
+            depth,
+            by_path: HashMap::new(),
+        }
+    }
+
+    fn get_path_tail(&self, path: &Path) -> Path {
+        let start = if path.len() <= self.depth {
+            0
+        } else {
+            path.len() - self.depth
+        };
+        let (_, tail) = &path[..].split_at(start);
+        let tail = tail.iter()
+            .cloned()
+            .collect();
+        tail
+    }
+
+    pub fn get_mut(&mut self, path: &Path, key: &K) -> Option<&mut T> {
+        let tail = self.get_path_tail(path);
+        let by_key = self.by_path.get_mut(&tail)?;
+        let result = by_key.get_mut(key);
+        if let None = result {
+            debug!(target: "multiarith",
+                "PathPredict::get_mut failure for {key:?} at {path:?} shortened to {tail:?}",
+                key = key,
+                path = path,
+                tail = tail);
+        }
+        result
+    }
+
+    pub fn entry(&mut self, path: &Path, key: &K) -> (usize, std::collections::hash_map::Entry<K, T>) {
+        let tail = self.get_path_tail(path);
+        let by_key = self.by_path.entry(tail)
+            .or_insert_with(|| HashMap::new());
+        (by_key.len(), by_key.entry(key.clone()))
+    }
 }
 
 
@@ -271,19 +351,8 @@ pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
 }
 
 pub trait EncodingModel {
-    /// Get the frequency of a tag as a child of a given parent.
-    ///
-    /// If the model is adaptative, this will increase the number of uses of the tag in this context by 1.
-    ///
-    /// `needs_definition` will always be `false` after the first call for a given tag/parent.
-    fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>;
-
-    /// Get the frequency of a string as a child of a given parent.
-    ///
-    /// If the model is adaptative, this will increase the number of uses of the string in this context by 1.
-    ///
-    /// `needs_definition` will always be `false` after the first call for a given tag/parent.
-    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>;
+    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path) -> Result<Segment, ()>;
+    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path) -> Result<Segment, ()>;
 }
 
 pub trait Model {

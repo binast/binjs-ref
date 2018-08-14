@@ -1,5 +1,5 @@
 
-use multiarith::{ EncodingModel, F64, Label, Model, Predict1, Segment, ScopeIndex, SharedTree, SubTree, Tag };
+use multiarith::{ EncodingModel, F64, Label, Model, Path, PathPredict, Segment, ScopeIndex, SharedTree, SubTree, Tag };
 
 use io::TokenWriter;
 use ::TokenWriterError;
@@ -7,18 +7,10 @@ use util::GenericCounter;
 
 use std;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::io::Write;
 use std::rc::Rc;
 
-use vec_map::VecMap;
-
-#[derive(Clone, Copy, Debug)]
-enum Direction {
-    Enter,
-    Exit
-}
-
+const EXPECTED_PATH_DEPTH: usize = 2048;
 
 impl Segment {
     /// Mark that a symbol has been defined in a context.
@@ -27,82 +19,60 @@ impl Segment {
     }
 }
 
-
+/*
+FIXME: Implement
 struct LinearAdaptiveEncodingPseudoModel {
-    tags: Predict1<Tag, Segment>,
+    tags: PathPredict<Tag, Segment>,
 }
-
+*/
 
 /// An encoding model which starts by analyzing the full AST to determine
 /// exact statistics.
 pub struct ExactEncodingModel {
-    tags: Predict1<Tag, Segment>,
-    strings: Predict1<Option<Rc<String>>, Segment>,
+    tags: PathPredict<Tag, Segment>,
+    strings: PathPredict<Option<Rc<String>>, Segment>,
 }
 impl ExactEncodingModel {
-    fn init_parent_1<T>(predictor: &mut Predict1<T, usize>, value: &T, parent: &Option<(&Tag, usize)>)
-        where T: Eq + std::hash::Hash + Clone
+    fn init_path<T>(predictor: &mut PathPredict<T, usize>, value: &T, path: &mut Path)
+        where T: Eq + std::hash::Hash + Clone + std::fmt::Debug
     {
-        let mut by_index = match *parent {
-            None => {
-                let by_parent = predictor.by_parent.entry(None)
-                    .or_insert_with(|| VecMap::with_capacity(1));
-                by_parent.entry(0)
-                    .or_insert_with(|| HashMap::new())
-            }
-            Some((ref parent, index)) => {
-                let by_parent = predictor.by_parent.entry(Some((*parent).clone()))
-                    .or_insert_with(|| VecMap::with_capacity(5));
-                by_parent.entry(index)
-                    .or_insert_with(|| HashMap::new())
-            }
-        };
-        let symbols = by_index.len();
-        by_index.entry((*value).clone())
-            .and_modify(|instances| {
+        let (_, entry) = predictor.entry(path, value);
+        entry.and_modify(|instances| {
                 *instances += 1
             })
             .or_insert(1);
     }
-    fn parent_1<T>(predictor: &mut Predict1<T, Segment>, value: &T, parent: Option<(&Tag, usize)>) -> Result<Segment, ()>
-        where T: Eq + std::hash::Hash
+    fn get_from_path<T>(predictor: &mut PathPredict<T, Segment>, value: &T, path: &Path) -> Result<Segment, ()>
+        where T: Eq + std::hash::Hash + Clone + std::fmt::Debug
     {
-        let by_index = match parent {
-            None => predictor.by_parent.get_mut(&None),
-            Some((parent_tag, _)) => predictor.by_parent.get_mut(&Some(parent_tag.clone()))
-        }.ok_or(())?;
-        let by_val = match parent {
-            None => by_index.get_mut(0),
-            Some((_, index)) => by_index.get_mut(index)
-        }.ok_or(())?;
-        let this_val = by_val.get_mut(value)
+        let segment = predictor.get_mut(path, value)
             .ok_or(())?;
-        let result = (*this_val).clone();
-        this_val.mark_as_defined();
+        let result = segment.clone();
+        segment.mark_as_defined();
         Ok(result)
     }
 }
 impl EncodingModel for ExactEncodingModel {
-    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, parent: Option<(&Tag, usize)>) -> Result<Segment, ()> {
-        Self::parent_1(&mut self.strings, string, parent)
+    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path) -> Result<Segment, ()> {
+        Self::get_from_path(&mut self.strings, string, path)
     }
-    fn tag_frequency_for_encoding(&mut self, tag: &Tag, parent: Option<(&Tag, usize)>) -> Result<Segment, ()> {
-        Self::parent_1(&mut self.tags, tag, parent)
+    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path) -> Result<Segment, ()> {
+        Self::get_from_path(&mut self.tags, tag, path)
     }
 }
 impl ExactEncodingModel {
-    fn walk_parent_1(tags: &mut Predict1<Tag, /* instances */ usize>,
-                 strings: &mut Predict1<Option<Rc<String>>, usize>,
+    fn walk_path(tags: &mut PathPredict<Tag, /* instances */ usize>,
+                 strings: &mut PathPredict<Option<Rc<String>>, usize>,
                  subtree: &SharedTree,
-                 parent: Option<(&Tag, usize)>)
+                 path: &mut Path)
         {
         let borrow = subtree.borrow();
         match borrow.label {
             Label::Tag(ref tag) => {
-                Self::init_parent_1(tags, tag, &parent);
+                Self::init_path(tags, tag, path);
             }
             Label::String(ref string) => {
-                Self::init_parent_1(strings, string, &parent);
+                Self::init_path(strings, string, path);
             }
             _ => {
                 warn!(target: "multiarith", "Skipping initialization of predictor for label {:?} (not implemented yet)", borrow.label);
@@ -112,86 +82,34 @@ impl ExactEncodingModel {
         match borrow.label {
             Label::Tag(ref tag) => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    Self::walk_parent_1(tags, strings, child, Some((tag, index)));
+                    path.push((tag.clone(), index));
+                    Self::walk_path(tags, strings, child, path);
+                    path.pop();
                 }
             }
             _ => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    Self::walk_parent_1(tags, strings, child, parent);
+                    Self::walk_path(tags, strings, child, path);
                 }
             }
         }
     }
 
-    fn get_parent_1<T>(mut instances: Predict1<T, usize>) -> Predict1<T, Segment>
-        where T: Eq + std::hash::Hash + Clone
-    {
-        let probabilities = instances.by_parent.drain()
-            .map(|(parent, mut by_child_index)| {
-                let by_child_index = by_child_index.drain()
-                    .map(|(child_index, mut by_symbol)| {
-                        let number_of_symbols = by_symbol.len();
-                        let total_instances : usize = by_symbol.values()
-                            .sum();
-                        let mut cursor = 0;
-                        let by_symbol = by_symbol.drain()
-                            .enumerate()
-                            .map(|(index, (tag, instances))| {
-                                let low = cursor;
-                                cursor += instances;
-                                let segment = Segment {
-                                    low: low as u32,
-                                    length: instances as u32,
-                                    context_length: total_instances as u32,
-                                    needs_definition: true,
-                                };
-                                (tag, segment)
-                            })
-                            .collect();
-                        assert_eq!(cursor, total_instances);
-                        (child_index, by_symbol)
-                    })
-                    .collect();
-                (parent, by_child_index)
-            }).collect();
-        Predict1 {
-            by_parent: probabilities
-        }
-    }
-
     pub fn new(tree: &SharedTree) -> Self {
-        let mut tags = Predict1::default();
-        let mut strings = Predict1::default();
+        let mut tags = PathPredict::new(1); // FIXME: Test with other depths
+        let mut strings = PathPredict::new(1); // FIXME: Test with other depths
 
         // Initialize number of instances.
-        Self::walk_parent_1(&mut tags, &mut strings, tree, None);
+        Self::walk_path(&mut tags, &mut strings, tree, &mut Vec::with_capacity(EXPECTED_PATH_DEPTH));
 
         // Deduce probabilities.
 
         Self {
-            tags: Self::get_parent_1(tags),
-            strings: Self::get_parent_1(strings),
+            tags: tags.instances_to_probabilities(),
+            strings: strings.instances_to_probabilities(),
         }
     }
 }
-
-// FIXME: We don't need reference renumbering in this scheme.
-impl SubTree {
-    fn with_labels<F: FnMut(&Label)>(&self, f: &mut F) {
-        f(&self.label);
-        for child in &self.children {
-            child.borrow().with_labels(f);
-        }
-    }
-    fn with_labels_mut<F: FnMut(Direction, &mut Label)>(&mut self, f: &mut F) {
-        f(Direction::Enter, &mut self.label);
-        for child in &self.children {
-            child.borrow_mut().with_labels_mut(f);
-        }
-        f(Direction::Exit, &mut self.label);
-    }
-}
-
 
 pub struct TreeTokenWriter<'a> {
     root: SharedTree,
@@ -216,25 +134,25 @@ impl<'a> TreeTokenWriter<'a> {
         Ok(self.root.clone())
     }
 
-    fn compress(&mut self, model: &mut Box<EncodingModel>, subtree: &SharedTree, parent: Option<(&Tag, usize)>) -> Result<(), std::io::Error> {
+    fn compress(&mut self, model: &mut Box<EncodingModel>, subtree: &SharedTree, path: &mut Path) -> Result<(), std::io::Error> {
         let borrow = subtree.borrow();
         match borrow.label {
             Label::Tag(ref tag) => {
-                let segment = model.tag_frequency_for_encoding(tag, parent)
+                let segment = model.tag_frequency_for_encoding(tag, path)
                     .expect("Could not compute tag frequency");
                 self.encoder.append_segment(&segment)?;
                 if segment.needs_definition {
                     self.encoder.flush_symbols()?;
-                    warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, parent);
+                    warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, path.len());
                 }
             }
             Label::String(ref string) => {
-                let segment = model.string_frequency_for_encoding(string, parent)
+                let segment = model.string_frequency_for_encoding(string, path)
                     .expect("Could not compute string frequency");
                 self.encoder.append_segment(&segment)?;
                 if segment.needs_definition {
                     self.encoder.flush_symbols()?;
-                    warn!(target: "multiarith", "FIXME: Append definition of the current string {:?} in {:?}", string, parent);
+                    warn!(target: "multiarith", "FIXME: Append definition of the current string {:?} in {:?}", string, path.len());
                 }
             }
             _ => {
@@ -245,12 +163,14 @@ impl<'a> TreeTokenWriter<'a> {
         match borrow.label {
             Label::Tag(ref tag) => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    self.compress(model, child, Some((tag, index)))?;
+                    path.push((tag.clone(), index));
+                    self.compress(model, child, path)?;
+                    path.pop();
                 }
             }
             _ => {
                 for child in &borrow.children {
-                    self.compress(model, child, parent)?;
+                    self.compress(model, child, path)?;
                 }
             }
         }
@@ -328,7 +248,7 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
         let mut model = self.model.encoding(&self.root);
         let root = self.root.clone();
-        self.compress(&mut model, &root, None)
+        self.compress(&mut model, &root, &mut Vec::with_capacity(EXPECTED_PATH_DEPTH))
             .unwrap(); // FIXME: Handle errors
         self.encoder.flush()
             .unwrap(); // FIXME: Handle errors
