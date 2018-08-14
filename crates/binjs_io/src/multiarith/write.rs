@@ -1,5 +1,5 @@
 
-use multiarith::{ EncodingModel, F64, Label, Model, Path, PathPredict, Segment, ScopeIndex, SharedTree, SubTree, Tag };
+use multiarith::{ ContextPredict, EncodingModel, F64, Label, Model, Path, PathPredict, Segment, ScopeIndex, SharedTree, SubTree, Tag };
 
 use io::TokenWriter;
 use ::TokenWriterError;
@@ -19,18 +19,16 @@ impl Segment {
     }
 }
 
-/*
-FIXME: Implement
-struct LinearAdaptiveEncodingPseudoModel {
-    tags: PathPredict<Tag, Segment>,
-}
-*/
-
 /// An encoding model which starts by analyzing the full AST to determine
 /// exact statistics.
 pub struct ExactEncodingModel {
+    /// Tag prediction based on path (depth 1 as of this writing).
     tags: PathPredict<Tag, Segment>,
+
+    /// String prediction based on path (depth 1 as of this writing).
     strings: PathPredict<Option<Rc<String>>, Segment>,
+
+    identifiers: ContextPredict<Option<ScopeIndex>, Rc<String>, Segment>,
 }
 impl ExactEncodingModel {
     fn init_path<T>(predictor: &mut PathPredict<T, usize>, value: &T, path: &mut Path)
@@ -63,6 +61,7 @@ impl EncodingModel for ExactEncodingModel {
 impl ExactEncodingModel {
     fn walk_path(tags: &mut PathPredict<Tag, /* instances */ usize>,
                  strings: &mut PathPredict<Option<Rc<String>>, usize>,
+                 identifiers: &mut ContextPredict<Option<ScopeIndex>, Rc<String>, usize>,
                  subtree: &SharedTree,
                  path: &mut Path)
         {
@@ -74,6 +73,11 @@ impl ExactEncodingModel {
             Label::String(ref string) => {
                 Self::init_path(strings, string, path);
             }
+            Label::Declare(Some(ref string)) | Label::LiteralReference(Some(ref string)) => {
+                // FIXME: Find the current scope in `subtree`.
+                // FIXME: Update `identifiers`
+                unimplemented!();
+            }
             _ => {
                 warn!(target: "multiarith", "Skipping initialization of predictor for label {:?} (not implemented yet)", borrow.label);
             }
@@ -82,14 +86,14 @@ impl ExactEncodingModel {
         match borrow.label {
             Label::Tag(ref tag) => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    path.push((tag.clone(), index));
-                    Self::walk_path(tags, strings, child, path);
+                    path.push(tag.clone(), index);
+                    Self::walk_path(tags, strings, identifiers, child, path);
                     path.pop();
                 }
             }
             _ => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    Self::walk_path(tags, strings, child, path);
+                    Self::walk_path(tags, strings, identifiers, child, path);
                 }
             }
         }
@@ -98,15 +102,22 @@ impl ExactEncodingModel {
     pub fn new(tree: &SharedTree) -> Self {
         let mut tags = PathPredict::new(1); // FIXME: Test with other depths
         let mut strings = PathPredict::new(1); // FIXME: Test with other depths
+        let mut identifiers = ContextPredict::new();
 
         // Initialize number of instances.
-        Self::walk_path(&mut tags, &mut strings, tree, &mut Vec::with_capacity(EXPECTED_PATH_DEPTH));
+        Self::walk_path(
+            &mut tags,
+            &mut strings,
+            &mut identifiers,
+            tree,
+            &mut Path::with_capacity(EXPECTED_PATH_DEPTH));
 
         // Deduce probabilities.
 
         Self {
             tags: tags.instances_to_probabilities(),
             strings: strings.instances_to_probabilities(),
+            identifiers: identifiers.instances_to_probabilities(),
         }
     }
 }
@@ -163,7 +174,7 @@ impl<'a> TreeTokenWriter<'a> {
         match borrow.label {
             Label::Tag(ref tag) => {
                 for (index, child) in borrow.children.iter().enumerate() {
-                    path.push((tag.clone(), index));
+                    path.push(tag.clone(), index);
                     self.compress(model, child, path)?;
                     path.pop();
                 }
@@ -199,6 +210,24 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
         self.new_tree(SubTree {
             label: Label::Scope(index),
             children: vec![tuple]
+        })
+    }
+
+    fn identifier_definition(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
+        self.new_tree(SubTree {
+            label: Label::Declare(name.map(|name|
+                Rc::new(name.to_string())
+            )),
+            children: vec![]
+        })
+    }
+
+    fn identifier_reference(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
+        self.new_tree(SubTree {
+            label: Label::LiteralReference(name.map(|name|
+                Rc::new(name.to_string())
+            )),
+            children: vec![]
         })
     }
 
@@ -248,7 +277,7 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
         let mut model = self.model.encoding(&self.root);
         let root = self.root.clone();
-        self.compress(&mut model, &root, &mut Vec::with_capacity(EXPECTED_PATH_DEPTH))
+        self.compress(&mut model, &root, &mut Path::with_capacity(EXPECTED_PATH_DEPTH))
             .unwrap(); // FIXME: Handle errors
         self.encoder.flush()
             .unwrap(); // FIXME: Handle errors

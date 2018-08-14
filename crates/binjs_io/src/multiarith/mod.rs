@@ -177,10 +177,7 @@ pub enum Label {
     /// Declare a variable throughout the current `Scope`.
     Declare(Option<Rc<String>>),
     /// Reference a variable throughout the current `Scope`.
-    ///
-    /// Initially entered as `LiteralReference`, then processed to a `NumberedReference`.
     LiteralReference(Option<Rc<String>>),
-    NumberedReference(Option<u32>),
 }
 
 impl Eq for Label { /* Yes, it's probably not entirely true for f64 */ }
@@ -196,7 +193,6 @@ impl Hash for Label { /* Again, not entirely true for f64 */
             Scope(ref s) => s.hash(state),
             Declare(ref d) => d.hash(state),
             LiteralReference(ref r) => r.hash(state),
-            NumberedReference(ref r) => r.hash(state),
         }
     }
 }
@@ -234,22 +230,68 @@ impl Counter for ScopeIndex {
     }
 }
 
-pub type Path = Vec<(/* Parent tag */Tag, /* Child index */usize)>;
-
-pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
-    /// Depth to use for prediction.
-    ///
-    /// 0: no context
-    /// 1: use parent
-    /// 2: use parent + grand parent
-    /// ...
-    depth: usize,
-    by_path: HashMap<Path, HashMap<K /* child */, T>>,
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub struct Path {
+    items: Vec<(/* Parent tag */Tag, /* Child index */usize)>
+}
+impl Path {
+    pub fn with_capacity(len: usize) -> Self {
+        Path {
+            items: Vec::with_capacity(len)
+        }
+    }
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+    pub fn push(&mut self, tag: Tag, index: usize) {
+        self.items.push((tag, index));
+    }
+    pub fn pop(&mut self) {
+        self.items.pop()
+            .expect("Popping from an empty path");
+    }
+    pub fn tail(&self, len: usize) -> Self {
+        let start = if self.items.len() <= len {
+            0
+        } else {
+            self.items.len() - len
+        };
+        let (_, tail) = &self.items[..].split_at(start);
+        let tail = tail.iter()
+            .cloned()
+            .collect();
+        Path {
+            items: tail
+        }
+    }
 }
 
-impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
-    pub fn instances_to_probabilities(mut self) -> PathPredict<K, Segment> {
-        let probabilities = self.by_path.drain()
+/// A generic predictor, associating a context and a key to a value.
+pub struct ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
+    by_context: HashMap<C, HashMap<K, T>>,
+}
+impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
+    pub fn new() -> Self {
+        Self {
+            by_context: HashMap::new()
+        }
+    }
+    pub fn get_mut(&mut self, context: &C, key: &K) -> Option<&mut T> {
+        let by_key = self.by_context.get_mut(context)?;
+        by_key.get_mut(key)
+    }
+
+    pub fn entry(&mut self, context: C, key: &K) -> (usize, std::collections::hash_map::Entry<K, T>) {
+        let by_key = self.by_context.entry(context)
+            .or_insert_with(|| HashMap::new());
+        (by_key.len(), by_key.entry(key.clone()))
+    }
+}
+impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
+    /// Utility: convert a number of instances for each symbol into
+    /// a probability distribution.
+    pub fn instances_to_probabilities(mut self) -> ContextPredict<C, K, Segment> {
+        let probabilities = self.by_context.drain()
             .map(|(path, mut by_value)| {
                 let number_of_symbols = by_value.len();
                 let total_instances : usize = by_value.values()
@@ -272,9 +314,36 @@ impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
                 (path, probability_by_value)
             })
             .collect();
+        ContextPredict {
+            by_context: probabilities
+        }
+    }
+}
+
+
+/// A predictor used to predict the probability of a symbol based on
+/// its position in a tree. The predictor is typically customized to
+/// limit the prediction depth, e.g. to 0 (don't use any context),
+/// 1 (use only the parent + child index) or 2 (use parent +
+/// grand-parent and both child indices).
+pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
+    /// Depth to use for prediction.
+    ///
+    /// 0: no context
+    /// 1: use parent
+    /// 2: use parent + grand parent
+    /// ...
+    depth: usize,
+    context_predict: ContextPredict<Path, K, T>,
+}
+
+impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
+    /// Utility: convert a number of instances for each symbol into
+    /// a probability distribution.
+    pub fn instances_to_probabilities(self) -> PathPredict<K, Segment> {
         PathPredict {
             depth: self.depth,
-            by_path: probabilities
+            context_predict: self.context_predict.instances_to_probabilities()
         }
     }
 }
@@ -283,42 +352,16 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
     pub fn new(depth: usize) -> Self {
         PathPredict {
             depth,
-            by_path: HashMap::new(),
+            context_predict: ContextPredict::new(),
         }
-    }
-
-    fn get_path_tail(&self, path: &Path) -> Path {
-        let start = if path.len() <= self.depth {
-            0
-        } else {
-            path.len() - self.depth
-        };
-        let (_, tail) = &path[..].split_at(start);
-        let tail = tail.iter()
-            .cloned()
-            .collect();
-        tail
     }
 
     pub fn get_mut(&mut self, path: &Path, key: &K) -> Option<&mut T> {
-        let tail = self.get_path_tail(path);
-        let by_key = self.by_path.get_mut(&tail)?;
-        let result = by_key.get_mut(key);
-        if let None = result {
-            debug!(target: "multiarith",
-                "PathPredict::get_mut failure for {key:?} at {path:?} shortened to {tail:?}",
-                key = key,
-                path = path,
-                tail = tail);
-        }
-        result
+        self.context_predict.get_mut(&path.tail(self.depth), key)
     }
 
     pub fn entry(&mut self, path: &Path, key: &K) -> (usize, std::collections::hash_map::Entry<K, T>) {
-        let tail = self.get_path_tail(path);
-        let by_key = self.by_path.entry(tail)
-            .or_insert_with(|| HashMap::new());
-        (by_key.len(), by_key.entry(key.clone()))
+        self.context_predict.entry(path.tail(self.depth), key)
     }
 }
 
