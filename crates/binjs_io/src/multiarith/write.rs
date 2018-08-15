@@ -126,12 +126,14 @@ pub struct TreeTokenWriter<'a> {
     root: SharedTree,
     scope_counter: GenericCounter<ScopeIndex>,
     model: &'a Model,
+    options: Options,
     encoder: SymbolEncoder<Vec<u8>>,
 }
 
 struct Compressor<'a> {
     model: Box<EncodingModel>,
     encoder: &'a mut SymbolEncoder<Vec<u8>>,
+    options: Options,
 }
 
 impl<'a> Visitor for Compressor<'a> {
@@ -141,6 +143,9 @@ impl<'a> Visitor for Compressor<'a> {
             Label::Tag(ref tag) => {
                 let segment = self.model.tag_frequency_for_encoding(tag, path)
                     .expect("Could not compute tag frequency");
+                if !self.options.encode_tags {
+                    return Ok(())
+                }
                 self.encoder.append_segment(&segment)?;
                 if segment.needs_definition {
                     // self.encoder.flush_symbols()?; // FIXME: Should we flush?
@@ -150,6 +155,9 @@ impl<'a> Visitor for Compressor<'a> {
             Label::String(ref string) => {
                 let segment = self.model.string_frequency_for_encoding(string, path)
                     .expect("Could not compute string frequency");
+                if !self.options.encode_strings {
+                    return Ok(())
+                }
                 self.encoder.append_segment(&segment)?;
                 if segment.needs_definition {
                     // self.encoder.flush_symbols()?; // FIXME: Should we flush?
@@ -159,6 +167,9 @@ impl<'a> Visitor for Compressor<'a> {
             Label::Declare(Some(ref string)) | Label::LiteralReference(Some(ref string)) => {
                 let segment = self.model.identifier_frequency_for_encoding(string, scopes)
                     .expect("Could not compute identifier frequency");
+                if !self.options.encode_identifiers {
+                    return Ok(())
+                }
                 self.encoder.append_segment(&segment)?;
                 if segment.needs_definition {
                     // self.encoder.flush_symbols()?; // FIXME: Should we flush?
@@ -174,10 +185,11 @@ impl<'a> Visitor for Compressor<'a> {
 }
 
 impl<'a> TreeTokenWriter<'a> {
-    pub fn new(model: &'a Model) -> Self {
+    pub fn new(model: &'a Model, options: Options) -> Self {
         Self {
             scope_counter: GenericCounter::new(),
             model,
+            options,
             encoder: SymbolEncoder::new(Vec::new()),
             root: Rc::new(RefCell::new(SubTree {
                 label: Label::String(None),
@@ -277,11 +289,12 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     }
 
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
-        let mut model = self.model.encoding(&self.root);
+        let model = self.model.encoding(&self.root);
         let root = self.root.clone();
         {
             let mut compressor = Compressor {
                 model,
+                options: self.options.clone(),
                 encoder: &mut self.encoder
             };
             root.walk(&mut compressor,
@@ -469,5 +482,39 @@ impl<W> SymbolEncoder<W> where W: Write {
         self.bits_ready = 0;
         self.buffer = 0;
         Ok(())
+    }
+}
+
+/// Options to customize the encoding process.
+#[derive(Clone)]
+pub struct Options {
+    /// If `true`, encode the tree structure in the file.
+    ///
+    /// Generally, keep it to `true`. Set it to `false`
+    /// to experiment with file sizes.
+    pub encode_tags: bool,
+
+    /// If `true`, encode strings proper (i.e. not identifiers)
+    /// in the file.
+    ///
+    /// Generally, keep it to `true`. Set it to `false`
+    /// to experiment with file sizes.
+    pub encode_strings: bool,
+
+    /// If `true`, encode identifiers (i.e. not identifiers)
+    /// in the file.
+    ///
+    /// Generally, keep it to `true`. Set it to `false`
+    /// to experiment with file sizes.
+    pub encode_identifiers: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            encode_tags: true,
+            encode_strings: true,
+            encode_identifiers: true,
+        }
     }
 }

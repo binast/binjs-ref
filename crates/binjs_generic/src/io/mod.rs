@@ -84,8 +84,8 @@ impl Encoder {
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
-            binjs_io::Format::Arithmetic { ref model } => {
-                let writer = binjs_io::multiarith::write::TreeTokenWriter::new(model.as_ref());
+            binjs_io::Format::Arithmetic { ref model, ref options } => {
+                let writer = binjs_io::multiarith::write::TreeTokenWriter::new(model.as_ref(), options.clone());
                 let mut serializer = encode::Encoder::new(grammar, writer);
                 serializer.generic_encode(ast)?;
                 let (data, _) = serializer.done()?;

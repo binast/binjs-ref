@@ -236,20 +236,20 @@ impl WalkTree for SubTree {
             Label::Tag(ref tag) => {
                 for (index, child) in self.children.iter().enumerate() {
                     path.push((tag.clone(), index));
-                    child.walk(visitor, path, scopes);
+                    child.walk(visitor, path, scopes)?;
                     path.pop();
                 }
             }
             Label::Scope(ref scope) => {
                 scopes.push(scope.clone());
                 for child in self.children.iter() {
-                    child.walk(visitor, path, scopes);
+                    child.walk(visitor, path, scopes)?;
                 }
                 scopes.pop();
             }
             _ => {
                 for child in self.children.iter() {
-                    child.walk(visitor, path, scopes);
+                    child.walk(visitor, path, scopes)?;
                 }
             }
         }
@@ -366,7 +366,6 @@ impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash 
     pub fn instances_to_probabilities(mut self) -> ContextPredict<C, K, Segment> {
         let probabilities = self.by_context.drain()
             .map(|(path, mut by_value)| {
-                let number_of_symbols = by_value.len();
                 let total_instances : usize = by_value.values()
                     .sum();
                 let mut cursor = 0;
@@ -484,3 +483,4 @@ impl Model for ExactModel {
         Box::new(write::ExactEncodingModel::new(tree))
     }
 }
+

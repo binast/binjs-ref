@@ -209,6 +209,7 @@ pub enum Format {
         targets: multistream::Targets,
     },
     Arithmetic {
+        options: multiarith::write::Options,
         model: Box<multiarith::Model>,
     }
 }
@@ -282,6 +283,7 @@ impl Format {
             Some("xml") => Some(Format::XML),
             Some("simple") => Some(Self::simple()),
             Some("arithmetic") => Some(Format::Arithmetic {
+                options: multiarith::write::Options::default(),
                 model: Box::new(multiarith::ExactModel)
             }),
             _ => None
