@@ -148,6 +148,7 @@
 //! ----- Initially, start with everything equi-likely. We'll add a predefined
 //! and/or custom dictionary later.
 
+mod bit;
 pub mod write;
 
 use util::Counter;
