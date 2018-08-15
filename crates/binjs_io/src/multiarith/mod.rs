@@ -24,7 +24,15 @@
 //! Similarly, we'll encode `left` and `right` in context C + `BinaryOperation`.
 //!
 //!
-//! # Format // DEPRECATED!
+//! # Random nodes on the format
+//!
+//! - We don't want too many dependencies between the dictionaries of two lazy
+//!  functions, as we generally don't know in which order they will be loaded.
+//!  The exception is if each lazy function has its own header and this header
+//!  contains a dictionary, in which case we may easily load the headers and
+//!  dictionaries in reading order. I guess we should do that.
+//!
+//! # Format details // DEPRECATED!
 //!
 //! Magic Header:
 //!  TBD
@@ -205,6 +213,59 @@ pub struct SubTree {
 }
 pub type SharedTree = Rc<RefCell<SubTree>>;
 
+pub trait Visitor {
+    type Error;
+    fn enter_label(&mut self, _label: &Label, _path: &Path<(Tag, usize)>, _scopes: &Path<ScopeIndex>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn exit_label(&mut self, _label: &Label, _path: &Path<(Tag, usize)>, _scopes: &Path<ScopeIndex>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+pub trait WalkTree {
+    fn walk<V>(&self, visitor: &mut V, path: &mut Path<(Tag, usize)>, scopes: &mut Path<ScopeIndex>) -> Result<(), V::Error>
+        where V: Visitor;
+}
+
+impl WalkTree for SubTree {
+    fn walk<V>(&self, visitor: &mut V, path: &mut Path<(Tag, usize)>, scopes: &mut Path<ScopeIndex>) -> Result<(), V::Error>
+        where V: Visitor
+    {
+        visitor.enter_label(&self.label, path, scopes)?;
+        match self.label {
+            Label::Tag(ref tag) => {
+                for (index, child) in self.children.iter().enumerate() {
+                    path.push((tag.clone(), index));
+                    child.walk(visitor, path, scopes);
+                    path.pop();
+                }
+            }
+            Label::Scope(ref scope) => {
+                scopes.push(scope.clone());
+                for child in self.children.iter() {
+                    child.walk(visitor, path, scopes);
+                }
+                scopes.pop();
+            }
+            _ => {
+                for child in self.children.iter() {
+                    child.walk(visitor, path, scopes);
+                }
+            }
+        }
+        visitor.exit_label(&self.label, path, scopes)?;
+        Ok(())
+    }
+}
+
+impl WalkTree for SharedTree {
+    fn walk<V>(&self, visitor: &mut V, path: &mut Path<(Tag, usize)>, scopes: &mut Path<ScopeIndex>) -> Result<(), V::Error>
+        where V: Visitor
+    {
+        self.borrow().walk(visitor, path, scopes)
+    }
+}
+
 /// A trivial wrapping of f64 with Hash and Eq.
 ///
 /// FIXME: Check whether it's still needed
@@ -231,25 +292,33 @@ impl Counter for ScopeIndex {
 }
 
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub struct Path {
-    items: Vec<(/* Parent tag */Tag, /* Child index */usize)>
+pub struct Path<T> where T: Clone {
+    items: Vec<T>
 }
-impl Path {
+impl<T> Path<T> where T: Clone {
     pub fn with_capacity(len: usize) -> Self {
         Path {
             items: Vec::with_capacity(len)
         }
     }
+
     pub fn len(&self) -> usize {
         self.items.len()
     }
-    pub fn push(&mut self, tag: Tag, index: usize) {
-        self.items.push((tag, index));
+
+    pub fn push(&mut self, value: T) {
+        self.items.push(value);
     }
+
     pub fn pop(&mut self) {
         self.items.pop()
             .expect("Popping from an empty path");
     }
+
+    pub fn last(&self) -> Option<&T> {
+        self.items.last()
+    }
+
     pub fn tail(&self, len: usize) -> Self {
         let start = if self.items.len() <= len {
             0
@@ -263,6 +332,10 @@ impl Path {
         Path {
             items: tail
         }
+    }
+
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &T> {
+        self.items.iter()
     }
 }
 
@@ -334,7 +407,8 @@ pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
     /// 2: use parent + grand parent
     /// ...
     depth: usize,
-    context_predict: ContextPredict<Path, K, T>,
+
+    context_predict: ContextPredict<Path<(Tag, usize)>, K, T>,
 }
 
 impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
@@ -356,11 +430,11 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
         }
     }
 
-    pub fn get_mut(&mut self, path: &Path, key: &K) -> Option<&mut T> {
+    pub fn get_mut(&mut self, path: &Path<(Tag, usize)>, key: &K) -> Option<&mut T> {
         self.context_predict.get_mut(&path.tail(self.depth), key)
     }
 
-    pub fn entry(&mut self, path: &Path, key: &K) -> (usize, std::collections::hash_map::Entry<K, T>) {
+    pub fn entry(&mut self, path: &Path<(Tag, usize)>, key: &K) -> (usize, std::collections::hash_map::Entry<K, T>) {
         self.context_predict.entry(path.tail(self.depth), key)
     }
 }
@@ -394,8 +468,9 @@ pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
 }
 
 pub trait EncodingModel {
-    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path) -> Result<Segment, ()>;
-    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path) -> Result<Segment, ()>;
+    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path<(Tag, usize)>) -> Result<Segment, ()>;
+    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path<(Tag, usize)>) -> Result<Segment, ()>;
+    fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Segment, ()>;
 }
 
 pub trait Model {

@@ -19,7 +19,6 @@
 //! loading speed.
 
 #![feature(box_patterns)]
-#![feature(iter_rfind)]
 
 extern crate binjs_generic;
 extern crate binjs_es6;
