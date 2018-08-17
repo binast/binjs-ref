@@ -444,7 +444,7 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
 pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
     /// Low value for this segment.
     ///
-    /// The probability of the segment is `(high - low)/context_length`.
+    /// The probability of the segment is `length/context_length`.
     low:  u32,
 
     /// Length of the segment.
