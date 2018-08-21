@@ -60,7 +60,7 @@ pub struct SymbolDecoder<R> where R: Read {
 
     /// Number of bits currently waiting in `buffer`.
     bits_available: u8,
-    recentering_bits: u8,
+    pending: u32,
     reader: R,
 }
 impl<R> SymbolDecoder<R> where R: Read {
@@ -76,6 +76,8 @@ impl<R> SymbolDecoder<R> where R: Read {
     }
 
     fn pull_bit(&mut self) -> Result<(), std::io::Error> {
+        // FIXME: We need a way to find out that we have
+        // read too many bits.
         // If necessary, load the next byte.
         if self.bits_available == 0 as u8 {
             debug_assert_eq!(self.buffer, 0);
@@ -88,8 +90,8 @@ impl<R> SymbolDecoder<R> where R: Read {
         }
 
         // Read next bit.
-        let bit = self.buffer & 1 == 1;
-        self.buffer >>= 2;
+        self.pending = (self.pending << 1) | (self.buffer & 1);
+        self.buffer >>= 1;
         self.bits_available -= 1;
 
         // Now divide the interval by two.
@@ -114,39 +116,27 @@ impl<R> SymbolDecoder<R> where R: Read {
     pub fn next(&mut self, symbols: &[Segment]) -> Result<u32, std::io::Error> {
         // FIXME: Handle the case in which `symbols` is empty.
 
-        let mut symbols: &[_] = &symbols.iter()
-            .enumerate()
-            .collect();
-
         let result = loop {
-            symbols = symbols.iter()
+            let symbols : Vec<_> = symbols.iter()
                 .filter(|segment| {
                     (segment.low <= self.low
-                    && segment.low + segment.length > self.low)
-                    ||
-                    (segment.low <= self.low + self.length
-                    && segment.low + segment.length > self.low + self.length)
-                });
-            if symbols.len() == 0 {
-                // We can't find a solution anymore.
-                return Error(std::io::Error::new(std::io::ErrorKind::InvalidData));
-            }
+                    && segment.low + segment.length >= self.low + self.length)
+                })
+                .collect();
 
-            if symbols.len() == 1 {
-                // We only intersect with one symbol. It should be the result.
-                let segment = &symbols[0].0;
-                if segment.low <= self.low
-                && segment.low + segment.length >= self.low + self.length
-                {
+            match symbols.len() {
+                0 => {
+                    // We haven't converged yet
+                    self.pull_bits()?;
+                },
+                1 => {
+                    // We have converged.
                     break symbols[0].1;
-                } else {
-                    // FIXME: I *think* that it's not possible.
-                    return Error(std::io::Error::new(std::io::ErrorKind::InvalidData));
+                }
+                _ => {
+                    unimplemented!("FIXME: Handle error when two segments intersect");;
                 }
             }
-
-            // Otherwise, we simply haven't converged yet.
-            self.pull_bit()?;
         };
 
         // At this stage, we have a result.
@@ -162,7 +152,7 @@ impl<R> SymbolDecoder<R> where R: Read {
         let interval_quarter = 1u32.rotate_right(2);
         let interval_half    = 1u32.rotate_right(1);
         let interval_three_quarters = interval_half + interval_quarter;
-        'first_digits: loop {
+        'recover_digits: loop {
             if self.low + self.length < interval_half {
                 // We're in the first half of the interval.
                 // Do nothing.
@@ -176,7 +166,7 @@ impl<R> SymbolDecoder<R> where R: Read {
                 // Information: we're in the half of the interval around the center.
                 unimplemented!()
             } else {
-                break 'first_digits
+                break 'recover_digits
             }
 
             self.low = self.low << 1;
