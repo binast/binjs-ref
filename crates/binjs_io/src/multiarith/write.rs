@@ -1,24 +1,24 @@
 
-use multiarith::{ ContextPredict, EncodingModel, F64, Label, Model, Path, PathPredict, Segment, ScopeIndex, SharedTree, SubTree, Tag, Visitor, WalkTree };
-use multiarith::bit::SymbolEncoder;
+use multiarith::{ ContextPredict, EncodingModel, F64, Label, Model, Path, PathPredict, ScopeIndex, SharedTree, SubTree, Symbol, Tag, Visitor, WalkTree };
 
 use io::TokenWriter;
 use ::TokenWriterError;
 use util::GenericCounter;
 
+use range_encoding::AlreadyEncountered;
+use range_encoding::opus;
+
 use std;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// A constant used to initialize the maximal path depth.
+/// Changing it will only affect performance.
 const EXPECTED_PATH_DEPTH: usize = 2048;
-const EXPECTED_SCOPE_DEPTH: usize = 128;
 
-impl Segment {
-    /// Mark that a symbol has been defined in a context.
-    fn mark_as_defined(&mut self) {
-        self.needs_definition = false;
-    }
-}
+/// A constant used to initialize the maximal scope depth.
+/// Changing it will only affect performance.
+const EXPECTED_SCOPE_DEPTH: usize = 128;
 
 struct ExactEncodingModelData<T> {
     /// Tag prediction based on path (depth 1 as of this writing).
@@ -66,33 +66,31 @@ impl Visitor for ExactEncodingModelData</* Number of instances */ usize> {
 /// An encoding model which starts by analyzing the full AST to determine
 /// exact statistics.
 pub struct ExactEncodingModel {
-    probabilities: ExactEncodingModelData<Segment>,
+    probabilities: ExactEncodingModelData<Symbol>,
 }
 impl ExactEncodingModel {
-    fn get_from_path<T>(predictor: &mut PathPredict<T, Segment>, value: &T, path: &Path<(Tag, usize)>) -> Result<Segment, ()>
+    fn get_from_path<T>(predictor: &mut PathPredict<T, Symbol>, value: &T, path: &Path<(Tag, usize)>) -> Result<Symbol, ()>
         where T: Eq + std::hash::Hash + Clone + std::fmt::Debug
     {
         let segment = predictor.get_mut(path, value)
             .ok_or(())?;
         let result = segment.clone();
-        segment.mark_as_defined();
         Ok(result)
     }
 }
 impl EncodingModel for ExactEncodingModel {
-    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path<(Tag, usize)>) -> Result<Segment, ()> {
+    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
         Self::get_from_path(&mut self.probabilities.strings, string, path)
     }
-    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path<(Tag, usize)>) -> Result<Segment, ()> {
+    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
         Self::get_from_path(&mut self.probabilities.tags, tag, path)
     }
-    fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Segment, ()> {
+    fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Symbol, ()> {
         let scope = scopes.last()
             .cloned();
         let segment = self.probabilities.identifiers.get_mut(&scope, string)
             .ok_or(())?;
         let result = segment.clone();
-        segment.mark_as_defined();
         Ok(result)
     }
 }
@@ -127,12 +125,12 @@ pub struct TreeTokenWriter<'a> {
     scope_counter: GenericCounter<ScopeIndex>,
     model: &'a Model,
     options: Options,
-    encoder: SymbolEncoder<Vec<u8>>,
+    encoder: opus::Writer<Vec<u8>>,
 }
 
 struct Compressor<'a> {
     model: Box<EncodingModel>,
-    encoder: &'a mut SymbolEncoder<Vec<u8>>,
+    encoder: &'a mut opus::Writer<Vec<u8>>,
     options: Options,
 }
 
@@ -141,37 +139,36 @@ impl<'a> Visitor for Compressor<'a> {
     fn enter_label(&mut self, label: &Label, path: &Path<(Tag, usize)>, scopes: &Path<ScopeIndex>) -> Result<(), Self::Error> {
         match label {
             Label::Tag(ref tag) => {
-                let segment = self.model.tag_frequency_for_encoding(tag, path)
+                let symbol = self.model.tag_frequency_for_encoding(tag, path)
                     .expect("Could not compute tag frequency");
                 if !self.options.encode_tags {
                     return Ok(())
                 }
-                self.encoder.append_segment(&segment)?;
-                if segment.needs_definition {
-                    // self.encoder.flush_symbols()?; // FIXME: Should we flush?
+                let mut distribution = symbol.distribution.borrow_mut();
+                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
                     warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, path.len());
                 }
             }
             Label::String(ref string) => {
-                let segment = self.model.string_frequency_for_encoding(string, path)
+                let symbol = self.model.string_frequency_for_encoding(string, path)
                     .expect("Could not compute string frequency");
                 if !self.options.encode_strings {
                     return Ok(())
                 }
-                self.encoder.append_segment(&segment)?;
-                if segment.needs_definition {
+                let mut distribution = symbol.distribution.borrow_mut();
+                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
                     // self.encoder.flush_symbols()?; // FIXME: Should we flush?
                     warn!(target: "multiarith", "FIXME: Append definition of the current string {:?} in {:?}", string, path.len());
                 }
             }
             Label::Declare(Some(ref string)) | Label::LiteralReference(Some(ref string)) => {
-                let segment = self.model.identifier_frequency_for_encoding(string, scopes)
+                let symbol = self.model.identifier_frequency_for_encoding(string, scopes)
                     .expect("Could not compute identifier frequency");
                 if !self.options.encode_identifiers {
                     return Ok(())
                 }
-                self.encoder.append_segment(&segment)?;
-                if segment.needs_definition {
+                let mut distribution = symbol.distribution.borrow_mut();
+                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
                     // self.encoder.flush_symbols()?; // FIXME: Should we flush?
                     warn!(target: "multiarith", "FIXME: Append definition of the current identifier {:?} in {:?}", string, path.len());
                 }
@@ -190,7 +187,7 @@ impl<'a> TreeTokenWriter<'a> {
             scope_counter: GenericCounter::new(),
             model,
             options,
-            encoder: SymbolEncoder::new(Vec::new()),
+            encoder: opus::Writer::new(Vec::new()),
             root: Rc::new(RefCell::new(SubTree {
                 label: Label::String(None),
                 children: vec![]
@@ -302,9 +299,8 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
                 &mut Path::with_capacity(EXPECTED_SCOPE_DEPTH)
             ).unwrap(); // FIXME: Handle errors
         }
-        self.encoder.flush()
+        let data = self.encoder.done()
             .unwrap(); // FIXME: Handle errors
-        let data = self.encoder.done();
 
         Ok((data, 0))
     }

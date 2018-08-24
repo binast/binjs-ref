@@ -148,10 +148,11 @@
 //! ----- Initially, start with everything equi-likely. We'll add a predefined
 //! and/or custom dictionary later.
 
-mod bit;
 pub mod write;
 
 use util::Counter;
+
+use range_encoding;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -340,6 +341,12 @@ impl<T> Path<T> where T: Clone {
     }
 }
 
+#[derive(Clone)]
+pub struct Symbol {
+    pub index: usize,
+    pub distribution: Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>,
+}
+
 /// A generic predictor, associating a context and a key to a value.
 pub struct ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
     by_context: HashMap<C, HashMap<K, T>>,
@@ -364,31 +371,30 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
 impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
     /// Utility: convert a number of instances for each symbol into
     /// a probability distribution.
-    pub fn instances_to_probabilities(mut self) -> ContextPredict<C, K, Segment> {
-        let probabilities = self.by_context.drain()
-            .map(|(path, mut by_value)| {
-                let total_instances : usize = by_value.values()
-                    .sum();
-                let mut cursor = 0;
-                let probability_by_value = by_value.drain()
-                    .map(|(key, instances)| {
-                        let low = cursor;
-                        cursor += instances;
-                        let segment = Segment {
-                            low: low as u32,
-                            length: instances as u32,
-                            context_length: total_instances as u32,
-                            needs_definition: true,
-                        };
-                        (key, segment)
+    pub fn instances_to_probabilities(mut self) -> ContextPredict<C, K, Symbol> {
+        let by_context = self.by_context.drain()
+            .map(|(context, by_value)| {
+                let instances : Vec<_> = by_value.values()
+                    .map(|x| *x as u32)
+                    .collect();
+                let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances).
+                    unwrap())); // FIXME: This will fail if `by_value` is empty.
+
+                let by_value = by_value.into_iter()
+                    .enumerate()
+                    .map(|(index, (key, _))| {
+                        (key, Symbol {
+                            index,
+                            distribution: distribution.clone(),
+                        })
                     })
                     .collect();
-                assert_eq!(cursor, total_instances);
-                (path, probability_by_value)
+                // FIXME: Actually put the number of instances in `distribution`.
+                (context, by_value)
             })
             .collect();
         ContextPredict {
-            by_context: probabilities
+            by_context
         }
     }
 }
@@ -414,7 +420,7 @@ pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
 impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
     /// Utility: convert a number of instances for each symbol into
     /// a probability distribution.
-    pub fn instances_to_probabilities(self) -> PathPredict<K, Segment> {
+    pub fn instances_to_probabilities(self) -> PathPredict<K, Symbol> {
         PathPredict {
             depth: self.depth,
             context_predict: self.context_predict.instances_to_probabilities()
@@ -439,7 +445,7 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
     }
 }
 
-
+/*
 #[derive(Clone, Debug)]
 pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
     /// Low value for this segment.
@@ -466,11 +472,12 @@ pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
     /// context, so a definition must be injected.
     needs_definition: bool,
 }
+*/
 
 pub trait EncodingModel {
-    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path<(Tag, usize)>) -> Result<Segment, ()>;
-    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path<(Tag, usize)>) -> Result<Segment, ()>;
-    fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Segment, ()>;
+    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path<(Tag, usize)>) -> Result<Symbol, ()>;
+    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()>;
+    fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Symbol, ()>;
 }
 
 pub trait Model {

@@ -13,6 +13,7 @@ itertools = "*"
 lzw = "*"
 log = "*"
 rand = "^0.4"
+range-encoding = { git = "https://github.com/binast/range-encoding-rs" }
 vec_map = "*"
 xml-rs = "*"
 

@@ -2,6 +2,8 @@
 
 use multiarith::Segment;
 
+// FIXME: Use corrosion to generate that code from Opus, for instance.
+
 use std;
 use std::io::{ Read, Write };
 
@@ -91,18 +93,7 @@ impl<R> SymbolDecoder<R> where R: Read {
 
         // Read next bit.
         self.pending = (self.pending << 1) | (self.buffer & 1);
-        self.buffer >>= 1;
         self.bits_available -= 1;
-
-        // Now divide the interval by two.
-        self.length /= 2;
-        if !bit {
-            // First half of the interval.
-            // Keep the same value of `self.low`.
-        } else {
-            // Second half of the interval.
-            self.low += self.length;
-        }
         Ok(())
     }
 
@@ -115,6 +106,9 @@ impl<R> SymbolDecoder<R> where R: Read {
     /// - all must share the same `context_total`.
     pub fn next(&mut self, symbols: &[Segment]) -> Result<u32, std::io::Error> {
         // FIXME: Handle the case in which `symbols` is empty.
+
+        // FIXME: Do we really need symbols.context_length?
+        // FIXME: We could hardcode it to std::u32::MAX
 
         let result = loop {
             let symbols : Vec<_> = symbols.iter()
@@ -139,9 +133,12 @@ impl<R> SymbolDecoder<R> where R: Read {
             }
         };
 
+        assert!(self.pending >= self.low);
+
         // At this stage, we have a result.
         // Zoom in.
         let context_length = result.context_length as u64;
+        let value = (((self.pending as u64) - (self.low as u64) + 1) * context_length) / (self.length as u64);
         self.low = self.low + (((self.length as u64 * result.low as u64) / context_length) as u32);
         self.length = ((self.length as u64 * segment.length as u64) / context_length) as u32;
             // Assuming that `segment.length <= context_length`, this is decreasing,
