@@ -119,7 +119,7 @@ fn main() {
             'per_level: for level in &[0, 1, 2, 3, 4, 5] {
 
                 let mut ast = reference_ast.clone();
-                let mut visitor = binjs::specialized::es6::skip::LazifierVisitor::new(*level);
+                let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(*level);
                 ast.walk(&mut path, &mut visitor)
                     .expect("Could not introduce laziness");
                 progress();

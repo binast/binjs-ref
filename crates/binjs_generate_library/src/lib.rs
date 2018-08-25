@@ -766,6 +766,21 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                 let typedef = source.get(name).unwrap();
                 if let TypeSpec::Array { ref contents, ref supports_empty } = *typedef.spec() {
                     if let TypeSpec::NamedType(ref contents) = *contents.spec() {
+                        // FunctionBody's implementation is already
+                        // emitted as ListOfStatement.
+                        // Emit only ViewMut* to avoid duplicate definitions.
+                        // FIXMEarai: Use more generic way to detect such case.
+                        if name.to_string() == "FunctionBody" {
+                            let source = format!("{empty_check}pub type {name} = Vec<{contents}>;
+pub type ViewMut{name}<'a> = ViewMutListOfStatement<'a>;
+",
+                                                 empty_check = if *supports_empty { "" } else { "// FIXME: Should discard empty vectors.\n" },
+                                                 name = name.to_class_cases(),
+                                                 contents = contents.to_class_cases());
+                            buffer.push_str(&source);
+                            continue;
+                        }
+
                         let source = format!("{empty_check}pub type {name} = Vec<{contents}>;
 pub struct ViewMut{name}<'a>(&'a mut {name});
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
@@ -1310,9 +1325,11 @@ impl<'a> Walker<'a> for ViewMutOffset<'a> {{
         for interface in self.spec.interfaces_by_name().values() {
             for field in interface.contents().fields() {
                 fields.insert(field.name().to_string().clone());
+                if field.is_lazy() {
+                    fields.insert(format!("{}_skip", field.name().to_string().clone()));
+                }
             }
         }
-        fields.insert("_skip".to_string()); // Hardcoded `_skip` field.
         let fields : Vec<_> = fields.drain().sorted();
         for name in fields {
             let snake = name.to_rust_identifier_case();
@@ -1361,9 +1378,14 @@ impl<'a> Walker<'a> for ViewMutOffset<'a> {{
                 fields = def.contents()
                     .fields()
                     .iter()
-                    .map(|field| format!("            .with_field(\n                 &names.field_{name},\n{type_}\n            )",
+                    .map(|field| format!("            .with_field(\n                 &names.field_{name},\n{type_},\n                 {laziness}\n            )",
                         name = field.name().to_rust_identifier_case(),
-                        type_= Self::type_(field.type_(), "                 ")))
+                        type_= Self::type_(field.type_(), "                 "),
+                        laziness = if field.is_lazy() {
+                            "Laziness::Lazy"
+                        } else {
+                            "Laziness::Eager"
+                        }))
                     .format("\n"));
             let impl_source = format!("        builder.add_interface(&names.{name}).unwrap()\n{fields};\n\n",
                 name = name.to_rust_identifier_case(),

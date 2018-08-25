@@ -537,7 +537,7 @@ impl TreeTokenWriter {
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.uncompressed_bytes += MAGIC_HEADER.len();
 
-        const FORMAT_VERSION : u32 = 0;
+        const FORMAT_VERSION : u32 = 1;
         self.data.write_varnum(FORMAT_VERSION)
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.uncompressed_bytes += std::mem::size_of_val(&FORMAT_VERSION);
@@ -780,61 +780,70 @@ impl TokenWriter for TreeTokenWriter {
         );
         let index : TableIndex<_> = self.grammar_table.insert(description);
         {
+            debug!(target: "multipart", "tagged tuple index: {index:?}",
+                index = index);
+
             // Now, we determine if we should add an Offset
-            let inject_in_offset =
-                if let Some(&(_, ref tree)) = children.get(0)
-                {
-                    if let UnresolvedTree {
+            let mut children_data = vec![];
+            // [lazy] field has preceding Nature::Offset child.
+            //
+            //   ...
+            //   { nature: Nature::Offset, data: UnresolvedOffset(none) },
+            //   { nature: any, data: any },
+            //   ...
+            //
+            // The following loop converts them into single child.
+            //
+            //   ...
+            //   { nature: Nature::Offset,
+            //     data: UnresolvedOffset({ nature: any, data: any }) },
+            //   ...
+            //
+            // `is_lazy_field` is used to detect the child after Nature::Offset
+            let mut is_lazy_field = false;
+            for child in children.iter() {
+                let child_data = (child.1).0.clone();
+                match *child_data {
+                    UnresolvedTree {
+                        data: UnresolvedTreeNode::UnresolvedOffset(ref v),
                         nature: Nature::Offset,
-                        data: UnresolvedTreeNode::UnresolvedOffset(ref v)
-                    } = *tree.0 {
+                    } => {
+                        assert!(!is_lazy_field);
                         assert!(v.is_none());
-                        true
-                    } else {
-                        false
+                        // The next child is [lazy] field.
+                        is_lazy_field = true;
                     }
-                } else {
-                    false
-                };
+                    _ => {
+                        if is_lazy_field {
+                            let offset_child = UnresolvedTree {
+                                data: UnresolvedTreeNode::Tuple(vec![child_data.clone()]),
+                                nature: Nature::UntaggedTuple,
+                            };
 
-            debug!(target: "multipart", "tagged tuple index: {index:?}, with{has_offset} offset",
-                index = index,
-                has_offset = if inject_in_offset { "" } else { "OUT"});
-
-            // Sanity check
-            for (i, &(_, ref child)) in children.iter().enumerate() {
-                if let Nature::Offset = child.0.nature {
-                    if i == 0 {
-                        // No problem.
-                    } else {
-                        // Offsets may only appear as first child.
-                        return Err(TokenWriterError::InvalidOffsetField)
+                            children_data.push(Rc::new(UnresolvedTree {
+                                data: UnresolvedTreeNode::UnresolvedOffset(Some(Box::new(offset_child))),
+                                nature: Nature::Offset,
+                            }));
+                            is_lazy_field = false;
+                        } else {
+                            children_data.push(child_data.clone());
+                        }
                     }
                 }
             }
+            assert!(!is_lazy_field);
+
+            let children = UnresolvedTree {
+                data: UnresolvedTreeNode::Tuple(children_data),
+                nature: Nature::UntaggedTuple,
+            };
 
             let prefix = Rc::new(UnresolvedTree {
                 data: UnresolvedTreeNode::UnresolvedNodeIndex(index.clone()),
                 nature: Nature::TaggedTupleHeader(index.clone()),
             });
 
-            let children = UnresolvedTree {
-                data: UnresolvedTreeNode::Tuple(children.iter()
-                    .skip(if inject_in_offset { 1 } else { 0 })
-                    .map(|c| (c.1).0.clone())
-                    .collect()),
-                nature: Nature::UntaggedTuple,
-            };
-
-            if inject_in_offset {
-                // Now inject in data.
-                data = vec![prefix, Rc::new(UnresolvedTree {
-                    data: UnresolvedTreeNode::UnresolvedOffset(Some(Box::new(children))),
-                    nature: Nature::Offset,
-                })];
-            } else {
-                data = vec![prefix, Rc::new(children)];
-            }
+            data = vec![prefix, Rc::new(children)];
         }
         Ok(self.register(UnresolvedTree {
             data: UnresolvedTreeNode::Tuple(data),
