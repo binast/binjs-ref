@@ -35,6 +35,9 @@ struct ExactEncodingModelData<T> {
     /// Number prediction based on path.
     numbers: PathPredict<Option<F64>, T>,
 
+    /// Bool prediction.
+    bools: PathPredict<Option<bool>, T>,
+
     /// Identifier prediction based on scope.
     identifiers: ContextPredict<Option<ScopeIndex>, Rc<String>, T>,
 
@@ -84,6 +87,12 @@ impl Visitor for ExactEncodingModelData</* Number of instances */ usize> {
                         *instances += 1
                     }).or_insert(1);
             }
+            Label::Bool(ref value) => {
+                let (_, entry) = self.bools.entry(path, value);
+                entry.and_modify(|instances| {
+                    *instances += 1
+                }).or_insert(1);
+            }
             _ => {
                 warn!(target: "multiarith", "Skipping initialization of predictor for label {:?} (not implemented yet)", label);
             }
@@ -114,6 +123,9 @@ impl EncodingModel for ExactEncodingModel {
     fn tag_frequency_for_encoding(&mut self, value: &Tag, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
         Self::get_from_path(&mut self.probabilities.tags, value, path)
     }
+    fn bool_frequency_for_encoding(&mut self, value: &Option<bool>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
+        Self::get_from_path(&mut self.probabilities.bools, value, path)
+    }
     fn number_frequency_for_encoding(&mut self, value: &Option<F64>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
         Self::get_from_path(&mut self.probabilities.numbers, value, path)
     }
@@ -142,6 +154,7 @@ impl ExactEncodingModel {
             strings: PathPredict::new(1), // FIXME: Test with other depths
             list_lengths: PathPredict::new(1), // FIXME: Test with other depths
             numbers: PathPredict::new(1), // Fairly confident that a depth of 1 should be sufficient for numbers.
+            bools: PathPredict::new(1),
             identifiers: ContextPredict::new(),
             iso_bit_model: ContextPredict::new(),
         };
@@ -166,6 +179,7 @@ impl ExactEncodingModel {
                 tags: instances.tags.instances_to_probabilities(),
                 strings: instances.strings.instances_to_probabilities(),
                 identifiers: instances.identifiers.instances_to_probabilities(),
+                bools: instances.bools.instances_to_probabilities(),
                 numbers: instances.numbers.instances_to_probabilities(),
                 list_lengths: instances.list_lengths.instances_to_probabilities(),
                 iso_bit_model: instances.iso_bit_model.instances_to_probabilities(),
@@ -289,6 +303,18 @@ impl<'a> Visitor for Compressor<'a> {
                     warn!(target: "multiarith", "FIXME: Append definition of the current string {:?} in {:?}", string, path.len());
                 }
             }
+            Label::Bool(ref value) => {
+                let symbol = self.model.bool_frequency_for_encoding(value, path)
+                    .expect("Could not compute bool frequency");
+                if !self.options.encode_bools {
+                    return Ok(())
+                }
+                let mut distribution = symbol.distribution.borrow_mut();
+                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
+                    // self.encoder.flush_symbols()?; // FIXME: Should we flush?
+                    warn!(target: "multiarith", "FIXME: Append definition of the current bool {:?} in {:?}", value, path.len());
+                }
+            }
             Label::Declare(Some(ref string)) | Label::LiteralReference(Some(ref string)) => {
                 let symbol = self.model.identifier_frequency_for_encoding(string, scopes)
                     .expect("Could not compute identifier frequency");
@@ -375,13 +401,10 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     }
 
     fn bool(&mut self, value: Option<bool>) -> Result<Self::Tree, TokenWriterError> {
-        // FIXME: Once we start introducing dictionaries, we won't want to use strings anymore.
-        let string = match value {
-            None => "",
-            Some(true) => "true",
-            Some(false) => "false"
-        };
-        self.tagged_tuple(&string, &[])
+        self.new_tree(SubTree {
+            label: Label::Bool(value),
+            children: vec![]
+        })
     }
 
     fn float(&mut self, value: Option<f64>) -> Result<Self::Tree, TokenWriterError> {
@@ -446,6 +469,12 @@ pub struct Options {
     /// to experiment with contribution of this stuff to file size..
     pub encode_tags: bool,
 
+    /// If `true`, encode the bools in the file
+    ///
+    /// Generally, keep it to `true`. Set it to `false`
+    /// to experiment with contribution of this stuff to file size..
+    pub encode_bools: bool,
+
     /// If `true`, encode numbers in the file.
     ///
     /// Generally, keep it to `true`. Set it to `false`
@@ -478,6 +507,7 @@ impl Default for Options {
         Self {
             inline_dictionaries: true,
             encode_tags: true,
+            encode_bools: true,
             encode_strings: true,
             encode_identifiers: true,
             encode_numbers: true,
@@ -487,7 +517,7 @@ impl Default for Options {
 }
 impl Options {
     pub const KEYS : &'static [&'static str] = &[
-		"dictionaries",
+        "dictionaries",
         "no-dictionaries",
         "tags",
         "no-tags",
@@ -495,6 +525,8 @@ impl Options {
         "no-strings",
         "numbers",
         "no-numbers",
+        "bools",
+        "no-bools",
     ];
     pub fn with_option(self, option: &str) -> Option<Self> {
         match option {
@@ -519,6 +551,18 @@ impl Options {
             "no-tags" => {
                 Some(Self {
                     encode_tags: false,
+                    .. self
+                })
+            }
+            "bools" => {
+                Some(Self {
+                    encode_bools: true,
+                    .. self
+                })
+            }
+            "no-bools" => {
+                Some(Self {
+                    encode_bools: false,
                     .. self
                 })
             }

@@ -159,6 +159,7 @@ use std::rc::Rc;
 
 pub trait EncodingModel {
     fn tag_frequency_for_encoding(&mut self, tag: &tree::Tag, path: &Path<(tree::Tag, usize)>) -> Result<Symbol, ()>;
+    fn bool_frequency_for_encoding(&mut self, value: &Option<bool>, path: &Path<(tree::Tag, usize)>) -> Result<Symbol, ()>;
     fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path<(tree::Tag, usize)>) -> Result<Symbol, ()>;
     fn number_frequency_for_encoding(&mut self, number: &Option<F64>, path: &Path<(tree::Tag, usize)>) -> Result<Symbol, ()>;
     fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<tree::ScopeIndex>) -> Result<Symbol, ()>;

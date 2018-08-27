@@ -230,6 +230,10 @@ fn main_aux() {
                 .long("arithmetic-tags"),
             Arg::with_name("arithmetic-no-tags")
                 .long("arithmetic-no-tags"),
+            Arg::with_name("arithmetic-bools")
+                .long("arithmetic-bools"),
+            Arg::with_name("arithmetic-no-bools")
+                .long("arithmetic-no-bools"),
             Arg::with_name("arithmetic-strings")
                 .long("arithmetic-strings"),
             Arg::with_name("arithmetic-no-strings")
