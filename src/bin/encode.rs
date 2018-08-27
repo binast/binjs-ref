@@ -270,7 +270,11 @@ fn main_aux() {
         .into_iter()
         .filter_map(|key| {
             let full_key = format!("arithmetic-{}", key);
-            matches.value_of(&full_key)
+            if matches.is_present(&full_key) {
+                Some(*key)
+            } else {
+                None
+            }
         });
 
     let format = Format::parse(matches.value_of("format"))

@@ -203,6 +203,20 @@ struct Compressor<'a> {
 }
 
 impl<'a> Compressor<'a> {
+    fn encode_uncompressed_bit(&mut self, value: bool) -> Result<(), std::io::Error> {
+        let symbol = self.model.iso_bit_frequency_for_encoding(value)
+            .unwrap();
+        let mut distribution = symbol.distribution.borrow_mut();
+        self.encoder.symbol(symbol.index, &mut distribution)?;
+        Ok(())
+    }
+    fn encode_uncompressed_bits(&mut self, bits: &[bool]) -> Result<(), std::io::Error>
+    {
+        for bit in bits {
+            self.encode_uncompressed_bit(*bit)?;
+        }
+        Ok(())
+    }
     fn encode_uncompressed_varnum(&mut self, value: Option<u32>)-> Result<(), std::io::Error> {
         use bytes::varnum::*;
 
@@ -214,10 +228,7 @@ impl<'a> Compressor<'a> {
             let byte = byte.unwrap(); // Read from a Cursor cannot fail.
             for shift in 0..7 {
                 let bit = (byte & 1 << shift) != 0;
-                let symbol = self.model.iso_bit_frequency_for_encoding(bit)
-                    .unwrap();
-                let mut distribution = symbol.distribution.borrow_mut();
-                self.encoder.symbol(symbol.index, &mut distribution)?;
+                self.encode_uncompressed_bit(bit)?;
             }
         }
         Ok(())
@@ -234,10 +245,7 @@ impl<'a> Compressor<'a> {
             let byte = byte.unwrap(); // Read from a Cursor cannot fail.
             for shift in 0..7 {
                 let bit = (byte & 1 << shift) != 0;
-                let symbol = self.model.iso_bit_frequency_for_encoding(bit)
-                    .unwrap();
-                let mut distribution = symbol.distribution.borrow_mut();
-                self.encoder.symbol(symbol.index, &mut distribution)?;
+                self.encode_uncompressed_bit(bit)?;
             }
         }
         Ok(())
@@ -311,8 +319,14 @@ impl<'a> Visitor for Compressor<'a> {
                 }
                 let mut distribution = symbol.distribution.borrow_mut();
                 if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
-                    // self.encoder.flush_symbols()?; // FIXME: Should we flush?
-                    warn!(target: "multiarith", "FIXME: Append definition of the current bool {:?} in {:?}", value, path.len());
+                    if !self.options.inline_dictionaries {
+                        match value { // FIXME: Would be more efficient if we knew ahead of time whether it's a bool or an Option<bool>
+                            None => self.encode_uncompressed_bits(&[true, true])?,
+                            Some(true) => self.encode_uncompressed_bits(&[false, true])?,
+                            Some(false) => self.encode_uncompressed_bits(&[false, false])?,
+                        }
+                        return Ok(())
+                    }
                 }
             }
             Label::Declare(Some(ref string)) | Label::LiteralReference(Some(ref string)) => {
@@ -529,6 +543,7 @@ impl Options {
         "no-bools",
     ];
     pub fn with_option(self, option: &str) -> Option<Self> {
+        debug!(target: "multiarith", "Applying option {}", option);
         match option {
             "dictionaries" => {
                 Some(Self {
