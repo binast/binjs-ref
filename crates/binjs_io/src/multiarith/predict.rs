@@ -8,12 +8,15 @@ use std::rc::Rc;
 
 use range_encoding;
 
+/// Representation of a symbol in a Cumulative Distribution Frequency.
 #[derive(Clone)]
 pub struct Symbol {
+    /// The index of the symbol in the CDF.
     pub index: usize,
+
+    /// The CDF, shared between a number of symbols.
     pub distribution: Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>,
 }
-
 
 /// A generic predictor, associating a context and a key to a value.
 pub struct ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {

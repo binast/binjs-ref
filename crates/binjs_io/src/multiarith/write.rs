@@ -37,6 +37,8 @@ struct ExactEncodingModelData<T> {
 
     /// List length prediction based on path.
     list_lengths: PathPredict<Option<u32>, T>,
+
+    iso_bit_model: ContextPredict<(), bool, T>,
 }
 
 /// Initialize the ExactEncodingModel
@@ -112,6 +114,11 @@ impl EncodingModel for ExactEncodingModel {
     fn list_length_frequency_for_encoding(&mut self, value: &Option<u32>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
         Self::get_from_path(&mut self.probabilities.list_lengths, value, path)
     }
+    fn iso_bit_frequency_for_encoding(&mut self, value: bool) -> Result<Symbol, ()> {
+        let segment = self.probabilities.iso_bit_model.get_mut(&mut (), &value)
+            .ok_or(())?;
+        Ok(segment.clone())
+    }
     fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Symbol, ()> {
         let scope = scopes.last()
             .cloned();
@@ -130,7 +137,16 @@ impl ExactEncodingModel {
             list_lengths: PathPredict::new(1), // FIXME: Test with other depths
             numbers: PathPredict::new(1), // Fairly confident that a depth of 1 should be sufficient for numbers.
             identifiers: ContextPredict::new(),
+            iso_bit_model: ContextPredict::new(),
         };
+
+        // Initialize trivial `iso_bit_model`.
+        for bit in [false, true].into_iter() {
+            let (_, entry) = instances.iso_bit_model.entry((), &bit);
+            entry.and_modify(|instances| {
+                *instances += 1
+            }).or_insert(1);
+        }
 
         tree.walk(&mut instances,
             &mut Path::with_capacity(EXPECTED_PATH_DEPTH),
@@ -146,6 +162,7 @@ impl ExactEncodingModel {
                 identifiers: instances.identifiers.instances_to_probabilities(),
                 numbers: instances.numbers.instances_to_probabilities(),
                 list_lengths: instances.list_lengths.instances_to_probabilities(),
+                iso_bit_model: instances.iso_bit_model.instances_to_probabilities(),
             }
         }
     }
@@ -199,7 +216,25 @@ impl<'a> Visitor for Compressor<'a> {
                 }
                 let mut distribution = symbol.distribution.borrow_mut();
                 if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
-                    warn!(target: "multiarith", "FIXME: Append definition of the current list length {:?} in {:?}", len, path.len());
+                    if !self.options.inline_dictionaries {
+                        return Ok(())
+                    }
+                    use bytes::varnum::*;
+
+                    // We now need to append the definition of the current list length.
+                    // List lengths are simple, so for a first version, let's not try to be too smart about that.
+                    // We'll simply inline the bits, assuming a 50% probability for each value.
+                    let mut buf = Vec::with_capacity(16);
+                    buf.write_maybe_varnum(len.map(|x| x.clone()))?;
+                    for byte in buf.into_iter() {
+                        for shift in 0..7 {
+                            let bit = (byte & 1 << shift) != 0;
+                            let symbol = self.model.iso_bit_frequency_for_encoding(bit)
+                                .unwrap();
+                            let mut distribution = symbol.distribution.borrow_mut();
+                            self.encoder.symbol(symbol.index, &mut distribution)?;
+                        }
+                    }
                 }
             }
             Label::String(ref string) => {
@@ -362,6 +397,8 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
 /// Options to customize the encoding process.
 #[derive(Clone)]
 pub struct Options {
+    pub inline_dictionaries: bool,
+
     /// If `true`, encode the tree structure in the file
     /// (tag names, string enums, booleans)
     ///
@@ -399,6 +436,7 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
+            inline_dictionaries: true,
             encode_tags: true,
             encode_strings: true,
             encode_identifiers: true,

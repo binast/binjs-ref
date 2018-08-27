@@ -163,6 +163,10 @@ pub trait EncodingModel {
     fn number_frequency_for_encoding(&mut self, number: &Option<F64>, path: &Path<(tree::Tag, usize)>) -> Result<Symbol, ()>;
     fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<tree::ScopeIndex>) -> Result<Symbol, ()>;
     fn list_length_frequency_for_encoding(&mut self, value: &Option<u32>, path: &Path<(tree::Tag, usize)>) -> Result<Symbol, ()>;
+
+    /// Utility: return the frequency information for a true/false value in which
+    /// either value has the same frequency.
+    fn iso_bit_frequency_for_encoding(&mut self, value: bool) -> Result<Symbol, ()>;
 }
 
 pub trait Model {
