@@ -1,5 +1,7 @@
 
-use multiarith::{ ContextPredict, EncodingModel, F64, Label, Model, Path, PathPredict, ScopeIndex, SharedTree, SubTree, Symbol, Tag, Visitor, WalkTree };
+use multiarith::{ EncodingModel, Model };
+use multiarith::tree:: { F64, Label, Path, ScopeIndex, SharedTree, SubTree, Tag, Visitor, WalkTree };
+use multiarith::predict::{ ContextPredict, PathPredict, Symbol };
 
 use io::TokenWriter;
 use ::TokenWriterError;
@@ -30,7 +32,11 @@ struct ExactEncodingModelData<T> {
     /// Number prediction based on path.
     numbers: PathPredict<Option<F64>, T>,
 
+    /// Identifier prediction based on scope.
     identifiers: ContextPredict<Option<ScopeIndex>, Rc<String>, T>,
+
+    /// List length prediction based on path.
+    list_lengths: PathPredict<Option<u32>, T>,
 }
 
 /// Initialize the ExactEncodingModel
@@ -52,6 +58,12 @@ impl Visitor for ExactEncodingModelData</* Number of instances */ usize> {
             }
             Label::Number(ref num) => {
                 let (_, entry) = self.numbers.entry(path, num);
+                entry.and_modify(|instances| {
+                    *instances += 1
+                }).or_insert(1);
+            }
+            Label::List(ref len) => {
+                let (_, entry) = self.list_lengths.entry(path, len);
                 entry.and_modify(|instances| {
                     *instances += 1
                 }).or_insert(1);
@@ -88,14 +100,17 @@ impl ExactEncodingModel {
     }
 }
 impl EncodingModel for ExactEncodingModel {
-    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
-        Self::get_from_path(&mut self.probabilities.strings, string, path)
+    fn string_frequency_for_encoding(&mut self, value: &Option<Rc<String>>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
+        Self::get_from_path(&mut self.probabilities.strings, value, path)
     }
-    fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
-        Self::get_from_path(&mut self.probabilities.tags, tag, path)
+    fn tag_frequency_for_encoding(&mut self, value: &Tag, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
+        Self::get_from_path(&mut self.probabilities.tags, value, path)
     }
-    fn number_frequency_for_encoding(&mut self, number: &Option<F64>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
-        Self::get_from_path(&mut self.probabilities.numbers, number, path)
+    fn number_frequency_for_encoding(&mut self, value: &Option<F64>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
+        Self::get_from_path(&mut self.probabilities.numbers, value, path)
+    }
+    fn list_length_frequency_for_encoding(&mut self, value: &Option<u32>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
+        Self::get_from_path(&mut self.probabilities.list_lengths, value, path)
     }
     fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Symbol, ()> {
         let scope = scopes.last()
@@ -112,6 +127,7 @@ impl ExactEncodingModel {
         let mut instances = ExactEncodingModelData {
             tags: PathPredict::new(1), // FIXME: Test with other depths
             strings: PathPredict::new(1), // FIXME: Test with other depths
+            list_lengths: PathPredict::new(1), // FIXME: Test with other depths
             numbers: PathPredict::new(1), // Fairly confident that a depth of 1 should be sufficient for numbers.
             identifiers: ContextPredict::new(),
         };
@@ -129,6 +145,7 @@ impl ExactEncodingModel {
                 strings: instances.strings.instances_to_probabilities(),
                 identifiers: instances.identifiers.instances_to_probabilities(),
                 numbers: instances.numbers.instances_to_probabilities(),
+                list_lengths: instances.list_lengths.instances_to_probabilities(),
             }
         }
     }
@@ -172,6 +189,17 @@ impl<'a> Visitor for Compressor<'a> {
                 let mut distribution = symbol.distribution.borrow_mut();
                 if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
                     warn!(target: "multiarith", "FIXME: Append definition of the current number {:?} in {:?}", number, path.len());
+                }
+            }
+            Label::List(ref len) => {
+                let symbol = self.model.list_length_frequency_for_encoding(len, path)
+                    .expect("Could not compute list length frequency");
+                if !self.options.encode_list_lengths {
+                    return Ok(())
+                }
+                let mut distribution = symbol.distribution.borrow_mut();
+                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
+                    warn!(target: "multiarith", "FIXME: Append definition of the current list length {:?} in {:?}", len, path.len());
                 }
             }
             Label::String(ref string) => {
@@ -347,6 +375,12 @@ pub struct Options {
     /// to experiment with file sizes.
     pub encode_numbers: bool,
 
+    /// If `true`, encode list lengths in the file.
+    ///
+    /// Generally, keep it to `true`. Set it to `false`
+    /// to experiment with file sizes.
+    pub encode_list_lengths: bool,
+
     /// If `true`, encode strings proper (i.e. not identifiers,
     /// not string enums) in the file.
     ///
@@ -369,6 +403,7 @@ impl Default for Options {
             encode_strings: true,
             encode_identifiers: true,
             encode_numbers: true,
+            encode_list_lengths: true,
         }
     }
 }
