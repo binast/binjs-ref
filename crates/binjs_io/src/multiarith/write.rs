@@ -38,6 +38,9 @@ struct ExactEncodingModelData<T> {
     /// List length prediction based on path.
     list_lengths: PathPredict<Option<u32>, T>,
 
+    /// A trivial model for bools with equal frequency for either value.
+    ///
+    /// Used to represent trivial dictionaries.
     iso_bit_model: ContextPredict<(), bool, T>,
 }
 
@@ -217,6 +220,7 @@ impl<'a> Visitor for Compressor<'a> {
                 let mut distribution = symbol.distribution.borrow_mut();
                 if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
                     if !self.options.inline_dictionaries {
+                        warn!(target: "multiarith", "FIXME: Append definition of the current list length {:?} in {:?}", len, path.len());
                         return Ok(())
                     }
                     use bytes::varnum::*;
@@ -403,33 +407,33 @@ pub struct Options {
     /// (tag names, string enums, booleans)
     ///
     /// Generally, keep it to `true`. Set it to `false`
-    /// to experiment with file sizes.
+    /// to experiment with contribution of this stuff to file size..
     pub encode_tags: bool,
 
     /// If `true`, encode numbers in the file.
     ///
     /// Generally, keep it to `true`. Set it to `false`
-    /// to experiment with file sizes.
+    /// to experiment with contribution of this stuff to file size..
     pub encode_numbers: bool,
 
     /// If `true`, encode list lengths in the file.
     ///
     /// Generally, keep it to `true`. Set it to `false`
-    /// to experiment with file sizes.
+    /// to experiment with contribution of this stuff to file size..
     pub encode_list_lengths: bool,
 
     /// If `true`, encode strings proper (i.e. not identifiers,
     /// not string enums) in the file.
     ///
     /// Generally, keep it to `true`. Set it to `false`
-    /// to experiment with file sizes.
+    /// to experiment with contribution of this stuff to file size..
     pub encode_strings: bool,
 
     /// If `true`, encode identifiers (i.e. not identifiers)
     /// in the file.
     ///
     /// Generally, keep it to `true`. Set it to `false`
-    /// to experiment with file sizes.
+    /// to experiment with contribution of this stuff to file size..
     pub encode_identifiers: bool,
 }
 
