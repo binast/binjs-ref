@@ -12,7 +12,10 @@ use range_encoding::opus;
 
 use std;
 use std::cell::RefCell;
+use std::io::Read;
 use std::rc::Rc;
+
+const EMPTY_16_BYTES_ARRAY : [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 /// A constant used to initialize the maximal path depth.
 /// Changing it will only affect performance.
@@ -185,6 +188,48 @@ struct Compressor<'a> {
     options: Options,
 }
 
+impl<'a> Compressor<'a> {
+    fn encode_uncompressed_varnum(&mut self, value: Option<u32>)-> Result<(), std::io::Error> {
+        use bytes::varnum::*;
+
+        // A few shennanigans to avoid heap allocating needlessly.
+        let mut buf = EMPTY_16_BYTES_ARRAY;
+        let mut buf = std::io::Cursor::new(&mut buf as &mut [u8]);
+        buf.write_maybe_varnum(value)?;
+        for byte in buf.bytes() {
+            let byte = byte.unwrap(); // Read from a Cursor cannot fail.
+            for shift in 0..7 {
+                let bit = (byte & 1 << shift) != 0;
+                let symbol = self.model.iso_bit_frequency_for_encoding(bit)
+                    .unwrap();
+                let mut distribution = symbol.distribution.borrow_mut();
+                self.encoder.symbol(symbol.index, &mut distribution)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn encode_uncompressed_float(&mut self, value: Option<f64>)-> Result<(), std::io::Error> {
+        use bytes::float::*;
+
+        // A few shennanigans to avoid heap allocating needlessly.
+        let mut buf = EMPTY_16_BYTES_ARRAY;
+        let mut buf = std::io::Cursor::new(&mut buf as &mut [u8]);
+        buf.write_maybe_varfloat(value)?;
+        for byte in buf.bytes() {
+            let byte = byte.unwrap(); // Read from a Cursor cannot fail.
+            for shift in 0..7 {
+                let bit = (byte & 1 << shift) != 0;
+                let symbol = self.model.iso_bit_frequency_for_encoding(bit)
+                    .unwrap();
+                let mut distribution = symbol.distribution.borrow_mut();
+                self.encoder.symbol(symbol.index, &mut distribution)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl<'a> Visitor for Compressor<'a> {
     type Error = std::io::Error;
     fn enter_label(&mut self, label: &Label, path: &Path<(Tag, usize)>, scopes: &Path<ScopeIndex>) -> Result<(), Self::Error> {
@@ -200,15 +245,20 @@ impl<'a> Visitor for Compressor<'a> {
                     warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, path.len());
                 }
             }
-            Label::Number(ref number) => {
-                let symbol = self.model.number_frequency_for_encoding(number, path)
+            Label::Number(ref value) => {
+                let symbol = self.model.number_frequency_for_encoding(value, path)
                     .expect("Could not compute number frequency");
                 if !self.options.encode_numbers {
                     return Ok(())
                 }
                 let mut distribution = symbol.distribution.borrow_mut();
                 if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
-                    warn!(target: "multiarith", "FIXME: Append definition of the current number {:?} in {:?}", number, path.len());
+                    if !self.options.inline_dictionaries {
+                        warn!(target: "multiarith", "FIXME: Append definition of the current number {:?} in {:?}", value, path.len());
+                        return Ok(())
+                    }
+                    // For the moment, we do not attempt to be smart about numbers.
+                    self.encode_uncompressed_float(value.map(|x| x.0.clone()))?;
                 }
             }
             Label::List(ref len) => {
@@ -223,22 +273,8 @@ impl<'a> Visitor for Compressor<'a> {
                         warn!(target: "multiarith", "FIXME: Append definition of the current list length {:?} in {:?}", len, path.len());
                         return Ok(())
                     }
-                    use bytes::varnum::*;
-
-                    // We now need to append the definition of the current list length.
-                    // List lengths are simple, so for a first version, let's not try to be too smart about that.
-                    // We'll simply inline the bits, assuming a 50% probability for each value.
-                    let mut buf = Vec::with_capacity(16);
-                    buf.write_maybe_varnum(len.map(|x| x.clone()))?;
-                    for byte in buf.into_iter() {
-                        for shift in 0..7 {
-                            let bit = (byte & 1 << shift) != 0;
-                            let symbol = self.model.iso_bit_frequency_for_encoding(bit)
-                                .unwrap();
-                            let mut distribution = symbol.distribution.borrow_mut();
-                            self.encoder.symbol(symbol.index, &mut distribution)?;
-                        }
-                    }
+                    // For the moment, we do not attempt to compress varnums.
+                    self.encode_uncompressed_varnum(len.map(|x| x.clone()))?;
                 }
             }
             Label::String(ref string) => {
