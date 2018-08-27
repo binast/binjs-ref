@@ -222,6 +222,30 @@ fn main_aux() {
                     .map(|_| ())
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
+            Arg::with_name("arithmetic-dictionaries")
+                .long("arithmetic-dictionaries"),
+            Arg::with_name("arithmetic-no-dictionaries")
+                .long("arithmetic-no-dictionaries"),
+            Arg::with_name("arithmetic-tags")
+                .long("arithmetic-tags"),
+            Arg::with_name("arithmetic-no-tags")
+                .long("arithmetic-no-tags"),
+            Arg::with_name("arithmetic-strings")
+                .long("arithmetic-strings"),
+            Arg::with_name("arithmetic-no-strings")
+                .long("arithmetic-no-strings"),
+            Arg::with_name("arithmetic-identifiers")
+                .long("arithmetic-identifiers"),
+            Arg::with_name("arithmetic-no-identifiers")
+                .long("arithmetic-no-identifiers"),
+            Arg::with_name("arithmetic-list-lengths")
+                .long("arithmetic-list-lengths"),
+            Arg::with_name("arithmetic-no-list-lengths")
+                .long("arithmetic-no-list-lengths"),
+            Arg::with_name("arithmetic-numbers")
+                .long("arithmetic-numbers"),
+            Arg::with_name("arithmetic-no-numbers")
+                .long("arithmetic-no-numbers"),
         ])
         .group(ArgGroup::with_name("trp")
             .args(&["trp-rank"])
@@ -238,10 +262,19 @@ fn main_aux() {
         Some(path) => Some(Path::new(path).to_path_buf())
     };
 
+    let arithmetic_flags = binjs::io::multiarith::write::Options::KEYS
+        .into_iter()
+        .filter_map(|key| {
+            let full_key = format!("arithmetic-{}", key);
+            matches.value_of(&full_key)
+        });
+
     let format = Format::parse(matches.value_of("format"))
         .expect("Invalid `format`")
         .with_compression_str(matches.value_of("compression"))
-        .expect("Invalid `compression`");
+        .expect("Invalid `compression`")
+        .with_flags(arithmetic_flags)
+        .expect("Invalid flag");
 
     let show_stats = matches.is_present("statistics");
 

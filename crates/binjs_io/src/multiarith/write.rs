@@ -485,3 +485,68 @@ impl Default for Options {
         }
     }
 }
+impl Options {
+    pub const KEYS : &'static [&'static str] = &[
+		"dictionaries",
+        "no-dictionaries",
+        "tags",
+        "no-tags",
+        "strings",
+        "no-strings",
+        "numbers",
+        "no-numbers",
+    ];
+    pub fn with_option(self, option: &str) -> Option<Self> {
+        match option {
+            "dictionaries" => {
+                Some(Self {
+                    inline_dictionaries: true,
+                    .. self
+                })
+            }
+            "no-dictionaries" => {
+                Some(Self {
+                    inline_dictionaries: false,
+                    .. self
+                })
+            }
+            "tags" => {
+                Some(Self {
+                    encode_tags: true,
+                    .. self
+                })
+            }
+            "no-tags" => {
+                Some(Self {
+                    encode_tags: false,
+                    .. self
+                })
+            }
+            "strings" => {
+                Some(Self {
+                    encode_strings: true,
+                    .. self
+                })
+            }
+            "no-strings" => {
+                Some(Self {
+                    encode_strings: false,
+                    .. self
+                })
+            }
+            "numbers" => {
+                Some(Self {
+                    encode_strings: true,
+                    .. self
+                })
+            }
+            "no-numbers" => {
+                Some(Self {
+                    encode_strings: false,
+                    .. self
+                })
+            }
+            _ => None
+        }
+    }
+}

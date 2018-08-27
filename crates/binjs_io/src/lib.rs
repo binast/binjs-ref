@@ -290,6 +290,21 @@ impl Format {
             _ => None
         }
     }
+    pub fn with_flags<'a, I>(self, flags: I) -> Result<Self, String>
+        where I: Iterator<Item = &'a str>
+    {
+        match self {
+            Format::Arithmetic { model, options } => {
+                let mut options = options;
+                for option in flags {
+                    options = options.with_option(option)
+                        .ok_or_else(|| format!("Invalid option {}", option))?;
+                }
+                Ok(Format::Arithmetic { model, options })
+            }
+            _ => Ok(self)
+        }
+    }
     pub fn with_trp_rank(self, source: Option<&str>) -> Option<Self> {
         use Format::*;
         match self {
