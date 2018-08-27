@@ -477,6 +477,7 @@ pub struct Segment { // FIXME: Maybe we don't want `u32` but `u16` or `u8`.
 pub trait EncodingModel {
     fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path<(Tag, usize)>) -> Result<Symbol, ()>;
     fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()>;
+    fn number_frequency_for_encoding(&mut self, number: &Option<F64>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()>;
     fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Symbol, ()>;
 }
 

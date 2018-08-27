@@ -24,8 +24,11 @@ struct ExactEncodingModelData<T> {
     /// Tag prediction based on path (depth 1 as of this writing).
     tags: PathPredict<Tag, T>,
 
-    /// String prediction based on path (depth 1 as of this writing).
+    /// Non-identifier string prediction based on path (depth 1 as of this writing).
     strings: PathPredict<Option<Rc<String>>, T>,
+
+    /// Number prediction based on path.
+    numbers: PathPredict<Option<F64>, T>,
 
     identifiers: ContextPredict<Option<ScopeIndex>, Rc<String>, T>,
 }
@@ -43,6 +46,12 @@ impl Visitor for ExactEncodingModelData</* Number of instances */ usize> {
             }
             Label::String(ref string) => {
                 let (_, entry) = self.strings.entry(path, string);
+                entry.and_modify(|instances| {
+                    *instances += 1
+                }).or_insert(1);
+            }
+            Label::Number(ref num) => {
+                let (_, entry) = self.numbers.entry(path, num);
                 entry.and_modify(|instances| {
                     *instances += 1
                 }).or_insert(1);
@@ -85,6 +94,9 @@ impl EncodingModel for ExactEncodingModel {
     fn tag_frequency_for_encoding(&mut self, tag: &Tag, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
         Self::get_from_path(&mut self.probabilities.tags, tag, path)
     }
+    fn number_frequency_for_encoding(&mut self, number: &Option<F64>, path: &Path<(Tag, usize)>) -> Result<Symbol, ()> {
+        Self::get_from_path(&mut self.probabilities.numbers, number, path)
+    }
     fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &Path<ScopeIndex>) -> Result<Symbol, ()> {
         let scope = scopes.last()
             .cloned();
@@ -100,6 +112,7 @@ impl ExactEncodingModel {
         let mut instances = ExactEncodingModelData {
             tags: PathPredict::new(1), // FIXME: Test with other depths
             strings: PathPredict::new(1), // FIXME: Test with other depths
+            numbers: PathPredict::new(1), // Fairly confident that a depth of 1 should be sufficient for numbers.
             identifiers: ContextPredict::new(),
         };
 
@@ -115,6 +128,7 @@ impl ExactEncodingModel {
                 tags: instances.tags.instances_to_probabilities(),
                 strings: instances.strings.instances_to_probabilities(),
                 identifiers: instances.identifiers.instances_to_probabilities(),
+                numbers: instances.numbers.instances_to_probabilities(),
             }
         }
     }
@@ -147,6 +161,17 @@ impl<'a> Visitor for Compressor<'a> {
                 let mut distribution = symbol.distribution.borrow_mut();
                 if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
                     warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, path.len());
+                }
+            }
+            Label::Number(ref number) => {
+                let symbol = self.model.number_frequency_for_encoding(number, path)
+                    .expect("Could not compute number frequency");
+                if !self.options.encode_numbers {
+                    return Ok(())
+                }
+                let mut distribution = symbol.distribution.borrow_mut();
+                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
+                    warn!(target: "multiarith", "FIXME: Append definition of the current number {:?} in {:?}", number, path.len());
                 }
             }
             Label::String(ref string) => {
@@ -309,14 +334,21 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
 /// Options to customize the encoding process.
 #[derive(Clone)]
 pub struct Options {
-    /// If `true`, encode the tree structure in the file.
+    /// If `true`, encode the tree structure in the file
+    /// (tag names, string enums, booleans)
     ///
     /// Generally, keep it to `true`. Set it to `false`
     /// to experiment with file sizes.
     pub encode_tags: bool,
 
-    /// If `true`, encode strings proper (i.e. not identifiers)
-    /// in the file.
+    /// If `true`, encode numbers in the file.
+    ///
+    /// Generally, keep it to `true`. Set it to `false`
+    /// to experiment with file sizes.
+    pub encode_numbers: bool,
+
+    /// If `true`, encode strings proper (i.e. not identifiers,
+    /// not string enums) in the file.
     ///
     /// Generally, keep it to `true`. Set it to `false`
     /// to experiment with file sizes.
@@ -336,6 +368,7 @@ impl Default for Options {
             encode_tags: true,
             encode_strings: true,
             encode_identifiers: true,
+            encode_numbers: true,
         }
     }
 }
