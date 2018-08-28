@@ -161,17 +161,21 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
 
     /// Write single bool.
     fn bool(&mut self, Option<bool>) -> Result<Self::Tree, TokenWriterError>;
+    // FIXME: Split `bool` from `maybe_bool`.
 
     /// Write the number of bytes left in this tuple.
     fn offset(&mut self) -> Result<Self::Tree, TokenWriterError>;
 
+
     fn identifier_definition(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
         self.string(name)
     }
+    // FIXME: Split `identifier_definition` from `maybe_identifier_definition`.
 
     fn identifier_reference(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
         self.string(name)
     }
+    // FIXME: Split `identifier_reference` from `maybe_identifier_reference`.
 }
 
 

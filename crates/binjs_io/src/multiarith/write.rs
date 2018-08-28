@@ -223,8 +223,7 @@ impl<'a> Compressor<'a> {
         let mut buf = EMPTY_16_BYTES_ARRAY;
         let mut buf = std::io::Cursor::new(&mut buf as &mut [u8]);
         buf.write_maybe_varnum(value)?;
-        for byte in buf.bytes() {
-            let byte = byte.unwrap(); // Read from a Cursor cannot fail.
+        for byte in buf.bytes().map(Result::unwrap) { // Read from a Cursor's Bytes cannot fail.
             for shift in 0..7 {
                 let bit = (byte & 1 << shift) != 0;
                 self.encode_uncompressed_bit(bit)?;
@@ -273,6 +272,23 @@ impl<'a> Compressor<'a> {
         }
         Ok(())
     }
+
+    fn encode_uncompressed_string(&mut self, value: &Rc<String>) -> Result<(), std::io::Error> {
+        self.encode_uncompressed_varnum(Some(value.len() as u32))?;
+        for byte in value.bytes() {
+            for shift in 0..7 {
+                let bit = (byte & 1 << shift) != 0;
+                self.encode_uncompressed_bit(bit)?;
+            }
+        }
+        Ok(())
+    }
+    fn encode_uncompressed_maybe_string(&mut self, value: &Option<Rc<String>>) -> Result<(), std::io::Error> {
+        match value {
+            None => self.encode_uncompressed_varnum(None),
+            Some(ref s) => self.encode_uncompressed_string(s)
+        }
+    }
 }
 
 impl<'a> Visitor for Compressor<'a> {
@@ -285,14 +301,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_tags {
                     return Ok(())
                 }
-                let mut distribution = symbol.distribution.borrow_mut();
-                let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
-                if requirements.symbol() && !self.options.inline_dictionaries {
-                    warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, path.len());
-                    return Ok(())
-                }
-                warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, path.len());
-                return Ok(())
+                self.encode_value(symbol, move |me| me.encode_uncompressed_string(tag.content()))?;
             }
             Label::Number(ref value) => {
                 let symbol = self.model.number_frequency_for_encoding(value, path)
@@ -301,7 +310,6 @@ impl<'a> Visitor for Compressor<'a> {
                     return Ok(())
                 }
                 self.encode_value(symbol, move |me| me.encode_uncompressed_float(value.map(|x| x.0.clone())))?;
-                return Ok(())
             }
             Label::List(ref len) => {
                 let symbol = self.model.list_length_frequency_for_encoding(len, path)
@@ -310,7 +318,6 @@ impl<'a> Visitor for Compressor<'a> {
                     return Ok(())
                 }
                 self.encode_value(symbol, move |me| me.encode_uncompressed_varnum(len.map(|x| x.clone())))?;
-                self.encode_uncompressed_varnum(len.map(|x| x.clone()))?;
             }
             Label::String(ref string) => {
                 let symbol = self.model.string_frequency_for_encoding(string, path)
@@ -318,11 +325,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_strings {
                     return Ok(())
                 }
-                let mut distribution = symbol.distribution.borrow_mut();
-                let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
-                if requirements.symbol() && !self.options.inline_dictionaries {
-                    warn!(target: "multiarith", "FIXME: Append definition of the current string {:?} in {:?}", string, path.len());
-                }
+                self.encode_value(symbol, move |me| me.encode_uncompressed_maybe_string(string))?;
             }
             Label::Bool(ref value) => {
                 let symbol = self.model.bool_frequency_for_encoding(value, path)
@@ -344,11 +347,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_identifiers {
                     return Ok(())
                 }
-                let mut distribution = symbol.distribution.borrow_mut();
-                let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
-                if requirements.symbol() && !self.options.inline_dictionaries {
-                    warn!(target: "multiarith", "FIXME: Append definition of the current identifier {:?} in {:?}", string, path.len());
-                }
+                self.encode_value(symbol, move |me| me.encode_uncompressed_maybe_string(&Some(string.clone())))?;
             }
             _ => {
                 warn!(target: "multiarith", "Skipping serialization of label {:?} (not implemented yet)", label);

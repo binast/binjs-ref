@@ -64,6 +64,9 @@ impl Tag {
     pub fn new(s: &str) -> Self {
         Tag(Rc::new(s.to_string()))
     }
+    pub fn content(&self) -> &Rc<String> {
+        &self.0
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord)]
