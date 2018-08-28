@@ -253,22 +253,32 @@ impl<'a> Compressor<'a> {
         self.encode_uncompressed_varnum(Some(value))
     }
 
-    fn encode_value<F>(&mut self, symbol: Symbol, f: F) -> Result<(), std::io::Error>
+    fn encode_value<F>(&mut self, name: &str, symbol: Symbol, f: F) -> Result<(), std::io::Error>
         where F: FnOnce(&mut Self) -> Result<(), std::io::Error>
     {
         let mut distribution = symbol.distribution.borrow_mut();
         let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
-        if self.options.inline_dictionaries && requirements.symbol() {
-            // First, write the symbol itself.
-            f(self)?;
-            // Then, write its frequency.
-            let segment = distribution.at_index(symbol.index).unwrap();
-                // We would have failed in `self.encoder.symbol` if `distribution.at_index` failed.
-            self.encode_uncompressed_frequency(segment.width())?;
+        if requirements.symbol() {
+            if !self.options.inline_dictionaries {
+                debug!(target: "multiarith", "Skipping encoding of {}", name);
+            } else {
+                debug!(target: "multiarith", "Encoding symbol {}", name);
+                // First, write the symbol itself.
+                f(self)?;
+                // Then, write its frequency.
+                let segment = distribution.at_index(symbol.index).unwrap();
+                    // We would have failed in `self.encoder.symbol` if `distribution.at_index` failed.
+                self.encode_uncompressed_frequency(segment.width())?;
+            }
         }
-        if self.options.inline_dictionaries && requirements.distribution_total() {
+        if requirements.distribution_total() {
             // Finally, if needed, write the total frequency.
-            self.encode_uncompressed_frequency(distribution.width())?;
+            if !self.options.inline_dictionaries {
+                debug!(target: "multiarith", "Skipping encoding of CDT for {}", name);
+            } else {
+                debug!(target: "multiarith", "Encoding CDT for {}", name);
+                self.encode_uncompressed_frequency(distribution.width())?;
+            }
         }
         Ok(())
     }
@@ -301,7 +311,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_tags {
                     return Ok(())
                 }
-                self.encode_value(symbol, move |me| me.encode_uncompressed_string(tag.content()))?;
+                self.encode_value("tag", symbol, move |me| me.encode_uncompressed_string(tag.content()))?;
             }
             Label::Number(ref value) => {
                 let symbol = self.model.number_frequency_for_encoding(value, path)
@@ -309,7 +319,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_numbers {
                     return Ok(())
                 }
-                self.encode_value(symbol, move |me| me.encode_uncompressed_float(value.map(|x| x.0.clone())))?;
+                self.encode_value("number", symbol, move |me| me.encode_uncompressed_float(value.map(|x| x.0.clone())))?;
             }
             Label::List(ref len) => {
                 let symbol = self.model.list_length_frequency_for_encoding(len, path)
@@ -317,7 +327,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_list_lengths {
                     return Ok(())
                 }
-                self.encode_value(symbol, move |me| me.encode_uncompressed_varnum(len.map(|x| x.clone())))?;
+                self.encode_value("list", symbol, move |me| me.encode_uncompressed_varnum(len.map(|x| x.clone())))?;
             }
             Label::String(ref string) => {
                 let symbol = self.model.string_frequency_for_encoding(string, path)
@@ -325,7 +335,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_strings {
                     return Ok(())
                 }
-                self.encode_value(symbol, move |me| me.encode_uncompressed_maybe_string(string))?;
+                self.encode_value("string", symbol, move |me| me.encode_uncompressed_maybe_string(string))?;
             }
             Label::Bool(ref value) => {
                 let symbol = self.model.bool_frequency_for_encoding(value, path)
@@ -333,7 +343,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_bools {
                     return Ok(())
                 }
-                self.encode_value(symbol, move |me| {
+                self.encode_value("bool", symbol, move |me| {
                     match value { // FIXME: Would be more efficient if we knew ahead of time whether it's a bool or an Option<bool>
                         None => me.encode_uncompressed_bits(&[true, true]),
                         Some(true) => me.encode_uncompressed_bits(&[false, true]),
@@ -347,7 +357,7 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_identifiers {
                     return Ok(())
                 }
-                self.encode_value(symbol, move |me| me.encode_uncompressed_maybe_string(&Some(string.clone())))?;
+                self.encode_value("id", symbol, move |me| me.encode_uncompressed_maybe_string(&Some(string.clone())))?;
             }
             _ => {
                 warn!(target: "multiarith", "Skipping serialization of label {:?} (not implemented yet)", label);
