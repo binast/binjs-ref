@@ -25,4 +25,4 @@ pub mod io;
 pub mod scopes;
 
 /// Introducing laziness in an AST.
-pub mod skip;
+pub mod lazy;

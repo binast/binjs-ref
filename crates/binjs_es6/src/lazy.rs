@@ -84,32 +84,40 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         self.cut_at_threshold()
     }
 
-    /// Convert eager getter/setter/method to skippable.
+    /// Convert eager getter/setter/method to lazy.
     ///
     /// Only called if we haven't skipped the subtree.
     fn exit_method_definition(&mut self, _path: &Path, node: &mut ViewMutMethodDefinition) -> Result<Option<MethodDefinition>, ()> {
         match *node {
             ViewMutMethodDefinition::EagerGetter(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
-                    SkippableGetter {
-                        skip: Offset::default(),
-                        skipped: stolen,
+                    LazyGetter {
+                        name: stolen.name,
+                        directives: stolen.directives,
+                        contents_skip: Offset::default(),
+                        contents: stolen.contents
                     }.into()
                 })
             }
             ViewMutMethodDefinition::EagerSetter(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
-                    SkippableSetter {
-                        skip: Offset::default(),
-                        skipped: stolen,
+                    LazySetter {
+                        name: stolen.name,
+                        directives: stolen.directives,
+                        contents_skip: Offset::default(),
+                        contents: stolen.contents
                     }.into()
                 })
             }
             ViewMutMethodDefinition::EagerMethod(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
-                    SkippableMethod {
-                        skip: Offset::default(),
-                        skipped: stolen,
+                    LazyMethod {
+                        is_async: stolen.is_async,
+                        is_generator: stolen.is_generator,
+                        name: stolen.name,
+                        directives: stolen.directives,
+                        contents_skip: Offset::default(),
+                        contents: stolen.contents
                     }.into()
                 })
             }
@@ -122,16 +130,20 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         self.cut_at_threshold()
     }
 
-    /// Convert eager function declarations to skippable.
+    /// Convert eager function declarations to lazy.
     ///
     /// Only called if we haven't skipped the subtree.
     fn exit_function_declaration(&mut self, _path: &Path, node: &mut ViewMutFunctionDeclaration) -> Result<Option<FunctionDeclaration>, ()> {
         match *node {
             ViewMutFunctionDeclaration::EagerFunctionDeclaration(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
-                    SkippableFunctionDeclaration {
-                        skip: Offset::default(),
-                        skipped: stolen,
+                    LazyFunctionDeclaration {
+                        is_async: stolen.is_async,
+                        is_generator: stolen.is_generator,
+                        name: stolen.name,
+                        directives: stolen.directives,
+                        contents_skip: Offset::default(),
+                        contents: stolen.contents
                     }.into()
                 })
             }
@@ -144,7 +156,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         self.cut_at_threshold()
     }
 
-    /// Convert eager function expressions to skippable, unless they're called immediately.
+    /// Convert eager function expressions to lazy, unless they're called immediately.
     ///
     /// Only called if we haven't skipped the subtree.
     fn exit_function_expression(&mut self, path: &Path, node: &mut ViewMutFunctionExpression) -> Result<Option<FunctionExpression>, ()> {
@@ -155,9 +167,13 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         match *node {
             ViewMutFunctionExpression::EagerFunctionExpression(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
-                    SkippableFunctionExpression {
-                        skip: Offset::default(),
-                        skipped: stolen,
+                    LazyFunctionExpression {
+                        is_async: stolen.is_async,
+                        is_generator: stolen.is_generator,
+                        name: stolen.name,
+                        directives: stolen.directives,
+                        contents_skip: Offset::default(),
+                        contents: stolen.contents
                     }.into()
                 })
             }

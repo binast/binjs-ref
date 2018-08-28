@@ -233,7 +233,7 @@ impl TreeTokenReader {
     pub fn new<R: Read + Seek>(mut reader: R) -> Result<Self, TokenReaderError> {
         // Check magic headers.
         const MAGIC_HEADER: &'static [u8; 5] = b"BINJS";
-        const FORMAT_VERSION: u32 = 0;
+        const FORMAT_VERSION: u32 = 1;
 
         reader.read_const(MAGIC_HEADER)
             .map_err(TokenReaderError::ReadError)?;
