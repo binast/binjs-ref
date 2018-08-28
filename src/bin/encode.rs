@@ -266,7 +266,7 @@ fn main_aux() {
         Some(path) => Some(Path::new(path).to_path_buf())
     };
 
-    let arithmetic_flags = binjs::io::multiarith::write::Options::KEYS
+    let additional_flags = binjs::io::multiarith::write::Options::KEYS
         .into_iter()
         .filter_map(|key| {
             let full_key = format!("arithmetic-{}", key);
@@ -281,7 +281,7 @@ fn main_aux() {
         .expect("Invalid `format`")
         .with_compression_str(matches.value_of("compression"))
         .expect("Invalid `compression`")
-        .with_flags(arithmetic_flags)
+        .with_flags(additional_flags)
         .expect("Invalid flag");
 
     let show_stats = matches.is_present("statistics");

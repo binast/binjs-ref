@@ -7,7 +7,6 @@ use io::TokenWriter;
 use ::TokenWriterError;
 use util::GenericCounter;
 
-use range_encoding::AlreadyEncountered;
 use range_encoding::opus;
 
 use std;
@@ -250,6 +249,30 @@ impl<'a> Compressor<'a> {
         }
         Ok(())
     }
+
+    fn encode_uncompressed_frequency(&mut self, value: u32) -> Result<(), std::io::Error> {
+        self.encode_uncompressed_varnum(Some(value))
+    }
+
+    fn encode_value<F>(&mut self, symbol: Symbol, f: F) -> Result<(), std::io::Error>
+        where F: FnOnce(&mut Self) -> Result<(), std::io::Error>
+    {
+        let mut distribution = symbol.distribution.borrow_mut();
+        let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
+        if self.options.inline_dictionaries && requirements.symbol() {
+            // First, write the symbol itself.
+            f(self)?;
+            // Then, write its frequency.
+            let segment = distribution.at_index(symbol.index).unwrap();
+                // We would have failed in `self.encoder.symbol` if `distribution.at_index` failed.
+            self.encode_uncompressed_frequency(segment.width())?;
+        }
+        if self.options.inline_dictionaries && requirements.distribution_total() {
+            // Finally, if needed, write the total frequency.
+            self.encode_uncompressed_frequency(distribution.width())?;
+        }
+        Ok(())
+    }
 }
 
 impl<'a> Visitor for Compressor<'a> {
@@ -263,9 +286,13 @@ impl<'a> Visitor for Compressor<'a> {
                     return Ok(())
                 }
                 let mut distribution = symbol.distribution.borrow_mut();
-                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
+                let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
+                if requirements.symbol() && !self.options.inline_dictionaries {
                     warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, path.len());
+                    return Ok(())
                 }
+                warn!(target: "multiarith", "FIXME: Append definition of the current tag {:?} in {:?}", tag, path.len());
+                return Ok(())
             }
             Label::Number(ref value) => {
                 let symbol = self.model.number_frequency_for_encoding(value, path)
@@ -273,15 +300,8 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_numbers {
                     return Ok(())
                 }
-                let mut distribution = symbol.distribution.borrow_mut();
-                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
-                    if !self.options.inline_dictionaries {
-                        warn!(target: "multiarith", "FIXME: Append definition of the current number {:?} in {:?}", value, path.len());
-                        return Ok(())
-                    }
-                    // For the moment, we do not attempt to be smart about numbers.
-                    self.encode_uncompressed_float(value.map(|x| x.0.clone()))?;
-                }
+                self.encode_value(symbol, move |me| me.encode_uncompressed_float(value.map(|x| x.0.clone())))?;
+                return Ok(())
             }
             Label::List(ref len) => {
                 let symbol = self.model.list_length_frequency_for_encoding(len, path)
@@ -289,15 +309,8 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_list_lengths {
                     return Ok(())
                 }
-                let mut distribution = symbol.distribution.borrow_mut();
-                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
-                    if !self.options.inline_dictionaries {
-                        warn!(target: "multiarith", "FIXME: Append definition of the current list length {:?} in {:?}", len, path.len());
-                        return Ok(())
-                    }
-                    // For the moment, we do not attempt to compress varnums.
-                    self.encode_uncompressed_varnum(len.map(|x| x.clone()))?;
-                }
+                self.encode_value(symbol, move |me| me.encode_uncompressed_varnum(len.map(|x| x.clone())))?;
+                self.encode_uncompressed_varnum(len.map(|x| x.clone()))?;
             }
             Label::String(ref string) => {
                 let symbol = self.model.string_frequency_for_encoding(string, path)
@@ -306,8 +319,8 @@ impl<'a> Visitor for Compressor<'a> {
                     return Ok(())
                 }
                 let mut distribution = symbol.distribution.borrow_mut();
-                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
-                    // self.encoder.flush_symbols()?; // FIXME: Should we flush?
+                let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
+                if requirements.symbol() && !self.options.inline_dictionaries {
                     warn!(target: "multiarith", "FIXME: Append definition of the current string {:?} in {:?}", string, path.len());
                 }
             }
@@ -317,17 +330,13 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_bools {
                     return Ok(())
                 }
-                let mut distribution = symbol.distribution.borrow_mut();
-                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
-                    if !self.options.inline_dictionaries {
-                        match value { // FIXME: Would be more efficient if we knew ahead of time whether it's a bool or an Option<bool>
-                            None => self.encode_uncompressed_bits(&[true, true])?,
-                            Some(true) => self.encode_uncompressed_bits(&[false, true])?,
-                            Some(false) => self.encode_uncompressed_bits(&[false, false])?,
-                        }
-                        return Ok(())
+                self.encode_value(symbol, move |me| {
+                    match value { // FIXME: Would be more efficient if we knew ahead of time whether it's a bool or an Option<bool>
+                        None => me.encode_uncompressed_bits(&[true, true]),
+                        Some(true) => me.encode_uncompressed_bits(&[false, true]),
+                        Some(false) => me.encode_uncompressed_bits(&[false, false]),
                     }
-                }
+                })?;
             }
             Label::Declare(Some(ref string)) | Label::LiteralReference(Some(ref string)) => {
                 let symbol = self.model.identifier_frequency_for_encoding(string, scopes)
@@ -336,8 +345,8 @@ impl<'a> Visitor for Compressor<'a> {
                     return Ok(())
                 }
                 let mut distribution = symbol.distribution.borrow_mut();
-                if let AlreadyEncountered(false) = self.encoder.symbol(symbol.index, &mut *distribution)? {
-                    // self.encoder.flush_symbols()?; // FIXME: Should we flush?
+                let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
+                if requirements.symbol() && !self.options.inline_dictionaries {
                     warn!(target: "multiarith", "FIXME: Append definition of the current identifier {:?} in {:?}", string, path.len());
                 }
             }
