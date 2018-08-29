@@ -3,6 +3,13 @@ name = "binjs_io"
 version = "0.2.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 
+[features]
+# An implementation of compression that divides data across several streams
+# in an attempt to make it easier to compress.
+#
+# Experimental, probably deprecated.
+multistream = []
+
 [dependencies]
 binjs_shared = { path = "../binjs_shared", version = "*" }
 # brotli = "*"

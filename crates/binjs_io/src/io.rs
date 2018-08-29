@@ -7,17 +7,21 @@
 //! In practice, this API is kept as a trait to simplify unit testing and
 //! experimentation of sophisticated compression schemes.
 
+#[cfg(multistream)]
 use binjs_shared;
 
 use ::{ TokenWriterError };
 
+#[cfg(multistream)]
 use std::collections::HashMap;
 use std::fmt::{ Debug, Display };
+#[cfg(multistream)]
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::Add;
 use std::rc::Rc;
 
+#[cfg(multistream)]
 use itertools::Itertools;
 
 /// An API for reading tokens.
@@ -267,11 +271,13 @@ impl Numbering {
     }
 }
 
+#[cfg(multistream)]
 pub enum NumberingStrategy<T> where T: Eq + Hash + Clone {
     MRU(binjs_shared::mru::MRU<T>),
     Frequency(HashMap<T, Numbering>)
 }
 
+#[cfg(multistream)]
 impl<T> NumberingStrategy<T> where T: Eq + Hash + Clone {
     pub fn mru() -> Self {
         let mru = binjs_shared::mru::MRU::new();

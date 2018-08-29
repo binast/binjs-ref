@@ -44,3 +44,10 @@ harness = false
 
 [workspace]
 members = ["crates/*"]
+
+[features]
+# An implementation of compression that divides data across several streams
+# in an attempt to make it easier to compress.
+#
+# Experimental, probably deprecated.
+multistream = []

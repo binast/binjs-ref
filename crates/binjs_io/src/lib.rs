@@ -66,6 +66,7 @@ pub mod bytes;
 mod io;
 pub use io::*;
 
+#[cfg(multistream)]
 pub mod labels;
 
 /// A simple implementation of TokenReader/TokenWriter,
@@ -77,10 +78,12 @@ pub mod simple;
 /// designed to minimize the size of the file.
 pub mod multipart;
 
+#[cfg(multistream)]
 pub mod multistream;
 pub mod multiarith;
 
 /// A tree comperssion mechanism.
+#[cfg(multistream)]
 pub mod repair;
 // pub mod repair2;
 
@@ -99,6 +102,7 @@ pub enum DictionaryPlacement {
     Inline
 }
 
+#[cfg(multistream)]
 /// A strategy for numbering nodes, labels, strings, ...
 #[derive(Clone, Debug)]
 pub enum NumberingStrategy {
@@ -201,10 +205,12 @@ pub enum Format {
         targets: multipart::Targets,
         stats: Rc<RefCell<multipart::Statistics>>
     },
+    #[cfg(multistream)]
     TreeRePair {
         options: repair::Options,
     },
     XML,
+    #[cfg(multistream)]
     MultiStream {
         options: multistream::Options,
         targets: multistream::Targets,
@@ -216,10 +222,10 @@ pub enum Format {
 }
 
 impl Rand for Format {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        match rng.gen_range(0, 5) {
-            0 => Self::simple(),
-            1 => {
+    fn rand<'a, R: Rng>(rng: &'a mut R) -> Self {
+        let generators = [
+            Rc::new(|_| Self::simple()) as Rc<Fn(&'a mut R) -> Format>,
+            Rc::new(|rng| {
                 use multipart::{ Statistics, Targets };
                 let stats = Rc::new(RefCell::new(Statistics::default()
                     .with_source_bytes(0)));
@@ -232,23 +238,26 @@ impl Rand for Format {
                     },
                     stats
                 }
-            },
-            2 => {
-                Format::TreeRePair {
+            }),
+            Rc::new(|_| Format::XML),
+            #[cfg(multistream)]
+            Rc::new(|_| Format::TreeRePair {
                     options: repair::Options {
                         max_rank: None,
                         dictionary_placement: DictionaryPlacement::Header,
                         numbering_strategy: NumberingStrategy::GlobalFrequency,
                     }
-                }
-            },
-            3 => Format::XML,
-            4 => Format::MultiStream {
+                }),
+            #[cfg(multistream)]
+            Rc::new(|rng| Format::MultiStream {
                 options: multistream::Options::rand(rng),
                 targets: multistream::Targets::rand(rng),
-            },
-            _ => unreachable!()
-        }
+            })
+        ];
+        let pick : Rc<Fn(&'a mut R) -> Format> = rng.choose(&generators)
+            .map(Rc::clone)
+            .unwrap(); // Never empty
+        pick(rng)
     }
 }
 impl Format {
@@ -272,6 +281,7 @@ impl Format {
                     stats
                 })
             },
+#[cfg(multistream)]
             Some("trp") => {
                 Some(Format::TreeRePair {
                     options: repair::Options {
@@ -305,6 +315,8 @@ impl Format {
             _ => Ok(self)
         }
     }
+
+    #[cfg(multistream)]
     pub fn with_trp_rank(self, source: Option<&str>) -> Option<Self> {
         use Format::*;
         match self {
@@ -331,6 +343,7 @@ impl Format {
         }
     }
 
+    #[cfg(multistream)]
     pub fn with_trp_numbering(self, source: Option<&str>) -> Option<Self> {
         match self {
             Format::TreeRePair { options } => {
@@ -352,6 +365,7 @@ impl Format {
         }
     }
 
+    #[cfg(multistream)]
     pub fn with_dictionary_placement(self, source: Option<&str>) -> Option<Self> {
         match self {
             Format::TreeRePair { options } => {
@@ -388,6 +402,7 @@ impl Format {
                     }
                 }
             },
+            #[cfg(multistream)]
             Format::MultiStream {
                 options,
                 targets: _
@@ -419,6 +434,7 @@ impl Format {
         Some(self.with_compression(compression))
     }
 
+    #[cfg(multistream)]
     pub fn with_numbering_strategy(mut self, source: Option<&str>) -> Option<Self> {
         let strategy = match source {
             None => NumberingStrategy::GlobalFrequency,
@@ -438,8 +454,15 @@ impl Format {
     pub fn with_sections<F, E>(&mut self, mut f: F) -> Result<(), E> where F: FnMut(&mut CompressionTarget, &str) -> Result<(), E> {
         match *self {
             Format::Simple { .. } |
-            Format::TreeRePair { .. } |
-            Format::XML |
+            Format::XML => {
+                // Nothing to do
+                Ok(())
+            }
+            #[cfg(multistream)]
+            Format::TreeRePair { .. } => {
+                // Nothing to do
+                Ok(())
+            }
             Format::Arithmetic { ..} => {
                 // Nothing to do
                 Ok(())
@@ -457,6 +480,7 @@ impl Format {
                 f(tree, "tree")?;
                 Ok(())
             }
+            #[cfg(multistream)]
             Format::MultiStream { ref mut targets, .. } => {
                 let multistream::Targets {
                     ref mut contents,

@@ -60,6 +60,7 @@ impl Encoder {
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
+            #[cfg(multistream)]
             binjs_io::Format::MultiStream { ref mut targets, ref options } => {
                 targets.reset();
                 let writer = binjs_io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
@@ -70,6 +71,7 @@ impl Encoder {
                     .expect("Could not finalize AST encoding");
                 Ok(Box::new(data))
             }
+            #[cfg(multistream)]
             binjs_io::Format::TreeRePair { ref options } => {
                 let writer = binjs_io::repair::Encoder::new(options.clone());
                 let mut serializer = encode::Encoder::new(grammar, writer);

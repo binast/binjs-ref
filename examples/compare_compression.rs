@@ -10,7 +10,9 @@ extern crate itertools;
 extern crate rand;
 
 use binjs::io::bytes::compress::*;
-use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, NumberingStrategy, TokenSerializer };
+use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, TokenSerializer };
+#[cfg(multistream)]
+use binjs::io::NumberingStrategy;
 use binjs::generic::FromJSON;
 use binjs::source::*;
 
@@ -131,12 +133,17 @@ fn main() {
 
     let mut format = Format::parse(matches.value_of("format"))
         .expect("Invalid `format`")
-        .with_numbering_strategy(matches.value_of("numbering"))
-        .expect("Invalid `numbering`")
-        .with_dictionary_placement(matches.value_of("dictionary"))
-        .expect("Invalid `dictionary`")
         .with_compression_str(matches.value_of("compression"))
         .expect("Invalid `compression`");
+
+    #[cfg(multistream)]
+    {
+        format = format
+            .with_numbering_strategy(matches.value_of("numbering"))
+            .expect("Invalid `numbering`")
+            .with_dictionary_placement(matches.value_of("dictionary"))
+            .expect("Invalid `dictionary`");
+    }
 
     let parser = Shift::new();
 
@@ -168,6 +175,7 @@ fn main() {
                         .expect("Could not finalize AST encoding");
                     Box::new(data)
                 }
+                #[cfg(multistream)]
                 Format::TreeRePair { ref options } => {
                     let writer = binjs::io::repair::Encoder::new(options.clone());
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
@@ -177,6 +185,7 @@ fn main() {
                         .expect("Could not finalize AST encoding");
                     Box::new(data)
                 }
+                #[cfg(multistream)]
                 Format::MultiStream { ref mut targets, ref options } => {
                     targets.reset();
                     let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());

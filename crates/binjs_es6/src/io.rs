@@ -272,10 +272,14 @@ impl Encoder {
         where
             Serializer<binjs_io::simple::TreeTokenWriter> : Serialization<binjs_io::simple::TreeTokenWriter, &'a AST>,
             Serializer<binjs_io::multipart::TreeTokenWriter> : Serialization<binjs_io::multipart::TreeTokenWriter, &'a AST>,
+            Serializer<binjs_io::xml::Encoder> : Serialization<binjs_io::xml::Encoder, &'a AST>,
+            Serializer<binjs_io::multiarith::write::TreeTokenWriter<'a>> : Serialization<binjs_io::multiarith::write::TreeTokenWriter<'a>, &'a AST>
+/*
+        #[cfg(multistream)]
+        where
             Serializer<binjs_io::multistream::TreeTokenWriter> : Serialization<binjs_io::multistream::TreeTokenWriter, &'a AST>,
             Serializer<binjs_io::repair::Encoder> : Serialization<binjs_io::repair::Encoder, &'a AST>,
-            Serializer<binjs_io::xml::Encoder> : Serialization<binjs_io::xml::Encoder, &'a AST>,
-            Serializer<binjs_io::multiarith::write::TreeTokenWriter<'a>> : Serialization<binjs_io::multiarith::write::TreeTokenWriter<'a>, &'a AST>,
+*/
     {
         match *format {
             binjs_io::Format::Simple { .. } => {
@@ -292,6 +296,7 @@ impl Encoder {
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
+            #[cfg(multistream)]
             binjs_io::Format::MultiStream { ref mut targets, ref options } => {
                 targets.reset();
                 let writer = binjs_io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
@@ -302,6 +307,7 @@ impl Encoder {
                     .expect("Could not finalize AST encoding");
                 Ok(Box::new(data))
             }
+            #[cfg(multistream)]
             binjs_io::Format::TreeRePair { ref options } => {
                 let writer = binjs_io::repair::Encoder::new(options.clone());
                 let mut serializer = Serializer::new(writer);
