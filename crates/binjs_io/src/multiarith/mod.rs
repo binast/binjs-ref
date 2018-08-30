@@ -148,8 +148,10 @@
 //! ----- Initially, start with everything equi-likely. We'll add a predefined
 //! and/or custom dictionary later.
 
+pub mod model;
 mod predict;
 mod tree;
+pub mod read;
 pub mod write;
 
 use self::predict::Symbol;
@@ -174,11 +176,4 @@ pub trait Model {
     fn encoding(&self, &tree::SharedTree) -> Box<EncodingModel>;
 }
 
-pub struct ExactModel;
-
-impl Model for ExactModel {
-    fn encoding(&self, tree: &tree::SharedTree) -> Box<EncodingModel> {
-        Box::new(write::ExactEncodingModel::new(tree))
-    }
-}
 

@@ -295,7 +295,7 @@ impl Format {
             Some("simple") => Some(Self::simple()),
             Some("arithmetic") => Some(Format::Arithmetic {
                 options: multiarith::write::Options::default(),
-                model: Box::new(multiarith::ExactModel)
+                model: Box::new(multiarith::model::ExactModel)
             }),
             _ => None
         }

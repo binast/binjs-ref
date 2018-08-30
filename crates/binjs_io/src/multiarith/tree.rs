@@ -5,6 +5,14 @@ use std::cell::RefCell;
 use std::hash::{ Hash, Hasher };
 use std::rc::Rc;
 
+/// A constant used to initialize the maximal path depth.
+/// Changing it will only affect performance.
+pub const EXPECTED_PATH_DEPTH: usize = 2048;
+
+/// A constant used to initialize the maximal scope depth.
+/// Changing it will only affect performance.
+pub const EXPECTED_SCOPE_DEPTH: usize = 128;
+
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Path<T> where T: Clone {
     items: Vec<T>
