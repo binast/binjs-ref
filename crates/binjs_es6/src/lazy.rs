@@ -103,6 +103,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
                 Self::steal(*steal, |stolen| {
                     LazySetter {
                         name: stolen.name,
+                        length: stolen.length,
                         directives: stolen.directives,
                         contents_skip: Offset::default(),
                         contents: stolen.contents
@@ -115,6 +116,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
                         is_async: stolen.is_async,
                         is_generator: stolen.is_generator,
                         name: stolen.name,
+                        length: stolen.length,
                         directives: stolen.directives,
                         contents_skip: Offset::default(),
                         contents: stolen.contents
@@ -141,6 +143,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
                         is_async: stolen.is_async,
                         is_generator: stolen.is_generator,
                         name: stolen.name,
+                        length: stolen.length,
                         directives: stolen.directives,
                         contents_skip: Offset::default(),
                         contents: stolen.contents
@@ -171,6 +174,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
                         is_async: stolen.is_async,
                         is_generator: stolen.is_generator,
                         name: stolen.name,
+                        length: stolen.length,
                         directives: stolen.directives,
                         contents_skip: Offset::default(),
                         contents: stolen.contents
