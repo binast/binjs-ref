@@ -33,6 +33,8 @@ impl Compare for TypeSpec {
                 Ok(left.as_str() == right.as_str()),
             (&TypeSpec::Number, &Number(ref a), &Number(ref b)) =>
                 Ok(a == b),
+            (&TypeSpec::UnsignedLong, &Number(ref a), &Number(ref b)) =>
+                Ok(a == b),
             (&TypeSpec::Array { contents: ref type_, .. }, &Array(ref vec_a), &Array(ref vec_b)) => {
                 if vec_a.len() != vec_b.len() {
                     Ok(false)
@@ -266,6 +268,11 @@ macro_rules! make_ast_visitor {
                         }
                     }
                     &TypeSpec::Number => {
+                        if let JSON::Number(_) = *value {
+                            return Ok(())
+                        }
+                    }
+                    &TypeSpec::UnsignedLong => {
                         if let JSON::Number(_) = *value {
                             return Ok(())
                         }

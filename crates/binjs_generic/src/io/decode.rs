@@ -227,6 +227,11 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                         Ok(self.register(json::from(f)))
                 }
             }
+            UnsignedLong => {
+                let extracted = self.extractor.unsigned_long()
+                    .map_err(Error::TokenReaderError)?;
+                Ok(self.register(json::from(extracted)))
+            }
             NamedType(ref name) => {
                 let named_type = self.grammar.get_type_by_name(name)
                     .ok_or_else(|| self.raise_error(Error::NoSuchType(name.to_string().clone())))?;

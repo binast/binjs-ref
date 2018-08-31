@@ -398,6 +398,17 @@ impl TokenReader for TreeTokenReader {
         })
     }
 
+    /// Read a single `u32`.
+    fn unsigned_long(&mut self) -> Result<u32, Self::Error> {
+        self.owner.borrow_mut().try(|state| {
+            let result = state.reader.read_varnum_2()
+                .map_err(TokenReaderError::ReadError)? as u32;
+            print_file_structure!(state.reader, "unsigned_long={}",
+                                  result);
+            Ok(result)
+        })
+    }
+
     /// Read a single `bool`.
     fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
         self.owner.borrow_mut().try(|state| {
@@ -420,7 +431,7 @@ impl TokenReader for TreeTokenReader {
         })
     }
 
-    /// Read a single `bool`.
+    /// Read a single `u32`.
     fn offset(&mut self) -> Result<u32, Self::Error> {
         self.owner.borrow_mut().try(|state| {
             let byte_len = state.reader.read_varnum_2()

@@ -78,6 +78,9 @@ impl RustExporter {
             TypeSpec::Number =>
                 format!("{prefix}Type::number()",
                     prefix = prefix),
+            TypeSpec::UnsignedLong =>
+                format!("{prefix}Type::unsigned_long()",
+                    prefix = prefix),
             TypeSpec::NamedType(ref name) =>
                 format!("{prefix}Type::named(&names.{name})",
                     name = name.to_rust_identifier_case(),
@@ -335,7 +338,7 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                     match *typedef.spec() {
                         TypeSpec::TypeSum(_) => { enums.push(name); }
                         TypeSpec::Array{ .. } => { lists.push(name); }
-                        TypeSpec::Boolean | TypeSpec::Number | TypeSpec::String | TypeSpec::Void => { primitives.push(name); }
+                        TypeSpec::Boolean | TypeSpec::Number | TypeSpec::UnsignedLong | TypeSpec::String | TypeSpec::Void => { primitives.push(name); }
                         _ => { buffer.push_str(&format!("// UNIMPLEMENTED: {}\n", name)); }
                     }
                 }
@@ -752,6 +755,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                     contents = match *typedef.spec() {
                         TypeSpec::Boolean => "bool",
                         TypeSpec::Number => "f64",
+                        TypeSpec::UnsignedLong => "u32",
                         TypeSpec::String => "std::string::String",
                         TypeSpec::Offset => "Offset",
                         TypeSpec::Void => "()",
@@ -889,6 +893,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                                 TypeSpec::NamedType(ref contents) => contents.to_class_cases(),
                                 TypeSpec::Boolean => "bool".to_string(),
                                 TypeSpec::Number => "f64".to_string(),
+                                TypeSpec::UnsignedLong => "u32".to_string(),
                                 TypeSpec::String => "String".to_string(),
                                 TypeSpec::Void => "()".to_string(),
                                 TypeSpec::Offset => "Offset".to_string(),
@@ -1237,6 +1242,12 @@ impl<'a> Walker<'a> for f64 {{
     fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
         // Do not inspect the contents of a f64.
         Ok(None)
+    }}
+}}
+type ViewMutU32 = ViewMutNothing<u32>;
+impl<'a> From<&'a mut u32> for ViewMutNothing<u32> {{
+    fn from(_: &'a mut u32) -> Self {{
+        ViewMutNothing::default()
     }}
 }}
 impl<'a> Walker<'a> for u32 {{

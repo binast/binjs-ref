@@ -187,6 +187,9 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// Read a single `f64`. Note that all numbers are `f64`.
     fn float(&mut self) -> Result<Option<f64>, Self::Error>;
 
+    /// Read a single `u32`.
+    fn unsigned_long(&mut self) -> Result<u32, Self::Error>;
+
     /// Read a single `bool`.
     fn bool(&mut self) -> Result<Option<bool>, Self::Error>;
 
@@ -274,6 +277,9 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
 
     /// Write a single number.
     fn float(&mut self, Option<f64>) -> Result<Self::Tree, Self::Error>;
+
+    /// Write a single u32.
+    fn unsigned_long(&mut self, u32) -> Result<Self::Tree, Self::Error>;
 
     /// Write single bool.
     fn bool(&mut self, Option<bool>) -> Result<Self::Tree, Self::Error>;

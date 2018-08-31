@@ -161,6 +161,8 @@ impl Importer {
             }
             TypeKind::RestrictedDouble =>
                 spec::TypeSpec::Number,
+            TypeKind::UnsignedLong =>
+                spec::TypeSpec::UnsignedLong,
             _ => {
                 panic!("I don't know how to import {:?} yet", t);
             }

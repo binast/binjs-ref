@@ -438,6 +438,12 @@ impl UnresolvedTree {
                 stats.float.total_bytes += total;
                 stats.float.shallow_bytes += own;
             }
+            Nature::UnsignedLong => {
+                stats.unsigned_long.entries += 1;
+                stats.unsigned_long.own_bytes += own;
+                stats.unsigned_long.total_bytes += total;
+                stats.unsigned_long.shallow_bytes += own;
+            }
             Nature::Offset => {
                 stats.offset.entries += 1;
                 stats.bool.own_bytes += own;
@@ -460,6 +466,7 @@ enum Nature {
     TaggedTuple(TableIndex<NodeDescription>),
     TaggedTupleHeader(TableIndex<NodeDescription>),
     Float,
+    UnsignedLong,
     Bool,
     String(TableIndex<Option<String>>),
     /// Internal data representing a number of bytes.
@@ -687,6 +694,17 @@ impl TokenWriter for TreeTokenWriter {
         debug!(target: "multipart", "writing float {:?} => {:?}", value, bytes);
         Ok(self.register(UnresolvedTree {
             nature: Nature::Float,
+            data: UnresolvedTreeNode::Encoded(bytes),
+        }))
+    }
+
+    fn unsigned_long(&mut self, value: u32) -> Result<Self::Tree, Self::Error> {
+        let mut bytes = Vec::with_capacity(4);
+        bytes.write_varnum(value as u32)
+            .map_err(TokenWriterError::WriteError)?;
+        debug!(target: "multipart", "writing unsigned_long {:?} => {:?}", value, bytes);
+        Ok(self.register(UnresolvedTree {
+            nature: Nature::UnsignedLong,
             data: UnresolvedTreeNode::Encoded(bytes),
         }))
     }
@@ -969,6 +987,7 @@ pub struct Statistics {
 
     pub bool: NodeStatistics,
     pub float: NodeStatistics,
+    pub unsigned_long: NodeStatistics,
     pub string: NodeStatistics,
     pub list: NodeStatistics,
     pub offset: NodeStatistics,
@@ -1063,6 +1082,7 @@ impl Add for Statistics {
 
         self.bool += rhs.bool;
         self.float += rhs.float;
+        self.unsigned_long += rhs.unsigned_long;
         self.string += rhs.string;
         self.list += rhs.list;
         self.list_header += rhs.list_header;
@@ -1218,6 +1238,7 @@ impl Display for Statistics {
 
         let total_number_of_tokens = self.bool.entries
             + self.float.entries
+            + self.unsigned_long.entries
             + self.string.entries
             + self.list.entries
             + self.tagged_tuple.entries;
@@ -1241,6 +1262,7 @@ Statistics
 \tTokens:
 {token_bool}
 {token_float}
+{token_unsigned_long}
 {token_offset}
 {token_string}
 {token_list}
@@ -1295,6 +1317,13 @@ Statistics
         token_float = NodeAndStatistics {
             name: "Float",
             stats: &self.float,
+            total_number_of_entries: total_number_of_tokens,
+            total_uncompressed_bytes: self.uncompressed_bytes,
+            header_bytes: 0,
+        },
+        token_unsigned_long = NodeAndStatistics {
+            name: "UnsignedLong",
+            stats: &self.unsigned_long,
             total_number_of_entries: total_number_of_tokens,
             total_uncompressed_bytes: self.uncompressed_bytes,
             header_bytes: 0,
