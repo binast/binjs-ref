@@ -195,6 +195,11 @@ enum FunctionKind {
     Setter,
 }
 
+struct ParameterScopeAndFunctionLength {
+    scope: json::JsonValue,
+    length: usize
+}
+
 /// A data structure designed to convert from Shift AST to BinJS AST.
 struct FromShift;
 impl FromShift {
@@ -229,9 +234,10 @@ impl FromShift {
         JSON::Object(scope)
     }
 
-    fn dummy_parameter_scope<'a, I>(&self, params: I) -> json::JsonValue
+    fn parameter_scope_and_length<'a, I>(&self, params: I) -> ParameterScopeAndFunctionLength
     where I: IntoIterator<Item=&'a json::JsonValue> {
         let mut scope = Object::new();
+        let mut length = 0;
         scope["type"] = json::from("AssertedParameterScope");
         scope["paramNames"] = array![];
         scope["hasDirectEval"] = JSON::Boolean(false);
@@ -240,6 +246,12 @@ impl FromShift {
         for item in params {
             match item["type"].as_str() {
                 Some("BindingIdentifier") => {
+                    length += 1;
+                }
+                Some("ObjectBinding") |
+                Some("ArrayBinding") => {
+                    is_simple_parameter_list = false;
+                    length += 1;
                 }
                 _ => {
                     is_simple_parameter_list = false;
@@ -250,7 +262,10 @@ impl FromShift {
 
         scope["isSimpleParameterList"] = JSON::Boolean(is_simple_parameter_list);
 
-        JSON::Object(scope)
+        ParameterScopeAndFunctionLength {
+            scope: JSON::Object(scope),
+            length
+        }
     }
 
     fn dummy_bound_names_scope(&self) -> json::JsonValue {
@@ -324,11 +339,15 @@ impl FromShift {
         if kind != FunctionKind::Getter {
             if kind == FunctionKind::Setter {
                 contents["param"] = object.remove("param").unwrap();
-                contents["parameterScope"] = self.dummy_parameter_scope(vec![&contents["param"]]);
+                let scope_and_length = self.parameter_scope_and_length(vec![&contents["param"]]);
+                contents["parameterScope"] = scope_and_length.scope;
+                object["length"] = json::from(scope_and_length.length);
             } else {
                 contents["params"] = object.remove("params").unwrap();
                 assert!(contents["params"]["items"].is_array());
-                contents["parameterScope"] = self.dummy_parameter_scope(contents["params"]["items"].members());
+                let scope_and_length = self.parameter_scope_and_length(contents["params"]["items"].members());
+                contents["parameterScope"] = scope_and_length.scope;
+                object["length"] = json::from(scope_and_length.length);
             }
         }
         contents["bodyScope"] = self.dummy_declared_scope("AssertedVarScope");
@@ -492,6 +511,7 @@ impl ToShift {
         obj.remove("isAsync");
         obj.remove("scope");
         obj.remove("contents_skip");
+        obj.remove("length");
 
         // Move some fields back from *Contents.
         let mut contents = obj.remove("contents").unwrap();
@@ -684,6 +704,7 @@ fn test_shift_basic() {
                 "type" => "EagerFunctionDeclaration",
                 "isGenerator" => false,
                 "isAsync" => false,
+                "length" => 0,
                 "name" => object!{
                     "type" => "BindingIdentifier",
                     "name" => "foo"
