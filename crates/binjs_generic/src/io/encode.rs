@@ -160,6 +160,9 @@ impl<'a, B, Tree, E> Encoder<'a, B, Tree, E> where B: TokenWriter<Tree=Tree, Err
             (&Number, &JSON::Number(x)) =>
                 return self.builder.borrow_mut().float(Some(x.into()))
                     .map_err(Error::TokenWriterError),
+            (&UnsignedLong, &JSON::Number(x)) =>
+                return self.builder.borrow_mut().unsigned_long(x.into())
+                    .map_err(Error::TokenWriterError),
             (&NamedType(ref name), _) => {
                 let named_type = self.grammar.get_type_by_name(name)
                     .ok_or_else(|| Error::NoSuchType(name.to_string().clone()))?;

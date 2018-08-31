@@ -240,6 +240,15 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
+    fn unsigned_long(&mut self) -> Result<u32, Self::Error> {
+        debug!(target: "simple_reader", "unsigned_long");
+        let mut owner = self.owner.borrow_mut();
+        owner.try(|state| {
+            let result = state.read_u32()?;
+            Ok(result)
+        })
+    }
+
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
         debug!(target: "simple_reader", "string");
         let mut owner = self.owner.borrow_mut();
@@ -402,6 +411,15 @@ impl TokenWriter for TreeTokenWriter {
 
     fn float(&mut self, data: Option<f64>) -> Result<Self::Tree, Self::Error> {
         let bytes = bytes::float::bytes_of_float(data);
+        Ok(self.register(bytes.iter().cloned().collect()))
+    }
+
+    fn unsigned_long(&mut self, data: u32) -> Result<Self::Tree, Self::Error> {
+        let u1 = (data & 0xff) as u8;
+        let u2 = ((data >> 8) & 0xff) as u8;
+        let u3 = ((data >> 16) & 0xff) as u8;
+        let u4 = ((data >> 24) & 0xff) as u8;
+        let bytes = [u1, u2, u3, u4].to_vec();
         Ok(self.register(bytes.iter().cloned().collect()))
     }
 

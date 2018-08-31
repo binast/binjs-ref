@@ -45,6 +45,11 @@ impl<R> Deserialization<R, f64> for Deserializer<R> where R: TokenReader {
         }
     }
 }
+impl<R> Deserialization<R, u32> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self) -> Result<u32, R::Error> {
+        self.reader.unsigned_long()
+    }
+}
 impl<R> Deserialization<R, Offset> for Deserializer<R> where R: TokenReader {
     fn deserialize(&mut self) -> Result<Offset, R::Error> {
         Ok(Offset(self.reader.offset()?))
@@ -129,6 +134,11 @@ impl<W> Serialization<W, f64> for Serializer<W> where W: TokenWriter {
         self.writer.float(Some(value))
     }
 }
+impl<W> Serialization<W, u32> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: u32) -> Result<W::Tree, W::Error> {
+        self.writer.unsigned_long(value)
+    }
+}
 impl<'a, W> Serialization<W, &'a Option<bool>> for Serializer<W> where W: TokenWriter {
     fn serialize(&mut self, value: &'a Option<bool>) -> Result<W::Tree, W::Error> {
         self.writer.bool(value.clone())
@@ -147,6 +157,11 @@ impl<'a, W> Serialization<W, &'a Option<f64>> for Serializer<W> where W: TokenWr
 impl<'a, W> Serialization<W, &'a f64> for Serializer<W> where W: TokenWriter {
     fn serialize(&mut self, value: &'a f64) -> Result<W::Tree, W::Error> {
         self.writer.float(Some(*value))
+    }
+}
+impl<'a, W> Serialization<W, &'a u32> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: &'a u32) -> Result<W::Tree, W::Error> {
+        self.writer.unsigned_long(value.clone())
     }
 }
 impl<'a, W> Serialization<W, Option<&'a str>> for Serializer<W> where W: TokenWriter {

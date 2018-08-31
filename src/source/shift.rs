@@ -233,7 +233,7 @@ impl FromShift {
     where I: IntoIterator<Item=&'a json::JsonValue> {
         let mut scope = Object::new();
         scope["type"] = json::from("AssertedParameterScope");
-        scope["boundNames"] = array![];
+        scope["paramNames"] = array![];
         scope["hasDirectEval"] = JSON::Boolean(false);
 
         let mut is_simple_parameter_list = true;
@@ -249,6 +249,7 @@ impl FromShift {
         }
 
         scope["isSimpleParameterList"] = JSON::Boolean(is_simple_parameter_list);
+
         JSON::Object(scope)
     }
 
@@ -693,7 +694,7 @@ fn test_shift_basic() {
                     "isThisCaptured" => false,
                     "parameterScope" => object!{
                         "type" => "AssertedParameterScope",
-                        "boundNames" => array![],
+                        "paramNames" => array![],
                         "hasDirectEval" => false,
                         "isSimpleParameterList" => true,
                     },

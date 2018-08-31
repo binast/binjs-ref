@@ -11,7 +11,37 @@ enum BindingKind {
     Var,
     NonConstLexical,
     ConstLexical,
-    Param,
+
+    // Positional parameter.
+    //   * Simple parameter
+    //   * Default parameter without destructuring
+    PositionalParam {
+        // The depth of the path when entering PositionalParameter.
+        // Used to check matching binding when leaving.
+        depth: usize,
+
+        // The perameter index.
+        index: u32
+    },
+
+    // Rest parameter.
+    // This is pushed onto the stack whenever it's inside parameter, for the
+    // following 2 reasons.
+    //   * To handle rest parameter binding correctly,
+    //     which doesn't have any enclosing structure
+    //   * To mark it's inside parameter, see is_positional_parameter and
+    //     is_destructuring_parameter
+    RestParam,
+
+    // Destructuring parameter, including default parameter with destructuring.
+    DestructuringParam {
+        // The depth of the path when entering destructuring parameter,
+        // which is ObjectBinding or ArrayBinding directly under parameter
+        // or default parameter.
+        // Used to check matching binding when leaving.
+        depth: usize
+    },
+    Bound,
 }
 
 struct VarAndLexNames {
@@ -20,13 +50,28 @@ struct VarAndLexNames {
     const_lexical_names: HashSet<String>,
 }
 
+enum ParamKind {
+    FunctionName { name: String },
+    Positional { index: u32, name: String },
+    Destructuring { name: String },
+    Rest { name: String },
+}
+
 #[derive(Default)]
 pub struct AnnotationVisitor {
     // The following are stacks.
     var_names_stack: Vec<HashSet<String>>,
     non_const_lexical_names_stack: Vec<HashSet<String>>,
     const_lexical_names_stack: Vec<HashSet<String>>,
-    param_names_stack: Vec<HashSet<String>>,
+    params_stack: Vec<Vec<ParamKind>>,
+
+    // The current parameter index for each (nested) function, which is used
+    // by PositionalParameter.
+    // An item (0) is pushed when entering function, and popped when leaving.
+    // The item is incremented when leaving parameter.
+    param_indices_stack: Vec<u32>,
+
+    bound_names_stack: Vec<HashSet<String>>,
     binding_kind_stack: Vec<BindingKind>,
     apparent_direct_eval_stack: Vec<bool>,
     function_expression_name_stack: Vec<Option<BindingIdentifier>>,
@@ -252,18 +297,31 @@ impl AnnotationVisitor {
 
     fn push_param_scope(&mut self, _path: &Path) {
         debug!(target: "annotating", "push_param_scope at {:?}", _path);
-        self.param_names_stack.push(HashSet::new());
+        self.params_stack.push(vec![]);
+        self.param_indices_stack.push(0);
         self.push_free_names();
         self.push_direct_eval();
     }
-    fn pop_bound_names(&mut self) -> Vec<AssertedBoundName> {
-        let param_names = self.param_names_stack.pop().unwrap();
-        let captured_names = self.pop_captured_names(&[&param_names]);
-        self.pop_free_names(&[&param_names], /* is_leaving_function_scope = */false);
+    fn pop_param_scope(&mut self, path: &Path, parameter_scope: &AssertedParameterScope) -> AssertedParameterScope {
+        debug!(target: "annotating", "pop_param_scope at {:?}", path);
+
+        fn to_name(param: &ParamKind) -> String {
+            match param {
+                ParamKind::FunctionName { name } => name.clone(),
+                ParamKind::Positional { index: _, name } => name.clone(),
+                ParamKind::Destructuring { name } => name.clone(),
+                ParamKind::Rest { name } => name.clone(),
+            }
+        };
+        let params = self.params_stack.pop().unwrap();
+        self.param_indices_stack.pop();
+        let names = params.as_slice().into_iter().map(to_name).collect();
+        let captured_names = self.pop_captured_names(&[&names]);
+        self.pop_free_names(&[&names], /* is_leaving_function_scope = */false);
 
         // In the case of `function foo(j) {var j;}`, the `var j` is not the true declaration.
         // Remove it from parameters.
-        for name in &param_names {
+        for name in &names {
             if self.var_names_stack.last_mut()
                 .unwrap()
                 .remove(name)
@@ -272,8 +330,57 @@ impl AnnotationVisitor {
             }
         }
 
-        let mut bound_names = vec![];
-        for name in param_names.into_iter().sorted() {
+        let mut param_names = Vec::with_capacity(params.len());
+        for param in params.into_iter() {
+            let is_captured = captured_names.contains(&to_name(&param));
+            param_names.push(match param {
+                // FIXME: Function name shouldn't be here.
+                // https://github.com/binast/binjs-ref/issues/151
+                ParamKind::FunctionName { name } => AssertedMaybePositionalParameterName::AssertedParameterName(Box::new(AssertedParameterName {
+                    name,
+                    is_captured
+                })),
+                ParamKind::Positional { index, name } => AssertedMaybePositionalParameterName::AssertedPositionalParameterName(Box::new(AssertedPositionalParameterName {
+                    index,
+                    name,
+                    is_captured
+                })),
+                ParamKind::Destructuring { name } => AssertedMaybePositionalParameterName::AssertedParameterName(Box::new(AssertedParameterName {
+                    name,
+                    is_captured
+                })),
+                ParamKind::Rest { name } => AssertedMaybePositionalParameterName::AssertedRestParameterName(Box::new(AssertedRestParameterName {
+                    name,
+                    is_captured
+                })),
+            })
+        }
+
+        let has_direct_eval = self.pop_direct_eval();
+        AssertedParameterScope {
+            param_names,
+            has_direct_eval,
+            is_simple_parameter_list: parameter_scope.is_simple_parameter_list,
+        }
+    }
+    fn push_bound_names_scope(&mut self, _path: &Path) {
+        debug!(target: "annotating", "push_bound_names_scope at {:?}", _path);
+        self.bound_names_stack.push(HashSet::new());
+        self.push_free_names();
+        self.push_direct_eval();
+    }
+    fn pop_bound_names_scope(&mut self, path: &Path) -> AssertedBoundNamesScope {
+        debug!(target: "annotating", "pop_bound_names_scope at {:?}", path);
+
+        let names = self.bound_names_stack.pop().unwrap();
+        let captured_names = self.pop_captured_names(&[&names]);
+        self.pop_free_names(&[&names], /* is_leaving_function_scope = */false);
+
+        let mut bound_names = Vec::with_capacity(names.len());
+        // The order of the bound names is not defined per spec.
+        // Since `names` is HashSet which doesn't keep the order of appearance,
+        // we sort it alphabetically.
+        for name in names.into_iter().sorted() {
             let is_captured = captured_names.contains(&name);
             bound_names.push(AssertedBoundName {
                 name,
@@ -281,21 +388,6 @@ impl AnnotationVisitor {
             })
         }
 
-        bound_names
-    }
-    fn pop_param_scope(&mut self, path: &Path, parameter_scope: &AssertedParameterScope) -> AssertedParameterScope {
-        debug!(target: "annotating", "pop_param_scope at {:?}", path);
-        let bound_names = self.pop_bound_names();
-        let has_direct_eval = self.pop_direct_eval();
-        AssertedParameterScope {
-            bound_names,
-            has_direct_eval,
-            is_simple_parameter_list: parameter_scope.is_simple_parameter_list,
-        }
-    }
-    fn pop_bound_names_scope(&mut self, path: &Path) -> AssertedBoundNamesScope {
-        debug!(target: "annotating", "pop_bound_names_scope at {:?}", path);
-        let bound_names = self.pop_bound_names();
         let has_direct_eval = self.pop_direct_eval();
         AssertedBoundNamesScope {
             bound_names,
@@ -318,6 +410,95 @@ impl AnnotationVisitor {
     fn pop_function_expression_name(&mut self) {
         self.function_expression_name_stack.pop();
     }
+}
+
+fn is_positional_parameter(visitor: &AnnotationVisitor, path: &Path) -> bool {
+    match visitor.binding_kind_stack.last() {
+        // BindingKind::RestParam should be on the binding kind stack whenever
+        // it's inside parameter, even if it's setter which cannot have rest.
+        Some(BindingKind::RestParam) => {},
+        _ => { return false; },
+    };
+    match path.get(0) {
+        Some(&PathItem { interface: ASTNode::BindingWithInitializer, field: ASTField::Binding }) => {
+            match path.get(1) {
+                Some(&PathItem { interface: ASTNode::SetterContents, field: ASTField::Param }) |
+                Some(&PathItem { interface: ASTNode::FormalParameters, field: ASTField::Items }) => true,
+                _ => false,
+            }
+        },
+        Some(&PathItem { interface: ASTNode::SetterContents, field: ASTField::Param }) |
+        Some(&PathItem { interface: ASTNode::FormalParameters, field: ASTField::Items }) => true,
+        _ => false,
+    }
+}
+fn maybe_enter_positional_parameter(visitor: &mut AnnotationVisitor, path: &Path) {
+    if !is_positional_parameter(visitor, path) {
+        return;
+    }
+
+    // `is_positional_parameter` above already checked this is inside function.
+    // `param_indices_stack` should contain an item for the function.
+    let i = *visitor.param_indices_stack.last().unwrap();
+    visitor.binding_kind_stack.push(BindingKind::PositionalParam {
+        depth: path.len(),
+        index: i,
+    });
+}
+fn maybe_exit_positional_parameter(visitor: &mut AnnotationVisitor, path: &Path) {
+    if visitor.param_indices_stack.is_empty() {
+        return;
+    }
+
+    // We can unwrap because `param_indices_stack` is not empty.
+    let i = *visitor.param_indices_stack.last().unwrap();
+    match visitor.binding_kind_stack.last() {
+        Some(BindingKind::PositionalParam { depth, index })
+            if *depth == path.len() && *index == i => {},
+        _ => { return; }
+    }
+
+    *(visitor.param_indices_stack.last_mut().unwrap()) = i + 1;
+    visitor.binding_kind_stack.pop();
+}
+
+fn is_destructuring_parameter(visitor: &AnnotationVisitor, path: &Path) -> bool {
+    match visitor.binding_kind_stack.last() {
+        // See is_positional_parameter.
+        Some(BindingKind::RestParam) => {},
+        _ => { return false; },
+    };
+    match path.get(0) {
+        Some(&PathItem { interface: ASTNode::BindingWithInitializer, field: ASTField::Binding }) => {
+            match path.get(1) {
+                Some(&PathItem { interface: ASTNode::SetterContents, field: ASTField::Param }) |
+                Some(&PathItem { interface: ASTNode::FormalParameters, field: ASTField::Items }) => true,
+                _ => false,
+            }
+        },
+        Some(&PathItem { interface: ASTNode::SetterContents, field: ASTField::Param }) |
+        Some(&PathItem { interface: ASTNode::FormalParameters, field: ASTField::Items }) => true,
+        _ => false,
+    }
+}
+fn maybe_enter_destructuring_parameter(visitor: &mut AnnotationVisitor, path: &Path) {
+    if !is_destructuring_parameter(visitor, path) {
+        return;
+    }
+
+    visitor.binding_kind_stack.push(BindingKind::DestructuringParam {
+        depth: path.len(),
+    });
+}
+fn maybe_exit_destructuring_parameter(visitor: &mut AnnotationVisitor, path: &Path) {
+    match visitor.binding_kind_stack.last() {
+        Some(BindingKind::DestructuringParam { depth })
+            if *depth == path.len() => {},
+        _ => { return; }
+    }
+
+    *(visitor.param_indices_stack.last_mut().unwrap()) += 1;
+    visitor.binding_kind_stack.pop();
 }
 
 impl Visitor<()> for AnnotationVisitor {
@@ -359,6 +540,11 @@ impl Visitor<()> for AnnotationVisitor {
         Ok(None)
     }
 
+    fn enter_binding_identifier(&mut self, path: &Path, _node: &mut BindingIdentifier) -> Result<VisitMe<()>, ()> {
+        maybe_enter_positional_parameter(self, path);
+        Ok(VisitMe::HoldThis(()))
+    }
+
     fn exit_binding_identifier(&mut self, path: &Path, node: &mut BindingIdentifier) -> Result<Option<BindingIdentifier>, ()> {
         match path.get(0) {
             Some(&PathItem { interface: ASTNode::EagerFunctionDeclaration, field: ASTField::Name})
@@ -377,6 +563,15 @@ impl Visitor<()> for AnnotationVisitor {
             name = node.name,
             kind = self.binding_kind_stack.last().unwrap(),
             path = path);
+        match self.binding_kind_stack.last() {
+            None => {
+                println!("exit_binding identifier – marking {name} at {path:?}",
+                       name = node.name,
+                       path = path);
+            }
+            _ => {
+            }
+        }
         match *self.binding_kind_stack.last().unwrap() {
             BindingKind::Var => {
                 self.var_names_stack.last_mut()
@@ -393,12 +588,35 @@ impl Visitor<()> for AnnotationVisitor {
                     .unwrap()
                     .insert(node.name.clone());
             }
-            BindingKind::Param => {
-                self.param_names_stack.last_mut()
+            BindingKind::PositionalParam { depth: _, index } => {
+                self.params_stack.last_mut()
+                    .unwrap()
+                    .push(ParamKind::Positional {
+                        index,
+                        name: node.name.clone(),
+                    });
+            }
+            BindingKind::RestParam => {
+                self.params_stack.last_mut()
+                    .unwrap()
+                    .push(ParamKind::Rest {
+                        name: node.name.clone(),
+                    });
+            }
+            BindingKind::DestructuringParam { depth: _ } => {
+                self.params_stack.last_mut()
+                    .unwrap()
+                    .push(ParamKind::Destructuring {
+                        name: node.name.clone(),
+                    });
+            }
+            BindingKind::Bound => {
+                self.bound_names_stack.last_mut()
                     .unwrap()
                     .insert(node.name.clone());
             }
         }
+        maybe_exit_positional_parameter(self, path);
         Ok(None)
     }
 
@@ -435,7 +653,7 @@ impl Visitor<()> for AnnotationVisitor {
 
     // Try/Catch
     fn enter_catch_clause(&mut self, path: &Path, _node: &mut CatchClause) -> Result<VisitMe<()>, ()> {
-        self.binding_kind_stack.push(BindingKind::Param);
+        self.binding_kind_stack.push(BindingKind::Bound);
 
         // We need to differentiate between
         // `var ex; try { ... } catch(ex) { ... }` (both instances of `ex` are distinct)
@@ -445,11 +663,11 @@ impl Visitor<()> for AnnotationVisitor {
         // a function.
 
         self.push_incomplete_var_scope(path);
-        self.push_param_scope(path);
+        self.push_bound_names_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_catch_clause(&mut self, path: &Path, node: &mut CatchClause) -> Result<Option<CatchClause>, ()> {
-        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Bound));
         node.binding_scope = self.pop_bound_names_scope(path);
         let var_scope = self.pop_incomplete_var_scope(path);
 
@@ -509,13 +727,18 @@ impl Visitor<()> for AnnotationVisitor {
 
     // Functions, methods, arguments.
     fn enter_setter_contents(&mut self, path: &Path, _node: &mut SetterContents) -> Result<VisitMe<()>, ()> {
-        self.binding_kind_stack.push(BindingKind::Param);
+        // Just like FormalParameters, push BindingKind::RestParam to mark
+        // it's inside parameter.
+        // See enter_formal_parameters and is_positional_parameter for more
+        // details.
+        self.binding_kind_stack.push(BindingKind::RestParam);
+
         self.push_param_scope(path);
         self.push_var_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_setter_contents(&mut self, path: &Path, node: &mut SetterContents) -> Result<Option<SetterContents>, ()> {
-        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
+        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::RestParam));
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
         node.body_scope = self.pop_var_scope(path);
@@ -550,15 +773,12 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn enter_function_or_method_contents(&mut self, path: &Path, _node: &mut FunctionOrMethodContents) -> Result<VisitMe<()>, ()> {
-        self.binding_kind_stack.push(BindingKind::Param);
         self.push_var_scope(path);
         self.push_param_scope(path);
         self.push_this_captured();
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_function_or_method_contents(&mut self, path: &Path, node: &mut FunctionOrMethodContents) -> Result<Option<FunctionOrMethodContents>, ()> {
-        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
-
         node.is_this_captured = self.pop_this_captured();
 
         // Commit parameter scope and var scope.
@@ -576,14 +796,11 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn enter_arrow_expression_contents_with_function_body(&mut self, path: &Path, _node: &mut ArrowExpressionContentsWithFunctionBody) -> Result<VisitMe<()>, ()> {
-        self.binding_kind_stack.push(BindingKind::Param);
         self.push_var_scope(path);
         self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_arrow_expression_contents_with_function_body(&mut self, path: &Path, node: &mut ArrowExpressionContentsWithFunctionBody) -> Result<Option<ArrowExpressionContentsWithFunctionBody>, ()> {
-        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
-
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
         node.body_scope = self.pop_var_scope(path);
@@ -591,14 +808,11 @@ impl Visitor<()> for AnnotationVisitor {
         Ok(None)
     }
     fn enter_arrow_expression_contents_with_expression(&mut self, path: &Path, _node: &mut ArrowExpressionContentsWithExpression) -> Result<VisitMe<()>, ()> {
-        self.binding_kind_stack.push(BindingKind::Param);
         self.push_var_scope(path);
         self.push_param_scope(path);
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_arrow_expression_contents_with_expression(&mut self, path: &Path, node: &mut ArrowExpressionContentsWithExpression) -> Result<Option<ArrowExpressionContentsWithExpression>, ()> {
-        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
-
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
         node.body_scope = self.pop_var_scope(path);
@@ -620,7 +834,6 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn enter_function_expression_contents(&mut self, path: &Path, _node: &mut FunctionExpressionContents) -> Result<VisitMe<()>, ()> {
-        self.binding_kind_stack.push(BindingKind::Param);
         self.push_var_scope(path);
         self.push_param_scope(path);
         self.push_this_captured();
@@ -630,13 +843,11 @@ impl Visitor<()> for AnnotationVisitor {
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_function_expression_contents(&mut self, path: &Path, node: &mut FunctionExpressionContents) -> Result<Option<FunctionExpressionContents>, ()> {
-        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Param));
-
         // If the function has a name, it's a parameter.
         if let Some(ref name) = self.function_expression_name() {
-            self.param_names_stack.last_mut()
+            self.params_stack.last_mut()
                 .unwrap()
-                .insert(name.clone());
+                .push(ParamKind::FunctionName { name: name.clone() });
             node.is_function_name_captured = self.pop_function_name_captured(name.clone());
         } else {
             node.is_function_name_captured = false;
@@ -705,6 +916,35 @@ impl Visitor<()> for AnnotationVisitor {
                     .insert(name);
             }
         }
+        Ok(None)
+    }
+
+    fn enter_formal_parameters(&mut self, _path: &Path, _node: &mut FormalParameters) -> Result<VisitMe<()>, ()> {
+        // Handle rest parameter field here.  Other parameters are handled in
+        // BindingIdentifier/ObjectBinding/ArrayBinding.
+        self.binding_kind_stack.push(BindingKind::RestParam);
+        Ok(VisitMe::HoldThis(()))
+    }
+    fn exit_formal_parameters(&mut self, _path: &Path, _node: &mut FormalParameters) -> Result<Option<FormalParameters>, ()> {
+        assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::RestParam));
+        Ok(None)
+    }
+
+    fn enter_object_binding(&mut self, path: &Path, _node: &mut ObjectBinding) -> Result<VisitMe<()>, ()> {
+        maybe_enter_destructuring_parameter(self, path);
+        Ok(VisitMe::HoldThis(()))
+    }
+    fn exit_object_binding(&mut self, path: &Path, _node: &mut ObjectBinding) -> Result<Option<ObjectBinding>, ()> {
+        maybe_exit_destructuring_parameter(self, path);
+        Ok(None)
+    }
+
+    fn enter_array_binding(&mut self, path: &Path, _node: &mut ArrayBinding) -> Result<VisitMe<()>, ()> {
+        maybe_enter_destructuring_parameter(self, path);
+        Ok(VisitMe::HoldThis(()))
+    }
+    fn exit_array_binding(&mut self, path: &Path, _node: &mut ArrayBinding) -> Result<Option<ArrayBinding>, ()> {
+        maybe_exit_destructuring_parameter(self, path);
         Ok(None)
     }
 }
@@ -859,8 +1099,12 @@ impl Visitor<()> for EvalCleanupAnnotator {
         Ok(None)
     }
     fn exit_asserted_parameter_scope(&mut self, _path: &Path, node: &mut AssertedParameterScope) -> Result<Option<AssertedParameterScope>, ()> {
-        if node.bound_names.iter()
-            .find(|e| e.name == "eval")
+        if node.param_names.iter()
+            .find(|param| match param {
+                AssertedMaybePositionalParameterName::AssertedPositionalParameterName(ref p) => p.name == "eval",
+                AssertedMaybePositionalParameterName::AssertedParameterName(ref p) => p.name == "eval",
+                AssertedMaybePositionalParameterName::AssertedRestParameterName(ref p) => p.name == "eval",
+            })
             .is_some()
         {
             *self.eval_bindings.last_mut()

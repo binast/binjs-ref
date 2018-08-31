@@ -190,6 +190,7 @@ impl TypeDeanonymizer {
         match *type_spec {
             TypeSpec::Boolean |
             TypeSpec::Number |
+            TypeSpec::UnsignedLong |
             TypeSpec::String |
             TypeSpec::Offset |
             TypeSpec::Void    => {
@@ -238,6 +239,7 @@ impl TypeDeanonymizer {
                             Some(IsNullable { content: Primitive::Interface(_), .. }) => Type::named(&content).required(),
                             Some(IsNullable { content: Primitive::String, .. }) => Type::string().required(),
                             Some(IsNullable { content: Primitive::Number, .. }) => Type::number().required(),
+                            Some(IsNullable { content: Primitive::UnsignedLong, .. }) => Type::unsigned_long().required(),
                             Some(IsNullable { content: Primitive::Boolean, .. }) => Type::bool().required(),
                             Some(IsNullable { content: Primitive::Offset, .. }) => Type::offset().required(),
                             Some(IsNullable { content: Primitive::Void, .. }) => Type::void().required()
@@ -367,6 +369,8 @@ impl TypeName {
                 "_Bool".to_string(),
             TypeSpec::Number =>
                 "_Number".to_string(),
+            TypeSpec::UnsignedLong =>
+                "_UnsignedLong".to_string(),
             TypeSpec::String =>
                 "_String".to_string(),
             TypeSpec::Void =>
@@ -406,6 +410,8 @@ impl ToWebidl {
                 "string".to_string(),
             TypeSpec::Number =>
                 "number".to_string(),
+            TypeSpec::UnsignedLong =>
+                "unsigned long".to_string(),
             TypeSpec::NamedType(ref name) =>
                 name.to_str().to_string(),
             TypeSpec::TypeSum(ref sum) => {
