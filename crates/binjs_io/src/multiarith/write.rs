@@ -1,7 +1,6 @@
 
 use multiarith::{ EncodingModel, Model };
-use multiarith::model::{ ExactEncodingModel, ExactEncodingModelData };
-use multiarith::predict::{ ContextPredict, PathPredict, Symbol };
+use multiarith::predict::{ Symbol };
 use multiarith::tree:: { EXPECTED_PATH_DEPTH, EXPECTED_SCOPE_DEPTH, F64, Label, Path, ScopeIndex, SharedTree, SubTree, Tag, Visitor, WalkTree };
 
 use io::TokenWriter;
@@ -17,6 +16,8 @@ use std::rc::Rc;
 
 /// An array of 16 bytes. Used for initializing stuff on the stack.
 const EMPTY_16_BYTES_ARRAY : [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+const HEADER_STARTING_CAPACITY : usize = 10 * 1024;
 
 pub struct TreeTokenWriter<'a> {
     root: SharedTree,
@@ -88,10 +89,31 @@ impl<'a> Compressor<'a> {
         where F: FnOnce(&mut Self) -> Result<(), std::io::Error>
     {
         let mut distribution = symbol.distribution.borrow_mut();
-        let requirements = self.encoder.symbol(symbol.index, &mut *distribution)?;
+
+        let requirements = distribution.requirements_for_index(symbol.index)
+            .expect("Symbol is not in the distribution");
+
+        // Without the layout of the distribution, we can't decode the symbol.
+        // So, if this the first time we encounter this distribution, write
+        // that layout.
+        if requirements.distribution_total() {
+            if !self.options.inline_dictionaries {
+                debug!(target: "multiarith", "Skipping encoding of CDF for {}", name);
+            }
+            for width in distribution.widths() {
+                self.encode_uncompressed_frequency(width)?;
+            }
+            // Terminal 0.
+            self.encode_uncompressed_frequency(0)?;
+        }
+
+        // Now write the index of the symbol.
+        self.encoder.symbol(symbol.index, &mut *distribution)?;
+
+        // Now, if this is the first time we encounter this symbol, we need to write its definition.
         if requirements.symbol() {
             if !self.options.inline_dictionaries {
-                debug!(target: "multiarith", "Skipping encoding of {}", name);
+                debug!(target: "multiarith", "Skipping encoding of symbol {}", name);
             } else {
                 debug!(target: "multiarith", "Encoding symbol {}", name);
                 // First, write the symbol itself.
@@ -316,6 +338,16 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
         let data = self.encoder.done()
             .unwrap(); // FIXME: Handle errors
 
+        // let mut headers = Vec::with_capacity(HEADER_STARTING_CAPACITY);
+        // 1. Write the Tags. We'll need them for everything else.
+            // FIXME: In fact, we should assume that we have a built-in, ordered list of tags.
+            // FIXME: Should we auto-build it now? <= Nah, followup.
+        // 2. For each table
+        //   a. Write list of values.
+        //   b. Write list of (tag-id, child-index, instances, value-index). // FIXME: Aren't we missing the Path?
+            // FIXME: In fact, we should assume that we have a built-in, ordered list of `(tag-id, child-index)`
+            // FIXME: Should we auto-build it now? <= Nah, followup.
+            // FIXME: We could enumerate paths.
         Ok((data, 0))
     }
 }

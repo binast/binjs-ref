@@ -1,19 +1,56 @@
-use multiarith::Path;
+use multiarith::{ DecodingModel, Model, Path };
 use multiarith::tree::Tag;
 
 use io::{TrivialGuard, TokenReader};
 use ::TokenReaderError;
 
+use range_encoding::CumulativeDistributionFrequency;
+use range_encoding::opus;
+
 use std;
-use std::io::Read;
+use std::io::{ Cursor, Read };
 use std::rc::Rc;
 
-struct TreeTokenReader<R> where R: Read {
-    inp: R,
+struct Decompressor {
+    decoder: opus::Reader<Cursor<Vec<u8>>>,
+}
+impl Decompressor {
+    fn decode_uncompressed_bit(&mut self) -> Result<bool, std::io::Error> {
+        unimplemented!()
+    }
+    fn decode_uncompressed_bits(&mut self, bits: &mut[bool]) -> Result<(), std::io::Error> {
+        unimplemented!()
+    }
+    fn decode_uncompressed_varnum(&mut self) -> Result<Option<u32>, std::io::Error> {
+        unimplemented!()
+    }
+    fn decode_uncompressed_float(&mut self) -> Result<Option<f64>, std::io::Error> {
+        unimplemented!()
+    }
+    fn decode_uncompressed_frequency(&mut self) -> Result<u32, std::io::Error> {
+        unimplemented!()
+    }
+    fn decode_uncompressed_cdf(&mut self) -> Result<Vec<u32>, std::io::Error> {
+        unimplemented!()
+    }
+
+    fn tagged_tuple(&mut self, cdf: &mut CumulativeDistributionFrequency) -> Result<(String, Option<Rc<Box<[String]>>>, TrivialGuard<TokenReaderError>), TokenReaderError>
+    {
+        // FIXME: 1. Get the tag.
+        // FIXME: 2. Update the Path.
+        // FIXME: 3. Wait a second, how do we update the path betwen tuple items?
+        // FIXME: 4. Path should be something handled by the driver, right?
+        // FIXME: 5. Create the guard that will pop the Path.
+        unimplemented!()
+    }
+}
+struct TreeTokenReader<M> where M: DecodingModel {
+    decompressor: Decompressor,
     path: Path<(Tag, usize)>,
+    model: M,
 }
 
-impl<R> TreeTokenReader<R> where R: Read {
+impl<M> TreeTokenReader<M> where M: DecodingModel {
     fn update_model(&mut self) -> Result<(), TokenReaderError> {
         // 1. Do we have the cdf for `path`?
             // If so, return.
@@ -24,7 +61,7 @@ impl<R> TreeTokenReader<R> where R: Read {
     }
 }
 
-impl<R> TokenReader for TreeTokenReader<R> where R: Read {
+impl<M> TokenReader for TreeTokenReader<M> where M: DecodingModel {
     type Error = TokenReaderError;
     type ListGuard = TrivialGuard<TokenReaderError>;
     type TaggedGuard = TrivialGuard<TokenReaderError>;
@@ -60,9 +97,15 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read {
     }
 
     fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
-        // FIXME: Update Path!
-        self.update_model()?;
-        unimplemented!()
+        if let Some(cdf) = self.model.tag_frequency_for_decoding(&self.path) {
+            return self.decompressor.tagged_tuple(cdf)
+        }
+        // Otherwise, we first need to initialize the CDF
+        let cdf = self.decompressor.decode_uncompressed_cdf().unwrap(); // FIXME: Handle errors
+        self.model.init_tag_frequency_for_decoding(&self.path, cdf);
+        let cdf = self.model.tag_frequency_for_decoding(&self.path)
+            .unwrap(); // We just installed it above.
+        self.decompressor.tagged_tuple(cdf)
     }
 
     fn untagged_tuple(&mut self) -> Result<Self::UntaggedGuard, Self::Error> {

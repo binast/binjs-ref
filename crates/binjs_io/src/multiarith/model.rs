@@ -1,4 +1,4 @@
-use multiarith::{ EncodingModel, Model };
+use multiarith::{ DecodingModel, EncodingModel, Model };
 use multiarith::predict::{ ContextPredict, PathPredict, Symbol };
 use multiarith::tree:: { EXPECTED_PATH_DEPTH, EXPECTED_SCOPE_DEPTH, F64, Label, Path, ScopeIndex, SharedTree, Tag, Visitor, WalkTree };
 
