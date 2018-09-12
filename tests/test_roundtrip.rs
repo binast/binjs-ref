@@ -1,6 +1,7 @@
 //! Encode a BinJS, then decode it, ensure that we obtain the same AST.
 
 extern crate binjs;
+extern crate clap;
 extern crate env_logger;
 extern crate glob;
 #[macro_use]
@@ -17,6 +18,7 @@ use binjs::specialized::es6::ast::{ Path, Script, Visitor, Walker };
 use std::io::Cursor;
 use std::thread;
 
+use clap::{ Arg, App };
 use rand::Rng;
 
 /// This test takes 1h+ on Travis, which is too long, so we need to
@@ -31,7 +33,10 @@ fn progress() {
     eprint!(".");
 }
 
-fn should_skip(rng: &mut Rng) -> bool {
+fn should_skip(general_should_skip: bool, rng: &mut Rng) -> bool {
+    if !general_should_skip {
+        return false;
+    }
     let float = rng.next_f64();
     float < CHANCES_TO_SKIP
 }
@@ -60,26 +65,28 @@ fn test_roundtrip() {
 
 fn main() {
     env_logger::init();
+
+    let general_should_skip = true;
+
     let mut rng = rand::thread_rng();
 
     let parser = Shift::new();
 
     // All combinations of options for compression.
-    let all_options = {
+    let mut all_options = {
         use self::Compression::*;
         let mut vec = vec![];
         let compressions = [Identity, Gzip, /*Deflate seems broken upstream,*/ Brotli, /*Lzw doesn't work yet*/]
             .into_iter()
             .cloned()
-            .map(SectionOption::Compression)
             .collect::<Vec<_>>();
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {
-                    vec.push(WriteOptions {
-                        grammar_table: grammar_table.clone(),
-                        strings_table: strings_table.clone(),
-                        tree: tree.clone(),
+                    vec.push(Targets {
+                        grammar_table: CompressionTarget::new(grammar_table.clone()),
+                        strings_table: CompressionTarget::new(grammar_table.clone()),
+                        tree: CompressionTarget::new(grammar_table.clone()),
                     });
                 }
             }
@@ -96,7 +103,7 @@ fn main() {
             .expect("Invalid glob pattern")
         {
             // Randomly skip instances.
-            if should_skip(&mut rng) {
+            if should_skip(general_should_skip, &mut rng) {
                 continue 'laziness_per_entry;
             }
 
@@ -124,10 +131,10 @@ fn main() {
                     .expect("Could not introduce laziness");
                 progress();
 
-                let options = WriteOptions {
-                    grammar_table: SectionOption::Compression(Compression::Identity),
-                    strings_table: SectionOption::Compression(Compression::Identity),
-                    tree: SectionOption::Compression(Compression::Identity),
+                let options = Targets {
+                    grammar_table: CompressionTarget::new(Compression::Identity),
+                    strings_table: CompressionTarget::new(Compression::Identity),
+                    tree: CompressionTarget::new(Compression::Identity),
                 };
                 debug!(target: "test_roundtrip", "Encoding.");
                 let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());
@@ -168,7 +175,7 @@ fn main() {
             .expect("Invalid glob pattern")
         {
             // Randomly skip instances.
-            if should_skip(&mut rng) {
+            if should_skip(general_should_skip, &mut rng) {
                 continue 'compression_per_entry;
             }
             let entry = entry.expect("Invalid entry");
@@ -214,14 +221,15 @@ fn main() {
 
             // Roundtrip `multipart`
 
-            'per_option: for options in &all_options {
+            'per_option: for options in &mut all_options {
                 // Randomly skip instances.
-                if should_skip(&mut rng) {
+                if should_skip(general_should_skip, &mut rng) {
                     continue 'per_option;
                 }
                 progress();
                 debug!(target: "test_roundtrip", "Starting multipart round trip for {:?} with options {:?}", entry, options);
                 debug!(target: "test_roundtrip", "Encoding.");
+                options.reset();
                 let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast)

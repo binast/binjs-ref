@@ -212,11 +212,10 @@ impl ToJSON for {name} {{
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
     fn deserialize_variant_{lowercase_name}_aux(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
-        let key = self.reader.string()?;
-        match key {{
-            None => Err(From::from(TokenReaderError::EmptyVariant)),
+        let key = self.reader.string_enum()?;
+        match key.as_str() {{
 {variants}
-            _ => Err(From::from(TokenReaderError::InvalidValue)),
+            _ => Err(From::from(TokenReaderError::invalid_value(&\"{lowercase_name}\"))),
         }}
     }}
     fn deserialize_variant_{lowercase_name}(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
@@ -239,7 +238,7 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
                     lowercase_name = name.to_rust_identifier_case(),
                     variants = string_enum.strings()
                         .iter()
-                        .map(|s| format!("            Some(ref s) if s == \"{string}\" => Ok({name}::{typed}),",
+                        .map(|s| format!("            \"{string}\" => Ok({name}::{typed}),",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s))
@@ -270,12 +269,12 @@ impl FromJSON for {name} {{
 
                 let to_writer = format!("
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, W::Error> {{
+    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing string enum {name}\");
         let str = match *value {{
 {variants}
         }};
-        (self as &mut Serialization<W, &'a str>).serialize(str)
+        self.writer.string_enum(str)
     }}
 }}
 ",
@@ -561,7 +560,7 @@ impl ToJSON for {name} {{
 
                     let to_writer = format!("
 impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a Option<{name}>) -> Result<W::Tree, W::Error> {{
+    fn serialize(&mut self, value: &'a Option<{name}>) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional sum {name}\");
         match *value {{
             None => self.writer.tagged_tuple(\"{null}\", &[]),
@@ -570,7 +569,7 @@ impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: Toke
     }}
 }}
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, W::Error> {{
+    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing sum {name}\");
         match *value {{
 {variants}
@@ -818,7 +817,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
 
 
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, W::Error> {{
+    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing list {name}\");
         let mut children = Vec::with_capacity(value.len());
         for child in value {{
@@ -1015,7 +1014,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                         .len();
                     let to_writer = format!("
 impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a Option<{name}>) -> Result<W::Tree, W::Error> {{
+    fn serialize(&mut self, value: &'a Option<{name}>) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional tagged tuple {name}\");
         match *value {{
             None => self.writer.tagged_tuple(\"{null}\", &[]),
@@ -1389,14 +1388,15 @@ impl<'a> Walker<'a> for ViewMutOffset<'a> {{
                 fields = def.contents()
                     .fields()
                     .iter()
-                    .map(|field| format!("            .with_field(\n                 &names.field_{name},\n{type_},\n                 {laziness}\n            )",
+                    .map(|field| format!("            .{method}(\n                 &names.field_{name},\n{type_}\n            )",
+                        method = if field.is_lazy() {
+                            "with_field_lazy"
+                        } else {
+                            "with_field"
+                        },
                         name = field.name().to_rust_identifier_case(),
                         type_= Self::type_(field.type_(), "                 "),
-                        laziness = if field.is_lazy() {
-                            "Laziness::Lazy"
-                        } else {
-                            "Laziness::Eager"
-                        }))
+                    ))
                     .format("\n"));
             let impl_source = format!("        builder.add_interface(&names.{name}).unwrap()\n{fields};\n\n",
                 name = name.to_rust_identifier_case(),
@@ -1413,6 +1413,11 @@ impl Library {
     pub fn annotate(&self, ast: &mut JSON) {
         use binjs_es6;
         let mut visitor = binjs_es6::scopes::AnnotationVisitor::new();
+        visitor.annotate(ast);
+    }
+    pub fn lazify(&self, level: u32, ast: &mut JSON) {
+        use binjs_es6;
+        let mut visitor = binjs_es6::lazy::LazifierVisitor::new(level);
         visitor.annotate(ast);
     }
 }
