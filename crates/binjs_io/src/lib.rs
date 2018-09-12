@@ -79,9 +79,12 @@ pub mod simple;
 /// designed to minimize the size of the file.
 pub mod multipart;
 
+/// An encoding using entropy coding.
+pub mod entropy;
+
+
 #[cfg(multistream)]
 pub mod multistream;
-pub mod entropy;
 
 /// A tree comperssion mechanism.
 #[cfg(multistream)]
