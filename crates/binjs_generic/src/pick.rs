@@ -63,7 +63,10 @@ impl Pick for TypeSpec {
             TypeSpec::Boolean => {
                 JSON::Boolean(rng.gen())
             }
-            TypeSpec::String => {
+            TypeSpec::String
+            | TypeSpec::PropertyKey
+            | TypeSpec::IdentifierName =>
+            {
                 const MAX_STRING_LEN : usize = 10;
                 let len = rng.gen_range(0, MAX_STRING_LEN);
                 let string : String = rng.gen_ascii_chars().take(len).collect();

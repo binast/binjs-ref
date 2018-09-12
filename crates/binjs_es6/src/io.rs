@@ -1,6 +1,6 @@
 use binjs_io::{ self, Deserialization, Guard, TokenReader, TokenReaderError, TokenWriterError };
 pub use binjs_io::{ Serialization, TokenSerializer, TokenWriter };
-use binjs_shared::Offset;
+use binjs_shared::{ IdentifierDeclaration, IdentifierReference, Offset };
 
 use std::io::{ Read, Seek };
 use std::rc::Rc;
@@ -68,6 +68,44 @@ impl<R> Deserialization<R, String> for Deserializer<R> where R: TokenReader {
         match maybe {
             None => Err(From::from(TokenReaderError::EmptyString)),
             Some(x) => Ok(x)
+        }
+    }
+}
+
+impl<R> Deserialization<R, IdentifierDeclaration> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self) -> Result<IdentifierDeclaration, R::Error> {
+        let maybe = self.reader.string()?;
+        match maybe {
+            None => Err(From::from(TokenReaderError::EmptyString)),
+            Some(x) => Ok(IdentifierDeclaration(Rc::new(x)))
+        }
+    }
+}
+impl<R> Deserialization<R, IdentifierReference> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self) -> Result<IdentifierReference, R::Error> {
+        let maybe = self.reader.string()?;
+        match maybe {
+            None => Err(From::from(TokenReaderError::EmptyString)),
+            Some(x) => Ok(IdentifierReference(Rc::new(x)))
+        }
+    }
+}
+
+impl<R> Deserialization<R, Option<IdentifierDeclaration>> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self) -> Result<Option<IdentifierDeclaration>, R::Error> {
+        let maybe = self.reader.string()?;
+        match maybe {
+            None => Ok(None),
+            Some(x) => Ok(Some(IdentifierDeclaration(Rc::new(x))))
+        }
+    }
+}
+impl<R> Deserialization<R, Option<IdentifierReference>> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self) -> Result<Option<IdentifierReference>, R::Error> {
+        let maybe = self.reader.string()?;
+        match maybe {
+            None => Ok(None),
+            Some(x) => Ok(Some(IdentifierReference(Rc::new(x))))
         }
     }
 }
@@ -191,7 +229,7 @@ impl<'a, W> Serialization<W, &'a String> for Serializer<W> where W: TokenWriter 
 }
 impl<'a, W> Serialization<W, &'a IdentifierDeclaration> for Serializer<W> where W: TokenWriter {
     fn serialize(&mut self, value: &'a IdentifierDeclaration) -> Result<W::Tree, TokenWriterError> {
-         self.writer.identifier_definition(Some(&value.0))
+         self.writer.identifier_declaration(Some(&value.0))
    }
 }
 impl<'a, W> Serialization<W, &'a IdentifierReference> for Serializer<W> where W: TokenWriter {
@@ -202,8 +240,8 @@ impl<'a, W> Serialization<W, &'a IdentifierReference> for Serializer<W> where W:
 impl<'a, W> Serialization<W, &'a Option<IdentifierDeclaration>> for Serializer<W> where W: TokenWriter {
     fn serialize(&mut self, value: &'a Option<IdentifierDeclaration>) -> Result<W::Tree, TokenWriterError> {
         match value {
-            None => self.writer.identifier_definition(None),
-            Some(ref x) => self.writer.identifier_definition(Some(&x.0))
+            None => self.writer.identifier_declaration(None),
+            Some(ref x) => self.writer.identifier_declaration(Some(&x.0))
         }
    }
 }

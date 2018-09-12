@@ -2,6 +2,7 @@ use util::type_of;
 
 use binjs_io::{ TokenWriter, TokenWriterError };
 use binjs_meta::spec::*;
+use binjs_shared::SharedString;
 
 use std;
 use std::cell::*;
@@ -74,8 +75,11 @@ impl<'a, B, Tree> Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
                 if enum_.strings()
                     .iter()
                     .find(|c| c == &string)
-                    .is_some() {
-                    return self.builder.borrow_mut().string(Some(&string))
+                    .is_some()
+                {
+                    let string = SharedString::from_string(string.to_string());
+                    return self.builder.borrow_mut()
+                        .string(Some(&string))
                         .map_err(Error::TokenWriterError)
                 }
                 Err(Error::NoSuchLiteral {
@@ -150,12 +154,15 @@ impl<'a, B, Tree> Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
                 return self.builder.borrow_mut().bool(Some(b))
                     .map_err(Error::TokenWriterError)
             }
-            (&String, _) | (&IdentifierReference, _) | (&IdentifierDeclaration, _) if value.is_string() => {
-                let string = value.as_str().unwrap(); // Checked just above.
-                return self.builder.borrow_mut().string(Some(string))
+            (&String, _) | (&IdentifierName, _) | (&PropertyKey, _) if value.is_string() => {
+                let string = value.as_str()
+                    .unwrap()
+                    .to_string(); // Checked just above.
+                return self.builder.borrow_mut()
+                    .string(Some(&SharedString::from_string(string)))
                     .map_err(Error::TokenWriterError)
             }
-            (&String, &JSON::Null) | (&IdentifierReference, &JSON::Null) | (&IdentifierDeclaration, &JSON::Null) if is_optional  => {
+            (&String, &JSON::Null) | (&IdentifierName, &JSON::Null) | (&PropertyKey, &JSON::Null) if is_optional  => {
                 return self.builder.borrow_mut().string(None)
                     .map_err(Error::TokenWriterError)
             }

@@ -81,6 +81,12 @@ impl RustExporter {
             TypeSpec::UnsignedLong =>
                 format!("{prefix}Type::unsigned_long()",
                     prefix = prefix),
+            TypeSpec::IdentifierDeclaration =>
+                format!("{prefix}Type::identifier_declaration()",
+                    prefix = prefix),
+            TypeSpec::IdentifierReference =>
+                format!("{prefix}Type::identifier_reference()",
+                    prefix = prefix),
             TypeSpec::NamedType(ref name) =>
                 format!("{prefix}Type::named(&names.{name})",
                     name = name.to_rust_identifier_case(),
@@ -117,8 +123,8 @@ impl RustExporter {
         let mut ast_buffer = String::new();
         ast_buffer.push_str("
 use binjs_shared;
-use binjs_shared::{ FromJSON, FromJSONError, Offset, ToJSON, VisitMe };
-use binjs_io::{ Deserialization, Guard, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter };
+use binjs_shared::{ FromJSON, FromJSONError, Offset, IdentifierDeclaration, IdentifierReference, ToJSON, VisitMe };
+use binjs_io::{ Deserialization, Guard, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter, TokenWriterError };
 
 use io::*;
 
@@ -1023,11 +1029,11 @@ impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: Toke
     }}
 }}
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, {value}: &'a {name}) -> Result<W::Tree, W::Error> {{
+    fn serialize(&mut self, {value}: &'a {name}) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
         let {mut} children = Vec::with_capacity({len});
 {fields}
-        self.writer.tagged_tuple(\"{name}\", &children)
+        self.writer.{tagged_tuple}(\"{name}\", &children)
     }}
 }}
 ",
@@ -1036,6 +1042,7 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                         null = null_name,
                         name = name,
                         len = len,
+                        tagged_tuple = if interface.is_scope() { "tagged_scoped_tuple" } else { "tagged_tuple" },
                         fields = interface.contents()
                             .fields()
                             .iter()
@@ -1269,6 +1276,21 @@ impl<'a> Walker<'a> for ViewMutOffset<'a> {{
         Ok(None)
     }}
 }}
+
+type ViewMutIdentifierDeclaration<'a> = ViewMutNothing<IdentifierDeclaration>;
+impl<'a> From<&'a mut IdentifierDeclaration> for ViewMutIdentifierDeclaration<'a> {{
+    fn from(_: &'a mut IdentifierDeclaration) -> Self {{
+        ViewMutNothing::default()
+    }}
+}}
+
+type ViewMutIdentifierReference<'a> = ViewMutNothing<IdentifierReference>;
+impl<'a> From<&'a mut IdentifierReference> for ViewMutIdentifierReference<'a> {{
+    fn from(_: &'a mut IdentifierReference) -> Self {{
+        ViewMutNothing::default()
+    }}
+}}
+
 \n\n\n",
                 interfaces = interface_names
                     .drain(..)

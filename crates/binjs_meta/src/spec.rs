@@ -9,12 +9,23 @@ use std::fmt::{ Debug, Display };
 use std::hash::*;
 use std::rc::*;
 
+/// Whether an attribute is eager or lazy.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Laziness {
+    /// An eager attribute is designed to be parsed immediately.
+    Eager,
+    /// A lazy attribute is designed for deferred parsing.
+    Lazy
+}
 
 /// The name of an interface or enum.
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NodeName(Rc<String>);
 impl NodeName {
     pub fn to_string(&self) -> &String {
+        self.0.as_ref()
+    }
+    pub fn to_str(&self) -> &str {
         self.0.as_ref()
     }
 }
@@ -100,20 +111,19 @@ impl TypeSum {
     }
 }
 
-/// Lazy for a field with [lazy] attribute. Eager for others.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Laziness {
-    Eager,
-    Lazy,
-}
-
 /// Representation of a field in an interface.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Field {
+    /// The name of the field.
     name: FieldName,
+
+    /// The type of the field.
     type_: Type,
+
+    /// Documentation for the field. Ignored for the time being.
     documentation: Option<String>,
-    laziness: Laziness,
+
+    laziness: Laziness
 }
 impl Hash for Field {
     fn hash<H>(&self, state: &mut H) where H: Hasher {
@@ -141,11 +151,19 @@ impl Field {
     pub fn laziness(&self) -> Laziness {
         self.laziness.clone()
     }
+    pub fn with_laziness(mut self, laziness: Laziness) -> Self {
+        self.laziness = laziness;
+        self
+    }
     pub fn doc(&self) -> Option<&str> {
         match self.documentation {
             None => None,
             Some(ref s) => Some(&*s)
         }
+    }
+    pub fn with_doc(mut self, doc: Option<String>) -> Self {
+        self.documentation = doc;
+        self
     }
 }
 
@@ -191,6 +209,16 @@ pub enum TypeSpec {
     ///
     /// For the moment, this spec is used only internally.
     Void,
+
+    /// A string used to represent something bound in a scope (i.e. a variable, but not a property).
+    /// At this level, we make no distinction between `Identifier` and `IdentifierName`.
+    ///
+    /// Actually maps to a subset of `IdentifierName` in webidl.
+    IdentifierName,
+
+    /// A key for a property. For the time being, we make no distinction between variants such
+    /// as `LiteralPropertyName` and `IdentifierName`-as-property-keys.
+    PropertyKey,
 }
 
 #[derive(Clone, Debug)]
@@ -393,6 +421,12 @@ impl Type {
     pub fn void() -> TypeSpec {
         TypeSpec::Void
     }
+    pub fn identifier_name() -> TypeSpec {
+        TypeSpec::IdentifierName
+    }
+    pub fn property_key() -> TypeSpec {
+        TypeSpec::PropertyKey
+    }
 
     /// An `offset` type, holding a number of bytes in the binary file.
     pub fn offset() -> TypeSpec {
@@ -474,12 +508,9 @@ impl Obj {
             return self
         }
         let mut fields = self.fields;
-        fields.push(Field {
-            name: name.clone(),
-            type_,
-            documentation: doc.map(str::to_string),
-            laziness,
-        });
+        fields.push(Field::new(name.clone(), type_)
+            .with_doc(doc.map(str::to_string))
+            .with_laziness(laziness));
         Obj {
             fields
         }
@@ -487,12 +518,16 @@ impl Obj {
     }
 
     /// Extend a structure with a field.
-    pub fn with_field(self, name: &FieldName, type_: Type, laziness: Laziness) -> Self {
-        self.with_field_aux(name, type_, laziness, None)
+    pub fn with_field(self, name: &FieldName, type_: Type) -> Self {
+        self.with_field_aux(name, type_, Laziness::Eager, None)
     }
 
-    pub fn with_field_doc(self, name: &FieldName, type_: Type, laziness: Laziness, doc: &str) -> Self {
-        self.with_field_aux(name, type_, laziness, Some(doc))
+    pub fn with_field_doc(self, name: &FieldName, type_: Type, doc: &str) -> Self {
+        self.with_field_aux(name, type_, Laziness::Eager, Some(doc))
+    }
+
+    pub fn with_field_lazy(self, name: &FieldName, type_: Type) -> Self {
+        self.with_field_aux(name, type_, Laziness::Lazy, None)
     }
 }
 
@@ -529,6 +564,8 @@ pub struct InterfaceDeclaration {
 
     /// The contents of this interface, excluding the contents of parent interfaces.
     contents: Obj,
+
+    is_scope: bool,
 }
 
 impl InterfaceDeclaration {
@@ -536,16 +573,26 @@ impl InterfaceDeclaration {
         let _ = self.contents.with_full_field(contents);
         self
     }
-    pub fn with_field(&mut self, name: &FieldName, type_: Type, laziness: Laziness) -> &mut Self {
-        self.with_field_aux(name, type_, laziness, None)
+    pub fn with_field(&mut self, name: &FieldName, type_: Type) -> &mut Self {
+        self.with_field_aux(name, type_, None, Laziness::Eager)
     }
-    pub fn with_field_doc(&mut self, name: &FieldName, type_: Type, laziness: Laziness, doc: &str) -> &mut Self {
-        self.with_field_aux(name, type_, laziness, Some(doc))
+    pub fn with_field_lazy(&mut self, name: &FieldName, type_: Type) -> &mut Self {
+        self.with_field_aux(name, type_, None, Laziness::Eager)
     }
-    fn with_field_aux(&mut self, name: &FieldName, type_: Type, laziness: Laziness, doc: Option<&str>) -> &mut Self {
+    pub fn with_field_laziness(&mut self, name: &FieldName, type_: Type, laziness: Laziness) -> &mut Self {
+        self.with_field_aux(name, type_, None, laziness)
+    }
+    pub fn with_field_doc(&mut self, name: &FieldName, type_: Type, doc: &str) -> &mut Self {
+        self.with_field_aux(name, type_, Some(doc), Laziness::Eager)
+    }
+    fn with_field_aux(&mut self, name: &FieldName, type_: Type, doc: Option<&str>, laziness: Laziness) -> &mut Self {
         let mut contents = Obj::new();
         std::mem::swap(&mut self.contents, &mut contents);
         self.contents = contents.with_field_aux(name, type_, laziness, doc);
+        self
+    }
+    pub fn with_scope(&mut self, value: bool) -> &mut Self {
+        self.is_scope = value;
         self
     }
 }
@@ -617,6 +664,7 @@ impl SpecBuilder {
         let result = RefCell::new(InterfaceDeclaration {
             name: name.clone(),
             contents: Obj::new(),
+            is_scope: false,
         });
         self.interfaces_by_name.insert(name.clone(), result);
         self.interfaces_by_name.get(name)
@@ -718,6 +766,10 @@ impl SpecBuilder {
                 }
             }
             for name in &used_typenames {
+                // Built-in types
+                if name.to_str() == "IdentifierName" || name.to_str() == "Identifier" || name.to_str() == "PropertyKey" {
+                    continue;
+                }
                 if typedefs_by_name.contains_key(name) {
                     continue;
                 }
@@ -763,7 +815,14 @@ impl SpecBuilder {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Array
                     },
-                    TypeSpec::Boolean | TypeSpec::Number | TypeSpec::UnsignedLong | TypeSpec::String | TypeSpec::Void | TypeSpec::Offset => {
+                    TypeSpec::Boolean
+                        | TypeSpec::Number
+                        | TypeSpec::String
+                        | TypeSpec::Void
+                        | TypeSpec::Offset
+                        | TypeSpec::UnsignedLong
+                        | TypeSpec::IdentifierName
+                        | TypeSpec::PropertyKey => {
                         debug!(target: "spec", "classify_type => don't put me in an interface");
                         TypeClassification::Primitive
                     }
@@ -778,17 +837,20 @@ impl SpecBuilder {
                         }
                         // Start lookup for this name.
                         cache.insert(name.clone(), None);
-                        let result = if interfaces_by_name.contains_key(name) {
-                            let mut names = HashSet::new();
-                            names.insert(name.clone());
-                            TypeClassification::SumOfInterfaces(names)
-                        } else if string_enums_by_name.contains_key(name) {
-                            TypeClassification::StringEnum
-                        } else {
-                            let type_ = typedefs_by_name.get(name)
-                                .unwrap(); // Completeness checked abover in this method.
-                            classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_.spec(), name)
-                        };
+                        let result =
+                            if name.to_str() == "IdentifierName" || name.to_str() == "Identifier" || name.to_str() == "PropertyKey" {
+                                TypeClassification::Primitive
+                            } else if interfaces_by_name.contains_key(name) {
+                                let mut names = HashSet::new();
+                                names.insert(name.clone());
+                                TypeClassification::SumOfInterfaces(names)
+                            } else if string_enums_by_name.contains_key(name) {
+                                TypeClassification::StringEnum
+                            } else {
+                                let type_ = typedefs_by_name.get(name)
+                                    .unwrap_or_else(|| panic!("Type {} not found", name)); // Completeness checked abover in this method.
+                                classify_type(typedefs_by_name, string_enums_by_name, interfaces_by_name, cache, type_.spec(), name)
+                            };
                         debug!(target: "spec", "classify_type {:?} => (inserting in cache) {:?}", name, result);
                         cache.insert(name.clone(), Some(result.clone()));
                         result
@@ -901,6 +963,10 @@ impl Interface {
             }
         }
         None
+    }
+
+   pub fn is_scope(&self) -> bool {
+        self.declaration.is_scope
     }
 }
 

@@ -1,3 +1,5 @@
+use ::{ IdentifierName, PropertyKey, SharedString };
+
 use json;
 use json::JsonValue as JSON;
 
@@ -52,6 +54,39 @@ impl FromJSON for String {
                 got: value.dump()
             }),
             Some(ref s) => Ok(s.to_string())
+        }
+    }
+}
+impl FromJSON for SharedString {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_str() {
+            None => Err(FromJSONError {
+                expected: "String".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(SharedString::from_string(s.to_string()))
+        }
+    }
+}
+impl FromJSON for IdentifierName {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_str() {
+            None => Err(FromJSONError {
+                expected: "Identifier or IdentifierName".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(IdentifierName::from_string(s.to_string()))
+        }
+    }
+}
+impl FromJSON for PropertyKey {
+    fn import(value: &JSON) -> Result<Self, FromJSONError> {
+        match value.as_str() {
+            None => Err(FromJSONError {
+                expected: "PropertyKey".to_string(),
+                got: value.dump()
+            }),
+            Some(ref s) => Ok(PropertyKey::from_string(s.to_string()))
         }
     }
 }
@@ -143,5 +178,23 @@ impl FromJSON for ::Offset {
 impl ToJSON for ::Offset {
     fn export(&self) -> JSON {
         self.0.export()
+    }
+}
+
+impl ToJSON for IdentifierName {
+    fn export(&self) -> JSON {
+        self.as_str().to_string().export()
+    }
+}
+
+impl ToJSON for PropertyKey {
+    fn export(&self) -> JSON {
+        self.as_str().to_string().export()
+    }
+}
+
+impl ToJSON for SharedString {
+    fn export(&self) -> JSON {
+        self.as_str().to_string().export()
     }
 }

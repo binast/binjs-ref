@@ -7,6 +7,8 @@ use io::*;
 use ::{ TokenReaderError, TokenWriterError };
 use util::{ PoisonLock, Pos, ReadConst };
 
+use binjs_shared::SharedString;
+
 use std;
 use std::cell::RefCell;
 use std::io::{ Read, Seek };
@@ -249,7 +251,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn string(&mut self) -> Result<Option<String>, Self::Error> {
+    fn string(&mut self) -> Result<Option<SharedString>, Self::Error> {
         debug!(target: "simple_reader", "string");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -268,7 +270,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
                 return Ok(None)
             }
             match String::from_utf8(bytes) {
-                Ok(x) => Ok(Some(x)),
+                Ok(x) => Ok(Some(SharedString::from_string(x))),
                 Err(err) => Err(TokenReaderError::Encoding(err))
             }
         })
@@ -288,7 +290,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         debug!(target: "simple_reader", "tagged tuple");
         let clone = self.owner.clone();
         let mut owner = self.owner.borrow_mut();
@@ -316,7 +318,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
 
             debug!("TreeTokenReader: tagged_tuple has name {:?}, fields {:?}", kind_name, fields);
             debug!(target: "simple_reader", "/tagged tuple");
-            Ok((kind_name, Some(Rc::new(fields.into_boxed_slice())), guard))
+            Ok((SharedString::from_string(kind_name), Some(Rc::new(fields.into_boxed_slice())), guard))
         })
     }
 
@@ -436,7 +438,7 @@ impl TokenWriter for TreeTokenWriter {
 
     // Strings are represented as len + UTF-8
     // The None string is represented as len + [255, 0]
-    fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
+    fn string(&mut self, data: Option<&SharedString>) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: string {:?}", data);
         const EMPTY_STRING: [u8; 2] = [255, 0];
         let byte_len = match data {

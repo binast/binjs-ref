@@ -1,5 +1,6 @@
 use ast::*;
 use binjs_shared::{ FromJSON, ToJSON, VisitMe };
+use binjs_shared::{ IdentifierDeclaration, IdentifierReference };
 
 use std::collections::{  HashSet, HashMap };
 
@@ -45,23 +46,23 @@ enum BindingKind {
 }
 
 struct VarAndLexNames {
-    var_names: HashSet<String>,
-    non_const_lexical_names: HashSet<String>,
-    const_lexical_names: HashSet<String>,
+    var_names: HashSet<IdentifierDeclaration>,
+    non_const_lexical_names: HashSet<IdentifierDeclaration>,
+    const_lexical_names: HashSet<IdentifierDeclaration>,
 }
 
 enum ParamKind {
-    Positional { index: u32, name: String },
-    Destructuring { name: String },
-    Rest { name: String },
+    Positional { index: u32, name: IdentifierDeclaration },
+    Destructuring { name: IdentifierDeclaration },
+    Rest { name: IdentifierDeclaration },
 }
 
 #[derive(Default)]
 pub struct AnnotationVisitor {
     // The following are stacks.
-    var_names_stack: Vec<HashSet<String>>,
-    non_const_lexical_names_stack: Vec<HashSet<String>>,
-    const_lexical_names_stack: Vec<HashSet<String>>,
+    var_names_stack: Vec<HashSet<IdentifierDeclaration>>,
+    non_const_lexical_names_stack: Vec<HashSet<IdentifierDeclaration>>,
+    const_lexical_names_stack: Vec<HashSet<IdentifierDeclaration>>,
     params_stack: Vec<Vec<ParamKind>>,
 
     // The current parameter index for each (nested) function, which is used
@@ -70,24 +71,29 @@ pub struct AnnotationVisitor {
     // The item is incremented when leaving parameter.
     param_indices_stack: Vec<u32>,
 
-    bound_names_stack: Vec<HashSet<String>>,
+    bound_names_stack: Vec<HashSet<IdentifierDeclaration>>,
     binding_kind_stack: Vec<BindingKind>,
     apparent_direct_eval_stack: Vec<bool>,
     function_expression_name_stack: Vec<Option<BindingIdentifier>>,
 
-    // 'true' if the free name has already cross a function boundary
+    // 'true' if the free name has already crossed a function boundary
     // 'false' until then.
-    free_names_in_block_stack: Vec<HashMap<String, bool>>,
+    free_names_in_block_stack: Vec<HashMap<IdentifierReference, bool>>,
+
+    /// A shared reference to `this`.
+    this_reference: IdentifierReference,
+    this_declaration: IdentifierDeclaration,
 }
 impl AnnotationVisitor {
-    fn pop_captured_names(&mut self, bindings: &[&HashSet<String>]) -> HashSet<String> {
+    fn pop_captured_names(&mut self, bindings: &[&HashSet<IdentifierDeclaration>]) -> HashSet<IdentifierDeclaration> {
         let mut captured_names = HashSet::new();
         let my_free_names = self.free_names_in_block_stack.last_mut().unwrap();
         for binding in bindings {
             for name in *binding {
-                if let Some(cross_function) = my_free_names.remove(name) {
+                let as_reference = name.clone().to_identifier_reference();
+                if let Some(cross_function) = my_free_names.remove(&as_reference) {
                     // Free names across nested function boundaries are closed.
-                    debug!(target: "annotating", "found captured name {}", name);
+                    debug!(target: "annotating", "found captured name {:?}", as_reference);
                     if cross_function {
                         captured_names.insert(name.clone());
                     }
@@ -101,11 +107,11 @@ impl AnnotationVisitor {
     fn push_free_names(&mut self) {
         self.free_names_in_block_stack.push(HashMap::new());
     }
-    fn pop_free_names(&mut self, bindings: &[&HashSet<String>], is_leaving_function_scope: bool) {
+    fn pop_free_names(&mut self, bindings: &[&HashSet<IdentifierDeclaration>], is_leaving_function_scope: bool) {
         let mut free_names_in_current_block = self.free_names_in_block_stack.pop().unwrap();
         for (name, old_cross_function) in free_names_in_current_block.drain() {
             let is_bound = bindings.iter()
-                .find(|container| container.contains(&name))
+                .find(|container| container.contains(&name.clone().to_identifier_declaration()))
                 .is_some();
             if !is_bound {
                 // Propagate free names up to the enclosing scope, for further analysis.
@@ -207,10 +213,10 @@ impl AnnotationVisitor {
 
         // Check that a name isn't defined twice in the same scope.
         for name in var_names.intersection(&non_const_lexical_names) {
-            panic!("This name is both non-const-lexical-bound and var-bound: {}", name);
+            panic!("This name is both non-const-lexical-bound and var-bound: {:?}", name);
         }
         for name in var_names.intersection(&const_lexical_names) {
-            panic!("This name is both const-lexical-bound and var-bound: {}", name);
+            panic!("This name is both const-lexical-bound and var-bound: {:?}", name);
         }
         VarAndLexNames {
             var_names,
@@ -275,19 +281,19 @@ impl AnnotationVisitor {
         self.push_free_names();
     }
     fn pop_this_captured(&mut self) -> bool {
-        let this_name = "this".to_string();
         let mut this_names = HashSet::new();
-        this_names.insert(this_name.clone());
+        this_names.insert(self.this_declaration.clone());
         let captured_names = self.pop_captured_names(&[&this_names]);
         self.pop_free_names(&[&this_names], /* is_leaving_function_scope = */false);
-        captured_names.contains(&this_name)
+        captured_names.contains(&self.this_declaration)
     }
 
     fn push_function_name_captured(&mut self) {
         self.push_free_names();
     }
-    fn pop_function_name_captured(&mut self, name: String) -> bool {
+    fn pop_function_name_captured(&mut self, name: IdentifierReference) -> bool {
         let mut names = HashSet::new();
+        let name = name.to_identifier_declaration();
         names.insert(name.clone());
         let captured_names = self.pop_captured_names(&[&names]);
         self.pop_free_names(&[&names], /* is_leaving_function_scope = */false);
@@ -304,16 +310,21 @@ impl AnnotationVisitor {
     fn pop_param_scope(&mut self, path: &Path, parameter_scope: &AssertedParameterScope) -> AssertedParameterScope {
         debug!(target: "annotating", "pop_param_scope at {:?}", path);
 
-        fn to_name(param: &ParamKind) -> String {
+        fn to_declaration(param: &ParamKind) -> IdentifierDeclaration {
             match param {
                 ParamKind::Positional { index: _, name } => name.clone(),
                 ParamKind::Destructuring { name } => name.clone(),
                 ParamKind::Rest { name } => name.clone(),
             }
         };
-        let params = self.params_stack.pop().unwrap();
+
+        let params = self.params_stack.pop()
+            .unwrap();
         self.param_indices_stack.pop();
-        let names = params.as_slice().into_iter().map(to_name).collect();
+        let names = params.as_slice()
+            .into_iter()
+            .map(to_declaration)
+            .collect();
         let captured_names = self.pop_captured_names(&[&names]);
         self.pop_free_names(&[&names], /* is_leaving_function_scope = */false);
 
@@ -330,7 +341,7 @@ impl AnnotationVisitor {
 
         let mut param_names = Vec::with_capacity(params.len());
         for param in params.into_iter() {
-            let is_captured = captured_names.contains(&to_name(&param));
+            let is_captured = captured_names.contains(&to_declaration(&param));
             param_names.push(match param {
                 ParamKind::Positional { index, name } => AssertedMaybePositionalParameterName::AssertedPositionalParameterName(Box::new(AssertedPositionalParameterName {
                     index,
@@ -386,7 +397,7 @@ impl AnnotationVisitor {
             has_direct_eval
         }
     }
-    fn function_expression_name(&self) -> Option<String> {
+    fn function_expression_name(&self) -> Option<IdentifierReference> {
         match self.function_expression_name_stack.last().unwrap() {
             Some(identifier) => {
                 Some(identifier.name.clone())
@@ -498,7 +509,7 @@ impl Visitor<()> for AnnotationVisitor {
 
     fn exit_call_expression(&mut self, _path: &Path, node: &mut CallExpression) -> Result<Option<CallExpression>, ()> {
         if let ExpressionOrSuper::IdentifierExpression(box ref id) = node.callee {
-            if id.name == "eval" {
+            if *id.name.0 == "eval" {
                 *self.apparent_direct_eval_stack.last_mut()
                     .unwrap() = true;
             }
@@ -507,7 +518,7 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn exit_identifier_expression(&mut self, _path: &Path, node: &mut IdentifierExpression) -> Result<Option<IdentifierExpression>, ()> {
-        debug!(target: "annotating", "exit_identifier_expression {} at {:?}", node.name, _path);
+        debug!(target: "annotating", "exit_identifier_expression {:?} at {:?}", node.name, _path);
         let names = self.free_names_in_block_stack.last_mut().unwrap();
         if !names.contains_key(&node.name) {
             names.insert(node.name.clone(), false);
@@ -517,9 +528,8 @@ impl Visitor<()> for AnnotationVisitor {
     fn exit_this_expression(&mut self, _path: &Path, _node: &mut ThisExpression) -> Result<Option<ThisExpression>, ()> {
         debug!(target: "annotating", "exit_this_expression at {:?}", _path);
         let names = self.free_names_in_block_stack.last_mut().unwrap();
-        let this_name = "this".to_string();
-        if !names.contains_key(&this_name) {
-            names.insert(this_name.clone(), false);
+        if !names.contains_key(&self.this_reference) {
+            names.insert(self.this_reference.clone(), false);
         }
         Ok(None)
     }
@@ -551,61 +561,62 @@ impl Visitor<()> for AnnotationVisitor {
             }
             _ => {}
         }
-        debug!(target: "annotating", "exit_binding identifier – marking {name} as {kind:?} at {path:?}",
+        debug!(target: "annotating", "exit_binding identifier – marking {name:?} as {kind:?} at {path:?}",
             name = node.name,
             kind = self.binding_kind_stack.last().unwrap(),
             path = path);
         match self.binding_kind_stack.last() {
             None => {
-                println!("exit_binding identifier – marking {name} at {path:?}",
+                println!("exit_binding identifier – marking {name:?} at {path:?}",
                        name = node.name,
                        path = path);
             }
             _ => {
             }
         }
+        let declaration = node.name.clone().to_identifier_declaration();
         match *self.binding_kind_stack.last().unwrap() {
             BindingKind::Var => {
                 self.var_names_stack.last_mut()
                     .unwrap()
-                    .insert(node.name.clone());
+                    .insert(declaration);
             }
             BindingKind::NonConstLexical => {
                 self.non_const_lexical_names_stack.last_mut()
                     .unwrap()
-                    .insert(node.name.clone());
+                    .insert(declaration);
             }
             BindingKind::ConstLexical => {
                 self.const_lexical_names_stack.last_mut()
                     .unwrap()
-                    .insert(node.name.clone());
+                    .insert(declaration);
             }
             BindingKind::PositionalParam { depth: _, index } => {
                 self.params_stack.last_mut()
                     .unwrap()
                     .push(ParamKind::Positional {
                         index,
-                        name: node.name.clone(),
+                        name: declaration,
                     });
             }
             BindingKind::RestParam => {
                 self.params_stack.last_mut()
                     .unwrap()
                     .push(ParamKind::Rest {
-                        name: node.name.clone(),
+                        name: declaration,
                     });
             }
             BindingKind::DestructuringParam { depth: _ } => {
                 self.params_stack.last_mut()
                     .unwrap()
                     .push(ParamKind::Destructuring {
-                        name: node.name.clone(),
+                        name: declaration,
                     });
             }
             BindingKind::Bound => {
                 self.bound_names_stack.last_mut()
                     .unwrap()
-                    .insert(node.name.clone());
+                    .insert(declaration);
             }
         }
         maybe_exit_positional_parameter(self, path);
@@ -668,7 +679,7 @@ impl Visitor<()> for AnnotationVisitor {
 
         // Propagate any var_declared_names.
         for name in var_scope.var_names.into_iter() {
-            debug!(target: "annotating", "exit_catch_clause: reinserting {}", name);
+            debug!(target: "annotating", "exit_catch_clause: reinserting {:?}", name);
             self.var_names_stack.last_mut()
                 .unwrap()
                 .insert(name);
@@ -860,7 +871,7 @@ impl Visitor<()> for AnnotationVisitor {
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_eager_function_declaration(&mut self, path: &Path, node: &mut EagerFunctionDeclaration) -> Result<Option<EagerFunctionDeclaration>, ()> {
-        debug!(target: "annotating", "exit_eager_function_declaration {} at {:?}", node.name.name, path);
+        debug!(target: "annotating", "exit_eager_function_declaration {:?} at {:?}", node.name.name, path);
 
         // If a name declaration was specified, remove it from `unknown`.
         let ref name = node.name.name;
@@ -872,8 +883,8 @@ impl Visitor<()> for AnnotationVisitor {
         // 1. If the declaration is at the toplevel, the name is declared as a `var`.
         // 2. If the declaration is in a function's toplevel block, the name is declared as a `var`.
         // 3. Otherwise, the name is declared as a `let`.
-        let name = name.to_string();
-        debug!(target: "annotating", "exit_eager_function_declaration sees {} at {:?}", node.name.name, path.get(0));
+        let name = name.clone().to_identifier_declaration();
+        debug!(target: "annotating", "exit_eager_function_declaration sees {:?} at {:?}", node.name.name, path.get(0));
         match path.get(0).expect("Impossible AST walk") {
             &PathItem { field: ASTField::Statements, interface: ASTNode::Script } |
             &PathItem { field: ASTField::Statements, interface: ASTNode::Module } => {
@@ -1111,6 +1122,7 @@ impl AnnotationVisitor {
     pub fn new() -> Self {
         Self::default()
     }
+
     pub fn annotate_script(&mut self, script: &mut Script) {
         // Annotate.
 

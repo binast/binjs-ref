@@ -470,6 +470,9 @@ impl FromShift {
                 // - `remove` is the `VariableDeclarationStatement`
                 // - `object` is the `VariableDeclaration`
             }
+            Some("IdentifierExpression") => {
+                debug!(target: "Shift", "FromShift IdentifierExpression {:?}", object);
+            }
             _ => { /* No change */ }
         }
     }
@@ -674,6 +677,10 @@ impl MutASTVisitor for ToShift {
             (_, "EagerArrowExpressionWithExpression", &mut JSON::Object(ref mut object))
             | (_, "LazyArrowExpressionWithExpression", &mut JSON::Object(ref mut object)) => {
                 self.remove_function_contents(object, FunctionKind::ArrowExpressionWithExpression);
+            }
+            | (_, "IdentifierExpression", &mut JSON::Object(ref mut object)) => {
+                debug!(target: "Shift", "IdentifierExpression {:?}", object);
+                // FIXME: We probably need to rewrite the IdentifierDefinition.
             }
             _ => {
                 // Nothing to do.

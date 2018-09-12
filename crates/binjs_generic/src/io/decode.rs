@@ -3,6 +3,7 @@
 
 use binjs_io::{ Guard, TokenReader };
 use binjs_meta::spec::*;
+use binjs_shared::ToJSON;
 
 use json;
 use json::JsonValue as JSON;
@@ -70,8 +71,8 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     .map_err(Error::TokenReaderError)?
                     .ok_or_else(|| self.raise_error(Error::UnexpectedValue("null string".to_owned())))?;
                 for candidate in enum_.strings() {
-                    if candidate == &string {
-                        return Ok(self.register(json::from(string)));
+                    if string == candidate.as_ref() {
+                        return Ok(self.register(string.export()));
                     }
                 }
                 return Err(self.raise_error(Error::UnexpectedValue(format!("\"{}\"", string))))
@@ -190,7 +191,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     .map_err(Error::TokenReaderError)?;
                 Ok(self.register(JSON::Array(values)))
             }
-            String => {
+            String | IdentifierName | PropertyKey => {
                 let extracted = self.extractor.string()
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
@@ -199,7 +200,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     None =>
                         Err(self.raise_error(Error::UnexpectedValue("null string".to_owned()))),
                     Some(string) =>
-                        Ok(self.register(json::from(string))),
+                        Ok(self.register(string.export()))
                 }
             }
             Boolean => {
@@ -277,7 +278,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 // 3. Parse within interface.
                 self.decode_object_contents(interface, mapped_field_names, guard)
             }
-            Void => Ok(self.register(JSON::Null))
+            Void => Ok(self.register(JSON::Null)),
         }
     }
 }
