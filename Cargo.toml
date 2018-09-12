@@ -16,9 +16,6 @@ binjs_meta = { path = "crates/binjs_meta", version = "*" }
 binjs_shared = { path = "crates/binjs_shared", version = "*" }
 assert_matches = "*"
 bencher = "^0.1"
-# brotli = "*"
-# Latest release of brotli is incompatible with Rust Nightly.
-brotli = { git = "https://github.com/dropbox/rust-brotli", commit = "ae6d9d2db756e41af37f5164f0b5dec65c4c0825" }
 clap = "*"
 env_logger = "^0.5"
 glob = "*"
@@ -34,17 +31,17 @@ webidl = "*"
 yaml-rust = "*"
 
 [[bin]]
-# Encode a text source to a BinJS.
+# Encode a text source to a BinAST file.
 name = "binjs_encode"
 path = "src/bin/encode.rs"
 
 [[bin]]
-# Decode a BinJS to a text source
+# Decode a BinAST file to a text source
 name = "binjs_decode"
 path = "src/bin/decode.rs"
 
 [[bin]]
-# Dump a BinJS file structure to stdout.
+# Dump a BinAST file structure to stdout.
 name = "binjs_dump"
 path = "src/bin/dump.rs"
 
@@ -54,3 +51,10 @@ harness = false
 
 [workspace]
 members = ["crates/*"]
+
+[features]
+# An implementation of compression that divides data across several streams
+# in an attempt to make it easier to compress.
+#
+# Experimental, probably deprecated.
+multistream = []

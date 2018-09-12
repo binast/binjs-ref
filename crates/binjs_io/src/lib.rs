@@ -45,6 +45,9 @@ pub mod bytes;
 mod io;
 pub use io::*;
 
+#[cfg(multistream)]
+pub mod labels;
+
 /// A simple implementation of TokenReader/TokenWriter,
 /// designed specifically to help debug implementations
 /// of grammar encoders/decoders.
@@ -53,5 +56,14 @@ pub mod simple;
 /// An optimization of TokenReader/TokenWriter,
 /// designed to minimize the size of the file.
 pub mod multipart;
+
+#[cfg(multistream)]
+pub mod multistream;
+
+/// A tree comperssion mechanism.
+#[cfg(multistream)]
+pub mod repair;
+// pub mod repair2;
+
 
 mod util;

@@ -1,22 +1,30 @@
 //! Compare compression results
 
+#![feature(result_unwrap_or_default)]
+
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 extern crate glob;
+extern crate itertools;
 extern crate rand;
 
 use binjs::io::bytes::compress::*;
-use binjs::io::multipart::SectionOption;
-use binjs::io::TokenSerializer;
+use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, TokenSerializer };
+#[cfg(multistream)]
+use binjs::io::NumberingStrategy;
 use binjs::generic::FromJSON;
 use binjs::source::*;
 
 use clap::*;
 
+use itertools::Itertools;
+
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
 use std::process::Command;
+use std::rc::Rc;
 
 #[derive(Clone)]
 struct Sizes {
@@ -41,7 +49,6 @@ impl std::ops::Add for Sizes {
 struct FileStats {
     from_text: Sizes,
     from_binjs: Sizes,
-    binjs_stats: binjs::io::multipart::Statistics,
 }
 
 fn get_compressed_sizes(path: &std::path::Path) -> Sizes {
@@ -109,30 +116,36 @@ fn main() {
             Arg::with_name("compression")
                 .long("compression")
                 .short("c")
-                .required(true)
                 .takes_value(true)
                 .possible_values(&["identity", "gzip", "br", "deflate"])
                 .help("Compression format for the binjs files"),
+            Arg::with_name("numbering")
+                .long("numbering")
+                .takes_value(true)
+                .possible_values(&["mru", "frequency"])
+                .help("Numbering strategy for the tree. Defaults to frequency."),
+            Arg::with_name("trp-rank")
+                .long("trp-rank")
+                .takes_value(true)
+                .help("Maximal rank for trp. Ignored if the format isn't trp. Number of 'none'."),
         ])
         .get_matches();
 
-    let compression = matches.value_of("compression")
-        .expect("Missing compression format");
-    let compression = SectionOption::Compression(Compression::parse(Some(compression))
-                .expect("Could not parse compression format")
-    );
-    let binjs_options = {
-        binjs::io::multipart::WriteOptions {
-            strings_table: compression.clone(),
-            grammar_table: compression.clone(),
-            tree: compression.clone()
-        }
-    };
+    let mut format = Format::parse(matches.value_of("format"))
+        .expect("Invalid `format`")
+        .with_compression_str(matches.value_of("compression"))
+        .expect("Invalid `compression`");
+
+    #[cfg(multistream)]
+    {
+        format = format
+            .with_numbering_strategy(matches.value_of("numbering"))
+            .expect("Invalid `numbering`")
+            .with_dictionary_placement(matches.value_of("dictionary"))
+            .expect("Invalid `dictionary`");
+    }
 
     let parser = Shift::new();
-
-    let mut multipart_stats = binjs::io::multipart::Statistics::default()
-        .with_source_bytes(0);
 
     let mut all_stats = HashMap::new();
 
@@ -151,20 +164,45 @@ fn main() {
             binjs::specialized::es6::scopes::AnnotationVisitor::new()
                 .annotate_script(&mut ast);
 
-            let writer = binjs::io::multipart::TreeTokenWriter::new(binjs_options.clone());
-            let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-            serializer.serialize(&ast)
-                .expect("Could not encode AST");
-            let (data, stats) = serializer.done()
-                .expect("Could not finalize AST encoding");
-
-            let binjs_stats = stats.clone();
-            multipart_stats = multipart_stats + stats.with_source_bytes(from_text.uncompressed as usize);
+            let data: Box<AsRef<[u8]>>  = match format {
+                Format::Multipart { ref mut targets, .. } => {
+                    targets.reset();
+                    let writer = binjs::io::multipart::TreeTokenWriter::new(targets.clone());
+                    let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                    serializer.serialize(&ast)
+                        .expect("Could not encode AST");
+                    let (data, _) = serializer.done()
+                        .expect("Could not finalize AST encoding");
+                    Box::new(data)
+                }
+                #[cfg(multistream)]
+                Format::TreeRePair { ref options } => {
+                    let writer = binjs::io::repair::Encoder::new(options.clone());
+                    let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                    serializer.serialize(&ast)
+                        .expect("Could not encode AST");
+                    let (data, _) = serializer.done()
+                        .expect("Could not finalize AST encoding");
+                    Box::new(data)
+                }
+                #[cfg(multistream)]
+                Format::MultiStream { ref mut targets, ref options } => {
+                    targets.reset();
+                    let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
+                    let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
+                    serializer.serialize(&ast)
+                        .expect("Could not encode AST");
+                    let (data, _) = serializer.done()
+                        .expect("Could not finalize AST encoding");
+                    Box::new(data)
+                }
+                _ => unimplemented!()
+            };
 
             {
                 let mut binjs_encoded = std::fs::File::create(&dest_path_binjs)
                     .expect("Could not create binjs-encoded file");
-                binjs_encoded.write_all(&data)
+                binjs_encoded.write_all((*data).as_ref())
                     .expect("Could not write binjs-encoded file");
             }
 
@@ -173,7 +211,6 @@ fn main() {
             let file_stats = FileStats {
                 from_binjs,
                 from_text,
-                binjs_stats,
             };
 
             eprintln!("Compression results: source {source}b, source+gzip {source_gzip}, source+brotli {source_brotli}, source+bzip2 {source_bzip2}, binjs {binjs}b, binjs+gzip {binjs_gzip}, binjs+brotli {binjs_brotli}, binjs+bzip2 {binjs_bzip2}",
@@ -193,18 +230,12 @@ fn main() {
     }
 
     eprintln!("*** Done");
-    eprintln!("File, Source (b), Source+Gzip (b), Source+Brotli (b), Source+BZip2 (b), BinAST (b), BinAST/Source, BinAST+GZip (b), BinAST+GZip/Source+GZip, BinAST+GZip/BinAST, BinAST+Brotli (b), BinAST+Brotli/Source+Brotli, BinAST+Brotli/BinAST, BinAST+BZip2 (b), BinAST+BZip2/Source+BZip2, BinAST+BZip2/BinAST, Number of strings, Number of identifiers, Number of grammar entries");
-    for (path, file_stats) in &all_stats {
-        let number_of_binding_identifiers = match file_stats.binjs_stats.per_kind_name.get("BindingIdentifier") {
-            None => 0,
-            Some(identifiers) => identifiers.entries
-        };
-        let number_of_expression_identifiers = match file_stats.binjs_stats.per_kind_name.get("IdentifierExpression") {
-            None => 0,
-            Some(identifiers) => identifiers.entries
-        };
 
-        println!("{path:?}, {source}, {source_gzip}, {source_brotli}, {source_bzip2}, {binjs}, {uncompressed_to_uncompressed:2}, {binjs_gzip}, {gzip_to_gzip:2}, {gzip_to_uncompressed:2}, {binjs_brotli}, {brotli_to_brotli:2}, {brotli_to_uncompressed:2}, {binjs_bzip2}, {bzip2_to_bzip2:2}, {bzip2_to_uncompressed:2}, {strings}, {identifiers}, {grammar_entries}",
+    let all_stats = all_stats.into_iter()
+        .sorted_by(|a, b| Ord::cmp(&a.0, &b.0));
+    println!("File, Source (b), Source+Gzip (b), Source+Brotli (b), Source+BZip2 (b), BinAST (b), BinAST/Source, BinAST+GZip (b), BinAST+GZip/Source+GZip, BinAST+GZip/BinAST, BinAST+Brotli (b), BinAST+Brotli/Source+Brotli, BinAST+Brotli/BinAST, BinAST+BZip2 (b), BinAST+BZip2/Source+BZip2, BinAST+BZip2/BinAST");
+    for (path, file_stats) in all_stats {
+        println!("{path:?}, {source}, {source_gzip}, {source_brotli}, {source_bzip2}, {binjs}, {uncompressed_to_uncompressed:2}, {binjs_gzip}, {gzip_to_gzip:2}, {gzip_to_uncompressed:2}, {binjs_brotli}, {brotli_to_brotli:2}, {brotli_to_uncompressed:2}, {binjs_bzip2}, {bzip2_to_bzip2:2}, {bzip2_to_uncompressed:2}",
             source = file_stats.from_text.uncompressed,
             source_gzip = file_stats.from_text.gzip,
             source_brotli = file_stats.from_text.brotli,
@@ -224,9 +255,6 @@ fn main() {
             bzip2_to_bzip2 = (file_stats.from_binjs.bzip2 as f64) / (file_stats.from_text.bzip2 as f64),
             bzip2_to_uncompressed = (file_stats.from_binjs.bzip2 as f64) / (file_stats.from_binjs.uncompressed as f64),
 
-            strings = file_stats.binjs_stats.strings_table.entries,
-            identifiers = number_of_binding_identifiers + number_of_expression_identifiers,
-            grammar_entries = file_stats.binjs_stats.grammar_table.entries,
             path = path);
     }
 }
