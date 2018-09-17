@@ -470,10 +470,10 @@ pub trait TokenSerializerFamily<T> {
 }
 
 pub trait Deserialization<R, T> where R: TokenReader, T: Sized {
-    fn deserialize(&mut self) -> Result<T, R::Error>;
+    fn deserialize(&mut self, &mut Path) -> Result<T, R::Error>;
 }
 pub trait InnerDeserialization<R, T> where R: TokenReader, T: Sized {
-    fn deserialize_inner(&mut self) -> Result<T, R::Error>;
+    fn deserialize_inner(&mut self, &mut Path) -> Result<T, R::Error>;
 }
 
 #[derive(Debug, Clone)]

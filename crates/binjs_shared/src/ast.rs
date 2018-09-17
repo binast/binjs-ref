@@ -105,15 +105,18 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     /// All calls to `enter_interface` MUST be balanced with calls
     /// to `exit_interface`.
     pub fn enter_interface(&mut self, node: I) {
+        debug!(target: "path", "enter_interface: {:?}", node);
         debug_assert!(self.interface.is_none());
         self.interface = Some(node);
     }
     pub fn exit_interface(&mut self, node: I) {
+        debug!(target: "path", "exit_interface: {:?}", node);
         let interface = self.interface.take()
             .expect("Could not exit_interface if we're not in an interface");
         debug_assert!(node == interface);
     }
     pub fn enter_field(&mut self, field: F) {
+        debug!(target: "path", "enter_field: {:?} at {:?}", field, self.interface);
         let interface = self.interface.take()
             .unwrap();
         self.items.push(PathItem {
@@ -122,6 +125,7 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
         });
     }
     pub fn exit_field(&mut self, field: F) {
+        debug!(target: "path", "exit_field: {:?}", field);
         debug_assert!(self.interface.is_none());
         let PathItem {
             interface,

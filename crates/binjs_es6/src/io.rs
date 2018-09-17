@@ -1,10 +1,11 @@
 use binjs_io::{ self, Deserialization, Guard, TokenReader, TokenReaderError, TokenWriterError };
 pub use binjs_io::{ Serialization, TokenSerializer, TokenWriter };
-use binjs_shared::{ IdentifierDeclaration, IdentifierReference, Offset };
+use binjs_shared::{ IdentifierDeclaration, IdentifierReference, Offset, self };
 
 use std::io::{ Read, Seek };
 use std::rc::Rc;
 
+pub type IOPath = binjs_shared::ast::Path<Rc<String>, (usize, Rc<String>)>;
 
 /// A structure used for deserialization purposes.
 pub struct Deserializer<R> where R: TokenReader {
@@ -20,13 +21,13 @@ impl<R> Deserializer<R> where R: TokenReader {
 
 
 impl<R> Deserialization<R, Option<bool>> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<Option<bool>, R::Error> {
-        self.reader.bool()
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<bool>, R::Error> {
+        self.reader.bool_at(path)
     }
 }
 impl<R> Deserialization<R, bool> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<bool, R::Error> {
-        let maybe = self.reader.bool()?;
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<bool, R::Error> {
+        let maybe = self.reader.bool_at(path)?;
         match maybe {
             None => Err(From::from(TokenReaderError::EmptyBool)),
             Some(x) => Ok(x)
@@ -34,13 +35,13 @@ impl<R> Deserialization<R, bool> for Deserializer<R> where R: TokenReader {
     }
 }
 impl<R> Deserialization<R, Option<f64>> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<Option<f64>, R::Error> {
-        self.reader.float()
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<f64>, R::Error> {
+        self.reader.float_at(path)
     }
 }
 impl<R> Deserialization<R, f64> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<f64, R::Error> {
-        let maybe = self.reader.float()?;
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<f64, R::Error> {
+        let maybe = self.reader.float_at(path)?;
         match maybe {
             None => Err(From::from(TokenReaderError::EmptyBool)),
             Some(x) => Ok(x)
@@ -48,23 +49,23 @@ impl<R> Deserialization<R, f64> for Deserializer<R> where R: TokenReader {
     }
 }
 impl<R> Deserialization<R, u32> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<u32, R::Error> {
-        self.reader.unsigned_long()
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<u32, R::Error> {
+        self.reader.unsigned_long_at(path)
     }
 }
 impl<R> Deserialization<R, Offset> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<Offset, R::Error> {
-        Ok(Offset(self.reader.offset()?))
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Offset, R::Error> {
+        Ok(Offset(self.reader.offset_at(path)?))
     }
 }
 impl<R> Deserialization<R, Option<String>> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<Option<String>, R::Error> {
-        self.reader.string()
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<String>, R::Error> {
+        self.reader.string_at(path)
     }
 }
 impl<R> Deserialization<R, String> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<String, R::Error> {
-        let maybe = self.reader.string()?;
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<String, R::Error> {
+        let maybe = self.reader.string_at(path)?;
         match maybe {
             None => Err(From::from(TokenReaderError::EmptyString)),
             Some(x) => Ok(x)
@@ -73,45 +74,31 @@ impl<R> Deserialization<R, String> for Deserializer<R> where R: TokenReader {
 }
 
 impl<R> Deserialization<R, IdentifierDeclaration> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<IdentifierDeclaration, R::Error> {
-        let maybe = self.reader.string()?;
-        match maybe {
-            None => Err(From::from(TokenReaderError::EmptyString)),
-            Some(x) => Ok(IdentifierDeclaration(Rc::new(x)))
-        }
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<IdentifierDeclaration, R::Error> {
+        self.reader.identifier_declaration_at(path)
     }
 }
 impl<R> Deserialization<R, IdentifierReference> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<IdentifierReference, R::Error> {
-        let maybe = self.reader.string()?;
-        match maybe {
-            None => Err(From::from(TokenReaderError::EmptyString)),
-            Some(x) => Ok(IdentifierReference(Rc::new(x)))
-        }
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<IdentifierReference, R::Error> {
+        self.reader.identifier_reference_at(path)
     }
 }
 
 impl<R> Deserialization<R, Option<IdentifierDeclaration>> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<Option<IdentifierDeclaration>, R::Error> {
-        let maybe = self.reader.string()?;
-        match maybe {
-            None => Ok(None),
-            Some(x) => Ok(Some(IdentifierDeclaration(Rc::new(x))))
-        }
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<IdentifierDeclaration>, R::Error> {
+        self.reader.identifier_declaration_at(path)
+            .map(Some)
     }
 }
 impl<R> Deserialization<R, Option<IdentifierReference>> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self) -> Result<Option<IdentifierReference>, R::Error> {
-        let maybe = self.reader.string()?;
-        match maybe {
-            None => Ok(None),
-            Some(x) => Ok(Some(IdentifierReference(Rc::new(x))))
-        }
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<IdentifierReference>, R::Error> {
+        self.reader.identifier_reference_at(path)
+            .map(Some)
     }
 }
 impl<R, T> Deserialization<R, Vec<T>> for Deserializer<R> where R: TokenReader, Self: Deserialization<R, T> {
-    fn deserialize(&mut self) -> Result<Vec<T>, R::Error> {
-        let (len, guard) = self.reader.list()?;
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Vec<T>, R::Error> {
+        let (len, guard) = self.reader.list_at(path)?;
         if len > 0 {
             print_file_structure!(self.reader, "list (length={}) [", len);
         } else {
@@ -119,7 +106,7 @@ impl<R, T> Deserialization<R, Vec<T>> for Deserializer<R> where R: TokenReader, 
         }
         let mut result = Vec::with_capacity(len as usize);
         for _ in 0..len {
-            result.push(self.deserialize()?);
+            result.push(self.deserialize(path)?);
         }
         if len > 0 {
             print_file_structure!(self.reader, "]");
@@ -269,17 +256,18 @@ impl Decoder {
             Deserializer<binjs_io::simple::TreeTokenReader<R>> : Deserialization<binjs_io::simple::TreeTokenReader<R>, AST>,
             Deserializer<binjs_io::multipart::TreeTokenReader> : Deserialization<binjs_io::multipart::TreeTokenReader, AST>,
     {
+        let mut path = IOPath::new();
         match *format {
             binjs_io::Format::Simple { .. } => {
                 let reader = binjs_io::simple::TreeTokenReader::new(source);
                 let mut deserializer = Deserializer::new(reader);
-                let ast = deserializer.deserialize()?;
+                let ast = deserializer.deserialize(&mut path)?;
                 Ok(ast)
             }
             binjs_io::Format::Multipart { .. } => {
                 let reader = binjs_io::multipart::TreeTokenReader::new(source)?;
                 let mut deserializer = Deserializer::new(reader);
-                let ast = deserializer.deserialize()?;
+                let ast = deserializer.deserialize(&mut path)?;
                 Ok(ast)
             }
             _ => unimplemented!()

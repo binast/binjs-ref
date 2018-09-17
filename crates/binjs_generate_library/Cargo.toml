@@ -1,6 +1,6 @@
 [package]
 name = "binjs_generate_library"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [dependencies]

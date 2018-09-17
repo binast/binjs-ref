@@ -13,7 +13,7 @@ use binjs::io::bytes::compress::*;
 use binjs::io::multipart::*;
 use binjs::io::*;
 use binjs::source::*;
-use binjs::specialized::es6::ast::{ Path, Script, Visitor, Walker };
+use binjs::specialized::es6::ast::{ IOPath, Script, Visitor, Walker, WalkPath };
 
 use std::io::Cursor;
 use std::thread;
@@ -44,7 +44,7 @@ fn should_skip(general_should_skip: bool, rng: &mut Rng) -> bool {
 /// A visitor designed to resent offsets to 0.
 struct OffsetCleanerVisitor;
 impl Visitor<()> for OffsetCleanerVisitor {
-    fn visit_offset(&mut self, _path: &Path, node: &mut Offset) -> Result<(), ()> {
+    fn visit_offset(&mut self, _path: &WalkPath, node: &mut Offset) -> Result<(), ()> {
         *node = binjs::generic::Offset(0);
         Ok(())
     }
@@ -82,7 +82,7 @@ fn main() {
             .collect::<Vec<_>>();
         for grammar_table in &compressions {
             for strings_table in &compressions {
-                for tree in &compressions {
+                for _ in &compressions {
                     vec.push(Targets {
                         grammar_table: CompressionTarget::new(grammar_table.clone()),
                         strings_table: CompressionTarget::new(grammar_table.clone()),
@@ -108,7 +108,7 @@ fn main() {
             }
 
 
-            let mut path = binjs::specialized::es6::ast::Path::new();
+            let mut path = binjs::specialized::es6::ast::WalkPath::new();
             let entry = entry.expect("Invalid entry");
             eprint!("\n{:?}.", entry);
 
@@ -151,7 +151,7 @@ fn main() {
                     .expect("Could not decode AST container");
                 let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-                let mut decoded : Script = deserializer.deserialize()
+                let mut decoded : Script = deserializer.deserialize(&mut IOPath::new())
                     .expect("Could not decode");
                 progress();
 
@@ -209,7 +209,7 @@ fn main() {
                 let reader = binjs::io::simple::TreeTokenReader::new(source);
                 let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-                let decoded = deserializer.deserialize()
+                let decoded = deserializer.deserialize(&mut IOPath::new())
                     .expect("Could not decode");
                 progress();
 
@@ -245,7 +245,7 @@ fn main() {
                     .expect("Could not decode AST container");
                 let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-                let decoded = deserializer.deserialize()
+                let decoded = deserializer.deserialize(&mut IOPath::new())
                     .expect("Could not decode");
                 progress();
 

@@ -107,7 +107,7 @@ fn handle_path<'a>(options: &mut Options<'a>,
 
     if options.lazification > 0 {
         println!("Introducing laziness.");
-        let mut path = binjs::specialized::es6::ast::Path::new();
+        let mut path = binjs::specialized::es6::ast::WalkPath::new();
         let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(options.lazification);
         ast.walk(&mut path, &mut visitor)
             .expect("Could not introduce laziness");

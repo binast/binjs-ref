@@ -217,15 +217,15 @@ impl ToJSON for {name} {{
 
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
-    fn deserialize_variant_{lowercase_name}_aux(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
-        let key = self.reader.string_enum()?;
+    fn deserialize_variant_{lowercase_name}_aux(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
+        let key = self.reader.string_enum_at(path)?;
         match key.as_str() {{
 {variants}
             _ => Err(From::from(TokenReaderError::invalid_value(&\"{lowercase_name}\"))),
         }}
     }}
-    fn deserialize_variant_{lowercase_name}(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
-        let result = self.deserialize_variant_{lowercase_name}_aux();
+    fn deserialize_variant_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
+        let result = self.deserialize_variant_{lowercase_name}_aux(path);
         if result.is_err() {{
             self.reader.poison();
         }}
@@ -234,9 +234,9 @@ impl<R> Deserializer<R> where R: TokenReader {{
 }}
 
 impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self) -> Result<{name}, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> {{
         debug!(target: \"deserialize_es6\", \"Deserializing variant {name}\");
-        self.deserialize_variant_{lowercase_name}()
+        self.deserialize_variant_{lowercase_name}(path)
     }}
 }}
 ",
@@ -298,7 +298,7 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                 let walker = format!("
 impl<'a> Walker<'a> for {name} where Self: 'a {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
         Ok(None)
     }}
 }}\n",
@@ -453,10 +453,11 @@ impl Default for {name} {{
 
                     let from_reader = format!("
 impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self) -> Result<{name}, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> {{
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}\");
-        let (kind, _, guard) = self.reader.tagged_tuple()?;
+        let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}, found {{}}\", kind);
+        let path_interface = std::rc::Rc::new(kind.clone()); // FIXME: We should share this.
         let result = match kind.as_str() {{
 {variants}
             _ => {{
@@ -472,9 +473,10 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
     }}
 }}
 impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self) -> Result<Option<{name}>, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, R::Error> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional sum {name}\");
-        let (kind, _, guard) = self.reader.tagged_tuple()?;
+        let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
+        let path_interface = std::rc::Rc::new(kind.clone()); // FIXME: We should share this.
         let result = match kind.as_str() {{
 {variants_some}
             \"{null}\" => Ok(None),
@@ -496,8 +498,11 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                                     .iter()
                                     .map(|case| {
                                         format!("           \"{case}\" => {{
-                self.deserialize_inner()
-                    .map(|r| {name}::{constructor}(Box::new(r)))
+                path.enter_interface(path_interface.clone());
+                let result = self.deserialize_inner(path)
+                    .map(|r| {name}::{constructor}(Box::new(r)));
+                path.exit_interface(path_interface);
+                result
             }}",
                                             name = name,
                                             case = case,
@@ -508,8 +513,11 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                                     .iter()
                                     .map(|case| {
                                         format!("           \"{case}\" => {{
-            self.deserialize_inner()
-                .map(|r| Some({name}::{constructor}(Box::new(r))))
+            path.enter_interface(path_interface.clone());
+            let result = self.deserialize_inner(path)
+                .map(|r| Some({name}::{constructor}(Box::new(r))));
+            path.exit_interface(path_interface);
+            result
         }}",
                                             name = name,
                                             case = case,
@@ -599,14 +607,14 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                     let walk = format!("
 impl<'a> Walker<'a> for {name} {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
         let mut walker : ViewMut{name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
         let me = self;
 {supers}
         match visitor.enter_{snake}(path, me)? {{
@@ -750,7 +758,7 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
         // Do not inspect the contents of a primitive.
         Ok(None)
     }}
@@ -799,14 +807,14 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for {name} {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
         let mut walker : ViewMut{name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
         // Do not callback on the `Vec<>` itself, just on its contents.
         for iter in self.0.iter_mut() {{
             let rewrite = {{
@@ -858,7 +866,7 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
         // Do not callback on the `Option<>` itself, just on its contents.
         if let Some(ref mut contents) = self.0 {{
             let result =
@@ -932,26 +940,34 @@ pub struct {name} {{
 
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
-    fn deserialize_tuple_{lowercase_name}(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
-        let (kind, _, guard) = self.reader.tagged_tuple()?;
+    fn deserialize_tuple_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
+        let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
         let result =
             if let \"{name}\" = kind.as_str() {{
                 debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: present\");
-                self.deserialize_inner()
+                let path_interface = std::rc::Rc::new(kind);
+                path.enter_interface(path_interface.clone());
+                let result = self.deserialize_inner(path);
+                path.exit_interface(path_interface);
+                result
             }} else {{
                 debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: found invalid {{}}\", kind.as_str());
                 Err(From::from(TokenReaderError::BadEnumVariant))
             }};
         if result.is_err() {{
+            debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: failed\");
             self.reader.poison();
         }}
+        debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: finalizing\");
         guard.done()?;
+        debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: done\");
         result
     }}
 }}
 
 impl<R> InnerDeserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
-    fn deserialize_inner(&mut self) -> Result<{name}, R::Error> where R: TokenReader {{
+    fn deserialize_inner(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
+        let _ = path; // Deactivate warnings if there are no fields.
         print_file_structure!(self.reader, \"{name} {{{{\");
 {fields_def}
         print_file_structure!(self.reader, \"}}}}\");
@@ -962,19 +978,23 @@ impl<R> InnerDeserialization<R, {name}> for Deserializer<R> where R: TokenReader
 }}
 
 impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self) -> Result<{name}, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> {{
         debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}\");
-        self.deserialize_tuple_{lowercase_name}()
+        self.deserialize_tuple_{lowercase_name}(path)
     }}
 }}
 impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self) -> Result<Option<{name}>, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, R::Error> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}\");
-        let (kind, _, guard) = self.reader.tagged_tuple()?;
+        let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
         let result = match kind.as_str() {{
             \"{name}\" => {{
+                let path_interface = std::rc::Rc::new(kind);
                 debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}: present\");
-                self.deserialize_inner().map(Some)
+                path.enter_interface(path_interface.clone());
+                let result = self.deserialize_inner(path).map(Some);
+                path.exit_interface(path_interface);
+                result
             }}
             \"{null}\" => {{
                 debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}: absent\");
@@ -1001,12 +1021,18 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                     fields_def = interface.contents()
                         .fields()
                         .iter()
-                        .map(|field| format!("
+                        .enumerate()
+                        .map(|(index, field)| format!("
         print_file_structure!(self.reader, \".{name}\");
-        let data_{name} = (self.deserialize() as Result<{spec}, R::Error>)?;
+        let path_field = ({index}, std::rc::Rc::new(\"{name}\".to_string())); // FIXME: We should share these strings.
+        path.enter_field(path_field.clone());
+        let data_{name} = self.deserialize(path) as Result<{spec}, R::Error>;
+        path.exit_field(path_field);
+        let data_{name} = data_{name}?;
 ",
                             name = field.name().to_rust_identifier_case(),
-                            spec = field_specs_map.get(field.name()).unwrap()))
+                            spec = field_specs_map.get(field.name()).unwrap(),
+                            index = index))
                         .format("\n"),
                     fields_use = interface.contents()
                         .fields()
@@ -1107,14 +1133,14 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for {name} {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
         let mut walker : ViewMut{name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
         path.enter_interface(ASTNode::{name});
         match visitor.enter_{snake}(path, self.0)? {{
             VisitMe::DoneHere => Ok(None),
@@ -1174,8 +1200,10 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
 
         fn print_visitor(buffer: &mut String, interfaces: &HashMap<NodeName, Rc<Interface>>, typedefs: &HashMap<NodeName, Rc<Type>>) {
             let path = "
-pub type PathItem = binjs_shared::ast::PathItem<ASTNode, ASTField>;
-pub type Path = binjs_shared::ast::Path<ASTNode, ASTField>;
+pub type WalkPathItem = binjs_shared::ast::PathItem<ASTNode, ASTField>;
+pub type WalkPath = binjs_shared::ast::Path<ASTNode, ASTField>;
+
+pub type IOPath = binjs_shared::ast::Path<std::rc::Rc<String>, (usize, std::rc::Rc<std::string::String>)>;
 ";
             let mut interface_names = interfaces.keys()
                     .sorted();
@@ -1205,13 +1233,13 @@ pub type Path = binjs_shared::ast::Path<ASTNode, ASTField>;
 pub trait Visitor<E, G=()> where G: Default {{
 {interfaces}
 {sums}
-    fn visit_offset(&mut self, _path: &Path, _node: &mut Offset) -> Result<(), E> {{
+    fn visit_offset(&mut self, _path: &WalkPath, _node: &mut Offset) -> Result<(), E> {{
         Ok(())
     }}
 }}\n
 pub trait Walker<'a>: Sized {{
     type Output;
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>;
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>;
 }}\n
 #[derive(Default)]
 struct ViewMutNothing<T> {{
@@ -1219,7 +1247,7 @@ struct ViewMutNothing<T> {{
 }}
 impl<'a, T> Walker<'a> for ViewMutNothing<T> {{
     type Output = T;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
         // Do not inspect the contents of a nothing.
         Ok(None)
     }}
@@ -1232,7 +1260,7 @@ impl<'a> From<&'a mut bool> for ViewMutNothing<bool> {{
 }}
 impl<'a> Walker<'a> for bool {{
     type Output = Self;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
         // Do not inspect the contents of a bool.
         Ok(None)
     }}
@@ -1245,7 +1273,7 @@ impl<'a> From<&'a mut f64> for ViewMutNothing<f64> {{
 }}
 impl<'a> Walker<'a> for f64 {{
     type Output = Self;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
         // Do not inspect the contents of a f64.
         Ok(None)
     }}
@@ -1258,7 +1286,7 @@ impl<'a> From<&'a mut u32> for ViewMutNothing<u32> {{
 }}
 impl<'a> Walker<'a> for u32 {{
     type Output = Self;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut Path, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
         // Do not inspect the contents of a u32.
         Ok(None)
     }}
@@ -1271,7 +1299,7 @@ impl<'a> From<&'a mut Offset> for ViewMutOffset<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMutOffset<'a> {{
     type Output = Offset;
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut Path, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
         visitor.visit_offset(path, &mut self.0)?;
         Ok(None)
     }}
@@ -1297,10 +1325,10 @@ impl<'a> From<&'a mut IdentifierReference> for ViewMutIdentifierReference<'a> {{
                     .map(|name| {
                         let interface = interfaces.get(&name).unwrap();
                         format!("
-    fn enter_{name}(&mut self, _path: &Path, _node: &mut {node_name}) -> Result<VisitMe<G>, E> {{
+    fn enter_{name}(&mut self, _path: &WalkPath, _node: &mut {node_name}) -> Result<VisitMe<G>, E> {{
         Ok(VisitMe::HoldThis(G::default()))
     }}
-    fn exit_{name}(&mut self, _path: &Path, _node: &mut {node_name}) -> Result<Option<{node_name}>, E> {{
+    fn exit_{name}(&mut self, _path: &WalkPath, _node: &mut {node_name}) -> Result<Option<{node_name}>, E> {{
         Ok(None)
     }}
 ",
@@ -1312,10 +1340,10 @@ impl<'a> From<&'a mut IdentifierReference> for ViewMutIdentifierReference<'a> {{
                     .drain(..)
                     .map(|name| {
                         format!("
-    fn enter_{name}<'a>(&mut self, _path: &Path, _node: &mut ViewMut{node_name}<'a>) -> Result<VisitMe<G>, E> {{
+    fn enter_{name}<'a>(&mut self, _path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<VisitMe<G>, E> {{
         Ok(VisitMe::HoldThis(G::default()))
     }}
-    fn exit_{name}<'a>(&mut self, _path: &Path, _node: &mut ViewMut{node_name}<'a>) -> Result<Option<{node_name}>, E> {{
+    fn exit_{name}<'a>(&mut self, _path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<Option<{node_name}>, E> {{
         Ok(None)
     }}
 ",

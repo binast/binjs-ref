@@ -1,7 +1,5 @@
 //! Compare compression results
 
-#![feature(result_unwrap_or_default)]
-
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
@@ -24,7 +22,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
 use std::process::Command;
-use std::rc::Rc;
 
 #[derive(Clone)]
 struct Sizes {

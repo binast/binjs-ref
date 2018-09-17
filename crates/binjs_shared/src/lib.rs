@@ -1,5 +1,7 @@
-extern crate json;
 extern crate itertools;
+extern crate json;
+#[macro_use]
+extern crate log;
 
 mod json_conversion;
 pub use json_conversion::*;

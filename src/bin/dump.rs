@@ -38,7 +38,7 @@ fn main() {
     if let Ok(mut reader) = binjs::io::multipart::TreeTokenReader::new(stream) {
         reader.enable_file_structure_print();
         let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
-        let _tree : binjs::specialized::es6::ast::Script = deserializer.deserialize()
+        let _tree : binjs::specialized::es6::ast::Script = deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
             .expect("Could not decode");
     } else {
         println!("not supported format.");
