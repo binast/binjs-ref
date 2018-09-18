@@ -33,10 +33,11 @@ fn progress() {
     eprint!(".");
 }
 
-fn should_skip(general_should_skip: bool, rng: &mut Rng) -> bool {
-    if !general_should_skip {
-        return false;
-    }
+/// `true` if we should skip this individual example, `false` otherwise.
+///
+/// Skipping is generally needed to avoid timeouts, because we
+/// are testing lots of files.
+fn should_skip(rng: &mut Rng) -> bool {
     let float = rng.next_f64();
     float < CHANCES_TO_SKIP
 }
@@ -66,7 +67,7 @@ fn test_roundtrip() {
 fn main() {
     env_logger::init();
 
-    let general_should_skip = true;
+    let force_no_skip = false;
 
     let mut rng = rand::thread_rng();
 
@@ -103,7 +104,7 @@ fn main() {
             .expect("Invalid glob pattern")
         {
             // Randomly skip instances.
-            if should_skip(general_should_skip, &mut rng) {
+            if !force_no_skip && should_skip(&mut rng) {
                 continue 'laziness_per_entry;
             }
 
@@ -175,7 +176,7 @@ fn main() {
             .expect("Invalid glob pattern")
         {
             // Randomly skip instances.
-            if should_skip(general_should_skip, &mut rng) {
+            if !force_no_skip && should_skip(&mut rng) {
                 continue 'compression_per_entry;
             }
             let entry = entry.expect("Invalid entry");
@@ -223,7 +224,7 @@ fn main() {
 
             'per_option: for options in &mut all_options {
                 // Randomly skip instances.
-                if should_skip(general_should_skip, &mut rng) {
+                if !force_no_skip && should_skip(&mut rng) {
                     continue 'per_option;
                 }
                 progress();
