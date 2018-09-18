@@ -32,6 +32,63 @@ type SharedCell<T> = Rc<RefCell<T>>;
 
 
 
+#[cfg(multistream)]
+#[derive(Debug, Clone)]
+pub struct Numbering {
+    is_first: bool,
+    index: usize
+}
+#[cfg(multistream)]
+impl Numbering {
+    pub fn is_first(&self) -> bool {
+        self.is_first
+    }
+    pub fn index(&self) -> usize {
+        self.index
+    }
+}
+
+#[cfg(multistream)]
+pub enum NumberingStrategy<T> where T: Eq + Hash + Clone {
+    MRU(binjs_shared::mru::MRU<T>),
+    Frequency(HashMap<T, Numbering>)
+}
+
+#[cfg(multistream)]
+impl<T> NumberingStrategy<T> where T: Eq + Hash + Clone {
+    pub fn mru() -> Self {
+        let mru = binjs_shared::mru::MRU::new();
+        NumberingStrategy::MRU(mru)
+    }
+
+    pub fn frequency(occurrences: HashMap<T, usize>) -> Self {
+        let sorted = occurrences.into_iter()
+            .sorted_by(|(_, v), (_, v2)| usize::cmp(v2, v)); // Sort from largest to smallest
+        let numbered = sorted.into_iter()
+            .enumerate()
+            .map(|(position, (label, _))| (label, Numbering { is_first: true, index: position }))
+            .collect();
+        NumberingStrategy::Frequency(numbered)
+    }
+
+    pub fn get_index(&mut self, label: &T) -> Numbering {
+        match *self {
+            NumberingStrategy::MRU(ref mut mru) => {
+                use binjs_shared::mru::Seen::*;
+                match mru.access(label) {
+                    Age(index) => Numbering { is_first: false, index },
+                    Never(index) => Numbering { is_first: true, index }
+                }
+            }
+            NumberingStrategy::Frequency(ref mut frequency) => {
+                let mut found = frequency.get_mut(label).unwrap();
+                let result = found.clone();
+                found.is_first = false;
+                result
+            }
+        }
+    }
+}
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 struct NodeIndex(usize);
 impl Counter for NodeIndex {
