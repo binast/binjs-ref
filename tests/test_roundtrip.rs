@@ -24,7 +24,7 @@ use rand::Rng;
 /// This test takes 1h+ on Travis, which is too long, so we need to
 /// reduce it. So each individual file + options combination has
 /// a `CHANCES_TO_SKIP` probability of being skipped.
-const CHANCES_TO_SKIP : f64 = 0.8;
+const CHANCES_TO_SKIP : f64 = 0.9;
 
 const PATHS : [&'static str; 2] = ["tests/data/facebook/single/**/*.js", "tests/data/frameworks/*.js"];
 
@@ -67,7 +67,7 @@ fn test_roundtrip() {
 fn main() {
     env_logger::init();
 
-    let force_no_skip = false;
+    let may_skip = true;
 
     let mut rng = rand::thread_rng();
 
@@ -104,7 +104,7 @@ fn main() {
             .expect("Invalid glob pattern")
         {
             // Randomly skip instances.
-            if !force_no_skip && should_skip(&mut rng) {
+            if may_skip && should_skip(&mut rng) {
                 continue 'laziness_per_entry;
             }
 
@@ -176,7 +176,7 @@ fn main() {
             .expect("Invalid glob pattern")
         {
             // Randomly skip instances.
-            if !force_no_skip && should_skip(&mut rng) {
+            if may_skip && should_skip(&mut rng) {
                 continue 'compression_per_entry;
             }
             let entry = entry.expect("Invalid entry");
@@ -224,7 +224,7 @@ fn main() {
 
             'per_option: for options in &mut all_options {
                 // Randomly skip instances.
-                if !force_no_skip && should_skip(&mut rng) {
+                if may_skip && should_skip(&mut rng) {
                     continue 'per_option;
                 }
                 progress();
