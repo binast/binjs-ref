@@ -20,15 +20,15 @@ impl Decoder {
         match *format {
             binjs_io::Format::Simple { .. } => {
                 let reader = binjs_io::simple::TreeTokenReader::new(source);
-                let mut deserializer = decode::Decoder::new(grammar, reader);
-                let ast = deserializer.decode()?;
+                let mut decoder = decode::Decoder::new(grammar, reader);
+                let ast = decoder.decode()?;
                 Ok(ast)
             }
             binjs_io::Format::Multipart { .. } => {
                 let reader = binjs_io::multipart::TreeTokenReader::new(source)
                     .map_err(decode::Error::TokenReaderError)?;
-                let mut deserializer = decode::Decoder::new(grammar, reader);
-                let ast = deserializer.decode()?;
+                let mut decoder = decode::Decoder::new(grammar, reader);
+                let ast = decoder.decode()?;
                 Ok(ast)
             }
             _ => unimplemented!()
