@@ -175,6 +175,9 @@ impl CompressionTarget {
         }
     }
 }
+
+/// Support picking a random compression target.
+/// Used for testing.
 impl Rand for CompressionTarget {
     fn rand<R: Rng>(rng: &mut R) -> Self {
         Self::new(Compression::rand(rng))
@@ -225,6 +228,8 @@ pub enum Format {
     }
 }
 
+/// Support picking a random format.
+/// Used for testing.
 impl Rand for Format {
     fn rand<'a, R: Rng>(rng: &'a mut R) -> Self {
         let generators = [
