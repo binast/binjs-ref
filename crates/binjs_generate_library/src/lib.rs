@@ -1217,10 +1217,12 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
 
         fn print_visitor(buffer: &mut String, interfaces: &HashMap<NodeName, Rc<Interface>>, typedefs: &HashMap<NodeName, Rc<Type>>) {
             let path = "
+/// A Path, used when walking the tree with the strongly-typed `Walker` API.
 pub type WalkPathItem = binjs_shared::ast::PathItem<ASTNode, ASTField>;
 pub type WalkPath = binjs_shared::ast::Path<ASTNode, ASTField>;
 
-pub type IOPath = binjs_shared::ast::Path<std::rc::Rc<String>, (usize, std::rc::Rc<std::string::String>)>;
+/// A Path, used when walking the tree with more weakly-typed APIs, e.g. TokenReader/TokenWriter.
+pub type IOPath = binjs_shared::ast::Path<std::rc::Rc<String>, ( /* child index */ usize, /* field name */ std::rc::Rc<std::string::String>)>;
 ";
             let mut interface_names = interfaces.keys()
                     .sorted();
