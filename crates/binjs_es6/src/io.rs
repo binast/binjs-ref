@@ -130,8 +130,8 @@ impl<W> Serializer<W> where W: TokenWriter {
             writer
         }
     }
-    pub fn serialize<T>(&mut self, value: T) -> Result<W:: Tree, TokenWriterError> where Self: Serialization<W, T> {
-        (self as &mut Serialization<W, T>).serialize(value)
+    pub fn serialize<T>(&mut self, value: T, path: &mut IOPath) -> Result<W:: Tree, TokenWriterError> where Self: Serialization<W, T> {
+        (self as &mut Serialization<W, T>).serialize(value, path)
     }
 }
 
@@ -142,107 +142,107 @@ impl<W> TokenSerializer<W> for Serializer<W> where W: TokenWriter {
 }
 
 impl<W> Serialization<W, Option<bool>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: Option<bool>) -> Result<W::Tree, TokenWriterError> {
-        self.writer.bool(value)
+    fn serialize(&mut self, value: Option<bool>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.bool_at(value, path)
     }
 }
 impl<W> Serialization<W, bool> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: bool) -> Result<W::Tree, TokenWriterError> {
-        self.writer.bool(Some(value))
+    fn serialize(&mut self, value: bool, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.bool_at(Some(value), path)
     }
 }
 impl<W> Serialization<W, Option<f64>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: Option<f64>) -> Result<W::Tree, TokenWriterError> {
-        self.writer.float(value)
+    fn serialize(&mut self, value: Option<f64>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.float_at(value, path)
     }
 }
 impl<W> Serialization<W, f64> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: f64) -> Result<W::Tree, TokenWriterError> {
-        self.writer.float(Some(value))
+    fn serialize(&mut self, value: f64, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.float_at(Some(value), path)
     }
 }
 impl<W> Serialization<W, u32> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: u32) -> Result<W::Tree, TokenWriterError> {
-        self.writer.unsigned_long(value)
+    fn serialize(&mut self, value: u32, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.unsigned_long_at(value, path)
     }
 }
 impl<'a, W> Serialization<W, &'a Option<bool>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a Option<bool>) -> Result<W::Tree, TokenWriterError> {
-        self.writer.bool(value.clone())
+    fn serialize(&mut self, value: &'a Option<bool>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.bool_at(value.clone(), path)
     }
 }
 impl<'a, W> Serialization<W, &'a bool> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a bool) -> Result<W::Tree, TokenWriterError> {
-        self.writer.bool(Some(*value))
+    fn serialize(&mut self, value: &'a bool, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.bool_at(Some(*value), path)
     }
 }
 impl<'a, W> Serialization<W, &'a Option<f64>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a Option<f64>) -> Result<W::Tree, TokenWriterError> {
-        self.writer.float(value.clone())
+    fn serialize(&mut self, value: &'a Option<f64>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.float_at(value.clone(), path)
     }
 }
 impl<'a, W> Serialization<W, &'a f64> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a f64) -> Result<W::Tree, TokenWriterError> {
-        self.writer.float(Some(*value))
+    fn serialize(&mut self, value: &'a f64, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.float_at(Some(*value), path)
     }
 }
 impl<'a, W> Serialization<W, &'a u32> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a u32) -> Result<W::Tree, TokenWriterError> {
-        self.writer.unsigned_long(value.clone())
+    fn serialize(&mut self, value: &'a u32, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.unsigned_long_at(value.clone(), path)
     }
 }
 impl<'a, W> Serialization<W, Option<&'a str>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: Option<&'a str>) -> Result<W::Tree, TokenWriterError> {
-        self.writer.string(value)
+    fn serialize(&mut self, value: Option<&'a str>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.string_at(value, path)
     }
 }
 impl<'a, W> Serialization<W, &'a str> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a str) -> Result<W::Tree, TokenWriterError> {
-         self.writer.string(Some(value))
+    fn serialize(&mut self, value: &'a str, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+         self.writer.string_at(Some(value), path)
    }
 }
 impl<'a, W> Serialization<W, &'a Option<String>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a Option<String>) -> Result<W::Tree, TokenWriterError> {
+    fn serialize(&mut self, value: &'a Option<String>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
         match *value {
-            None => self.writer.string(None),
-            Some(ref str) => self.writer.string(Some(&*str))
+            None => self.writer.string_at(None, path),
+            Some(ref str) => self.writer.string_at(Some(&*str), path)
         }
     }
 }
 impl<'a, W> Serialization<W, &'a String> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a String) -> Result<W::Tree, TokenWriterError> {
-         self.writer.string(Some(&*value))
+    fn serialize(&mut self, value: &'a String, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+         self.writer.string_at(Some(&*value), path)
    }
 }
 impl<'a, W> Serialization<W, &'a IdentifierDeclaration> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a IdentifierDeclaration) -> Result<W::Tree, TokenWriterError> {
-         self.writer.identifier_declaration(Some(&value.0))
+    fn serialize(&mut self, value: &'a IdentifierDeclaration, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+         self.writer.identifier_declaration_at(Some(&value.0), path)
    }
 }
 impl<'a, W> Serialization<W, &'a IdentifierReference> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a IdentifierReference) -> Result<W::Tree, TokenWriterError> {
-         self.writer.identifier_reference(Some(&value.0))
+    fn serialize(&mut self, value: &'a IdentifierReference, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+         self.writer.identifier_reference_at(Some(&value.0), path)
    }
 }
 impl<'a, W> Serialization<W, &'a Option<IdentifierDeclaration>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a Option<IdentifierDeclaration>) -> Result<W::Tree, TokenWriterError> {
+    fn serialize(&mut self, value: &'a Option<IdentifierDeclaration>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
         match value {
-            None => self.writer.identifier_declaration(None),
-            Some(ref x) => self.writer.identifier_declaration(Some(&x.0))
+            None => self.writer.identifier_declaration_at(None, path),
+            Some(ref x) => self.writer.identifier_declaration_at(Some(&x.0), path)
         }
    }
 }
 impl<'a, W> Serialization<W, &'a Option<IdentifierReference>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a Option<IdentifierReference>) -> Result<W::Tree, TokenWriterError> {
+    fn serialize(&mut self, value: &'a Option<IdentifierReference>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
         match value {
-            None => self.writer.identifier_reference(None),
-            Some(ref x) => self.writer.identifier_reference(Some(&x.0))
+            None => self.writer.identifier_reference_at(None, path),
+            Some(ref x) => self.writer.identifier_reference_at(Some(&x.0), path)
         }
    }
 }
 impl<'a, W> Serialization<W, &'a Offset> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, _: &'a Offset) -> Result<W::Tree, TokenWriterError> {
-         self.writer.offset()
+    fn serialize(&mut self, _: &'a Offset, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+         self.writer.offset_at(path)
    }
 }
 
@@ -292,18 +292,19 @@ impl Encoder {
             Serializer<binjs_io::repair::Encoder> : Serialization<binjs_io::repair::Encoder, &'a AST>,
 */
     {
+        let mut path = IOPath::new();
         match *format {
             binjs_io::Format::Simple { .. } => {
                 let writer = binjs_io::simple::TreeTokenWriter::new();
                 let mut serializer = Serializer::new(writer);
-                serializer.serialize(ast)?;
+                serializer.serialize(ast, &mut path)?;
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Multipart { ref mut targets, .. } => {
                 let writer = binjs_io::multipart::TreeTokenWriter::new(targets.clone());
                 let mut serializer = Serializer::new(writer);
-                serializer.serialize(ast)?;
+                serializer.serialize(ast, &mut path)?;
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
@@ -312,7 +313,7 @@ impl Encoder {
                 targets.reset();
                 let writer = binjs_io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
                 let mut serializer = Serializer::new(writer);
-                serializer.serialize(&ast)
+                serializer.serialize(&ast, &mut path)
                     .expect("Could not encode AST");
                 let (data, _) = serializer.done()
                     .expect("Could not finalize AST encoding");
@@ -322,21 +323,21 @@ impl Encoder {
             binjs_io::Format::TreeRePair { ref options } => {
                 let writer = binjs_io::repair::Encoder::new(options.clone());
                 let mut serializer = Serializer::new(writer);
-                serializer.serialize(ast)?;
+                serializer.serialize(ast, &mut path)?;
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::XML => {
                 let writer = binjs_io::xml::Encoder::new();
                 let mut serializer = Serializer::new(writer);
-                serializer.serialize(ast)?;
+                serializer.serialize(ast, &mut path)?;
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Arithmetic { ref model, ref options } => {
                 let writer = binjs_io::multiarith::write::TreeTokenWriter::new(model.as_ref(), options.clone());
                 let mut serializer = Serializer::new(writer);
-                serializer.serialize(ast)?;
+                serializer.serialize(ast, &mut path)?;
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }

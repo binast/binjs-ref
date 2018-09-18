@@ -8,7 +8,7 @@ extern crate itertools;
 extern crate rand;
 
 use binjs::io::bytes::compress::*;
-use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, TokenSerializer };
+use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, Path as IOPath, TokenSerializer };
 #[cfg(multistream)]
 use binjs::io::NumberingStrategy;
 use binjs::generic::FromJSON;
@@ -18,7 +18,6 @@ use clap::*;
 
 use itertools::Itertools;
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
 use std::process::Command;
@@ -166,7 +165,7 @@ fn main() {
                     targets.reset();
                     let writer = binjs::io::multipart::TreeTokenWriter::new(targets.clone());
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                    serializer.serialize(&ast)
+                    serializer.serialize(&ast, &mut IOPath::new())
                         .expect("Could not encode AST");
                     let (data, _) = serializer.done()
                         .expect("Could not finalize AST encoding");

@@ -459,7 +459,10 @@ impl<Error> Drop for TrivialGuard<Error> {
 }
 
 pub trait Serialization<W, T> where W: TokenWriter, T: Sized {
-    fn serialize(&mut self, data: T) -> Result<W::Tree, TokenWriterError>;
+    /// Serialize a piece of data.
+    ///
+    /// `path` indicates the path from the root of the AST.
+    fn serialize(&mut self, data: T, path: &mut Path) -> Result<W::Tree, TokenWriterError>;
 }
 pub trait TokenSerializer<W> where W: TokenWriter {
     fn done(self) -> Result<(W::Data, W::Statistics), TokenWriterError>;

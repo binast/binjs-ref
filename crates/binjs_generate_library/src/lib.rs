@@ -275,12 +275,12 @@ impl FromJSON for {name} {{
 
                 let to_writer = format!("
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, TokenWriterError> {{
+    fn serialize(&mut self, value: &'a {name}, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing string enum {name}\");
         let str = match *value {{
 {variants}
         }};
-        self.writer.string_enum(str)
+        self.writer.string_enum_at(str, path)
     }}
 }}
 ",
@@ -574,16 +574,16 @@ impl ToJSON for {name} {{
 
                     let to_writer = format!("
 impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a Option<{name}>) -> Result<W::Tree, TokenWriterError> {{
+    fn serialize(&mut self, value: &'a Option<{name}>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional sum {name}\");
         match *value {{
-            None => self.writer.tagged_tuple(\"{null}\", &[]),
-            Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum)
+            None => self.writer.tagged_tuple_at(\"{null}\", &[], path),
+            Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum, path)
         }}
     }}
 }}
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, TokenWriterError> {{
+    fn serialize(&mut self, value: &'a {name}, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing sum {name}\");
         match *value {{
 {variants}
@@ -596,7 +596,11 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                         variants = types
                             .iter()
                             .map(|case| {
-                                format!("          {name}::{constructor}(box ref value) => (self as &mut Serialization<W, &'a {constructor}>).serialize(value)",
+                                format!(
+"           {name}::{constructor}(box ref value) => {{
+                // Path will be updated in by the serializer for this tagged tuple.
+                (self as &mut Serialization<W, &'a {constructor}>).serialize(value, path)
+            }}",
                                     name = name,
                                     constructor = case.to_class_cases())
                             })
@@ -831,13 +835,14 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
 
 
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {name}) -> Result<W::Tree, TokenWriterError> {{
+    fn serialize(&mut self, value: &'a {name}, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing list {name}\");
         let mut children = Vec::with_capacity(value.len());
         for child in value {{
-            children.push(self.serialize(child)?);
+            // All the children of the list share the same path.
+            children.push(self.serialize(child, path)?);
         }}
-        self.writer.list(children)
+        self.writer.list_at(children, path)
     }}
 }}
 ",
@@ -1046,20 +1051,24 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                         .len();
                     let to_writer = format!("
 impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a Option<{name}>) -> Result<W::Tree, TokenWriterError> {{
+    fn serialize(&mut self, value: &'a Option<{name}>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional tagged tuple {name}\");
         match *value {{
-            None => self.writer.tagged_tuple(\"{null}\", &[]),
-            Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum)
+            None => self.writer.tagged_tuple_at(\"{null}\", &[], path),
+            Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum, path)
         }}
     }}
 }}
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, {value}: &'a {name}) -> Result<W::Tree, TokenWriterError> {{
+    fn serialize(&mut self, {value}: &'a {name}, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
+        let path_interface = std::rc::Rc::new(\"{name}\".to_string()); // FIXME: Find a way to share these strings.
+        path.enter_interface(path_interface.clone());
         let {mut} children = Vec::with_capacity({len});
 {fields}
-        self.writer.{tagged_tuple}(\"{name}\", &children)
+        let result = self.writer.{tagged_tuple}(\"{name}\", &children, path);
+        path.exit_interface(path_interface);
+        result
     }}
 }}
 ",
@@ -1068,11 +1077,19 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                         null = null_name,
                         name = name,
                         len = len,
-                        tagged_tuple = if interface.is_scope() { "tagged_scoped_tuple" } else { "tagged_tuple" },
+                        tagged_tuple = if interface.is_scope() { "tagged_scoped_tuple_at" } else { "tagged_tuple_at" },
                         fields = interface.contents()
                             .fields()
                             .iter()
-                            .map(|field| format!("        children.push((\"{field_name}\", (self as &mut Serialization<W, &'a _>).serialize(&value.{rust_field_name})?));",
+                            .enumerate()
+                            .map(|(index, field)| format!(
+"
+        let path_field = ({index}, std::rc::Rc::new(\"{field_name}\".to_string())); // FIXME: We should share these strings.
+        path.enter_field(path_field.clone());
+        let child = (self as &mut Serialization<W, &'a _>).serialize(&value.{rust_field_name}, path);
+        path.exit_field(path_field);
+        children.push((\"{field_name}\", child?));",
+                                index = index,
                                 field_name = field.name().to_str(),
                                 rust_field_name = field.name().to_rust_identifier_case()))
                             .format("\n")
