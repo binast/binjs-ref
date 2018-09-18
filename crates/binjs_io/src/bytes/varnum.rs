@@ -14,8 +14,8 @@ pub trait WriteVarNum {
 }
 
 pub trait ReadVarNum {
-    fn read_varnum_2(&mut self) -> Result<u32, std::io::Error>;
-    fn read_varnum(&mut self, num: &mut u32) -> Result<usize, std::io::Error>;
+    fn read_varnum(&mut self) -> Result<u32, std::io::Error>;
+    fn read_varnum_to(&mut self, num: &mut u32) -> Result<usize, std::io::Error>;
 }
 
 impl<T> WriteVarNum for T where T: Write {
@@ -67,13 +67,13 @@ impl<T> ReadVarNum for T where T: Read {
     /// let source = vec![1,1,1,0];
     /// assert!(Cursor::new(source).read_varnum().is_err());
     /// ```
-    fn read_varnum_2(&mut self) -> Result<u32, std::io::Error> {
+    fn read_varnum(&mut self) -> Result<u32, std::io::Error> {
         let mut result = 0;
-        self.read_varnum(&mut result)?;
+        self.read_varnum_to(&mut result)?;
         Ok(result)
     }
 
-    fn read_varnum(&mut self, num: &mut u32) -> Result<usize, std::io::Error> {
+    fn read_varnum_to(&mut self, num: &mut u32) -> Result<usize, std::io::Error> {
         let mut bytes = 0;
         let mut result : u32 = 0;
         let mut shift : u32 = 0;
@@ -115,7 +115,7 @@ fn test_varnum() {
             println!("test_varnum, encoded as {:?}", encoded);
 
             let mut decoded : u32 = 0;
-            let decoded_bytes = Cursor::new(encoded).read_varnum(&mut decoded).unwrap();
+            let decoded_bytes = Cursor::new(encoded).read_varnum_to(&mut decoded).unwrap();
 
             assert_eq!(start, decoded);
             assert_eq!(encoded_bytes, decoded_bytes);

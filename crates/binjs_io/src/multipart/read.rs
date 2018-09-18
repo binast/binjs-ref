@@ -37,8 +37,7 @@ impl Deserializer for BufDeserializer {
 impl Deserializer for Option<String> {
     type Target = Self;
     fn read<R: Read>(&self, inp: &mut R) -> Result<Self, std::io::Error> {
-        let mut byte_len = 0;
-        inp.read_varnum(&mut byte_len)?;
+        let byte_len = inp.read_varnum()?;
         let mut bytes = Vec::with_capacity(byte_len as usize);
         unsafe { bytes.set_len(byte_len as usize); }
         inp.read_exact(&mut bytes)?;
@@ -72,8 +71,7 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
     type Target = Table<D::Target>;
     fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
         // Get number of entries.
-        let mut number_of_entries = 0;
-        inp.read_varnum(&mut number_of_entries)?;
+        let number_of_entries = inp.read_varnum()?;
 
         let mut map = VecMap::with_capacity(number_of_entries as usize);
 
@@ -81,8 +79,7 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
             // Read table of lengths.
             let mut byte_lengths = Vec::with_capacity(number_of_entries as usize);
             for _ in 0..number_of_entries {
-                let mut byte_len = 0;
-                inp.read_varnum(&mut byte_len)?;
+                let byte_len = inp.read_varnum()?;
                 byte_lengths.push(byte_len);
             }
 
@@ -238,8 +235,7 @@ impl TreeTokenReader {
         reader.read_const(MAGIC_HEADER)
             .map_err(TokenReaderError::ReadError)?;
 
-        let mut version = 0;
-        reader.read_varnum(&mut version)
+        let version = reader.read_varnum()
             .map_err(TokenReaderError::ReadError)?;
 
         if version != FORMAT_VERSION {
@@ -357,7 +353,7 @@ impl TokenReader for TreeTokenReader {
 
     fn string(&mut self) -> Result<Option<String>, Self::Error> {
         self.owner.borrow_mut().try(|state| {
-            let index = state.reader.read_varnum_2()
+            let index = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             match state.strings_table.get(index) {
                 Some(result) => {
@@ -401,7 +397,7 @@ impl TokenReader for TreeTokenReader {
     /// Read a single `u32`.
     fn unsigned_long(&mut self) -> Result<u32, Self::Error> {
         self.owner.borrow_mut().try(|state| {
-            let result = state.reader.read_varnum_2()
+            let result = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)? as u32;
             print_file_structure!(state.reader, "unsigned_long={}",
                                   result);
@@ -436,7 +432,7 @@ impl TokenReader for TreeTokenReader {
     /// Read a single `u32`.
     fn offset(&mut self) -> Result<u32, Self::Error> {
         self.owner.borrow_mut().try(|state| {
-            let byte_len = state.reader.read_varnum_2()
+            let byte_len = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             let offset = state.reader.seek(SeekFrom::Current(0))
                 .map_err(TokenReaderError::ReadError)?;
@@ -455,7 +451,7 @@ impl TokenReader for TreeTokenReader {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(move |state| {
             let guard = ListGuard::new(clone);
-            let list_len = state.reader.read_varnum_2()
+            let list_len = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             debug!(target: "multipart", "Reading list with {} items", list_len);
             Ok((list_len, guard))
@@ -470,7 +466,7 @@ impl TokenReader for TreeTokenReader {
     fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
-            let index = state.reader.read_varnum_2()
+            let index = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             let description = state.grammar_table.get(index)
                 .ok_or(TokenReaderError::BadKindIndex(index))?;
