@@ -161,6 +161,11 @@ pub type Path = binjs_shared::ast::Path</* Interface */ Rc<String>, /* Field */ 
 /// following token. Rather, the driver of the `TokenReader` must be able to
 /// deduce the nature of the following token from what it has previously
 /// read.
+///
+/// All the reading methods offer a version suffixed with `_at(path: &Path)`,
+/// which lets the reader determine what item we're reading in the AST. This
+/// may be used both for debugging purposes and for encodings that depend
+/// on the current position in the AST (e.g. entropy coding).
 pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::TokenReaderError>,
                                                   Self::ListGuard: Guard<Error = Self::Error>,
                                                   Self::TaggedGuard: Guard<Error = Self::Error>,
@@ -198,17 +203,30 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     ///
     /// The returned string MUST be valid UTF-8.
     fn string(&mut self) -> Result<Option<String>, Self::Error>;
+    fn string_at(&mut self, _path: &Path) -> Result<Option<String>, Self::Error> {
+        self.string()
+    }
+
+    /// Read a single UTF-8 value from a string enumeration.
+    ///
+    /// The default implementation uses `self.string``, but some encodings may use
+    /// the extra information e.g. to represent the enumeration by an index in the
+    /// list of possible values, or to encode string enums as interfaces.
+    ///
+    /// The returned string MUST be valid UTF-8.
     fn string_enum(&mut self) -> Result<String, Self::Error> {
         self.string()?
             .ok_or_else(|| ::TokenReaderError::EmptyVariant.into())
-    }
-    fn string_at(&mut self, _path: &Path) -> Result<Option<String>, Self::Error> {
-        self.string()
     }
     fn string_enum_at(&mut self, _path: &Path) -> Result<String, Self::Error> {
         self.string_enum()
     }
 
+    /// Read a single reference to an identifier already declared.
+    ///
+    /// The default implementation uses `self.string`/`self.string_at`, but
+    /// some encodings may use the extra information e.g. to represent the
+    /// identifier as a DeBruijn index.
     fn identifier_reference(&mut self) -> Result<IdentifierReference, Self::Error> {
         let name = self.string()?
             .ok_or_else(|| ::TokenReaderError::EmptyString.into())?;
@@ -218,6 +236,11 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
         self.identifier_reference()
     }
 
+    /// Read a single reference to the definition of an identifier.
+    ///
+    /// The default implementation uses `self.string`/`self.string_at`, but
+    /// some encodings may use the extra information e.g. to initialize
+    /// dictionaries.
     fn identifier_declaration(&mut self) -> Result<IdentifierDeclaration, Self::Error> {
         let name = self.string()?
             .ok_or_else(|| ::TokenReaderError::EmptyString.into())?;
@@ -227,7 +250,7 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
         self.identifier_declaration()
     }
 
-    /// Read a single `f64`. Note that all numbers are `f64`.
+    /// Read a single `f64`. Note that all user-level numbers are `f64`.
     fn float(&mut self) -> Result<Option<f64>, Self::Error>;
     fn float_at(&mut self, _path: &Path) -> Result<Option<f64>, Self::Error> {
         self.float()
@@ -278,6 +301,18 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
         self.tagged_tuple()
     }
 
+    /// Start reading a tagged `[Scope]` tuple, i.e. a tuple to
+    /// which identifier declarations/references may be attached.
+    ///
+    /// The default implementation uses `tagged_tuple`,
+    /// but some encodings may use the extra information e.g. to
+    /// perform DeBruijn indices, or prediction based on the scope.
+    fn tagged_scoped_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+        self.tagged_tuple()
+    }
+    fn tagged_scoped_tuple_at(&mut self, _path: &Path) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+        self.tagged_scoped_tuple()
+    }
 
     /// Start reading an untagged tuple.
     ///
@@ -295,6 +330,11 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
 ///
 /// Implementations may for instance introduce atoms,
 /// maximal sharing, etc.
+///
+/// All the reading methods offer a version suffixed with `_at(..., path: &Path)`,
+/// which lets the writer determine what item we're reading in the AST. This
+/// may be used both for debugging purposes and for encodings that depend
+/// on the current position in the AST (e.g. entropy coding).
 pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// The type of trees manipulated by this writer.
     type Tree;
@@ -316,10 +356,17 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     ///
     /// The interface MUST have a Tag.
     fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError>;
-    fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple_at(&mut self, tag: &str, children: &[(&str, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.tagged_tuple(tag, children)
     }
-    fn tagged_tuple_at(&mut self, tag: &str, children: &[(&str, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+
+    /// Write a tagged `[Scope]` tuple, i.e. a tuple  i.e. a tuple to
+    /// which identifier declarations/references may be attached.
+    ///
+    /// The default implementation uses `tagged_tuple`,
+    /// but some encodings may use the extra information e.g. to
+    /// perform DeBruijn indices, or prediction based on the scope.
+    fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         self.tagged_tuple(tag, children)
     }
     fn tagged_scope_tuple_at(&mut self, tag: &str, children: &[(&str, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
@@ -348,11 +395,17 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     ///
     /// If specified, the string MUST be UTF-8.
     fn string(&mut self, Option<&str>) -> Result<Self::Tree, TokenWriterError>;
-    fn string_enum(&mut self, str: &str) -> Result<Self::Tree, TokenWriterError> {
-        self.string(Some(str))
-    }
     fn string_at(&mut self, value: Option<&str>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.string(value)
+    }
+
+    /// Write a single UTF-8 value from a string enumeration.
+    ///
+    /// The default implementation uses `self.string``, but some encodings may use
+    /// the extra information e.g. to represent the enumeration by an index in the
+    /// list of possible values, or to encode string enums as interfaces.
+    fn string_enum(&mut self, str: &str) -> Result<Self::Tree, TokenWriterError> {
+        self.string(Some(str))
     }
     fn string_enum_at(&mut self, value: &str, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.string_enum(value)
