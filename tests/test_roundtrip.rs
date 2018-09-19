@@ -18,7 +18,6 @@ use binjs::specialized::es6::ast::{ IOPath, Script, Visitor, Walker, WalkPath };
 use std::io::Cursor;
 use std::thread;
 
-use clap::{ Arg, App };
 use rand::Rng;
 
 /// This test takes 1h+ on Travis, which is too long, so we need to

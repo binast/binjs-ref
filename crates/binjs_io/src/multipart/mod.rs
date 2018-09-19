@@ -113,6 +113,8 @@
 //!     - for each field
 //!       - the token
 
+use clap;
+
 /// Implementation of the token reader.
 mod read;
 
@@ -140,6 +142,48 @@ impl FormatInTable for Option<String> {
 
 pub use self::read::TreeTokenReader;
 pub use self::write::{ Statistics, TreeTokenWriter, Targets };
+
+/// Command-line management.
+pub struct FormatProvider;
+impl ::FormatProvider for FormatProvider {
+    fn subcommand<'a, 'b>(&self) -> clap::App<'a, 'b> {
+        use clap::*;
+        SubCommand::with_name("multipart")
+            .about("Use the multipart format (default)")
+            .arg(Arg::with_name("x-inner-compression")
+                .help("(EXPERIMENTAL) Apply a secondary compression *inside* the file. Used only when compressing.")
+                .long("x-inner-compression")
+                .takes_value(true)
+                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
+            )
+            .arg(Arg::with_name("x-dump-sections")
+                .help("(EXPERIMENTAL) Export sections to individual files. Used only when compressing.")
+                .long("x-dump-sections")
+            )
+    }
+
+    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
+        use bytes::compress::Compression;
+        use multipart::{ Statistics, Targets };
+
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let stats = Rc::new(RefCell::new(Statistics::default()
+            .with_source_bytes(0)));
+        let compression = matches.map(|matches| {
+            Compression::parse(matches.value_of("x-inner-compression"))
+                .expect("Could not parse x-inner-compression")
+        }).unwrap_or(Compression::Identity);
+        Ok(::Format::Multipart {
+            targets: Targets {
+                strings_table: ::CompressionTarget::new(compression.clone()),
+                grammar_table: ::CompressionTarget::new(compression.clone()),
+                tree: ::CompressionTarget::new(compression.clone()),
+            },
+            stats
+        })
+    }
+}
 
 
 #[test]

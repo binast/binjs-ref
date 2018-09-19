@@ -65,6 +65,7 @@ use self::tree::F64;
 
 use std::rc::Rc;
 
+use clap;
 use range_encoding::CumulativeDistributionFrequency;
 
 pub type ASTPath = tree::ASTPath;
@@ -95,4 +96,109 @@ pub trait DecodingModel {
     // - 3. Case in which we do not have the CDF yet, the decoder needs to give us one.
     fn tag_frequency_for_decoding(&mut self, path: &ASTPath) -> Option<&mut CumulativeDistributionFrequency>;
     fn init_tag_frequency_for_decoding(&mut self, path: &ASTPath, cdf: Vec<u32>);
+}
+
+
+/// Command-line management.
+
+/// Command-line management.
+pub struct FormatProvider;
+impl ::FormatProvider for FormatProvider {
+    fn subcommand<'a, 'b>(&self) -> clap::App<'a, 'b> {
+        use clap::*;
+        SubCommand::with_name("entropy")
+            .about("(EXPERIMENTAL) Encode using entropy compression. This format should eventually produce very good compression ratio.")
+            .arg(Arg::with_name("include-dictionaries")
+                .help("Include the dictionaries")
+                .long("dictionaries")
+                .takes_value(true)
+                .default_value("false")
+                .validator(|s| s.parse::<bool>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid bool {}", e)))
+                )
+            .arg(Arg::with_name("encode-tags")
+                .help("Encode tags")
+                .long("tags")
+                .takes_value(true)
+                .default_value("true")
+                .validator(|s| s.parse::<bool>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid bool {}", e)))
+                )
+            .arg(Arg::with_name("encode-bools")
+                .help("Encode booleans")
+                .long("bools")
+                .takes_value(true)
+                .default_value("true")
+                .validator(|s| s.parse::<bool>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid bool {}", e)))
+                )
+            .arg(Arg::with_name("encode-strings")
+                .help("Encode strings")
+                .long("strings")
+                .takes_value(true)
+                .default_value("true")
+                .validator(|s| s.parse::<bool>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid bool {}", e)))
+                )
+            .arg(Arg::with_name("encode-identifiers")
+                .help("Encode identifiers")
+                .long("identifiers")
+                .takes_value(true)
+                .default_value("true")
+                .validator(|s| s.parse::<bool>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid bool {}", e)))
+                )
+            .arg(Arg::with_name("encode-list-lengths")
+                .help("Encode list lengths")
+                .long("list-lengths")
+                .takes_value(true)
+                .default_value("true")
+                .validator(|s| s.parse::<bool>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid bool {}", e)))
+                )
+            .arg(Arg::with_name("encode-numbers")
+                .help("Encode numbers")
+                .long("numbers")
+                .takes_value(true)
+                .default_value("true")
+                .validator(|s| s.parse::<bool>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid bool {}", e)))
+                )
+    }
+
+    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
+        let as_bool = |name| {
+            matches.unwrap() // We only call this if `matches.is_some()`.
+                .value_of(name)
+                .unwrap() // Already checked by App.
+                .parse::<bool>()
+                .unwrap() // Already checked by App.
+        };
+        let options = {
+            if let Some(matches) = matches {
+                write::Options {
+                    inline_dictionaries: as_bool("include-dictionaries"),
+                    encode_tags: as_bool("encode-tags"),
+                    encode_bools: as_bool("encode-bools"),
+                    encode_strings: as_bool("encode-strings"),
+                    encode_numbers: as_bool("encode-numbers"),
+                    encode_identifiers: as_bool("encode-identifiers"),
+                    encode_list_lengths: as_bool("encode-list-lengths"),
+                }
+            } else {
+                write::Options::default()
+            }
+        };
+        Ok(::Format::Entropy {
+            options,
+            model: Box::new(model::ExactModel)
+        })
+    }
 }

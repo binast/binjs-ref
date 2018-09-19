@@ -4,6 +4,7 @@
 extern crate binjs_shared;
 
 extern crate brotli;
+extern crate clap;
 extern crate flate2;
 extern crate itertools;
 extern crate lzw;
@@ -204,6 +205,16 @@ impl Default for CompressionTarget {
     }
 }
 
+/// Command-line management for a format
+pub trait FormatProvider {
+    /// Specify command-line arguments for this format.
+    fn subcommand<'a, 'b>(&self) -> clap::App<'a, 'b>;
+
+    /// Produce a format given command-line argument matches.
+    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error>;
+}
+
+/// All the formats available for encoding/decoding.
 pub enum Format {
     Simple {
         stats: Rc<RefCell<simple::Statistics>>
@@ -222,7 +233,7 @@ pub enum Format {
         options: multistream::Options,
         targets: multistream::Targets,
     },
-    Arithmetic {
+    Entropy {
         options: entropy::write::Options,
         model: Box<entropy::Model>,
     }
@@ -275,191 +286,50 @@ impl Format {
             stats: Rc::new(RefCell::new(simple::Statistics::default()))
         }
     }
-    pub fn parse(source: Option<&str>) -> Option<Self> {
-        match source {
-            None | Some("multipart") => {
-                use multipart::{ Statistics, Targets };
-                let stats = Rc::new(RefCell::new(Statistics::default()
-                    .with_source_bytes(0)));
-                Some(Format::Multipart {
-                    targets: Targets {
-                        strings_table: CompressionTarget::new(Compression::Identity),
-                        grammar_table: CompressionTarget::new(Compression::Identity),
-                        tree: CompressionTarget::new(Compression::Identity),
+
+    /// Pick a random set of options.
+    ///
+    /// Used for testing.
+    pub fn randomize_options<R: rand::Rng>(self, rng: &mut R) -> Self {
+        match self {
+            Format::Simple { stats } => Format::Simple { stats },
+            Format::XML => Format::XML,
+            Format::Multipart { stats, .. } =>
+                Format::Multipart {
+                    targets: multipart::Targets {
+                        strings_table: CompressionTarget::rand(rng),
+                        grammar_table: CompressionTarget::rand(rng),
+                        tree: CompressionTarget::rand(rng),
                     },
                     stats
-                })
-            },
-#[cfg(multistream)]
-            Some("trp") => {
-                Some(Format::TreeRePair {
-                    options: repair::Options {
-                        max_rank: None,
-                        dictionary_placement: DictionaryPlacement::Header,
-                        numbering_strategy: NumberingStrategy::GlobalFrequency,
-                    }
-                })
-            }
-            Some("xml") => Some(Format::XML),
-            Some("simple") => Some(Self::simple()),
-            Some("arithmetic") => Some(Format::Arithmetic {
-                options: entropy::write::Options::default(),
-                model: Box::new(entropy::model::ExactModel)
-            }),
-            _ => None
-        }
-    }
-    pub fn with_flags<'a, I>(self, flags: I) -> Result<Self, String>
-        where I: Iterator<Item = &'a str>
-    {
-        match self {
-            Format::Arithmetic { model, options } => {
-                let mut options = options;
-                for option in flags {
-                    options = options.with_option(option)
-                        .ok_or_else(|| format!("Invalid option {}", option))?;
                 }
-                Ok(Format::Arithmetic { model, options })
-            }
-            _ => Ok(self)
-        }
-    }
-
-    #[cfg(multistream)]
-    pub fn with_trp_rank(self, source: Option<&str>) -> Option<Self> {
-        use Format::*;
-        match self {
-            TreeRePair { options } => {
-                let max_rank = match source {
-                    None | Some("none") => None,
-                    Some(ref num) => {
-                        if let Ok(rank) = usize::from_str_radix(num, 10) {
-                            Some(rank)
-                        } else {
-                            return None
-                        }
-                    }
-                };
-                Some(TreeRePair {
-                    options: repair::Options {
-                        max_rank,
-                        ..options
-                    }
-                })
-            },
-            _ if source.is_some() => panic!("Argument trp rank specified, but we're not performing trp"),
-            _ => { Some(self) }
-        }
-    }
-
-    #[cfg(multistream)]
-    pub fn with_trp_numbering(self, source: Option<&str>) -> Option<Self> {
-        match self {
-            Format::TreeRePair { options } => {
-                let numbering_strategy = match source {
-                    None | Some("frequency") => NumberingStrategy::GlobalFrequency,
-                    Some("mru") => NumberingStrategy::MRU,
-                    Some("parent") => NumberingStrategy::Prediction,
-                    Some(other) => return None
-                };
-                Some(Format::TreeRePair {
-                    options: repair::Options {
-                        numbering_strategy,
-                        ..options
-                    }
-                })
-            }
-            _ if source.is_some() => panic!("Argument trp numbering specified, but we're not performing trp"),
-            _ => { Some(self) }
-        }
-    }
-
-    #[cfg(multistream)]
-    pub fn with_dictionary_placement(self, source: Option<&str>) -> Option<Self> {
-        match self {
-            Format::TreeRePair { options } => {
-                let dictionary_placement = match source {
-                    None => DictionaryPlacement::Header,
-                    Some("inline") => DictionaryPlacement::Inline,
-                    Some("header") => DictionaryPlacement::Header,
-                    Some(other) => return None
-                };
-                Some(Format::TreeRePair {
-                    options: repair::Options {
-                        dictionary_placement,
-                        ..options
-                    }
-                })
-            }
-            _ if source.is_some() => panic!("Argument trp dictionary placement specified, but we're not performing trp"),
-            _ => { Some(self) }
-        }
-    }
-
-    pub fn with_compression(self, compression: Compression) -> Self {
-        match self {
-            Format::Multipart {
-                stats,
-                targets: _
-            } => {
-                Format::Multipart {
-                    stats,
-                    targets: multipart::Targets {
-                        grammar_table: CompressionTarget::new(compression.clone()),
-                        strings_table: CompressionTarget::new(compression.clone()),
-                        tree: CompressionTarget::new(compression)
-                    }
+            ,
+            Format::Entropy { .. } =>
+                Format::Entropy {
+                    options: entropy::write::Options {
+                        inline_dictionaries: rng.gen_weighted_bool(2),
+                        encode_tags: rng.gen_weighted_bool(2),
+                        encode_bools: rng.gen_weighted_bool(2),
+                        encode_numbers: rng.gen_weighted_bool(2),
+                        encode_list_lengths: rng.gen_weighted_bool(2),
+                        encode_strings: rng.gen_weighted_bool(2),
+                        encode_identifiers: rng.gen_weighted_bool(2),
+                    },
+                    model: Box::new(entropy::model::ExactModel)
                 }
-            },
-            #[cfg(multistream)]
-            Format::MultiStream {
-                options,
-                targets: _
-            } => {
-                Format::MultiStream {
-                    options,
-                    targets: multistream::Targets {
-                        contents: multistream::PerCategory {
-                            declarations: CompressionTarget::new(compression.clone()),
-                            idrefs: CompressionTarget::new(compression.clone()),
-                            strings: CompressionTarget::new(compression.clone()),
-                            numbers: CompressionTarget::new(compression.clone()),
-                            bools: CompressionTarget::new(compression.clone()),
-                            lists: CompressionTarget::new(compression.clone()),
-                            tags: CompressionTarget::new(compression.clone()),
-                        },
-                        header_strings: CompressionTarget::new(compression.clone()), // FIXME: A different compression might be useful.
-                        header_tags: CompressionTarget::new(compression.clone()),
-                        header_identifiers: CompressionTarget::new(compression.clone()), // FIXME: A different compression might be useful.
-                    }
-                }
-            },
-            _ => self
         }
     }
-    pub fn with_compression_str(self, source: Option<&str>) -> Option<Self> {
-        let compression = Compression::parse(source)
-            .unwrap_or(Compression::Identity);
-        Some(self.with_compression(compression))
-    }
 
-    #[cfg(multistream)]
-    pub fn with_numbering_strategy(mut self, source: Option<&str>) -> Option<Self> {
-        let strategy = match source {
-            None => NumberingStrategy::GlobalFrequency,
-            Some("mru") => NumberingStrategy::MRU,
-            Some("ppm") => NumberingStrategy::Prediction,
-            _ => return None,
-        };
-        use self::Format::*;
-        if let TreeRePair { ref mut options } = self {
-            options.numbering_strategy = strategy;
+    /// Return a human-readable name for this format.
+    pub fn name(&self) -> String {
+        match *self {
+            Format::Simple { .. } => "Simple".to_string(),
+            Format::Multipart { .. } => "Multipart".to_string(),
+            Format::XML => "XML".to_string(),
+            Format::Entropy { .. } => "Entropy".to_string(),
         }
-        Some(self)
     }
-}
 
-impl Format {
     pub fn with_sections<F, E>(&mut self, mut f: F) -> Result<(), E> where F: FnMut(&mut CompressionTarget, &str) -> Result<(), E> {
         match *self {
             Format::Simple { .. } |
@@ -472,7 +342,7 @@ impl Format {
                 // Nothing to do
                 Ok(())
             }
-            Format::Arithmetic { ..} => {
+            Format::Entropy { ..} => {
                 // Nothing to do
                 Ok(())
             }
@@ -519,5 +389,39 @@ impl Format {
                 Ok(())
             }
         }
+    }
+
+    /// Return all existing format providers, to manage
+    /// command-line arguments.
+    pub fn providers() -> [&'static FormatProvider; 4] {
+        [
+            &multipart::FormatProvider,
+            &simple::FormatProvider,
+            &xml::FormatProvider,
+            &entropy::FormatProvider,
+        ]
+    }
+
+    /// The format provider to use if no format provider
+    /// has been specified on the command-line.
+    fn default_provider() -> &'static FormatProvider {
+        &multipart::FormatProvider
+    }
+
+    /// Create a Format based on command-line arguments.
+    ///
+    /// Pick the first format provider that was invoked by
+    /// `matches` as a subcommand. If none, pick the default
+    /// provider, without any command-line arguments.
+    pub fn from_matches(matches: &clap::ArgMatches) -> Result<Self, std::io::Error> {
+        for provider in Self::providers().into_iter() {
+            let subcommand = provider.subcommand();
+            let key = subcommand.get_name();
+            if let Some(matches) = matches.subcommand_matches(key) {
+                return provider.handle_subcommand(Some(matches));
+            }
+        }
+        Self::default_provider()
+            .handle_subcommand(None)
     }
 }

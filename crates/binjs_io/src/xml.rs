@@ -7,6 +7,7 @@ use ::{ TokenWriter, TokenWriterError };
 use std::rc::Rc;
 use std::io::Write;
 
+use clap;
 use xml_rs;
 
 #[derive(Debug)]
@@ -128,5 +129,19 @@ impl TokenWriter for Encoder {
             self.root.write(&mut writer).unwrap();
         }
         Ok((buf, 0))
+    }
+}
+
+/// Command-line management.
+pub struct FormatProvider;
+impl ::FormatProvider for FormatProvider {
+    fn subcommand<'a, 'b>(&self) -> clap::App<'a, 'b> {
+        use clap::*;
+        SubCommand::with_name("xml")
+            .about("(EXPERIMENTAL) Encode to xml. This format is designed to help gather statistics, and is not considered useful for any other reason.")
+    }
+
+    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
+        Ok(::Format::XML)
     }
 }

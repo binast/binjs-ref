@@ -13,6 +13,7 @@ multistream = []
 [dependencies]
 binjs_shared = { path = "../binjs_shared", version = "*" }
 brotli = "*"
+clap = "^2.32"
 flate2 = "^1.0"
 itertools = "*"
 lzw = "*"

@@ -7,10 +7,7 @@ extern crate glob;
 extern crate itertools;
 extern crate rand;
 
-use binjs::io::bytes::compress::*;
-use binjs::io::{ CompressionTarget, DictionaryPlacement, Format, Path as IOPath, TokenSerializer };
-#[cfg(multistream)]
-use binjs::io::NumberingStrategy;
+use binjs::io::{ Format, Path as IOPath, TokenSerializer };
 use binjs::generic::FromJSON;
 use binjs::source::*;
 
@@ -97,6 +94,8 @@ fn get_compressed_sizes(path: &std::path::Path) -> Sizes {
 
 fn main() {
     env_logger::init();
+    let format_providers = binjs::io::Format::providers();
+
     let dest_path_binjs = "/tmp/binjs-test.js.binjs";
 
     let matches = App::new("Compare BinJS compression and brotli/gzip compression")
@@ -109,37 +108,14 @@ fn main() {
                 .required(true)
                 .takes_value(true)
                 .help("Glob path towards source files"),
-            Arg::with_name("compression")
-                .long("compression")
-                .short("c")
-                .takes_value(true)
-                .possible_values(&["identity", "gzip", "br", "deflate"])
-                .help("Compression format for the binjs files"),
-            Arg::with_name("numbering")
-                .long("numbering")
-                .takes_value(true)
-                .possible_values(&["mru", "frequency"])
-                .help("Numbering strategy for the tree. Defaults to frequency."),
-            Arg::with_name("trp-rank")
-                .long("trp-rank")
-                .takes_value(true)
-                .help("Maximal rank for trp. Ignored if the format isn't trp. Number of 'none'."),
         ])
+        .subcommands(format_providers.iter()
+            .map(|x| x.subcommand())
+        )
         .get_matches();
 
-    let mut format = Format::parse(matches.value_of("format"))
-        .expect("Invalid `format`")
-        .with_compression_str(matches.value_of("compression"))
-        .expect("Invalid `compression`");
-
-    #[cfg(multistream)]
-    {
-        format = format
-            .with_numbering_strategy(matches.value_of("numbering"))
-            .expect("Invalid `numbering`")
-            .with_dictionary_placement(matches.value_of("dictionary"))
-            .expect("Invalid `dictionary`");
-    }
+    let mut format = binjs::io::Format::from_matches(&matches)
+        .expect("Could not determine encoding format");
 
     let parser = Shift::new();
 

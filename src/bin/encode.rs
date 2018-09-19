@@ -169,6 +169,8 @@ fn main() {
 fn main_aux() {
     env_logger::init();
 
+    let format_providers = binjs::io::Format::providers();
+
     let matches = App::new("BinJS encoder")
         .author("David Teller, <dteller@mozilla.com>")
         .about("Encode a JavaScript text source to a JavaScript binary source in the BinJS format.")
@@ -186,34 +188,12 @@ fn main_aux() {
                 .takes_value(true)
                 .required(true)
                 .help("Output directory to use. Files in this directory may be overwritten."),
-            Arg::with_name("format")
-                .long("format")
-                .takes_value(true)
-                .possible_values(&["simple", "multipart", "trp", "xml", "arithmetic"])
-                .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
-            Arg::with_name("trp-rank")
-                .long("trp-rank")
-                .takes_value(true)
-                .help("Maximal rank for trp. Ignored if the format isn't trp. Number of 'none'."),
-            Arg::with_name("compression")
-                .long("compression")
-                .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for all sections. Defaults to identity."),
-            Arg::with_name("numbering")
-                .long("numbering")
-                .takes_value(true)
-                .possible_values(&["mru", "frequency"])
-                .help("Numbering strategy for the tree. Defaults to frequency."),
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
             Arg::with_name("show-ast")
                 .long("show-ast")
                 .help("Show pos-processed ast"),
-            Arg::with_name("export-sections")
-                .long("export-sections")
-                .help("If specified, write sections to individual files, for easier analysis"),
             Arg::with_name("lazify")
                 .long("lazify")
                 .takes_value(true)
@@ -222,39 +202,15 @@ fn main_aux() {
                     .map(|_| ())
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
-            Arg::with_name("arithmetic-dictionaries")
-                .long("arithmetic-dictionaries"),
-            Arg::with_name("arithmetic-no-dictionaries")
-                .long("arithmetic-no-dictionaries"),
-            Arg::with_name("arithmetic-tags")
-                .long("arithmetic-tags"),
-            Arg::with_name("arithmetic-no-tags")
-                .long("arithmetic-no-tags"),
-            Arg::with_name("arithmetic-bools")
-                .long("arithmetic-bools"),
-            Arg::with_name("arithmetic-no-bools")
-                .long("arithmetic-no-bools"),
-            Arg::with_name("arithmetic-strings")
-                .long("arithmetic-strings"),
-            Arg::with_name("arithmetic-no-strings")
-                .long("arithmetic-no-strings"),
-            Arg::with_name("arithmetic-identifiers")
-                .long("arithmetic-identifiers"),
-            Arg::with_name("arithmetic-no-identifiers")
-                .long("arithmetic-no-identifiers"),
-            Arg::with_name("arithmetic-list-lengths")
-                .long("arithmetic-list-lengths"),
-            Arg::with_name("arithmetic-no-list-lengths")
-                .long("arithmetic-no-list-lengths"),
-            Arg::with_name("arithmetic-numbers")
-                .long("arithmetic-numbers"),
-            Arg::with_name("arithmetic-no-numbers")
-                .long("arithmetic-no-numbers"),
         ])
-        .group(ArgGroup::with_name("trp")
-            .args(&["trp-rank"])
+        .subcommand(SubCommand::with_name("advanced")
+            .subcommands(format_providers.iter()
+                .map(|x| x.subcommand())
+            )
         )
         .get_matches();
+
+    // Common options.
 
     let sources : Vec<_> = matches.values_of("in")
         .expect("Missing `in`")
@@ -266,23 +222,10 @@ fn main_aux() {
         Some(path) => Some(Path::new(path).to_path_buf())
     };
 
-    let additional_flags = binjs::io::entropy::write::Options::KEYS
-        .into_iter()
-        .filter_map(|key| {
-            let full_key = format!("arithmetic-{}", key);
-            if matches.is_present(&full_key) {
-                Some(*key)
-            } else {
-                None
-            }
-        });
-
-    let format = Format::parse(matches.value_of("format"))
-        .expect("Invalid `format`")
-        .with_compression_str(matches.value_of("compression"))
-        .expect("Invalid `compression`")
-        .with_flags(additional_flags)
-        .expect("Invalid flag");
+    // Format options.
+    let format = binjs::io::Format::from_matches(&matches)
+        .expect("Could not determine encoding format");
+    println!("Using format: {}", format.name());
 
     let show_stats = matches.is_present("statistics");
 

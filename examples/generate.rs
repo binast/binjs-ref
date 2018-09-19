@@ -11,19 +11,17 @@ extern crate rand;
 
 const DEFAULT_TREE_SIZE: isize = 5;
 
-
-use binjs::io::bytes::compress::Compression;
 use binjs::source::Shift;
 use binjs::generic::io::Encoder;
 use binjs::generic::pick::{ Pick, Picker };
 
 use clap::*;
-use rand::Rand;
-
 use std::io::Write;
 
 fn main() {
     env_logger::init();
+
+    let format_providers = binjs::io::Format::providers();
 
     let matches = App::new("BinJS source file generator")
         .author("David Teller <dteller@mozilla.com>")
@@ -34,11 +32,6 @@ Note that this tool does not attempt to make sure that the files are entirely co
             Arg::with_name("PREFIX")
                 .required(true)
                 .help("A prefix for generated files."),
-            Arg::with_name("format")
-                .long("format")
-                .takes_value(true)
-                .possible_values(&["simple", "multipart"])
-                .help("Format to use for writing the files. If multipart, the choice of internal compression algorithms is randomized. If unspecified, defaults to simple."),
             Arg::with_name("number")
                 .long("number")
                 .short("n")
@@ -53,13 +46,18 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .long("random-metadata")
                 .help("If specified, generate random ast metadata (declared variables, etc.).")
         ])
+        .subcommand(SubCommand::with_name("advanced")
+            .subcommands(format_providers.iter()
+                .map(|x| x.subcommand())
+            )
+        )
         .get_matches();
 
     let mut rng = rand::thread_rng();
 
-    let mut format = binjs::io::Format::parse(matches.value_of("format"))
-        .expect("Invalid `format`")
-        .with_compression(Compression::rand(&mut rng));
+    let mut format = binjs::io::Format::from_matches(&matches)
+        .expect("Could not determine encoding format")
+        .randomize_options(&mut rng);
 
     let prefix = matches.value_of("PREFIX")
         .expect("Missing argument `PREFIX`");

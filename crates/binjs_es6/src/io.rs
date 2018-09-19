@@ -335,7 +335,7 @@ impl Encoder {
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
-            binjs_io::Format::Arithmetic { ref model, ref options } => {
+            binjs_io::Format::Entropy { ref model, ref options } => {
                 let writer = binjs_io::entropy::write::TreeTokenWriter::new(model.as_ref(), options.clone());
                 let mut serializer = Serializer::new(writer);
                 serializer.serialize(ast, &mut path)?;

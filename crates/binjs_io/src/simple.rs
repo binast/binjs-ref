@@ -14,6 +14,8 @@ use std::cell::RefCell;
 use std::io::{ Read, Seek };
 use std::rc::Rc;
 
+use clap;
+
 /// The state of the `TreeTokenReader`.
 ///
 /// Use a `PoisonLock` to access this state.
@@ -592,6 +594,26 @@ impl ExtendFromUTF8 for Vec<u8> {
         self.extend_from_slice(data.as_bytes());
     }
 }
+
+/// Command-line management.
+pub struct FormatProvider;
+impl ::FormatProvider for FormatProvider {
+    fn subcommand<'a, 'b>(&self) -> clap::App<'a, 'b> {
+        use clap::*;
+        SubCommand::with_name("expanded")
+            .about("(EXPERIMENTAL) Use the expanded (aka 'simple') format. This format is designed to help with debugging decoders, but has no other good properties.")
+    }
+
+    fn handle_subcommand(&self, _: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        Ok(::Format::Simple {
+            stats: Rc::new(RefCell::new(::simple::Statistics::default()))
+        })
+    }
+}
+
 
 #[test]
 fn test_simple_io() {

@@ -6,16 +6,15 @@ extern crate env_logger;
 
 use clap::*;
 
-use binjs::io::bytes::compress::*;
 use binjs::meta::spec::*;
 use binjs::source::*;
-use binjs::generic::io::encode::*;
 
-use std::default::Default;
 use std::io::*;
 
 fn main() {
     env_logger::init();
+
+    let format_providers = binjs::io::Format::providers();
 
     let matches = App::new("BinJS roundtrip tester")
         .author("David Teller, <dteller@mozilla.com>")
@@ -26,20 +25,6 @@ fn main() {
                 .multiple(true)
                 .takes_value(true)
                 .help("Input files to use. Must be JS source file."),
-            Arg::with_name("format")
-                .long("format")
-                .takes_value(true)
-                .possible_values(&["simple", "multipart", "trp", "xml"])
-                .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
-            Arg::with_name("trp-rank")
-                .long("trp-rank")
-                .takes_value(true)
-                .help("Maximal rank for trp. Ignored if the format isn't trp. Number of 'none'."),
-            Arg::with_name("compression")
-                .long("compression")
-                .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for all sections. Defaults to identity."),
             Arg::with_name("numbering")
                 .long("numbering")
                 .takes_value(true)
@@ -57,12 +42,13 @@ fn main() {
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
         ])
+        .subcommands(format_providers.iter()
+            .map(|x| x.subcommand())
+        )
         .get_matches();
 
-    let mut format = binjs::io::Format::parse(matches.value_of("format"))
-        .expect("Invalid `format`")
-        .with_compression_str(matches.value_of("compression"))
-        .expect("Invalid `compression`");
+    let mut format = binjs::io::Format::from_matches(&matches)
+        .expect("Could not determine encoding format");
 
     let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
         .expect("Invalid number");
@@ -82,9 +68,6 @@ fn main() {
 
     for source_path in files {
         println!("Parsing {}.", source_path);
-        let bytes = std::fs::metadata(source_path)
-            .expect("Could not find source path")
-            .len() as usize;
 
         let mut ast = parser.parse_file(source_path)
             .expect("Could not parse source");
