@@ -48,49 +48,49 @@ impl Encoder {
         match *format {
             binjs_io::Format::Simple { .. } => {
                 let writer = binjs_io::simple::TreeTokenWriter::new();
-                let mut serializer = encode::Encoder::new(grammar, writer);
-                serializer.generic_encode(ast)?;
-                let (data, _) = serializer.done()?;
+                let mut encoder = encode::Encoder::new(grammar, writer);
+                encoder.generic_encode(ast)?;
+                let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Multipart { ref mut targets, .. } => {
                 let writer = binjs_io::multipart::TreeTokenWriter::new(targets.clone());
-                let mut serializer = encode::Encoder::new(grammar, writer);
-                serializer.generic_encode(ast)?;
-                let (data, _) = serializer.done()?;
+                let mut encoder = encode::Encoder::new(grammar, writer);
+                encoder.generic_encode(ast)?;
+                let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
             #[cfg(multistream)]
             binjs_io::Format::MultiStream { ref mut targets, ref options } => {
                 targets.reset();
                 let writer = binjs_io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
-                let mut serializer = encode::Encoder::new(grammar, writer);
-                serializer.generic_encode(&ast)
+                let mut encoder = encode::Encoder::new(grammar, writer);
+                encoder.generic_encode(&ast)
                     .expect("Could not encode AST");
-                let (data, _) = serializer.done()
+                let (data, _) = encoder.done()
                     .expect("Could not finalize AST encoding");
                 Ok(Box::new(data))
             }
             #[cfg(multistream)]
             binjs_io::Format::TreeRePair { ref options } => {
                 let writer = binjs_io::repair::Encoder::new(options.clone());
-                let mut serializer = encode::Encoder::new(grammar, writer);
-                serializer.generic_encode(ast)?;
-                let (data, _) = serializer.done()?;
+                let mut encoder = encode::Encoder::new(grammar, writer);
+                encoder.generic_encode(ast)?;
+                let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::XML => {
                 let writer = binjs_io::xml::Encoder::new();
-                let mut serializer = encode::Encoder::new(grammar, writer);
-                serializer.generic_encode(ast)?;
-                let (data, _) = serializer.done()?;
+                let mut encoder = encode::Encoder::new(grammar, writer);
+                encoder.generic_encode(ast)?;
+                let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Arithmetic { ref model, ref options } => {
                 let writer = binjs_io::entropy::write::TreeTokenWriter::new(model.as_ref(), options.clone());
-                let mut serializer = encode::Encoder::new(grammar, writer);
-                serializer.generic_encode(ast)?;
-                let (data, _) = serializer.done()?;
+                let mut encoder = encode::Encoder::new(grammar, writer);
+                encoder.generic_encode(ast)?;
+                let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
         }

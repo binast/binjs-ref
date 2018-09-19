@@ -12,7 +12,6 @@ use std::process::*;
 
 use binjs_meta::spec::{ Interface, NodeName, Spec };
 use binjs_generic::syntax::{ASTError, MutASTVisitor, MutASTWalker, WalkPath };
-use binjs_meta::spec::ToStr;
 
 use source::parser::SourceParser;
 
