@@ -158,7 +158,7 @@ impl Visitor for ExactEncodingModelData</* Number of instances */ usize> {
                     *instances += 1
                 }).or_insert(1);
             }
-            Label::Declare(Some(ref string)) | Label::LiteralReference(Some(ref string)) => {
+            Label::Declare(ref string) | Label::LiteralReference(Some(ref string)) => {
                 let scope = scopes.get(0)
                     .map(PathItem::interface)
                     .map(Clone::clone);

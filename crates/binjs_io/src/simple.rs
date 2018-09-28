@@ -617,6 +617,8 @@ impl ::FormatProvider for FormatProvider {
 
 #[test]
 fn test_simple_io() {
+    use binjs_shared::SharedString;
+
     use std::fs::*;
 
     use std::io::{ Cursor, Write };
@@ -625,7 +627,7 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        writer.string(Some("simple string"))
+        writer.string(Some(&SharedString::from_str("simple string")))
             .expect("Writing simple string");
 
         let data = writer.data().unwrap();
@@ -642,9 +644,9 @@ fn test_simple_io() {
 
 
     {
-        let data = "string with escapes \u{0}\u{1}\u{0}";
+        let data = SharedString::from_str("string with escapes \u{0}\u{1}\u{0}");
         let mut writer = TreeTokenWriter::new();
-        writer.string(Some(data))
+        writer.string(Some(&data))
             .expect("Writing string with escapes");
 
         let result = writer.data().unwrap();
@@ -655,7 +657,7 @@ fn test_simple_io() {
         let escapes_string = reader.string()
             .expect("Reading string with escapes")
             .expect("Non-null string");
-        assert_eq!(&escapes_string, data);
+        assert_eq!(escapes_string, data);
     }
 
     eprintln!("Testing untagged tuple I/O");
@@ -680,8 +682,8 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
-        let item_1 = writer.string(Some("bar")).unwrap();
+        let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
+        let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
         writer.untagged_tuple(&[item_0, item_1])
             .expect("Writing trivial untagged tuple");
 
@@ -709,7 +711,7 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
+        let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
         let item_1 = writer.float(Some(3.1415)).unwrap();
         writer.tagged_tuple("BindingIdentifier", &[("label", item_0), ("value", item_1)])
             .expect("Writing trivial tagged tuple");
@@ -762,8 +764,8 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
-        let item_1 = writer.string(Some("bar")).unwrap();
+        let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
+        let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
         writer.list(vec![item_0, item_1])
             .expect("Writing trivial list");
 
@@ -791,8 +793,8 @@ fn test_simple_io() {
 
     {
         let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some("foo")).unwrap();
-        let item_1 = writer.string(Some("bar")).unwrap();
+        let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
+        let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
         let list = writer.list(vec![item_0, item_1])
             .expect("Writing inner list");
         writer.list(vec![list])

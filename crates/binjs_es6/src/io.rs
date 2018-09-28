@@ -1,12 +1,11 @@
 use binjs_io::{ self, Deserialization, Guard, TokenReader, TokenReaderError, TokenWriterError };
 pub use binjs_io::{ Serialization, TokenSerializer, TokenWriter };
-use binjs_shared::{ IdentifierDeclaration, IdentifierReference, Offset, self };
+use binjs_shared::{ IdentifierName, Offset, PropertyKey, SharedString, self };
 
 use std::io::{ Read, Seek };
-use std::rc::Rc;
 
 /// A path used when (de)serializing ES6 ASTs.
-pub type IOPath = binjs_shared::ast::Path<Rc<String>, (/* child index */ usize, /* field name */ Rc<String>)>;
+pub type IOPath = binjs_shared::ast::Path<SharedString, (/* child index */ usize, /* field name */ SharedString)>;
 
 /// A structure used for deserialization purposes.
 pub struct Deserializer<R> where R: TokenReader {
@@ -59,13 +58,13 @@ impl<R> Deserialization<R, Offset> for Deserializer<R> where R: TokenReader {
         Ok(Offset(self.reader.offset_at(path)?))
     }
 }
-impl<R> Deserialization<R, Option<String>> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<String>, R::Error> {
+impl<R> Deserialization<R, Option<SharedString>> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<SharedString>, R::Error> {
         self.reader.string_at(path)
     }
 }
-impl<R> Deserialization<R, String> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<String, R::Error> {
+impl<R> Deserialization<R, SharedString> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<SharedString, R::Error> {
         let maybe = self.reader.string_at(path)?;
         match maybe {
             None => Err(From::from(TokenReaderError::EmptyString)),
@@ -73,30 +72,31 @@ impl<R> Deserialization<R, String> for Deserializer<R> where R: TokenReader {
         }
     }
 }
+impl<R> Deserialization<R, IdentifierName> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<IdentifierName, R::Error> {
+        self.reader.identifier_name_at(path)?
+            .ok_or_else(|| From::from(TokenReaderError::EmptyString))
+    }
+}
+impl<R> Deserialization<R, PropertyKey> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<PropertyKey, R::Error> {
+        self.reader.property_key_at(path)?
+            .ok_or_else(|| From::from(TokenReaderError::EmptyString))
+    }
+}
 
-impl<R> Deserialization<R, IdentifierDeclaration> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<IdentifierDeclaration, R::Error> {
-        self.reader.identifier_declaration_at(path)
+impl<R> Deserialization<R, Option<IdentifierName>> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<IdentifierName>, R::Error> {
+        self.reader.identifier_name_at(path)
     }
 }
-impl<R> Deserialization<R, IdentifierReference> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<IdentifierReference, R::Error> {
-        self.reader.identifier_reference_at(path)
+impl<R> Deserialization<R, Option<PropertyKey>> for Deserializer<R> where R: TokenReader {
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<PropertyKey>, R::Error> {
+        self.reader.property_key_at(path)
     }
 }
 
-impl<R> Deserialization<R, Option<IdentifierDeclaration>> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<IdentifierDeclaration>, R::Error> {
-        self.reader.identifier_declaration_at(path)
-            .map(Some)
-    }
-}
-impl<R> Deserialization<R, Option<IdentifierReference>> for Deserializer<R> where R: TokenReader {
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<IdentifierReference>, R::Error> {
-        self.reader.identifier_reference_at(path)
-            .map(Some)
-    }
-}
+
 impl<R, T> Deserialization<R, Vec<T>> for Deserializer<R> where R: TokenReader, Self: Deserialization<R, T> {
     fn deserialize(&mut self, path: &mut IOPath) -> Result<Vec<T>, R::Error> {
         let (len, guard) = self.reader.list_at(path)?;
@@ -192,6 +192,7 @@ impl<'a, W> Serialization<W, &'a u32> for Serializer<W> where W: TokenWriter {
         self.writer.unsigned_long_at(value.clone(), path)
     }
 }
+/*
 impl<'a, W> Serialization<W, Option<&'a str>> for Serializer<W> where W: TokenWriter {
     fn serialize(&mut self, value: Option<&'a str>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
         self.writer.string_at(value, path)
@@ -202,44 +203,36 @@ impl<'a, W> Serialization<W, &'a str> for Serializer<W> where W: TokenWriter {
          self.writer.string_at(Some(value), path)
    }
 }
-impl<'a, W> Serialization<W, &'a Option<String>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a Option<String>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
-        match *value {
-            None => self.writer.string_at(None, path),
-            Some(ref str) => self.writer.string_at(Some(&*str), path)
-        }
+*/
+impl<'a, W> Serialization<W, &'a SharedString> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: &'a SharedString, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.string_at(Some(value), path)
     }
 }
-impl<'a, W> Serialization<W, &'a String> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a String, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
-         self.writer.string_at(Some(&*value), path)
-   }
+impl<'a, W> Serialization<W, &'a Option<SharedString>> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: &'a Option<SharedString>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.string_at(value.as_ref(), path)
+    }
 }
-impl<'a, W> Serialization<W, &'a IdentifierDeclaration> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a IdentifierDeclaration, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
-         self.writer.identifier_declaration_at(Some(&value.0), path)
-   }
+impl<'a, W> Serialization<W, &'a IdentifierName> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: &'a IdentifierName, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.identifier_name_at(Some(&value), path)
+    }
 }
-impl<'a, W> Serialization<W, &'a IdentifierReference> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a IdentifierReference, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
-         self.writer.identifier_reference_at(Some(&value.0), path)
-   }
+impl<'a, W> Serialization<W, &'a PropertyKey> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: &'a PropertyKey, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.property_key_at(Some(&value), path)
+    }
 }
-impl<'a, W> Serialization<W, &'a Option<IdentifierDeclaration>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a Option<IdentifierDeclaration>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
-        match value {
-            None => self.writer.identifier_declaration_at(None, path),
-            Some(ref x) => self.writer.identifier_declaration_at(Some(&x.0), path)
-        }
-   }
+impl<'a, W> Serialization<W, &'a Option<IdentifierName>> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: &'a Option<IdentifierName>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.identifier_name_at(value.as_ref(), path)
+    }
 }
-impl<'a, W> Serialization<W, &'a Option<IdentifierReference>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a Option<IdentifierReference>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
-        match value {
-            None => self.writer.identifier_reference_at(None, path),
-            Some(ref x) => self.writer.identifier_reference_at(Some(&x.0), path)
-        }
-   }
+impl<'a, W> Serialization<W, &'a Option<PropertyKey>> for Serializer<W> where W: TokenWriter {
+    fn serialize(&mut self, value: &'a Option<PropertyKey>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {
+        self.writer.property_key_at(value.as_ref(), path)
+    }
 }
 impl<'a, W> Serialization<W, &'a Offset> for Serializer<W> where W: TokenWriter {
     fn serialize(&mut self, _: &'a Offset, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {

@@ -14,6 +14,8 @@ use io::*;
 use multipart::{ FormatInTable, HEADER_GRAMMAR_TABLE, HEADER_STRINGS_TABLE, HEADER_TREE };
 use util::{ PoisonLock, Pos, ReadConst };
 
+use binjs_shared::SharedString;
+
 impl Into<std::io::Error> for TokenReaderError {
     fn into(self) -> std::io::Error {
         std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", self))
@@ -34,7 +36,7 @@ impl Deserializer for BufDeserializer {
 }
 
 /// Deserialize a String|null
-impl Deserializer for Option<String> {
+impl Deserializer for Option<SharedString> {
     type Target = Self;
     fn read<R: Read>(&self, inp: &mut R) -> Result<Self, std::io::Error> {
         let byte_len = inp.read_varnum()?;
@@ -46,6 +48,7 @@ impl Deserializer for Option<String> {
         } else {
             String::from_utf8(bytes)
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
+                .map(SharedString::from_string)
                 .map(Some)
         }
     }
@@ -111,7 +114,7 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
 /// Description of a node in the table.
 #[derive(Debug)]
 pub struct NodeDescription {
-    kind: String,
+    kind: SharedString,
 }
 
 impl<'a> FormatInTable for NodeDescription {
@@ -127,7 +130,7 @@ impl Deserializer for NodeDescriptionDeserializer {
     type Target = NodeDescription;
     fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
         // Extract kind
-        let strings_deserializer : Option<String> = None;
+        let strings_deserializer : Option<SharedString> = None;
         let name = match strings_deserializer.read(inp)? {
             None => return Err(TokenReaderError::EmptyNodeName.into()),
             Some(x) => x
@@ -216,7 +219,7 @@ impl std::io::Seek for DumpCursor {
 /// Use a `PoisonLock` to access this state.
 pub struct ReaderState {
     reader: DumpCursor,
-    pub strings_table: Table<Option<String>>,
+    pub strings_table: Table<Option<SharedString>>,
     pub grammar_table: Table<NodeDescription>,
 }
 
@@ -259,7 +262,7 @@ impl TreeTokenReader {
         reader.read_const(HEADER_STRINGS_TABLE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
         let strings_deserializer = TableDeserializer {
-            deserializer: None /* Option<String> */
+            deserializer: None /* Option<SharedString> */
         };
         let strings_table = Compression::decompress(&mut reader, &strings_deserializer)
             .map_err(TokenReaderError::BadCompression)?;
@@ -351,7 +354,7 @@ impl TokenReader for TreeTokenReader {
         self.owner.borrow_mut().poison();
     }
 
-    fn string(&mut self) -> Result<Option<String>, Self::Error> {
+    fn string(&mut self) -> Result<Option<SharedString>, Self::Error> {
         self.owner.borrow_mut().try(|state| {
             let index = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
@@ -361,12 +364,13 @@ impl TokenReader for TreeTokenReader {
                     match result {
                         Some(s) => {
                             print_file_structure!(state.reader, "string=\"{}\"", s);
+                            Ok(Some(s.clone()))
                         },
                         None => {
                             print_file_structure!(state.reader, "string=None");
+                            Ok(None)
                         }
-                    };
-                    Ok(result.clone())
+                    }
                 }
                 None => Err(TokenReaderError::BadStringIndex(index))
             }
@@ -463,7 +467,7 @@ impl TokenReader for TreeTokenReader {
     /// Returns the tag name, `None` for fields and a
     /// sub-extractor dedicated
     /// to that tuple. The sub-extractor MUST be consumed entirely.
-    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
             let index = state.reader.read_varnum()

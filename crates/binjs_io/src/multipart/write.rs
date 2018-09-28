@@ -5,13 +5,15 @@ use io::*;
 use ::{ CompressionTarget, TokenWriterError };
 use multipart::*;
 
+use binjs_shared::SharedString;
+
 use std;
 use std::collections::{ HashMap, HashSet };
 use std::cell::RefCell;
 use std::fmt::{ Debug, Display, Formatter };
 use std::hash::Hash;
 use std::io::Write;
-use std::ops::{ Add, AddAssign };
+use std::ops::{ Add, AddAssign, Deref };
 use std::rc::Rc;
 
 use vec_map;
@@ -55,11 +57,11 @@ impl Serializable for Vec<u8> {
 /// A `String` is serialized as:
 /// - number of UTF-8 bytes (varnum);
 /// - sequence of UTF-8 bytes.
-impl Serializable for String {
+impl Serializable for SharedString {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
         total += out.write_varnum(self.len() as u32)?;
-        out.write_all(self.as_bytes())?;
+        out.write_all(self.deref().as_bytes())?;
         total += self.len();
         Ok(total)
     }
@@ -72,7 +74,7 @@ impl Serializable for String {
 /// With the following special case used to represent the null string:
 /// - number of UTF-8 bytes (2 as varnum);
 /// - sequence [255, 0] (which is invalid UTF-8).
-impl Serializable for Option<String> {
+impl Serializable for Option<SharedString> {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         const EMPTY_STRING: [u8; 2] = [255, 0];
         let total = match *self {
@@ -221,7 +223,7 @@ impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone +
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)] // FIXME: Clone shouldn't be necessary. Sigh.
 pub struct NodeDescription {
-    kind: String,
+    kind: SharedString,
 }
 
 /// Format:
@@ -233,7 +235,7 @@ impl Serializable for NodeDescription {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
-        total += self.kind.to_string().write(out)?;
+        total += self.kind.write(out)?;
         Ok(total)
     }
 }
@@ -245,7 +247,7 @@ impl FormatInTable for NodeDescription {
 /// The tree, as it is being built.
 enum UnresolvedTreeNode {
     /// An index into the table of strings.
-    UnresolvedStringIndex(TableIndex<Option<String>>),
+    UnresolvedStringIndex(TableIndex<Option<SharedString>>),
 
     /// An index into the table of nodes.
     UnresolvedNodeIndex(TableIndex<NodeDescription>),
@@ -451,7 +453,7 @@ enum Nature {
     Float,
     UnsignedLong,
     Bool,
-    String(TableIndex<Option<String>>),
+    String(TableIndex<Option<SharedString>>),
     /// Internal data representing a number of bytes.
     Offset,
 }
@@ -462,7 +464,7 @@ pub struct Tree(Rc<UnresolvedTree>);
 #[derive(Debug)]
 struct TableIndex<T> {
     phantom: std::marker::PhantomData<T>,
-    description: Rc<String>, // For debugging purposes
+    description: SharedString, // For debugging purposes
     index: Rc<RefCell<Option<u32>>>,
 }
 
@@ -479,7 +481,7 @@ impl<T> TableIndex<T> {
     fn new(description: &str) -> Self {
         TableIndex {
             phantom: std::marker::PhantomData,
-            description: Rc::new(description.to_string()),
+            description: SharedString::from_string(description.to_string()),
             index: Rc::new(RefCell::new(None))
         }
     }
@@ -690,8 +692,8 @@ impl TokenWriter for TreeTokenWriter {
         }))
     }
 
-    fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
-        let key = data.map(str::to_string);
+    fn string(&mut self, data: Option<&SharedString>) -> Result<Self::Tree, TokenWriterError> {
+        let key = data.map(Clone::clone);
         let index = self.strings_table
             .get(&key)
             .map(|entry| entry.index.clone());
@@ -754,7 +756,7 @@ impl TokenWriter for TreeTokenWriter {
     fn tagged_tuple(&mut self, name: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         let data;
         let description = NodeDescription {
-            kind: name.to_string(),
+            kind: SharedString::from_string(name.to_string()),
         };
         debug!(target: "multipart", "writing tagged tuple {} with {} children as {:?}",
             name,
@@ -842,7 +844,7 @@ pub struct TreeTokenWriter {
     grammar_table: WriterTable<NodeDescription>,
 
     /// The strings used in the binary.
-    strings_table: WriterTable<Option<String>>,
+    strings_table: WriterTable<Option<SharedString>>,
 
     root: Option<Tree>,
 
@@ -938,7 +940,7 @@ pub struct Statistics {
     pub tree: SectionStatistics,
 
     pub per_kind_index: VecMap<NodeStatistics>,
-    pub per_kind_name: HashMap<String, NodeStatistics>,
+    pub per_kind_name: HashMap<SharedString, NodeStatistics>,
     pub per_description: HashMap<NodeDescription, NodeStatistics>,
 
     /// Mapping length -> number of lists of that length.
@@ -1132,7 +1134,7 @@ impl<'a> Display for NodeAndStatistics<'a> {
 
 struct NodeNameAndStatistics {
     total_uncompressed_bytes: usize,
-    nodes: Vec<(String, NodeStatistics)>
+    nodes: Vec<(SharedString, NodeStatistics)>
 }
 
 impl Display for NodeNameAndStatistics {

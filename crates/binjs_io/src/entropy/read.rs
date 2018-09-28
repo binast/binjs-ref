@@ -4,6 +4,8 @@ use entropy::tree::Tag;
 use io::{FileStructurePrinter, TrivialGuard, TokenReader};
 use ::TokenReaderError;
 
+use binjs_shared:: { IdentifierName, PropertyKey, SharedString };
+
 use range_encoding::CumulativeDistributionFrequency;
 use range_encoding::opus;
 
@@ -34,7 +36,7 @@ impl Decompressor {
         unimplemented!()
     }
 
-    fn tagged_tuple(&mut self, cdf: &mut CumulativeDistributionFrequency) -> Result<(String, Option<Rc<Box<[String]>>>, TrivialGuard<TokenReaderError>), TokenReaderError>
+    fn tagged_tuple(&mut self, cdf: &mut CumulativeDistributionFrequency) -> Result<(SharedString, Option<Rc<Box<[String]>>>, TrivialGuard<TokenReaderError>), TokenReaderError>
     {
         // FIXME: 1. Get the tag.
         // FIXME: 2. Update the Path.
@@ -74,7 +76,7 @@ impl<M> TokenReader for TreeTokenReader<M> where M: DecodingModel {
         // FIXME: Do we really need to implement it anymore?
     }
 
-    fn string(&mut self) -> Result<Option<String>, Self::Error> {
+    fn string(&mut self) -> Result<Option<SharedString>, Self::Error> {
         self.update_model()?;
         unimplemented!()
     }
@@ -103,7 +105,7 @@ impl<M> TokenReader for TreeTokenReader<M> where M: DecodingModel {
         unimplemented!()
     }
 
-    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         if let Some(cdf) = self.model.tag_frequency_for_decoding(&self.path) {
             return self.decompressor.tagged_tuple(cdf)
         }

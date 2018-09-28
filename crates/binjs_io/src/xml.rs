@@ -4,6 +4,8 @@
 
 use ::{ TokenWriter, TokenWriterError };
 
+use binjs_shared::SharedString;
+
 use std::rc::Rc;
 use std::io::Write;
 
@@ -12,7 +14,7 @@ use xml_rs;
 
 #[derive(Debug)]
 pub enum SubTree {
-    String(Option<String>),
+    String(Option<SharedString>),
     Bool(Option<bool>),
     Float(Option<f64>),
     U32(u32),
@@ -95,8 +97,8 @@ impl TokenWriter for Encoder {
         self.register(SubTree::Float(data))
     }
 
-    fn string(&mut self, data: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
-        self.register(SubTree::String(data.map(str::to_string)))
+    fn string(&mut self, data: Option<&SharedString>) -> Result<Self::Tree, TokenWriterError> {
+        self.register(SubTree::String(data.map(Clone::clone)))
     }
 
     fn untagged_tuple(&mut self, _data: &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
@@ -141,7 +143,7 @@ impl ::FormatProvider for FormatProvider {
             .about("(EXPERIMENTAL) Encode to xml. This format is designed to help gather statistics, and is not considered useful for any other reason.")
     }
 
-    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
+    fn handle_subcommand(&self, _matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
         Ok(::Format::XML)
     }
 }

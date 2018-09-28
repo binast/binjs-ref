@@ -81,11 +81,11 @@ impl RustExporter {
             TypeSpec::UnsignedLong =>
                 format!("{prefix}Type::unsigned_long()",
                     prefix = prefix),
-            TypeSpec::IdentifierDeclaration =>
-                format!("{prefix}Type::identifier_declaration()",
+            TypeSpec::IdentifierName =>
+                format!("{prefix}Type::identifier_name()",
                     prefix = prefix),
-            TypeSpec::IdentifierReference =>
-                format!("{prefix}Type::identifier_reference()",
+            TypeSpec::PropertyKey =>
+                format!("{prefix}Type::property_key()",
                     prefix = prefix),
             TypeSpec::NamedType(ref name) =>
                 format!("{prefix}Type::named(&names.{name})",
@@ -123,7 +123,7 @@ impl RustExporter {
         let mut ast_buffer = String::new();
         ast_buffer.push_str("
 use binjs_shared;
-use binjs_shared::{ FromJSON, FromJSONError, Offset, IdentifierDeclaration, IdentifierReference, ToJSON, VisitMe };
+use binjs_shared::{ FromJSON, FromJSONError, IdentifierName, Offset, PropertyKey, SharedString, ToJSON, VisitMe };
 use binjs_io::{ Deserialization, Guard, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter, TokenWriterError };
 
 use io::*;
@@ -280,7 +280,7 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
         let str = match *value {{
 {variants}
         }};
-        self.writer.string_enum_at(str, path)
+        self.writer.string_enum_at(&SharedString::from_str(str), path)
     }}
 }}
 ",
@@ -457,7 +457,7 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}\");
         let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}, found {{}}\", kind);
-        let path_interface = std::rc::Rc::new(kind.clone()); // FIXME: We should share this.
+        let path_interface = kind.clone();
         let result = match kind.as_str() {{
 {variants}
             _ => {{
@@ -476,7 +476,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
     fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, R::Error> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional sum {name}\");
         let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
-        let path_interface = std::rc::Rc::new(kind.clone()); // FIXME: We should share this.
+        let path_interface = kind.clone();
         let result = match kind.as_str() {{
 {variants_some}
             \"{null}\" => Ok(None),
@@ -498,12 +498,12 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                                     .iter()
                                     .map(|case| {
                                         format!("           \"{case}\" => {{
-                path.enter_interface(path_interface.clone());
-                let result = self.deserialize_inner(path)
-                    .map(|r| {name}::{constructor}(Box::new(r)));
-                path.exit_interface(path_interface);
-                result
-            }}",
+                    path.enter_interface(path_interface.clone());
+                    let result = self.deserialize_inner(path)
+                        .map(|r| {name}::{constructor}(Box::new(r)));
+                    path.exit_interface(path_interface);
+                    result
+                }}",
                                             name = name,
                                             case = case,
                                             constructor = case.to_class_cases())
@@ -773,7 +773,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                         TypeSpec::Boolean => "bool",
                         TypeSpec::Number => "f64",
                         TypeSpec::UnsignedLong => "u32",
-                        TypeSpec::String => "std::string::String",
+                        TypeSpec::String => "binjs_shared::SharedString",
                         TypeSpec::Offset => "Offset",
                         TypeSpec::Void => "()",
                         _ => panic!("Unexpected type in alias to a primitive type: {name}",
@@ -950,7 +950,7 @@ impl<R> Deserializer<R> where R: TokenReader {{
         let result =
             if let \"{name}\" = kind.as_str() {{
                 debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: present\");
-                let path_interface = std::rc::Rc::new(kind);
+                let path_interface = kind.clone();
                 path.enter_interface(path_interface.clone());
                 let result = self.deserialize_inner(path);
                 path.exit_interface(path_interface);
@@ -994,7 +994,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
         let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
         let result = match kind.as_str() {{
             \"{name}\" => {{
-                let path_interface = std::rc::Rc::new(kind);
+                let path_interface = kind.clone();
                 debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}: present\");
                 path.enter_interface(path_interface.clone());
                 let result = self.deserialize_inner(path).map(Some);
@@ -1029,7 +1029,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                         .enumerate()
                         .map(|(index, field)| format!("
         print_file_structure!(self.reader, \".{name}\");
-        let path_field = ({index}, std::rc::Rc::new(\"{name}\".to_string())); // FIXME: We should share these strings.
+        let path_field = ({index}, SharedString::from_str(\"{name}\")); // String is shared
         path.enter_field(path_field.clone());
         let data_{name} = self.deserialize(path) as Result<{spec}, R::Error>;
         path.exit_field(path_field);
@@ -1062,7 +1062,7 @@ impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: Toke
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, {value}: &'a {name}, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
-        let path_interface = std::rc::Rc::new(\"{name}\".to_string()); // FIXME: Find a way to share these strings.
+        let path_interface = SharedString::from_str(\"{name}\"); // String is shared
         path.enter_interface(path_interface.clone());
         let {mut} children = Vec::with_capacity({len});
 {fields}
@@ -1084,7 +1084,7 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                             .enumerate()
                             .map(|(index, field)| format!(
 "
-        let path_field = ({index}, std::rc::Rc::new(\"{field_name}\".to_string())); // FIXME: We should share these strings.
+        let path_field = ({index}, SharedString::from_str(\"{field_name}\")); // String is shared
         path.enter_field(path_field.clone());
         let child = (self as &mut Serialization<W, &'a _>).serialize(&value.{rust_field_name}, path);
         path.exit_field(path_field);
@@ -1222,7 +1222,7 @@ pub type WalkPathItem = binjs_shared::ast::PathItem<ASTNode, ASTField>;
 pub type WalkPath = binjs_shared::ast::Path<ASTNode, ASTField>;
 
 /// A Path, used when walking the tree with more weakly-typed APIs, e.g. TokenReader/TokenWriter.
-pub type IOPath = binjs_shared::ast::Path<std::rc::Rc<String>, ( /* child index */ usize, /* field name */ std::rc::Rc<std::string::String>)>;
+pub type IOPath = binjs_shared::ast::Path<binjs_shared::SharedString, ( /* child index */ usize, /* field name */ binjs_shared::SharedString)>;
 ";
             let mut interface_names = interfaces.keys()
                     .sorted();
@@ -1252,7 +1252,7 @@ pub type IOPath = binjs_shared::ast::Path<std::rc::Rc<String>, ( /* child index 
 pub trait Visitor<E, G=()> where G: Default {{
 {interfaces}
 {sums}
-    fn visit_offset(&mut self, _path: &WalkPath, _node: &mut Offset) -> Result<(), E> {{
+   fn visit_offset(&mut self, _path: &WalkPath, _node: &mut Offset) -> Result<(), E> {{
         Ok(())
     }}
 }}\n
@@ -1260,6 +1260,8 @@ pub trait Walker<'a>: Sized {{
     type Output;
     fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>;
 }}\n
+
+/// A structure that cannot be visited.
 #[derive(Default)]
 struct ViewMutNothing<T> {{
     nothing: std::marker::PhantomData<T>
@@ -1271,6 +1273,7 @@ impl<'a, T> Walker<'a> for ViewMutNothing<T> {{
         Ok(None)
     }}
 }}
+
 type ViewMutBool = ViewMutNothing<bool>;
 impl<'a> From<&'a mut bool> for ViewMutNothing<bool> {{
     fn from(_: &'a mut bool) -> Self {{
@@ -1310,6 +1313,8 @@ impl<'a> Walker<'a> for u32 {{
         Ok(None)
     }}
 }}
+
+// We actually use ViewMutOffset to reset offsets to 0 during tests.
 pub struct ViewMutOffset<'a>(&'a mut Offset);
 impl<'a> From<&'a mut Offset> for ViewMutOffset<'a> {{
     fn from(value: &'a mut Offset) -> Self {{
@@ -1324,20 +1329,20 @@ impl<'a> Walker<'a> for ViewMutOffset<'a> {{
     }}
 }}
 
-type ViewMutIdentifierDeclaration<'a> = ViewMutNothing<IdentifierDeclaration>;
-impl<'a> From<&'a mut IdentifierDeclaration> for ViewMutIdentifierDeclaration<'a> {{
-    fn from(_: &'a mut IdentifierDeclaration) -> Self {{
+type ViewMutIdentifierName = ViewMutNothing<IdentifierName>;
+impl<'a> From<&'a mut IdentifierName> for ViewMutNothing<IdentifierName> {{
+    fn from(_: &'a mut IdentifierName) -> Self {{
         ViewMutNothing::default()
     }}
 }}
 
-type ViewMutIdentifierReference<'a> = ViewMutNothing<IdentifierReference>;
-impl<'a> From<&'a mut IdentifierReference> for ViewMutIdentifierReference<'a> {{
-    fn from(_: &'a mut IdentifierReference) -> Self {{
+
+type ViewMutPropertyKey = ViewMutNothing<PropertyKey>;
+impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
+    fn from(_: &'a mut PropertyKey) -> Self {{
         ViewMutNothing::default()
     }}
 }}
-
 \n\n\n",
                 interfaces = interface_names
                     .drain(..)

@@ -70,7 +70,7 @@ pub enum Label {
     Scope(ScopeIndex),
 
     /// Declare a variable throughout the current `Scope`.
-    Declare(Option<Rc<String>>),
+    Declare(Rc<String>),
 
     /// Reference a variable throughout the current `Scope`.
     LiteralReference(Option<Rc<String>>),

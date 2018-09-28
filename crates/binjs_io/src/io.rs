@@ -7,8 +7,7 @@
 //! In practice, this API is kept as a trait to simplify unit testing and
 //! experimentation of sophisticated compression schemes.
 
-use binjs_shared;
-use binjs_shared::{ IdentifierDeclaration, IdentifierReference };
+use binjs_shared::{ IdentifierName, PropertyKey, SharedString, self };
 
 use ::{ TokenWriterError };
 
@@ -153,7 +152,7 @@ macro_rules! print_file_structure(
 );
 
 
-pub type Path = binjs_shared::ast::Path</* Interface */ Rc<String>, /* Field */ (usize, Rc<String>)>;
+pub type Path = binjs_shared::ast::Path</* Interface */ SharedString, /* Field */ (usize, SharedString)>;
 
 /// An API for reading tokens.
 ///
@@ -202,8 +201,8 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// Read a single UTF-8 string.
     ///
     /// The returned string MUST be valid UTF-8.
-    fn string(&mut self) -> Result<Option<String>, Self::Error>;
-    fn string_at(&mut self, _path: &Path) -> Result<Option<String>, Self::Error> {
+    fn string(&mut self) -> Result<Option<SharedString>, Self::Error>;
+    fn string_at(&mut self, _path: &Path) -> Result<Option<SharedString>, Self::Error> {
         self.string()
     }
 
@@ -214,40 +213,40 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// list of possible values, or to encode string enums as interfaces.
     ///
     /// The returned string MUST be valid UTF-8.
-    fn string_enum(&mut self) -> Result<String, Self::Error> {
+    fn string_enum(&mut self) -> Result<SharedString, Self::Error> {
         self.string()?
             .ok_or_else(|| ::TokenReaderError::EmptyVariant.into())
     }
-    fn string_enum_at(&mut self, _path: &Path) -> Result<String, Self::Error> {
+    fn string_enum_at(&mut self, _path: &Path) -> Result<SharedString, Self::Error> {
         self.string_enum()
     }
 
-    /// Read a single reference to an identifier already declared.
+    /// Read a single identifier name.
     ///
     /// The default implementation uses `self.string`/`self.string_at`, but
     /// some encodings may use the extra information e.g. to represent the
     /// identifier as a DeBruijn index.
-    fn identifier_reference(&mut self) -> Result<IdentifierReference, Self::Error> {
-        let name = self.string()?
-            .ok_or_else(|| ::TokenReaderError::EmptyString.into())?;
-        Ok(IdentifierReference::from_string(name))
+    fn identifier_name(&mut self) -> Result<Option<IdentifierName>, Self::Error> {
+        let result = self.string()?
+            .map(IdentifierName);
+        Ok(result)
     }
-    fn identifier_reference_at(&mut self, _path: &Path) -> Result<IdentifierReference, Self::Error> {
-        self.identifier_reference()
+    fn identifier_name_at(&mut self, _path: &Path) -> Result<Option<IdentifierName>, Self::Error> {
+        self.identifier_name()
     }
 
-    /// Read a single reference to the definition of an identifier.
+    /// Read a single property name.
     ///
     /// The default implementation uses `self.string`/`self.string_at`, but
     /// some encodings may use the extra information e.g. to initialize
     /// dictionaries.
-    fn identifier_declaration(&mut self) -> Result<IdentifierDeclaration, Self::Error> {
-        let name = self.string()?
-            .ok_or_else(|| ::TokenReaderError::EmptyString.into())?;
-        Ok(IdentifierDeclaration::from_string(name))
+    fn property_key(&mut self) -> Result<Option<PropertyKey>, Self::Error> {
+        let result = self.string()?
+            .map(PropertyKey);
+        Ok(result)
     }
-    fn identifier_declaration_at(&mut self, _path: &Path) -> Result<IdentifierDeclaration, Self::Error> {
-        self.identifier_declaration()
+    fn property_key_at(&mut self, _path: &Path) -> Result<Option<PropertyKey>, Self::Error> {
+        self.property_key()
     }
 
     /// Read a single `f64`. Note that all user-level numbers are `f64`.
@@ -296,8 +295,8 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// call `guard.done()` to ensure that the tuple was properly
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
-    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error>;
-    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error>;
+    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         self.tagged_tuple()
     }
 
@@ -307,10 +306,10 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// The default implementation uses `tagged_tuple`,
     /// but some encodings may use the extra information e.g. to
     /// perform DeBruijn indices, or prediction based on the scope.
-    fn tagged_scoped_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_scoped_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         self.tagged_tuple()
     }
-    fn tagged_scoped_tuple_at(&mut self, _path: &Path) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_scoped_tuple_at(&mut self, _path: &Path) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         self.tagged_scoped_tuple()
     }
 
@@ -394,8 +393,8 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// Write a single UTF-8 string.
     ///
     /// If specified, the string MUST be UTF-8.
-    fn string(&mut self, Option<&str>) -> Result<Self::Tree, TokenWriterError>;
-    fn string_at(&mut self, value: Option<&str>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+    fn string(&mut self, Option<&SharedString>) -> Result<Self::Tree, TokenWriterError>;
+    fn string_at(&mut self, value: Option<&SharedString>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.string(value)
     }
 
@@ -404,10 +403,10 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// The default implementation uses `self.string``, but some encodings may use
     /// the extra information e.g. to represent the enumeration by an index in the
     /// list of possible values, or to encode string enums as interfaces.
-    fn string_enum(&mut self, str: &str) -> Result<Self::Tree, TokenWriterError> {
+    fn string_enum(&mut self, str: &SharedString) -> Result<Self::Tree, TokenWriterError> {
         self.string(Some(str))
     }
-    fn string_enum_at(&mut self, value: &str, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+    fn string_enum_at(&mut self, value: &SharedString, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.string_enum(value)
     }
 
@@ -437,21 +436,23 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     }
 
 
-    fn identifier_declaration(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
-        self.string(name)
+    fn property_key(&mut self, value: Option<&PropertyKey>) -> Result<Self::Tree, TokenWriterError> {
+        let string = value.map(PropertyKey::as_shared_string);
+        self.string(string)
     }
-    fn identifier_declaration_at(&mut self, name: Option<&str>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.identifier_declaration(name)
+    fn property_key_at(&mut self, value: Option<&PropertyKey>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.property_key(value)
     }
-    // FIXME: Split `identifier_declaration` from `maybe_identifier_declaration`.
+    // FIXME: Split `property_key` from `maybe_property_key`.
 
-    fn identifier_reference(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
-        self.string(name)
+    fn identifier_name(&mut self, value: Option<&IdentifierName>) -> Result<Self::Tree, TokenWriterError> {
+        let string = value.map(IdentifierName::as_shared_string);
+        self.string(string)
     }
-    fn identifier_reference_at(&mut self, name: Option<&str>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.identifier_reference(name)
+    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.identifier_name(value)
     }
-    // FIXME: Split `identifier_reference` from `maybe_identifier_reference`.
+    // FIXME: Split `identifier_name` from `maybe_identifier_name`.
 }
 
 

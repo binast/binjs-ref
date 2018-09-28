@@ -182,7 +182,7 @@ impl ::FormatProvider for FormatProvider {
                 .unwrap() // Already checked by App.
         };
         let options = {
-            if let Some(matches) = matches {
+            if matches.is_some() {
                 write::Options {
                     inline_dictionaries: as_bool("include-dictionaries"),
                     encode_tags: as_bool("encode-tags"),

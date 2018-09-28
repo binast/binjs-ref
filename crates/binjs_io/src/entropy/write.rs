@@ -7,6 +7,8 @@ use io::TokenWriter;
 use ::TokenWriterError;
 use util::GenericCounter;
 
+use binjs_shared:: { IdentifierName, PropertyKey, SharedString };
+
 use range_encoding::opus;
 
 use std;
@@ -204,7 +206,7 @@ impl<'a> Visitor for Compressor<'a> {
                     }
                 })?;
             }
-            Label::Declare(Some(ref string)) | Label::LiteralReference(Some(ref string)) => {
+            Label::Declare(ref string) | Label::LiteralReference(Some(ref string)) => {
                 let symbol = self.model.identifier_frequency_for_encoding(string, scopes)
                     .expect("Could not compute identifier frequency");
                 if !self.options.encode_identifiers {
@@ -263,22 +265,8 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
         })
     }
 
-    fn identifier_declaration(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
-        self.new_tree(SubTree {
-            label: Label::Declare(name.map(|name|
-                Rc::new(name.to_string())
-            )),
-            children: vec![]
-        })
-    }
-
-    fn identifier_reference(&mut self, name: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
-        self.new_tree(SubTree {
-            label: Label::LiteralReference(name.map(|name|
-                Rc::new(name.to_string())
-            )),
-            children: vec![]
-        })
+    fn identifier_name(&mut self, name: Option<&IdentifierName>) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
     }
 
     fn offset(&mut self) -> Result<Self::Tree, TokenWriterError> {
@@ -304,14 +292,14 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
         })
     }
 
-    fn string(&mut self, value: Option<&str>) -> Result<Self::Tree, TokenWriterError> {
+    fn string(&mut self, value: Option<&SharedString>) -> Result<Self::Tree, TokenWriterError> {
         self.new_tree(SubTree {
             label: Label::String(value.map(|x| Rc::new(x.to_string()))),
             children: vec![]
         })
     }
 
-    fn string_enum(&mut self, value: &str) -> Result<Self::Tree, TokenWriterError> {
+    fn string_enum(&mut self, value: &SharedString) -> Result<Self::Tree, TokenWriterError> {
         self.tagged_tuple(value, &[])
     }
 
