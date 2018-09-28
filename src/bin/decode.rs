@@ -13,6 +13,14 @@ use std::io::*;
 
 use clap::*;
 
+macro_rules! progress {
+    ($quiet:expr, $($args:tt)*) => {
+        if !$quiet {
+            println!($($args)*);
+        }
+    }
+}
+
 fn main() {
     env_logger::init();
 
@@ -29,10 +37,15 @@ fn main() {
             Arg::with_name("dump")
                 .long("dump")
                 .takes_value(false)
-                .help("If specified, dump a JSON version of the AST.")
+                .help("If specified, dump a JSON version of the AST."),
+            Arg::with_name("quiet")
+                .long("quiet")
+                .short("q")
+                .help("Do not print progress"),
         ])
     .get_matches();
 
+    let quiet = matches.is_present("quiet");
     let source_path = matches.value_of("INPUT")
         .expect("Expected input file");
     let dest_path = matches.value_of("OUTPUT")
@@ -41,18 +54,18 @@ fn main() {
     // Setup.
     let printer = Shift::new();
 
-    println!("Reading.");
+    progress!(quiet, "Reading.");
     let file = File::open(source_path)
         .expect("Could not open source");
     let stream = BufReader::new(file);
 
-    println!("Attempting to decode as multipart.");
+    progress!(quiet, "Attempting to decode as multipart.");
     let tree : binjs::specialized::es6::ast::Script = if let Ok(reader) = binjs::io::multipart::TreeTokenReader::new(stream) {
         let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
         deserializer.deserialize()
             .expect("Could not decode")
     } else {
-        println!("... falling back to simple format.");
+        progress!(quiet, "... falling back to simple format.");
 
         let file = File::open(source_path)
             .expect("Could not open source");
@@ -66,12 +79,12 @@ fn main() {
 
     let json = tree.export();
     if matches.is_present("print-json") {
-        println!("Printing to screen...");
+        progress!(quiet, "Printing to screen...");
         let pretty = json.pretty(2);
         println!("{}", pretty);
     }
 
-    println!("Pretty-printing");
+    progress!(quiet, "Pretty-printing");
     let mut builder = binjs::meta::spec::SpecBuilder::new();
     let _ = binjs::generic::es6::Library::new(&mut builder);
     let spec_options = binjs::meta::spec::SpecOptions {
@@ -82,7 +95,7 @@ fn main() {
     let source = printer.to_source(&spec, &json)
         .expect("Could not pretty-print");
 
-    println!("Writing.");
+    progress!(quiet, "Writing.");
     let mut dest = File::create(dest_path)
         .expect("Could not create destination file");
     dest.write(source.as_bytes())
