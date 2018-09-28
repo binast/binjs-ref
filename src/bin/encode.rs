@@ -38,13 +38,22 @@ struct Options<'a> {
     dest_dir: Option<PathBuf>,
     lazification: u32,
     show_ast: bool,
+    quiet: bool,
+}
+
+macro_rules! progress {
+    ($quiet:expr, $($args:tt)*) => {
+        if !$quiet {
+            println!($($args)*);
+        }
+    }
 }
 
 fn handle_path<'a>(options: &mut Options<'a>,
     source_path: &Path,
     sub_dir: &Path)
 {
-    println!("Treating {:?} ({:?})", source_path, sub_dir);
+    progress!(options.quiet, "Treating {:?} ({:?})", source_path, sub_dir);
     let is_dir = std::fs::metadata(source_path)
         .unwrap()
         .is_dir();
@@ -63,7 +72,7 @@ fn handle_path<'a>(options: &mut Options<'a>,
     if let Some(Some("js")) = source_path.extension().map(std::ffi::OsStr::to_str) {
         // Proceed
     } else {
-        println!("Skipping {:?}", source_path);
+        progress!(options.quiet, "Skipping {:?}", source_path);
         return;
     }
     let (dest_txt_path, dest_bin_path) = match options.dest_dir {
@@ -88,16 +97,16 @@ fn handle_path<'a>(options: &mut Options<'a>,
     };
 
     if let Some(ref bin_path) = dest_bin_path {
-        println!("Output: {}", bin_path.to_string_lossy());
+        progress!(options.quiet, "Output: {}", bin_path.to_string_lossy());
     } else {
-        println!("Compressing to memory");
+        progress!(options.quiet, "Compressing to memory");
     }
 
     let source_len = std::fs::metadata(source_path)
         .expect("Could not open source")
         .len();
 
-    println!("Parsing.");
+    progress!(options.quiet, "Parsing.");
     let json = options.parser.parse_file(source_path)
         .expect("Could not parse source");
     let mut ast = binjs::specialized::es6::ast::Script::import(&json)
@@ -106,7 +115,7 @@ fn handle_path<'a>(options: &mut Options<'a>,
         .annotate_script(&mut ast);
 
     if options.lazification > 0 {
-        println!("Introducing laziness.");
+        progress!(options.quiet, "Introducing laziness.");
         let mut path = binjs::specialized::es6::ast::WalkPath::new();
         let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(options.lazification);
         ast.walk(&mut path, &mut visitor)
@@ -119,7 +128,7 @@ fn handle_path<'a>(options: &mut Options<'a>,
         println!("{:#}", json);
     }
 
-    println!("Encoding.");
+    progress!(options.quiet, "Encoding.");
     let encoder = Encoder::new();
     let data = encoder.encode(&mut options.format, &ast)
         .expect("Could not encode");
@@ -128,30 +137,29 @@ fn handle_path<'a>(options: &mut Options<'a>,
         Ok(())
     })
         .expect("Could not write sections");
-
     let dest_len = data.as_ref().as_ref().len();
 
     if let Some(ref bin_path) = dest_bin_path {
-        println!("Writing binary file.");
+        progress!(options.quiet, "Writing binary file.");
         let mut dest = File::create(bin_path)
             .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", bin_path, e));
         dest.write((*data).as_ref())
             .expect("Could not write destination file");
     } else {
-        println!("Skipping write.");
+        progress!(options.quiet, "Skipping write.");
     }
 
     if let Some(ref txt_path) = dest_txt_path {
         if txt_path.exists() {
-            println!("A file with name {:?} already exists, skipping copy.", txt_path);
+            progress!(options.quiet, "A file with name {:?} already exists, skipping copy.", txt_path);
         } else {
-            println!("Copying source file.");
+            progress!(options.quiet, "Copying source file.");
             std::fs::copy(source_path, txt_path)
                 .expect("Could not copy source file");
         }
     }
 
-    println!("Successfully compressed {} bytes => {} bytes", source_len, dest_len);
+    progress!(options.quiet, "Successfully compressed {} bytes => {} bytes", source_len, dest_len);
 }
 
 fn main() {
@@ -202,6 +210,10 @@ fn main_aux() {
                     .map(|_| ())
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
+            Arg::with_name("quiet")
+                .long("quiet")
+                .short("q")
+                .help("Do not print progress"),
         ])
         .subcommand(SubCommand::with_name("advanced")
             .subcommands(format_providers.iter()
@@ -211,6 +223,7 @@ fn main_aux() {
         .get_matches();
 
     // Common options.
+    let quiet = matches.is_present("quiet");
 
     let sources : Vec<_> = matches.values_of("in")
         .expect("Missing `in`")
@@ -225,7 +238,7 @@ fn main_aux() {
     // Format options.
     let format = binjs::io::Format::from_matches(&matches)
         .expect("Could not determine encoding format");
-    println!("Using format: {}", format.name());
+    progress!(quiet, "Using format: {}", format.name());
 
     let show_stats = matches.is_present("statistics");
 
@@ -241,6 +254,7 @@ fn main_aux() {
         dest_dir,
         lazification,
         show_ast: matches.is_present("show-ast"),
+        quiet
     };
 
     for source_path in sources {
@@ -249,7 +263,7 @@ fn main_aux() {
 
     if show_stats {
         if let Format::Multipart { ref stats, .. } = options.format {
-            println!("Statistics: {}", stats.borrow());
+            progress!(options.quiet, "Statistics: {}", stats.borrow());
         }
     }
 }
