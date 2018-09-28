@@ -29,7 +29,7 @@ impl Compare for TypeSpec {
         match (self, left, right) {
             (&TypeSpec::Boolean, &Boolean(ref a), &Boolean(ref b)) =>
                 Ok(a == b),
-            (&TypeSpec::String, _, _) if left.as_str().is_some() && right.as_str().is_some() => // Strings are complicated as they have two different representations in JSON.
+            (&TypeSpec::String, _, _) | (&TypeSpec::PropertyKey, _, _) | (&TypeSpec::IdentifierName, _, _) if left.as_str().is_some() && right.as_str().is_some() => // Strings are complicated as they have two different representations in JSON.
                 Ok(left.as_str() == right.as_str()),
             (&TypeSpec::Number, &Number(ref a), &Number(ref b)) =>
                 Ok(a == b),
@@ -239,7 +239,7 @@ macro_rules! make_ast_visitor {
                         false
                     };
                 if !is_ok {
-                    return Err(ASTError::invalid_value(value, &format!("Instance of {:?}", interface.name())))                    
+                    return Err(ASTError::invalid_value(value, &format!("Instance of {:?}", interface.name())))
                 }
                 if value.is_object() {
                     self.path.enter_interface(name.clone());
@@ -282,7 +282,7 @@ macro_rules! make_ast_visitor {
                             return Ok(())
                         }
                     }
-                    &TypeSpec::String => {
+                    &TypeSpec::String | &TypeSpec::IdentifierName | &TypeSpec::PropertyKey  => {
                         if value.as_str().is_some() {
                             return Ok(())
                         }
@@ -335,7 +335,7 @@ macro_rules! make_ast_visitor {
                 }
                 return Err(ASTError::InvalidValue {
                     expected: format!("{:?}", spec),
-                    got: value.dump()
+                    got: value.pretty(2)
                 })
             }
         }

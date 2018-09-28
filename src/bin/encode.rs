@@ -3,14 +3,14 @@
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
+extern crate log;
 
-use binjs::io::TokenSerializer;
-use binjs::io::multipart::{ SectionOption, WriteOptions };
+use binjs::io::{ CompressionTarget, Format };
 use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
+use binjs::specialized::es6::io::Encoder;
 use binjs::specialized::es6::ast::Walker;
 
-use std::cell::RefCell;
 use std::fs::*;
 use std::io::*;
 use std::thread;
@@ -18,59 +18,23 @@ use std::path::{ Path, PathBuf };
 
 use clap::*;
 
-pub struct PreWriteOptions {
-    pub grammar_table: SectionOption,
-    pub strings_table: SectionOption,
-    pub tree: SectionOption,
-}
-impl PreWriteOptions {
-    fn instantiate(option: &SectionOption) -> SectionOption {
-        match *option {
-            SectionOption::Compression(ref c) => SectionOption::Compression(c.clone()),
-            SectionOption::Discard => SectionOption::Discard,
-            SectionOption::AppendToBuffer(_) => SectionOption::AppendToBuffer(std::rc::Rc::new(RefCell::new(Vec::new()))),
-        }
-    }
-    fn as_write_options(&self) -> WriteOptions {
-        WriteOptions {
-            grammar_table: Self::instantiate(&self.grammar_table),
-            strings_table: Self::instantiate(&self.strings_table),
-            tree: Self::instantiate(&self.tree),
-        }
-    }
-}
-
-fn parse_compression(option: Option<&str>) -> std::result::Result<SectionOption, String> {
-    use binjs::io::bytes::compress::Compression;
-    let result = match option {
-        None | Some("identity") => SectionOption::Compression(Compression::Identity),
-        Some("gzip") => SectionOption::Compression(Compression::Gzip),
-        Some("deflate") => SectionOption::Compression(Compression::Deflate),
-        Some("lzw") => SectionOption::Compression(Compression::Lzw),
-        Some("export") => SectionOption::AppendToBuffer(std::rc::Rc::new(RefCell::new(Vec::new()))),
-        Some(other) => return Err(other.to_string())
-    };
-    Ok(result)
-}
-
-fn write_extract(dest_bin_path: &Option<PathBuf>, option: &SectionOption, extension: &str) {
-    if let SectionOption::AppendToBuffer(ref buf) = *option {
-        let path = dest_bin_path
-            .clone()
-            .expect("Cannot write partial file without a destination")
-            .with_extension(extension);
-        let mut file = File::create(path.clone())
-            .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", path, e));
-        file.write(buf.borrow().as_ref())
-            .expect("Could not write destination file");
-    }
+fn export_section(dest_bin_path: &Option<PathBuf>, target: &mut CompressionTarget, extension: &str) {
+    let path = dest_bin_path
+        .clone()
+        .expect("Cannot write partial file without a destination")
+        .with_extension(extension);
+    let mut file = File::create(path.clone())
+        .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", path, e));
+    let (data, _) = target.done()
+        .expect("Could not finalize compression");
+    file.write(data.as_ref())
+        .expect("Could not write destination file");
+    target.reset();
 }
 
 struct Options<'a> {
     parser: &'a Shift,
-    multipart_stats: RefCell<binjs::io::multipart::Statistics>,
-    simple_stats: RefCell<binjs::io::simple::Statistics>,
-    compression: Option<PreWriteOptions>,
+    format: Format,
     dest_dir: Option<PathBuf>,
     lazification: u32,
     show_ast: bool,
@@ -85,7 +49,7 @@ macro_rules! progress {
     }
 }
 
-fn handle_path<'a>(options: &Options<'a>,
+fn handle_path<'a>(options: &mut Options<'a>,
     source_path: &Path,
     sub_dir: &Path)
 {
@@ -152,7 +116,7 @@ fn handle_path<'a>(options: &Options<'a>,
 
     if options.lazification > 0 {
         progress!(options.quiet, "Introducing laziness.");
-        let mut path = binjs::specialized::es6::ast::Path::new();
+        let mut path = binjs::specialized::es6::ast::WalkPath::new();
         let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(options.lazification);
         ast.walk(&mut path, &mut visitor)
             .expect("Could not introduce laziness");
@@ -165,42 +129,14 @@ fn handle_path<'a>(options: &Options<'a>,
     }
 
     progress!(options.quiet, "Encoding.");
-    let data: Box<AsRef<[u8]>> = {
-        match options.compression {
-            None => {
-                let writer = binjs::io::simple::TreeTokenWriter::new();
-                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                serializer.serialize(&ast)
-                    .expect("Could not encode AST");
-                let (data, stats) = serializer.done()
-                    .expect("Could not finalize AST encoding");
-
-                let mut borrow = options.simple_stats.borrow_mut();
-                *borrow += stats;
-                Box::new(data)
-            }
-            Some(ref pre_options) => {
-                let compression = pre_options.as_write_options();
-                let writer = binjs::io::multipart::TreeTokenWriter::new(compression.clone());
-                let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                serializer.serialize(&ast)
-                    .expect("Could not encode AST");
-                let (data, stats) = serializer.done()
-                    .expect("Could not finalize AST encoding");
-
-                write_extract(&dest_bin_path, &compression.grammar_table, "grammar");
-                write_extract(&dest_bin_path, &compression.strings_table, "strings");
-                write_extract(&dest_bin_path, &compression.tree, "tree");
-
-
-                let mut borrow = options.multipart_stats.borrow_mut();
-                *borrow += stats.with_source_bytes(source_len as usize);
-                Box::new(data)
-
-            }
-        }
-    };
-
+    let encoder = Encoder::new();
+    let data = encoder.encode(&mut options.format, &ast)
+        .expect("Could not encode");
+    options.format.with_sections::<_, ()>(|contents, name| {
+        export_section(&dest_bin_path, contents, name);
+        Ok(())
+    })
+        .expect("Could not write sections");
     let dest_len = data.as_ref().as_ref().len();
 
     if let Some(ref bin_path) = dest_bin_path {
@@ -241,6 +177,8 @@ fn main() {
 fn main_aux() {
     env_logger::init();
 
+    let format_providers = binjs::io::Format::providers();
+
     let matches = App::new("BinJS encoder")
         .author("David Teller, <dteller@mozilla.com>")
         .about("Encode a JavaScript text source to a JavaScript binary source in the BinJS format.")
@@ -258,31 +196,6 @@ fn main_aux() {
                 .takes_value(true)
                 .required(true)
                 .help("Output directory to use. Files in this directory may be overwritten."),
-            Arg::with_name("format")
-                .long("format")
-                .takes_value(true)
-                .possible_values(&["simple", "multipart"])
-                .help("Format to use for writing to OUTPUT. Defaults to `multipart`."),
-            Arg::with_name("strings")
-                .long("strings")
-                .takes_value(true)
-                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for strings. Defaults to identity."),
-            Arg::with_name("sections")
-                .long("sections")
-                .takes_value(true)
-                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for all sections. Defaults to identity."),
-            Arg::with_name("grammar")
-                .long("grammar")
-                .takes_value(true)
-                .possible_values(&["export", "discard", "identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for the grammar table. Defaults to identity."),
-            Arg::with_name("tree")
-                .long("tree")
-                .takes_value(true)
-                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
-                .help("Compression format for the tree. Defaults to identity."),
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
@@ -302,12 +215,14 @@ fn main_aux() {
                 .short("q")
                 .help("Do not print progress"),
         ])
-        .group(ArgGroup::with_name("multipart")
-            .args(&["strings", "grammar", "tree"])
-            .multiple(true)
+        .subcommand(SubCommand::with_name("advanced")
+            .subcommands(format_providers.iter()
+                .map(|x| x.subcommand())
+            )
         )
         .get_matches();
 
+    // Common options.
     let quiet = matches.is_present("quiet");
 
     let sources : Vec<_> = matches.values_of("in")
@@ -320,63 +235,22 @@ fn main_aux() {
         Some(path) => Some(Path::new(path).to_path_buf())
     };
 
-    let compression = {
-        let is_compressed =
-            match matches.value_of("format") {
-                None | Some("multipart") => true,
-                _ if matches.values_of("sections").is_some()
-                   || matches.value_of("strings").is_some()
-                   || matches.value_of("grammar").is_some()
-                   || matches.value_of("tree").is_some()
-                 => {
-                    println!("Error: Cannot specify `strings`, `grammar` or `tree` with this format.\n{}", matches.usage());
-                    std::process::exit(-1);
-                 }
-                _ => false
-            };
-        if is_compressed {
-            if let Some(ref spec) = matches.value_of("sections") {
-                let compression = parse_compression(Some(spec))
-                    .expect("Could not parse sections compression format");
-                Some(PreWriteOptions {
-                    strings_table: compression.clone(),
-                    grammar_table: compression.clone(),
-                    tree: compression,
-                })
-            } else {
-                let strings = parse_compression(matches.value_of("strings"))
-                    .expect("Could not parse string compression format");
-                let grammar = parse_compression(matches.value_of("grammar"))
-                    .expect("Could not parse grammar compression format");
-                let tree = parse_compression(matches.value_of("tree"))
-                    .expect("Could not parse tree compression format");
-                Some(PreWriteOptions {
-                    strings_table: strings,
-                    grammar_table: grammar,
-                    tree
-                })
-            }
-        } else {
-            progress!(quiet, "Format: simple");
-            None
-        }
-    };
+    // Format options.
+    let format = binjs::io::Format::from_matches(&matches)
+        .expect("Could not determine encoding format");
+    progress!(quiet, "Using format: {}", format.name());
+
     let show_stats = matches.is_present("statistics");
 
     // Setup.
     let parser = Shift::new();
-    let multipart_stats = binjs::io::multipart::Statistics::default()
-        .with_source_bytes(0);
-    let simple_stats = binjs::io::simple::Statistics::default();
 
     let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
         .expect("Invalid number");
 
-    let options = Options {
+    let mut options = Options {
         parser: &parser,
-        multipart_stats: RefCell::new(multipart_stats),
-        simple_stats: RefCell::new(simple_stats),
-        compression,
+        format,
         dest_dir,
         lazification,
         show_ast: matches.is_present("show-ast"),
@@ -384,14 +258,12 @@ fn main_aux() {
     };
 
     for source_path in sources {
-        handle_path(&options, source_path, PathBuf::new().as_path());
+        handle_path(&mut options, source_path, PathBuf::new().as_path());
     }
 
     if show_stats {
-        if options.compression.is_none() {
-            progress!(options.quiet, "Statistics: {}", options.simple_stats.borrow());
-        } else {
-            progress!(options.quiet, "Statistics: {}", options.multipart_stats.borrow());
+        if let Format::Multipart { ref stats, .. } = options.format {
+            progress!(options.quiet, "Statistics: {}", stats.borrow());
         }
     }
 }

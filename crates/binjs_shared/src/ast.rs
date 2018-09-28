@@ -44,6 +44,7 @@ use std::fmt::*;
 /// path.exit_interface("Interface 1"); // Exiting the wrong interface would panic.
 /// ```
 
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     /// Some(foo) if we have entered interface foo but no field yet.
     /// Otherwise, None.
@@ -51,11 +52,21 @@ pub struct Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     items: Vec<PathItem<I, F>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PathItem<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     pub interface: I,
     pub field: F,
 }
+impl<I, F> PathItem<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+    pub fn interface(&self) -> &I {
+        &self.interface
+    }
+    pub fn field(&self) -> &F {
+        &self.field
+    }
+}
+
+
 impl<I, F> Debug for Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     fn fmt(&self, f: &mut Formatter) -> Result {
         use itertools::Itertools;
@@ -80,20 +91,32 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
         }
     }
 
+    /// Create an empty `Path`, initialized to hold up
+    /// to `capacity` elements without resize.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            interface: None,
+            items: Vec::with_capacity(capacity)
+        }
+    }
+
     /// Enter an interface.
     ///
     /// All calls to `enter_interface` MUST be balanced with calls
     /// to `exit_interface`.
     pub fn enter_interface(&mut self, node: I) {
+        debug!(target: "path", "enter_interface: {:?}", node);
         debug_assert!(self.interface.is_none());
         self.interface = Some(node);
     }
     pub fn exit_interface(&mut self, node: I) {
+        debug!(target: "path", "exit_interface: {:?}", node);
         let interface = self.interface.take()
             .expect("Could not exit_interface if we're not in an interface");
         debug_assert!(node == interface);
     }
     pub fn enter_field(&mut self, field: F) {
+        debug!(target: "path", "enter_field: {:?} at {:?}", field, self.interface);
         let interface = self.interface.take()
             .unwrap();
         self.items.push(PathItem {
@@ -102,6 +125,7 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
         });
     }
     pub fn exit_field(&mut self, field: F) {
+        debug!(target: "path", "exit_field: {:?}", field);
         debug_assert!(self.interface.is_none());
         let PathItem {
             interface,
@@ -120,5 +144,19 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
             return None;
         }
         Some(&self.items[self.len() - index - 1])
+    }
+
+    /// Return the last `len` elements of the path, in
+    /// the order in which they appear in the path
+    /// (current element is last).
+    ///
+    /// If there are fewer than `len` elements, return
+    /// as many elements as possible.
+    pub fn tail(&self, len: usize) -> &[PathItem<I, F>] {
+        if len >= self.len() {
+            &self.items[self.len() - len..]
+        } else {
+            &self.items
+        }
     }
 }

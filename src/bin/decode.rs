@@ -62,7 +62,7 @@ fn main() {
     progress!(quiet, "Attempting to decode as multipart.");
     let tree : binjs::specialized::es6::ast::Script = if let Ok(reader) = binjs::io::multipart::TreeTokenReader::new(stream) {
         let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
-        deserializer.deserialize()
+        deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
             .expect("Could not decode")
     } else {
         progress!(quiet, "... falling back to simple format.");
@@ -73,7 +73,7 @@ fn main() {
 
         let reader = binjs::io::simple::TreeTokenReader::new(stream);
         let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
-        deserializer.deserialize()
+        deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
             .expect("Could not decode")
     };
 

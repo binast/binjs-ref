@@ -113,6 +113,10 @@
 //!     - for each field
 //!       - the token
 
+use binjs_shared::SharedString;
+
+use clap;
+
 /// Implementation of the token reader.
 mod read;
 
@@ -134,12 +138,54 @@ trait FormatInTable {
 }
 
 
-impl FormatInTable for Option<String> {
+impl FormatInTable for Option<SharedString> {
     const HAS_LENGTH_INDEX : bool = false;
 }
 
 pub use self::read::TreeTokenReader;
-pub use self::write::{ TreeTokenWriter, Statistics, SectionOption, WriteOptions };
+pub use self::write::{ Statistics, TreeTokenWriter, Targets };
+
+/// Command-line management.
+pub struct FormatProvider;
+impl ::FormatProvider for FormatProvider {
+    fn subcommand<'a, 'b>(&self) -> clap::App<'a, 'b> {
+        use clap::*;
+        SubCommand::with_name("multipart")
+            .about("Use the multipart format (default)")
+            .arg(Arg::with_name("x-inner-compression")
+                .help("(EXPERIMENTAL) Apply a secondary compression *inside* the file. Used only when compressing.")
+                .long("x-inner-compression")
+                .takes_value(true)
+                .possible_values(&["identity", "gzip", "deflate", "br", "lzw"])
+            )
+            .arg(Arg::with_name("x-dump-sections")
+                .help("(EXPERIMENTAL) Export sections to individual files. Used only when compressing.")
+                .long("x-dump-sections")
+            )
+    }
+
+    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
+        use bytes::compress::Compression;
+        use multipart::{ Statistics, Targets };
+
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let stats = Rc::new(RefCell::new(Statistics::default()
+            .with_source_bytes(0)));
+        let compression = matches.map(|matches| {
+            Compression::parse(matches.value_of("x-inner-compression"))
+                .expect("Could not parse x-inner-compression")
+        }).unwrap_or(Compression::Identity);
+        Ok(::Format::Multipart {
+            targets: Targets {
+                strings_table: ::CompressionTarget::new(compression.clone()),
+                grammar_table: ::CompressionTarget::new(compression.clone()),
+                tree: ::CompressionTarget::new(compression.clone()),
+            },
+            stats
+        })
+    }
+}
 
 
 #[test]
@@ -148,6 +194,9 @@ fn test_multipart_io() {
     extern crate env_logger;
     env_logger::init();
 
+    use binjs_shared::SharedString;
+
+    use ::CompressionTarget;
     use io::{ Guard, TokenReader, TokenWriter };
     use multipart::*;
 
@@ -162,10 +211,10 @@ fn test_multipart_io() {
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {
-                    vec.push(WriteOptions {
-                        grammar_table: SectionOption::Compression(grammar_table.clone()),
-                        strings_table: SectionOption::Compression(strings_table.clone()),
-                        tree: SectionOption::Compression(tree.clone()),
+                    vec.push(Targets {
+                        grammar_table: CompressionTarget::new(grammar_table.clone()),
+                        strings_table: CompressionTarget::new(strings_table.clone()),
+                        tree: CompressionTarget::new(tree.clone()),
                     });
                 }
             }
@@ -173,19 +222,21 @@ fn test_multipart_io() {
         vec
     };
 
-    for options in all_options {
+    for mut options in all_options {
         println!("Options {:?}", options);
         let suffix = format!("{:?}-{:?}-{:?}", options.grammar_table, options.strings_table, options.tree);
 
 
         {
+            options.reset();
             let mut writer : ::multipart::TreeTokenWriter = TreeTokenWriter::new(options.clone());
-            writer.string(Some("simple string"))
+            writer.string(Some(&SharedString::from_str("simple string")))
                 .expect("Writing simple string");
 
             let (output, _) = writer.done()
                 .expect("Finalizing data");
-            File::create(format!("/tmp/test-simple-string-{}.binjs", suffix)).unwrap()
+            File::create(format!("/tmp/test-simple-string-{}.binjs", suffix))
+                .expect("Could not create file")
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output))
@@ -198,9 +249,10 @@ fn test_multipart_io() {
 
 
         {
-            let data = "string with escapes \u{0}\u{1}\u{0}";
+            options.reset();
+            let data = SharedString::from_str("string with escapes \u{0}\u{1}\u{0}");
             let mut writer = TreeTokenWriter::new(options.clone());
-            writer.string(Some(data))
+            writer.string(Some(&data))
                 .expect("Writing string with escapes");
 
             let (output, _) = writer.done()
@@ -212,12 +264,13 @@ fn test_multipart_io() {
             let escapes_string = reader.string()
                 .expect("Reading string with escapes")
                 .expect("Non-null string");
-            assert_eq!(&escapes_string, data);
+            assert_eq!(escapes_string, data);
         }
 
         println!("Testing untagged tuple I/O");
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
             writer.untagged_tuple(&[])
                 .expect("Writing empty untagged tuple");
@@ -237,9 +290,10 @@ fn test_multipart_io() {
         }
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
-            let item_0 = writer.string(Some("foo")).unwrap();
-            let item_1 = writer.string(Some("bar")).unwrap();
+            let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
+            let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
             writer.untagged_tuple(&[item_0, item_1])
                 .expect("Writing trivial untagged tuple");
 
@@ -267,9 +321,10 @@ fn test_multipart_io() {
         println!("Testing tagged tuple I/O");
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
-            let item_0 = writer.string(Some("foo")).unwrap();
-            let item_1 = writer.string(Some("bar")).unwrap();
+            let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
+            let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
             let item_2 = writer.float(Some(3.1415)).unwrap();
             writer.tagged_tuple("some tuple", &[
                 ("abc", item_0),
@@ -286,7 +341,7 @@ fn test_multipart_io() {
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
             let (name, fields, guard) = reader.tagged_tuple()
                 .expect("Reading trivial tagged tuple");
-            assert_eq!(name, "some tuple".to_string());
+            assert_eq!(name, "some tuple");
 
             assert_eq!(fields, None);
             let simple_string_1 = reader.string()
@@ -311,6 +366,7 @@ fn test_multipart_io() {
         println!("Testing list I/O");
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
             writer.list(vec![])
                 .expect("Writing empty list");
@@ -330,9 +386,10 @@ fn test_multipart_io() {
         }
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
-            let item_0 = writer.string(Some("foo")).unwrap();
-            let item_1 = writer.string(Some("bar")).unwrap();
+            let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
+            let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
             writer.list(vec![item_0, item_1])
                 .expect("Writing trivial list");
 
@@ -360,9 +417,10 @@ fn test_multipart_io() {
         }
 
         {
+            options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
-            let item_0 = writer.string(Some("foo")).unwrap();
-            let item_1 = writer.string(Some("bar")).unwrap();
+            let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
+            let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
             let list = writer.list(vec![item_0, item_1])
                 .expect("Writing inner list");
             writer.list(vec![list])

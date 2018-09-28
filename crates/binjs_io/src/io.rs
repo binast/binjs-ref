@@ -7,10 +7,21 @@
 //! In practice, this API is kept as a trait to simplify unit testing and
 //! experimentation of sophisticated compression schemes.
 
+use binjs_shared::{ IdentifierName, PropertyKey, SharedString, self };
+
+use ::{ TokenWriterError };
+
+#[cfg(multistream)]
+use std::collections::HashMap;
 use std::fmt::{ Debug, Display };
+#[cfg(multistream)]
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::Add;
 use std::rc::Rc;
+
+#[cfg(multistream)]
+use itertools::Itertools;
 
 /// An API for printing the binary representation and its structural
 /// interpretation of the file.
@@ -140,12 +151,20 @@ macro_rules! print_file_structure(
     )
 );
 
+
+pub type Path = binjs_shared::ast::Path</* Interface */ SharedString, /* Field */ (usize, SharedString)>;
+
 /// An API for reading tokens.
 ///
 /// Note that a `TokenReader` by itself *cannot* determine the nature of the
 /// following token. Rather, the driver of the `TokenReader` must be able to
 /// deduce the nature of the following token from what it has previously
 /// read.
+///
+/// All the reading methods offer a version suffixed with `_at(path: &Path)`,
+/// which lets the reader determine what item we're reading in the AST. This
+/// may be used both for debugging purposes and for encodings that depend
+/// on the current position in the AST (e.g. entropy coding).
 pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::TokenReaderError>,
                                                   Self::ListGuard: Guard<Error = Self::Error>,
                                                   Self::TaggedGuard: Guard<Error = Self::Error>,
@@ -182,19 +201,77 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// Read a single UTF-8 string.
     ///
     /// The returned string MUST be valid UTF-8.
-    fn string(&mut self) -> Result<Option<String>, Self::Error>;
+    fn string(&mut self) -> Result<Option<SharedString>, Self::Error>;
+    fn string_at(&mut self, _path: &Path) -> Result<Option<SharedString>, Self::Error> {
+        self.string()
+    }
 
-    /// Read a single `f64`. Note that all numbers are `f64`.
+    /// Read a single UTF-8 value from a string enumeration.
+    ///
+    /// The default implementation uses `self.string``, but some encodings may use
+    /// the extra information e.g. to represent the enumeration by an index in the
+    /// list of possible values, or to encode string enums as interfaces.
+    ///
+    /// The returned string MUST be valid UTF-8.
+    fn string_enum(&mut self) -> Result<SharedString, Self::Error> {
+        self.string()?
+            .ok_or_else(|| ::TokenReaderError::EmptyVariant.into())
+    }
+    fn string_enum_at(&mut self, _path: &Path) -> Result<SharedString, Self::Error> {
+        self.string_enum()
+    }
+
+    /// Read a single identifier name.
+    ///
+    /// The default implementation uses `self.string`/`self.string_at`, but
+    /// some encodings may use the extra information e.g. to represent the
+    /// identifier as a DeBruijn index.
+    fn identifier_name(&mut self) -> Result<Option<IdentifierName>, Self::Error> {
+        let result = self.string()?
+            .map(IdentifierName);
+        Ok(result)
+    }
+    fn identifier_name_at(&mut self, _path: &Path) -> Result<Option<IdentifierName>, Self::Error> {
+        self.identifier_name()
+    }
+
+    /// Read a single property name.
+    ///
+    /// The default implementation uses `self.string`/`self.string_at`, but
+    /// some encodings may use the extra information e.g. to initialize
+    /// dictionaries.
+    fn property_key(&mut self) -> Result<Option<PropertyKey>, Self::Error> {
+        let result = self.string()?
+            .map(PropertyKey);
+        Ok(result)
+    }
+    fn property_key_at(&mut self, _path: &Path) -> Result<Option<PropertyKey>, Self::Error> {
+        self.property_key()
+    }
+
+    /// Read a single `f64`. Note that all user-level numbers are `f64`.
     fn float(&mut self) -> Result<Option<f64>, Self::Error>;
+    fn float_at(&mut self, _path: &Path) -> Result<Option<f64>, Self::Error> {
+        self.float()
+    }
 
     /// Read a single `u32`.
     fn unsigned_long(&mut self) -> Result<u32, Self::Error>;
+    fn unsigned_long_at(&mut self, _path: &Path) -> Result<u32, Self::Error> {
+        self.unsigned_long()
+    }
 
     /// Read a single `bool`.
     fn bool(&mut self) -> Result<Option<bool>, Self::Error>;
+    fn bool_at(&mut self, _path: &Path) -> Result<Option<bool>, Self::Error> {
+        self.bool()
+    }
 
     /// Read a single number of bytes.
     fn offset(&mut self) -> Result<u32, Self::Error>;
+    fn offset_at(&mut self, _path: &Path) -> Result<u32, Self::Error> {
+        self.offset()
+    }
 
     /// Start reading a list.
     ///
@@ -204,6 +281,9 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
     fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error>;
+    fn list_at(&mut self, _path: &Path) -> Result<(u32, Self::ListGuard), Self::Error> {
+        self.list()
+    }
 
     /// Start reading a tagged tuple. If the stream was encoded
     /// properly, the tag is attached to an **ordered** tuple of
@@ -215,7 +295,23 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// call `guard.done()` to ensure that the tuple was properly
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
-    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error>;
+    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error>;
+    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+        self.tagged_tuple()
+    }
+
+    /// Start reading a tagged `[Scope]` tuple, i.e. a tuple to
+    /// which identifier declarations/references may be attached.
+    ///
+    /// The default implementation uses `tagged_tuple`,
+    /// but some encodings may use the extra information e.g. to
+    /// perform DeBruijn indices, or prediction based on the scope.
+    fn tagged_scoped_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+        self.tagged_tuple()
+    }
+    fn tagged_scoped_tuple_at(&mut self, _path: &Path) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+        self.tagged_scoped_tuple()
+    }
 
     /// Start reading an untagged tuple.
     ///
@@ -224,13 +320,21 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
     fn untagged_tuple(&mut self) -> Result<Self::UntaggedGuard, Self::Error>;
+    fn untagged_tuple_at(&mut self, _path: &Path) -> Result<Self::UntaggedGuard, Self::Error> {
+        self.untagged_tuple()
+    }
 }
 
 /// Build an in-memory representation of a BinTree.
 ///
 /// Implementations may for instance introduce atoms,
 /// maximal sharing, etc.
-pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Sized + Add + Default {
+///
+/// All the reading methods offer a version suffixed with `_at(..., path: &Path)`,
+/// which lets the writer determine what item we're reading in the AST. This
+/// may be used both for debugging purposes and for encodings that depend
+/// on the current position in the AST (e.g. entropy coding).
+pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// The type of trees manipulated by this writer.
     type Tree;
 
@@ -241,14 +345,8 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
     /// Typically some variant of `Vec<u8>`.
     type Data: AsRef<[u8]>;
 
-    /// An error returned by this writer.
-    ///
-    /// Note that errors are *not* recoverable within the life
-    /// of this `TokenWriter`.
-    type Error;
-
     /// Finish writing, produce data.
-    fn done(self) -> Result<(Self::Data, Self::Statistics), Self::Error>;
+    fn done(self) -> Result<(Self::Data, Self::Statistics), TokenWriterError>;
 
     /// Write a tagged tuple.
     ///
@@ -256,36 +354,105 @@ pub trait TokenWriter where Self::Error: Debug, Self::Statistics: Display + Size
     /// recorded by the `TokenWriter`.
     ///
     /// The interface MUST have a Tag.
-    fn tagged_tuple(&mut self, tag: &str, &[(&str, Self::Tree)]) -> Result<Self::Tree, Self::Error>;
+    fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError>;
+    fn tagged_tuple_at(&mut self, tag: &str, children: &[(&str, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.tagged_tuple(tag, children)
+    }
+
+    /// Write a tagged `[Scope]` tuple, i.e. a tuple  i.e. a tuple to
+    /// which identifier declarations/references may be attached.
+    ///
+    /// The default implementation uses `tagged_tuple`,
+    /// but some encodings may use the extra information e.g. to
+    /// perform DeBruijn indices, or prediction based on the scope.
+    fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+        self.tagged_tuple(tag, children)
+    }
+    fn tagged_scope_tuple_at(&mut self, tag: &str, children: &[(&str, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.tagged_scope_tuple(tag, children)
+    }
 
     /// Write an untagged tuple.
     ///
     /// The number of items is specified by the grammar, so it MAY not be
     /// recorded by the `TokenWriter`.
-    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, Self::Error>;
+    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, TokenWriterError>;
+    fn untagged_tuple_at(&mut self, children: &[Self::Tree], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.untagged_tuple(children)
+    }
 
     /// Write a list.
     ///
     /// By opposition to a tuple, the number of items is variable and MUST
     /// be somehow recorded by the `TokenWriter`.
-    fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, Self::Error>;
+    fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError>;
+    fn list_at(&mut self, items: Vec<Self::Tree>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.list(items)
+    }
 
     /// Write a single UTF-8 string.
     ///
     /// If specified, the string MUST be UTF-8.
-    fn string(&mut self, Option<&str>) -> Result<Self::Tree, Self::Error>;
+    fn string(&mut self, Option<&SharedString>) -> Result<Self::Tree, TokenWriterError>;
+    fn string_at(&mut self, value: Option<&SharedString>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.string(value)
+    }
+
+    /// Write a single UTF-8 value from a string enumeration.
+    ///
+    /// The default implementation uses `self.string``, but some encodings may use
+    /// the extra information e.g. to represent the enumeration by an index in the
+    /// list of possible values, or to encode string enums as interfaces.
+    fn string_enum(&mut self, str: &SharedString) -> Result<Self::Tree, TokenWriterError> {
+        self.string(Some(str))
+    }
+    fn string_enum_at(&mut self, value: &SharedString, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.string_enum(value)
+    }
 
     /// Write a single number.
-    fn float(&mut self, Option<f64>) -> Result<Self::Tree, Self::Error>;
+    fn float(&mut self, Option<f64>) -> Result<Self::Tree, TokenWriterError>;
+    fn float_at(&mut self, value: Option<f64>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.float(value)
+    }
 
     /// Write a single u32.
-    fn unsigned_long(&mut self, u32) -> Result<Self::Tree, Self::Error>;
+    fn unsigned_long(&mut self, u32) -> Result<Self::Tree, TokenWriterError>;
+    fn unsigned_long_at(&mut self, value: u32, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.unsigned_long(value)
+    }
 
     /// Write single bool.
-    fn bool(&mut self, Option<bool>) -> Result<Self::Tree, Self::Error>;
+    // FIXME: Split `bool` from `maybe_bool`.
+    fn bool(&mut self, Option<bool>) -> Result<Self::Tree, TokenWriterError>;
+    fn bool_at(&mut self, value: Option<bool>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.bool(value)
+    }
 
     /// Write the number of bytes left in this tuple.
-    fn offset(&mut self) -> Result<Self::Tree, Self::Error>;
+    fn offset(&mut self) -> Result<Self::Tree, TokenWriterError>;
+    fn offset_at(&mut self, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.offset()
+    }
+
+
+    fn property_key(&mut self, value: Option<&PropertyKey>) -> Result<Self::Tree, TokenWriterError> {
+        let string = value.map(PropertyKey::as_shared_string);
+        self.string(string)
+    }
+    fn property_key_at(&mut self, value: Option<&PropertyKey>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.property_key(value)
+    }
+    // FIXME: Split `property_key` from `maybe_property_key`.
+
+    fn identifier_name(&mut self, value: Option<&IdentifierName>) -> Result<Self::Tree, TokenWriterError> {
+        let string = value.map(IdentifierName::as_shared_string);
+        self.string(string)
+    }
+    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.identifier_name(value)
+    }
+    // FIXME: Split `identifier_name` from `maybe_identifier_name`.
 }
 
 
@@ -346,16 +513,22 @@ impl<Error> Drop for TrivialGuard<Error> {
 }
 
 pub trait Serialization<W, T> where W: TokenWriter, T: Sized {
-    fn serialize(&mut self, data: T) -> Result<W::Tree, W::Error>;
+    /// Serialize a piece of data.
+    ///
+    /// `path` indicates the path from the root of the AST.
+    fn serialize(&mut self, data: T, path: &mut Path) -> Result<W::Tree, TokenWriterError>;
 }
 pub trait TokenSerializer<W> where W: TokenWriter {
-    fn done(self) -> Result<(W::Data, W::Statistics), W::Error>;
+    fn done(self) -> Result<(W::Data, W::Statistics), TokenWriterError>;
 }
-
+pub trait RootedTokenSerializer<W, T>: Serialization<W, T> + TokenSerializer<W> where W: TokenWriter, T: Sized { }
+pub trait TokenSerializerFamily<T> {
+    fn make<W>(&self, writer: W) -> Box<RootedTokenSerializer<W, T>> where W: TokenWriter;
+}
 
 pub trait Deserialization<R, T> where R: TokenReader, T: Sized {
-    fn deserialize(&mut self) -> Result<T, R::Error>;
+    fn deserialize(&mut self, &mut Path) -> Result<T, R::Error>;
 }
 pub trait InnerDeserialization<R, T> where R: TokenReader, T: Sized {
-    fn deserialize_inner(&mut self) -> Result<T, R::Error>;
+    fn deserialize_inner(&mut self, &mut Path) -> Result<T, R::Error>;
 }

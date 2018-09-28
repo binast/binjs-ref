@@ -213,7 +213,7 @@ impl Compression {
             };
 
         let mut byte_len = 0;
-        inp.read_varnum(&mut byte_len)?;
+        inp.read_varnum_to(&mut byte_len)?;
 
         let mut compressed_bytes = Vec::with_capacity(byte_len as usize);
         unsafe { compressed_bytes.set_len(byte_len as usize )};

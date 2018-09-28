@@ -14,6 +14,8 @@ use io::*;
 use multipart::{ FormatInTable, HEADER_GRAMMAR_TABLE, HEADER_STRINGS_TABLE, HEADER_TREE };
 use util::{ PoisonLock, Pos, ReadConst };
 
+use binjs_shared::SharedString;
+
 impl Into<std::io::Error> for TokenReaderError {
     fn into(self) -> std::io::Error {
         std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", self))
@@ -34,11 +36,10 @@ impl Deserializer for BufDeserializer {
 }
 
 /// Deserialize a String|null
-impl Deserializer for Option<String> {
+impl Deserializer for Option<SharedString> {
     type Target = Self;
     fn read<R: Read>(&self, inp: &mut R) -> Result<Self, std::io::Error> {
-        let mut byte_len = 0;
-        inp.read_varnum(&mut byte_len)?;
+        let byte_len = inp.read_varnum()?;
         let mut bytes = Vec::with_capacity(byte_len as usize);
         unsafe { bytes.set_len(byte_len as usize); }
         inp.read_exact(&mut bytes)?;
@@ -47,6 +48,7 @@ impl Deserializer for Option<String> {
         } else {
             String::from_utf8(bytes)
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
+                .map(SharedString::from_string)
                 .map(Some)
         }
     }
@@ -72,8 +74,7 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
     type Target = Table<D::Target>;
     fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
         // Get number of entries.
-        let mut number_of_entries = 0;
-        inp.read_varnum(&mut number_of_entries)?;
+        let number_of_entries = inp.read_varnum()?;
 
         let mut map = VecMap::with_capacity(number_of_entries as usize);
 
@@ -81,8 +82,7 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
             // Read table of lengths.
             let mut byte_lengths = Vec::with_capacity(number_of_entries as usize);
             for _ in 0..number_of_entries {
-                let mut byte_len = 0;
-                inp.read_varnum(&mut byte_len)?;
+                let byte_len = inp.read_varnum()?;
                 byte_lengths.push(byte_len);
             }
 
@@ -114,7 +114,7 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
 /// Description of a node in the table.
 #[derive(Debug)]
 pub struct NodeDescription {
-    kind: String,
+    kind: SharedString,
 }
 
 impl<'a> FormatInTable for NodeDescription {
@@ -130,7 +130,7 @@ impl Deserializer for NodeDescriptionDeserializer {
     type Target = NodeDescription;
     fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
         // Extract kind
-        let strings_deserializer : Option<String> = None;
+        let strings_deserializer : Option<SharedString> = None;
         let name = match strings_deserializer.read(inp)? {
             None => return Err(TokenReaderError::EmptyNodeName.into()),
             Some(x) => x
@@ -219,7 +219,7 @@ impl std::io::Seek for DumpCursor {
 /// Use a `PoisonLock` to access this state.
 pub struct ReaderState {
     reader: DumpCursor,
-    pub strings_table: Table<Option<String>>,
+    pub strings_table: Table<Option<SharedString>>,
     pub grammar_table: Table<NodeDescription>,
 }
 
@@ -238,8 +238,7 @@ impl TreeTokenReader {
         reader.read_const(MAGIC_HEADER)
             .map_err(TokenReaderError::ReadError)?;
 
-        let mut version = 0;
-        reader.read_varnum(&mut version)
+        let version = reader.read_varnum()
             .map_err(TokenReaderError::ReadError)?;
 
         if version != FORMAT_VERSION {
@@ -263,7 +262,7 @@ impl TreeTokenReader {
         reader.read_const(HEADER_STRINGS_TABLE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
         let strings_deserializer = TableDeserializer {
-            deserializer: None /* Option<String> */
+            deserializer: None /* Option<SharedString> */
         };
         let strings_table = Compression::decompress(&mut reader, &strings_deserializer)
             .map_err(TokenReaderError::BadCompression)?;
@@ -355,9 +354,9 @@ impl TokenReader for TreeTokenReader {
         self.owner.borrow_mut().poison();
     }
 
-    fn string(&mut self) -> Result<Option<String>, Self::Error> {
+    fn string(&mut self) -> Result<Option<SharedString>, Self::Error> {
         self.owner.borrow_mut().try(|state| {
-            let index = state.reader.read_varnum_2()
+            let index = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             match state.strings_table.get(index) {
                 Some(result) => {
@@ -365,12 +364,13 @@ impl TokenReader for TreeTokenReader {
                     match result {
                         Some(s) => {
                             print_file_structure!(state.reader, "string=\"{}\"", s);
+                            Ok(Some(s.clone()))
                         },
                         None => {
                             print_file_structure!(state.reader, "string=None");
+                            Ok(None)
                         }
-                    };
-                    Ok(result.clone())
+                    }
                 }
                 None => Err(TokenReaderError::BadStringIndex(index))
             }
@@ -401,7 +401,7 @@ impl TokenReader for TreeTokenReader {
     /// Read a single `u32`.
     fn unsigned_long(&mut self) -> Result<u32, Self::Error> {
         self.owner.borrow_mut().try(|state| {
-            let result = state.reader.read_varnum_2()
+            let result = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)? as u32;
             print_file_structure!(state.reader, "unsigned_long={}",
                                   result);
@@ -416,7 +416,9 @@ impl TokenReader for TreeTokenReader {
             state.reader.read(&mut buf)
                 .map_err(TokenReaderError::ReadError)?;
             let result = bytes::bool::bool_of_bytes(&buf)
-                .map_err(|_| TokenReaderError::InvalidValue);
+                .map_err(|e| {
+                    TokenReaderError::invalid_value(&e)
+                });
             debug!(target: "multipart", "Reading bool {:?} => {:?}", buf, result);
             match result {
                 Ok(Some(b)) => {
@@ -434,7 +436,7 @@ impl TokenReader for TreeTokenReader {
     /// Read a single `u32`.
     fn offset(&mut self) -> Result<u32, Self::Error> {
         self.owner.borrow_mut().try(|state| {
-            let byte_len = state.reader.read_varnum_2()
+            let byte_len = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             let offset = state.reader.seek(SeekFrom::Current(0))
                 .map_err(TokenReaderError::ReadError)?;
@@ -453,7 +455,7 @@ impl TokenReader for TreeTokenReader {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(move |state| {
             let guard = ListGuard::new(clone);
-            let list_len = state.reader.read_varnum_2()
+            let list_len = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             debug!(target: "multipart", "Reading list with {} items", list_len);
             Ok((list_len, guard))
@@ -465,10 +467,10 @@ impl TokenReader for TreeTokenReader {
     /// Returns the tag name, `None` for fields and a
     /// sub-extractor dedicated
     /// to that tuple. The sub-extractor MUST be consumed entirely.
-    fn tagged_tuple(&mut self) -> Result<(String, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
-            let index = state.reader.read_varnum_2()
+            let index = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             let description = state.grammar_table.get(index)
                 .ok_or(TokenReaderError::BadKindIndex(index))?;

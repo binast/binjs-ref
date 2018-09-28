@@ -11,18 +11,17 @@ extern crate rand;
 
 const DEFAULT_TREE_SIZE: isize = 5;
 
-
 use binjs::source::Shift;
-use binjs::generic::io::encode::Encode;
+use binjs::generic::io::Encoder;
 use binjs::generic::pick::{ Pick, Picker };
 
 use clap::*;
-use rand::Rand;
-
 use std::io::Write;
 
 fn main() {
     env_logger::init();
+
+    let format_providers = binjs::io::Format::providers();
 
     let matches = App::new("BinJS source file generator")
         .author("David Teller <dteller@mozilla.com>")
@@ -33,11 +32,6 @@ Note that this tool does not attempt to make sure that the files are entirely co
             Arg::with_name("PREFIX")
                 .required(true)
                 .help("A prefix for generated files."),
-            Arg::with_name("format")
-                .long("format")
-                .takes_value(true)
-                .possible_values(&["simple", "multipart"])
-                .help("Format to use for writing the files. If multipart, the choice of internal compression algorithms is randomized. If unspecified, defaults to simple."),
             Arg::with_name("number")
                 .long("number")
                 .short("n")
@@ -52,13 +46,18 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .long("random-metadata")
                 .help("If specified, generate random ast metadata (declared variables, etc.).")
         ])
+        .subcommand(SubCommand::with_name("advanced")
+            .subcommands(format_providers.iter()
+                .map(|x| x.subcommand())
+            )
+        )
         .get_matches();
-    let is_multipart =
-        if let Some("multipart") = matches.value_of("format") {
-            true
-        } else {
-            false
-        };
+
+    let mut rng = rand::thread_rng();
+
+    let mut format = binjs::io::Format::from_matches(&matches)
+        .expect("Could not determine encoding format")
+        .randomize_options(&mut rng);
 
     let prefix = matches.value_of("PREFIX")
         .expect("Missing argument `PREFIX`");
@@ -83,7 +82,6 @@ Note that this tool does not attempt to make sure that the files are entirely co
 
     let random_metadata = matches.is_present("random-metadata");
 
-    let mut rng = rand::thread_rng();
     let parser = Shift::new();
 
     let mut i = 0;
@@ -109,29 +107,10 @@ Note that this tool does not attempt to make sure that the files are entirely co
                     .expect("Could not write js file");
             }
 
+            let encoder = Encoder::new();
+            let encoded = encoder.encode(&spec, &mut format, &ast)
+                .expect("Could not encode AST");
 
-            let encoded =
-                if is_multipart {
-                    let options = binjs::io::multipart::WriteOptions::rand(&mut rng);
-                    let writer = binjs::io::multipart::TreeTokenWriter::new(options);
-                    let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
-                    encoder
-                        .encode(&ast)
-                        .expect("Could not encode AST");
-                    encoder.done()
-                        .map(|(data, _)| Box::new(data) as Box<AsRef<[u8]>>)
-                } else {
-                    let writer = binjs::io::simple::TreeTokenWriter::new();
-                    let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
-                    encoder
-                        .encode(&ast)
-                        .expect("Could not encode AST");
-                    encoder.done()
-                        .map(|(data, _)| Box::new(data) as Box<AsRef<[u8]>>)
-                };
-
-            let encoded = encoded
-                .expect("Could not finalize encoding");
             {
                 let mut encoded_file = std::fs::File::create(format!("{}-{}.binjs", prefix, i))
                     .expect("Could not create binjs file");

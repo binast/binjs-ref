@@ -1,8 +1,15 @@
 [package]
 name = "binjs_generic"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
 build = "build.rs"
+
+[features]
+# An implementation of compression that divides data across several streams
+# in an attempt to make it easier to compress.
+#
+# Experimental, probably deprecated.
+multistream = []
 
 [dependencies]
 binjs_es6 = { path = "../binjs_es6", version = "*" }
