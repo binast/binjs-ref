@@ -7,7 +7,7 @@ use io::*;
 use ::{ TokenReaderError, TokenWriterError };
 use util::{ PoisonLock, Pos, ReadConst };
 
-use binjs_shared::SharedString;
+use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
 use std;
 use std::cell::RefCell;
@@ -292,7 +292,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), Self::Error> {
         debug!(target: "simple_reader", "tagged tuple");
         let clone = self.owner.clone();
         let mut owner = self.owner.borrow_mut();
@@ -309,7 +309,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
             let len = state.read_u32()?;
             let mut fields = Vec::with_capacity(len as usize);
             for _ in 0..len {
-                let name = state.read_string()?;
+                let name = FieldName::from_string(state.read_string()?);
                 fields.push(name);
             }
 
@@ -320,7 +320,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
 
             debug!("TreeTokenReader: tagged_tuple has name {:?}, fields {:?}", kind_name, fields);
             debug!(target: "simple_reader", "/tagged tuple");
-            Ok((SharedString::from_string(kind_name), Some(Rc::new(fields.into_boxed_slice())), guard))
+            Ok((InterfaceName::from_string(kind_name), Some(Rc::new(fields.into_boxed_slice())), guard))
         })
     }
 
@@ -513,11 +513,11 @@ impl TokenWriter for TreeTokenWriter {
     ///   - field names (string, \0 terminated)
     /// - </head>
     /// - contents
-    fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: tagged_tuple");
         let mut prefix = Vec::new();
         prefix.extend_from_str("<head>");
-        prefix.extend_from_str(tag);
+        prefix.extend_from_str(tag.as_str());
         prefix.push(0);
 
         let number_of_items = children.len() as u32;
@@ -526,7 +526,7 @@ impl TokenWriter for TreeTokenWriter {
         prefix.extend_from_slice(&buf);
 
         for &(ref field, _) in children.iter() {
-            prefix.extend_from_str(field);
+            prefix.extend_from_str(field.as_str());
             prefix.push(0);
         }
         prefix.extend_from_str("</head>");
@@ -617,7 +617,7 @@ impl ::FormatProvider for FormatProvider {
 
 #[test]
 fn test_simple_io() {
-    use binjs_shared::SharedString;
+    use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
     use std::fs::*;
 
@@ -713,7 +713,11 @@ fn test_simple_io() {
         let mut writer = TreeTokenWriter::new();
         let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
         let item_1 = writer.float(Some(3.1415)).unwrap();
-        writer.tagged_tuple("BindingIdentifier", &[("label", item_0), ("value", item_1)])
+        writer.tagged_tuple(&InterfaceName::from_str("BindingIdentifier"),
+            &[
+                (FieldName::from_str("label"), item_0),
+                (FieldName::from_str("value"), item_1)
+            ])
             .expect("Writing trivial tagged tuple");
 
         let data = writer.data().unwrap();
@@ -723,12 +727,12 @@ fn test_simple_io() {
         let mut reader = TreeTokenReader::new(Cursor::new(data));
         let (name, fields, guard) = reader.tagged_tuple()
             .expect("Reading trivial tagged tuple");
-        assert_eq!(&name, "BindingIdentifier");
+        assert_eq!(name, "BindingIdentifier");
 
         // Order of fields is deterministic
         let fields = fields.expect("Missing fields");
-        assert!(&fields[0] == "label");
-        assert!(&fields[1] == "value");
+        assert!(fields[0] == "label");
+        assert!(fields[1] == "value");
         let simple_string = reader.string()
             .expect("Reading trivial tagged tuple[0]")
             .expect("Reading a non-null string");

@@ -123,7 +123,7 @@ impl RustExporter {
         let mut ast_buffer = String::new();
         ast_buffer.push_str("
 use binjs_shared;
-use binjs_shared::{ FromJSON, FromJSONError, IdentifierName, Offset, PropertyKey, SharedString, ToJSON, VisitMe };
+use binjs_shared::{ FieldName, FromJSON, FromJSONError, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString, ToJSON, VisitMe };
 use binjs_io::{ Deserialization, Guard, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter, TokenWriterError };
 
 use io::*;
@@ -456,12 +456,12 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> {{
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}\");
         let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
-        debug!(target: \"deserialize_es6\", \"Deserializing sum {name}, found {{}}\", kind);
+        debug!(target: \"deserialize_es6\", \"Deserializing sum {name}, found {{}}\", kind.as_str());
         let path_interface = kind.clone();
         let result = match kind.as_str() {{
 {variants}
             _ => {{
-                error!(target: \"deserialize_es6\", \"Deserializing sum {name}, found invalid {{}}\", kind);
+                error!(target: \"deserialize_es6\", \"Deserializing sum {name}, found invalid {{}}\", kind.as_str());
                 Err(From::from(TokenReaderError::BadEnumVariant))
             }}
         }};
@@ -481,7 +481,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
 {variants_some}
             \"{null}\" => Ok(None),
             _ => {{
-                error!(target: \"deserialize_es6\", \"Deserializing sum Option<{name}>, found invalid {{}}\", kind);
+                error!(target: \"deserialize_es6\", \"Deserializing sum Option<{name}>, found invalid {{}}\", kind.as_str());
                 Err(From::from(TokenReaderError::BadEnumVariant))
             }}
         }};
@@ -577,7 +577,7 @@ impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: Toke
     fn serialize(&mut self, value: &'a Option<{name}>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional sum {name}\");
         match *value {{
-            None => self.writer.tagged_tuple_at(\"{null}\", &[], path),
+            None => self.writer.tagged_tuple_at(&InterfaceName::from_str(\"{null}\"), &[], path),
             Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum, path)
         }}
     }}
@@ -946,17 +946,16 @@ pub struct {name} {{
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
     fn deserialize_tuple_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
-        let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
+        let (interface_name, _, guard) = self.reader.tagged_tuple_at(path)?;
         let result =
-            if let \"{name}\" = kind.as_str() {{
+            if let \"{name}\" = interface_name.as_str() {{
                 debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: present\");
-                let path_interface = kind.clone();
-                path.enter_interface(path_interface.clone());
+                path.enter_interface(interface_name.clone());
                 let result = self.deserialize_inner(path);
-                path.exit_interface(path_interface);
+                path.exit_interface(interface_name);
                 result
             }} else {{
-                debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: found invalid {{}}\", kind.as_str());
+                debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: found invalid {{}}\", interface_name.as_str());
                 Err(From::from(TokenReaderError::BadEnumVariant))
             }};
         if result.is_err() {{
@@ -1029,7 +1028,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                         .enumerate()
                         .map(|(index, field)| format!("
         print_file_structure!(self.reader, \".{name}\");
-        let path_field = ({index}, SharedString::from_str(\"{name}\")); // String is shared
+        let path_field = ({index}, FieldName::from_str(\"{name}\")); // String is shared
         path.enter_field(path_field.clone());
         let data_{name} = self.deserialize(path) as Result<{spec}, R::Error>;
         path.exit_field(path_field);
@@ -1054,7 +1053,7 @@ impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: Toke
     fn serialize(&mut self, value: &'a Option<{name}>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional tagged tuple {name}\");
         match *value {{
-            None => self.writer.tagged_tuple_at(\"{null}\", &[], path),
+            None => self.writer.tagged_tuple_at(&InterfaceName::from_str(\"{null}\"), &[], path),
             Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum, path)
         }}
     }}
@@ -1062,12 +1061,12 @@ impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: Toke
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, {value}: &'a {name}, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
-        let path_interface = SharedString::from_str(\"{name}\"); // String is shared
-        path.enter_interface(path_interface.clone());
+        let interface_name = InterfaceName::from_str(\"{name}\"); // String is shared
+        path.enter_interface(interface_name.clone());
         let {mut} children = Vec::with_capacity({len});
 {fields}
-        let result = self.writer.{tagged_tuple}(\"{name}\", &children, path);
-        path.exit_interface(path_interface);
+        let result = self.writer.{tagged_tuple}(&interface_name, &children, path);
+        path.exit_interface(interface_name);
         result
     }}
 }}
@@ -1084,11 +1083,12 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                             .enumerate()
                             .map(|(index, field)| format!(
 "
-        let path_field = ({index}, SharedString::from_str(\"{field_name}\")); // String is shared
-        path.enter_field(path_field.clone());
+        let field_name = FieldName::from_str(\"{field_name}\");
+        let path_item = ({index}, field_name.clone()); // String is shared
+        path.enter_field(path_item.clone());
         let child = (self as &mut Serialization<W, &'a _>).serialize(&value.{rust_field_name}, path);
-        path.exit_field(path_field);
-        children.push((\"{field_name}\", child?));",
+        path.exit_field(path_item);
+        children.push((field_name, child?));",
                                 index = index,
                                 field_name = field.name().to_str(),
                                 rust_field_name = field.name().to_rust_identifier_case()))
@@ -1222,7 +1222,7 @@ pub type WalkPathItem = binjs_shared::ast::PathItem<ASTNode, ASTField>;
 pub type WalkPath = binjs_shared::ast::Path<ASTNode, ASTField>;
 
 /// A Path, used when walking the tree with more weakly-typed APIs, e.g. TokenReader/TokenWriter.
-pub type IOPath = binjs_shared::ast::Path<binjs_shared::SharedString, ( /* child index */ usize, /* field name */ binjs_shared::SharedString)>;
+pub type IOPath = binjs_shared::ast::Path<binjs_shared::InterfaceName, ( /* child index */ usize, /* field name */ binjs_shared::FieldName)>;
 ";
             let mut interface_names = interfaces.keys()
                     .sorted();

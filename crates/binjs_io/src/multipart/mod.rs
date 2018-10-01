@@ -194,7 +194,7 @@ fn test_multipart_io() {
     extern crate env_logger;
     env_logger::init();
 
-    use binjs_shared::SharedString;
+    use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
     use ::CompressionTarget;
     use io::{ Guard, TokenReader, TokenWriter };
@@ -326,10 +326,10 @@ fn test_multipart_io() {
             let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
             let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
             let item_2 = writer.float(Some(3.1415)).unwrap();
-            writer.tagged_tuple("some tuple", &[
-                ("abc", item_0),
-                ("def", item_1),
-                ("value", item_2)
+            writer.tagged_tuple(&InterfaceName::from_str("some tuple"), &[
+                (FieldName::from_str("abc"), item_0),
+                (FieldName::from_str("def"), item_1),
+                (FieldName::from_str("value"), item_2)
             ])
                 .expect("Writing trivial tagged tuple");
 

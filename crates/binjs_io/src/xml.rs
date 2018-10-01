@@ -4,7 +4,7 @@
 
 use ::{ TokenWriter, TokenWriterError };
 
-use binjs_shared::SharedString;
+use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
 use std::rc::Rc;
 use std::io::Write;
@@ -20,8 +20,8 @@ pub enum SubTree {
     U32(u32),
     List(Vec<Rc<SubTree>>),
     Node {
-        name: String,
-        children: Vec<(String, Rc<SubTree>)>
+        name: SharedString,
+        children: Vec<(SharedString, Rc<SubTree>)>
     },
 }
 
@@ -105,11 +105,12 @@ impl TokenWriter for Encoder {
         unimplemented!()
     }
 
-    fn tagged_tuple(&mut self, tag: &str, items: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, tag: &InterfaceName, items: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         self.register(SubTree::Node {
-            name: tag.to_string(),
+            name: tag.as_shared_string()
+                .clone(),
             children: items.iter().map(|(attribute, tree)| {
-                (attribute.to_string(), tree.clone())
+                (attribute.as_shared_string().clone(), tree.clone())
             }).collect()
         })
     }
