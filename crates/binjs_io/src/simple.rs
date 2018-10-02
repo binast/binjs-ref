@@ -398,6 +398,52 @@ enum TreeItem {
 #[derive(Clone)]
 pub struct AbstractTree(Rc<TreeItem>);
 
+impl TreeTokenWriter {
+        fn untagged_tuple(&mut self, children: &[AbstractTree]) -> Result<AbstractTree, TokenWriterError> {
+        debug!(target: "simple_writer", "TreeTokenWriter: untagged_tuple");
+        let mut result = Vec::new();
+        result.extend_from_str("<tuple>"); // Sole purpose of this constant is testing
+
+        const FOOTER: &'static [u8; 8] = b"</tuple>";
+
+        // To be substituted to any Offset field.
+        let mut byte_len = FOOTER.len() as u32;
+
+        // First check if children[1] is Offset. If so, compute the length of the rest
+        // of the children and substitute that Length to Offset. Note that Offset at any
+        // other position than children[1] is an error.
+        for (i, item) in children.iter().enumerate() {
+            match *(item.0) {
+                TreeItem::Bytes(_) if i < 2 => {
+                    // That's before any instance of Offset, ignore it.
+                }
+                TreeItem::Bytes(ref bytes) => {
+                    byte_len += bytes.len() as u32;
+                }
+                TreeItem::Offset if i == 1 => {
+                    // Ok, that's the only place where `Offset` is valid.
+                }
+                TreeItem::Offset => {
+                    return Err(TokenWriterError::InvalidOffsetField)
+                }
+            }
+        }
+
+        for item in children {
+            match *(item.0) {
+                TreeItem::Bytes(ref bytes) => {
+                    result.extend_from_slice(bytes);
+                }
+                TreeItem::Offset => {
+                    let buf : [u8; 4] = unsafe { std::mem::transmute(byte_len) };
+                    result.extend_from_slice(&buf);
+                }
+            }
+        }
+        result.extend_from_slice(FOOTER); // Sole purpose of this constant is testing
+        Ok(self.register(result))
+    }
+}
 impl TokenWriter for TreeTokenWriter {
     type Tree = AbstractTree;
     type Data = Vec<u8>;
@@ -538,50 +584,6 @@ impl TokenWriter for TreeTokenWriter {
         }
 
         self.untagged_tuple(&untagged)
-    }
-    fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
-        debug!(target: "simple_writer", "TreeTokenWriter: untagged_tuple");
-        let mut result = Vec::new();
-        result.extend_from_str("<tuple>"); // Sole purpose of this constant is testing
-
-        const FOOTER: &'static [u8; 8] = b"</tuple>";
-
-        // To be substituted to any Offset field.
-        let mut byte_len = FOOTER.len() as u32;
-
-        // First check if children[1] is Offset. If so, compute the length of the rest
-        // of the children and substitute that Length to Offset. Note that Offset at any
-        // other position than children[1] is an error.
-        for (i, item) in children.iter().enumerate() {
-            match *(item.0) {
-                TreeItem::Bytes(_) if i < 2 => {
-                    // That's before any instance of Offset, ignore it.
-                }
-                TreeItem::Bytes(ref bytes) => {
-                    byte_len += bytes.len() as u32;
-                }
-                TreeItem::Offset if i == 1 => {
-                    // Ok, that's the only place where `Offset` is valid.
-                }
-                TreeItem::Offset => {
-                    return Err(TokenWriterError::InvalidOffsetField)
-                }
-            }
-        }
-
-        for item in children {
-            match *(item.0) {
-                TreeItem::Bytes(ref bytes) => {
-                    result.extend_from_slice(bytes);
-                }
-                TreeItem::Offset => {
-                    let buf : [u8; 4] = unsafe { std::mem::transmute(byte_len) };
-                    result.extend_from_slice(&buf);
-                }
-            }
-        }
-        result.extend_from_slice(FOOTER); // Sole purpose of this constant is testing
-        Ok(self.register(result))
     }
 }
 

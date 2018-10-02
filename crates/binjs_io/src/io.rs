@@ -341,24 +341,17 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     ///
     /// The number of items is specified by the grammar, so it MAY not be
     /// recorded by the `TokenWriter`.
-    ///
-    /// The interface MUST have a Tag.
-    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, _tag: &InterfaceName, _children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         unimplemented!()
     }
     fn tagged_tuple_at(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.tagged_tuple(tag, children)
     }
-
-    /// Write an untagged tuple.
-    ///
-    /// The number of items is specified by the grammar, so it MAY not be
-    /// recorded by the `TokenWriter`.
-    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
+    fn enter_tagged_tuple_at(&mut self, _tag: &InterfaceName, _children: usize, _path: &Path) -> Result<(), TokenWriterError> {
+        Ok(())
     }
-    fn untagged_tuple_at(&mut self, children: &[Self::Tree], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.untagged_tuple(children)
+    fn exit_tagged_tuple_at(&mut self, _tag: &InterfaceName, _path: &Path) -> Result<(), TokenWriterError> {
+        Ok(())
     }
 
     /// Write a list.
@@ -370,6 +363,12 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     }
     fn list_at(&mut self, items: Vec<Self::Tree>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.list(items)
+    }
+    fn enter_list_at(&mut self, _len: usize, _path: &Path) -> Result<(), TokenWriterError> {
+        Ok(())
+    }
+    fn exit_list_at(&mut self, _path: &Path) -> Result<(), TokenWriterError> {
+        Ok(())
     }
 
     /// Write a single UTF-8 string.

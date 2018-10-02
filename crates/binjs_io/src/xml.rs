@@ -101,10 +101,6 @@ impl TokenWriter for Encoder {
         self.register(SubTree::String(data.map(Clone::clone)))
     }
 
-    fn untagged_tuple(&mut self, _data: &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-
     fn tagged_tuple(&mut self, tag: &InterfaceName, items: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         self.register(SubTree::Node {
             name: tag.as_shared_string()
