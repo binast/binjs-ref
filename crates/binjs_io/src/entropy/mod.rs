@@ -57,51 +57,8 @@
 pub mod model;
 
 mod predict;
+mod probabilities;
 
-// pub mod read;
-// pub mod write;
-
-// use self::predict::Symbol;
-// use self::tree::F64;
-
-// use binjs_shared::{ IdentifierName, InterfaceName, SharedString };
-
-// use std::rc::Rc;
-
-/*
-use range_encoding::CumulativeDistributionFrequency;
-
-pub type ASTPath = tree::ASTPath;
-pub type ScopePath = tree::ScopePath;
-
-pub trait EncodingModel {
-    fn tag_frequency_for_encoding(&mut self, tag: &InterfaceName, path: &ASTPath) -> Result<Symbol, ()>;
-    fn bool_frequency_for_encoding(&mut self, value: &Option<bool>, path: &ASTPath) -> Result<Symbol, ()>;
-    fn string_frequency_for_encoding(&mut self, string: &Option<SharedString>, path: &ASTPath) -> Result<Symbol, ()>;
-    fn number_frequency_for_encoding(&mut self, number: &Option<F64>, path: &ASTPath) -> Result<Symbol, ()>;
-    fn identifier_frequency_for_encoding(&mut self, string: &IdentifierName, scopes: &ScopePath) -> Result<Symbol, ()>;
-    fn list_length_frequency_for_encoding(&mut self, value: &Option<u32>, path: &ASTPath) -> Result<Symbol, ()>;
-
-    /// Utility: return the frequency information for a true/false value in which
-    /// either value has the same frequency.
-    fn iso_bit_frequency_for_encoding(&mut self, value: bool) -> Result<Symbol, ()>;
-}
-
-pub trait Model {
-    fn encoding(&self, &tree::SharedTree) -> Box<EncodingModel>;
-}
-
-
-pub trait DecodingModel {
-    // FIXME: We need to be able to handle
-    // - 1. Case in which we have the CDF and can simply give it.
-    // - 2. Case in which we have the CDF and can give it, and it will somehow be incremented.
-    // - 3. Case in which we do not have the CDF yet, the decoder needs to give us one.
-    fn tag_frequency_for_decoding(&mut self, path: &ASTPath) -> Option<&mut CumulativeDistributionFrequency>;
-    fn init_tag_frequency_for_decoding(&mut self, path: &ASTPath, cdf: Vec<u32>);
-}
-
-*/
 
 /*
 /// Command-line management.
