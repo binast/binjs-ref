@@ -870,24 +870,31 @@ impl Visitor<()> for AnnotationVisitor {
     }
 
     fn enter_function_expression_contents(&mut self, path: &WalkPath, _node: &mut FunctionExpressionContents) -> Result<VisitMe<()>, ()> {
-        self.push_var_scope(path);
-        self.push_param_scope(path);
-        self.push_this_captured();
+        // For parity, push function name in its proper place as the outermost binding.
+        // See comment below in exit_function_expression_contents for more context.
         if let Some(_) = self.function_expression_name() {
             self.push_function_name_captured();
         }
+        self.push_var_scope(path);
+        self.push_param_scope(path);
+        self.push_this_captured();
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_function_expression_contents(&mut self, path: &WalkPath, node: &mut FunctionExpressionContents) -> Result<Option<FunctionExpressionContents>, ()> {
+        node.is_this_captured = self.pop_this_captured();
+
+        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
+        node.body_scope = self.pop_var_scope(path);
+
+        // Wait to pop the function name until after we handle vars and params.
+        // If there's a shadowing var, the var is captured, not the function name.
+        // Since there's only one stack for used names, and it expects things in scope-order,
+        // we risk getting confused and claiming the wrong binding was closed over.
         if let Some(ref name) = self.function_expression_name() {
             node.is_function_name_captured = self.pop_function_name_captured(name.clone());
         } else {
             node.is_function_name_captured = false;
         }
-        node.is_this_captured = self.pop_this_captured();
-
-        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
-        node.body_scope = self.pop_var_scope(path);
         Ok(None)
     }
 
