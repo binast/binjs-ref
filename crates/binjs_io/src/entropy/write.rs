@@ -252,6 +252,7 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     type Tree = SharedTree;
     type Data = Vec<u8>;
 
+/*
     fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         self.new_tree(SubTree {
             label: Label::Tag(tag.clone()),
@@ -260,7 +261,7 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
                 .collect()
         })
     }
-
+*/
 /*
     fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         let tuple = self.tagged_tuple(tag, children)?;
@@ -309,14 +310,14 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     fn string_enum(&mut self, value: &SharedString) -> Result<Self::Tree, TokenWriterError> {
         self.tagged_tuple(&InterfaceName(value.clone()), &[])
     }
-
+/*
     fn list(&mut self, children: Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError> {
         self.new_tree(SubTree {
             label: Label::List(Some(children.len() as u32)),
             children
         })
     }
-
+*/
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
         let model = self.model.encoding(&self.root);
         let root = self.root.clone();

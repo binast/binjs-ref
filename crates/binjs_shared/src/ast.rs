@@ -44,12 +44,20 @@ use std::fmt::*;
 /// path.exit_interface("Interface 1"); // Exiting the wrong interface would panic.
 /// ```
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Default)]
 pub struct Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     /// Some(foo) if we have entered interface foo but no field yet.
     /// Otherwise, None.
     interface: Option<I>,
     items: Vec<PathItem<I, F>>,
+}
+impl<I, F> From<Vec<PathItem<I, F>>> for Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+    fn from(items: Vec<PathItem<I, F>>) -> Self {
+        Path {
+            interface: None,
+            items
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -163,5 +171,11 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     /// Iter through the path, from the root to the current position.
     pub fn iter(&self) -> impl Iterator<Item = &PathItem<I, F>> {
         self.items.iter()
+    }
+}
+
+impl<I, F> std::borrow::Borrow<[PathItem<I, F>]> for Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+    fn borrow(&self) -> &[PathItem<I, F>] {
+        &self.items
     }
 }

@@ -341,6 +341,9 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     ///
     /// The number of items is specified by the grammar, so it MAY not be
     /// recorded by the `TokenWriter`.
+    ///
+    /// By convention, a null tagged tuple is the special tagged tuple "null",
+    /// with no children.
     fn tagged_tuple(&mut self, _tag: &InterfaceName, _children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         unimplemented!()
     }
@@ -425,7 +428,6 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     fn offset_at(&mut self, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.offset()
     }
-
 
     fn property_key(&mut self, value: Option<&PropertyKey>) -> Result<Self::Tree, TokenWriterError> {
         let string = value.map(PropertyKey::as_shared_string);

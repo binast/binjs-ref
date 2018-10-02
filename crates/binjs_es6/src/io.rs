@@ -278,7 +278,7 @@ impl Encoder {
             Serializer<binjs_io::simple::TreeTokenWriter> : Serialization<binjs_io::simple::TreeTokenWriter, &'a AST>,
             Serializer<binjs_io::multipart::TreeTokenWriter> : Serialization<binjs_io::multipart::TreeTokenWriter, &'a AST>,
             Serializer<binjs_io::xml::Encoder> : Serialization<binjs_io::xml::Encoder, &'a AST>,
-            Serializer<binjs_io::entropy::write::TreeTokenWriter<'a>> : Serialization<binjs_io::entropy::write::TreeTokenWriter<'a>, &'a AST>
+//            Serializer<binjs_io::entropy::write::TreeTokenWriter<'a>> : Serialization<binjs_io::entropy::write::TreeTokenWriter<'a>, &'a AST>
 /*
         #[cfg(multistream)]
         where
@@ -328,6 +328,7 @@ impl Encoder {
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
+/*
             binjs_io::Format::Entropy { ref model, ref options } => {
                 let writer = binjs_io::entropy::write::TreeTokenWriter::new(model.as_ref(), options.clone());
                 let mut serializer = Serializer::new(writer);
@@ -335,6 +336,7 @@ impl Encoder {
                 let (data, _) = serializer.done()?;
                 Ok(Box::new(data))
             }
+*/
         }
     }
 }

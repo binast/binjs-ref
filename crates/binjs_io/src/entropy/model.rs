@@ -1,183 +1,287 @@
-use entropy::{ DecodingModel, EncodingModel, Model };
-use entropy::predict::{ ContextPredict, PathPredict, Symbol };
-use entropy::tree::{ EXPECTED_PATH_DEPTH, EXPECTED_SCOPE_DEPTH, ASTPath, F64, Label, ScopeIndex, ScopePath, SharedTree, Visitor, WalkTree };
+// use entropy::predict::{ ContextPredict, PathPredict, Symbol };
 
-use binjs_shared::{ IdentifierName, InterfaceName, SharedString };
-use binjs_shared::ast::PathItem;
+use entropy::predict::PathPredict;
+
+use io::TokenWriter;
+use ::TokenWriterError;
+
+use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString };
 
 use std;
-use std::rc::Rc;
+use std::collections::HashMap;
 
-pub struct ExactModel;
+pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
-impl Model for ExactModel {
-    fn encoding(&self, tree: &SharedTree) -> Box<EncodingModel> {
-        Box::new(ExactEncodingModel::new(tree))
+#[derive(Debug, Default)]
+pub struct Dictionary<T> {
+    /// All booleans appearing in the AST, predicted by path.
+    pub bool_by_path: PathPredict<Option<bool>, T>,
+
+    /// All floats appearing in the AST, predicted by path.
+    pub float_by_path: PathPredict<Option<F64>, T>,
+
+    /// All unsigned longs appearing in the AST, predicted by path.
+    pub unsigned_long_by_path: PathPredict<u32, T>,
+
+    /// All string enumerations, predicted by path.
+    pub string_enum_by_path: PathPredict<SharedString, T>,
+
+    /// All property keys, predicted by path.
+    pub property_key_by_path: PathPredict<Option<PropertyKey>, T>,
+
+    /// All identifier names, predicted by path.
+    pub identifier_name_by_path: PathPredict<Option<IdentifierName>, T>,
+
+    /// All interface names, predicted by path.
+    pub interface_name_by_path: PathPredict<InterfaceName, T>,
+
+    /// All string literals, predicted by path.
+    pub string_literal_by_path: PathPredict<Option<SharedString>, T>,
+
+    /// All list lengths, predicted by path.
+    pub list_length_by_path: PathPredict<Option<u32>, T>,
+
+    // Missing:
+    // - offsets (cannot be predicted?)
+    // - property keys predicted by window?
+    // - identifier names predicted by window?
+    // - literal strings by window?
+    // - directives?
+    // - property keys, identifier names, literal strings by file?
+}
+impl<T> Dictionary<T> {
+    /// Return the number of states in this dictionary.
+    pub fn len(&self) -> usize {
+          self.bool_by_path.len()
+        + self.float_by_path.len()
+        + self.unsigned_long_by_path.len()
+        + self.string_enum_by_path.len()
+        + self.property_key_by_path.len()
+        + self.identifier_name_by_path.len()
+        + self.interface_name_by_path.len()
+        + self.string_literal_by_path.len()
+        + self.list_length_by_path.len()
     }
 }
 
+/// Maps from the various kinds of strings in the AST to T.
+///
+/// This container is used to collect statistics, such as the number
+/// of instances of a given string in a file, or the number of files
+/// that contain a given string.
+#[derive(Debug, Default)]
+pub struct KindedStringMap<T> {
+    /// Instances of IdentifierName.
+    pub identifier_name_instances: HashMap<Option<IdentifierName>, T>,
 
-/// An encoding model which starts by analyzing the full AST to determine
-/// exact statistics.
-pub struct ExactEncodingModel {
-    probabilities: ExactEncodingModelData<Symbol>,
-}
-impl ExactEncodingModel {
-    fn get_from_path<T>(predictor: &mut PathPredict<T, Symbol>, value: &T, path: &ASTPath) -> Result<Symbol, ()>
-        where T: Eq + std::hash::Hash + Clone + std::fmt::Debug
-    {
-        let segment = predictor.get_mut(path, value)
-            .ok_or(())?;
-        let result = segment.clone();
-        Ok(result)
-    }
-}
-impl EncodingModel for ExactEncodingModel {
-    fn string_frequency_for_encoding(&mut self, value: &Option<SharedString>, path: &ASTPath) -> Result<Symbol, ()> {
-        Self::get_from_path(&mut self.probabilities.strings, value, path)
-    }
-    fn tag_frequency_for_encoding(&mut self, value: &InterfaceName, path: &ASTPath) -> Result<Symbol, ()> {
-        Self::get_from_path(&mut self.probabilities.tags, value, path)
-    }
-    fn bool_frequency_for_encoding(&mut self, value: &Option<bool>, path: &ASTPath) -> Result<Symbol, ()> {
-        Self::get_from_path(&mut self.probabilities.bools, value, path)
-    }
-    fn number_frequency_for_encoding(&mut self, value: &Option<F64>, path: &ASTPath) -> Result<Symbol, ()> {
-        Self::get_from_path(&mut self.probabilities.numbers, value, path)
-    }
-    fn list_length_frequency_for_encoding(&mut self, value: &Option<u32>, path: &ASTPath) -> Result<Symbol, ()> {
-        Self::get_from_path(&mut self.probabilities.list_lengths, value, path)
-    }
-    fn iso_bit_frequency_for_encoding(&mut self, value: bool) -> Result<Symbol, ()> {
-        let segment = self.probabilities.iso_bit_model.get_mut(&mut (), &value)
-            .ok_or(())?;
-        Ok(segment.clone())
-    }
-    fn identifier_frequency_for_encoding(&mut self, string: &IdentifierName, scopes: &ScopePath) -> Result<Symbol, ()> {
-        let scope = scopes.get(0)
-            .map(PathItem::interface)
-            .cloned();
-        let segment = self.probabilities.identifiers.get_mut(&scope, string)
-            .ok_or(())?;
-        let result = segment.clone();
-        Ok(result)
-    }
-}
-impl ExactEncodingModel {
-    pub fn new(tree: &SharedTree) -> Self {
-        // Compute number of instances
-        let mut instances = ExactEncodingModelData {
-            tags: PathPredict::new(1), // FIXME: Test with other depths
-            strings: PathPredict::new(1), // FIXME: Test with other depths
-            list_lengths: PathPredict::new(1), // FIXME: Test with other depths
-            numbers: PathPredict::new(1), // Fairly confident that a depth of 1 should be sufficient for numbers.
-            bools: PathPredict::new(1),
-            identifiers: ContextPredict::new(),
-            iso_bit_model: ContextPredict::new(),
-        };
+    /// Instances of PropertyKey
+    pub property_key_instances: HashMap<Option<PropertyKey>, T>,
 
-        // Initialize trivial `iso_bit_model`.
-        for bit in [false, true].into_iter() {
-            let mut entry = instances.iso_bit_model.entry((), &bit);
-            entry.value.and_modify(|instances| {
-                *instances += 1
-            }).or_insert(1);
-        }
+    /// Instances of InterfaceName
+    pub interface_name_instances: HashMap<InterfaceName, T>,
 
-        tree.walk(&mut instances,
-            &mut ASTPath::with_capacity(EXPECTED_PATH_DEPTH),
-            &mut ScopePath::with_capacity(EXPECTED_SCOPE_DEPTH))
-            .expect("Could not compute number of instances");
+    /// Instances of string literals.
+    pub string_literal_instances: HashMap<Option<SharedString>, T>,
 
-        // Deduce probabilities.
-
-        Self {
-            probabilities: ExactEncodingModelData {
-                tags: instances.tags.instances_to_probabilities(),
-                strings: instances.strings.instances_to_probabilities(),
-                identifiers: instances.identifiers.instances_to_probabilities(),
-                bools: instances.bools.instances_to_probabilities(),
-                numbers: instances.numbers.instances_to_probabilities(),
-                list_lengths: instances.list_lengths.instances_to_probabilities(),
-                iso_bit_model: instances.iso_bit_model.instances_to_probabilities(),
-            }
-        }
-    }
+    /// Instances of string enums.
+    pub string_enum_instances: HashMap<SharedString, T>,
 }
 
-pub struct ExactEncodingModelData<T> {
-    /// Tag prediction based on path (depth 1 as of this writing).
-    tags: PathPredict<InterfaceName, T>,
+/// A structure used to build a dictionary based on a sample of files.
+///
+/// In this version, we use several dictionary lengths, to determine the
+/// best version for a file.
+pub struct DictionaryBuilder<'a> {
+    /// Attempt to build predictions with a depth of 0 (no context) up to max_path_depth ancestors.
+    max_path_depth: usize,
 
-    /// Non-identifier string prediction based on path (depth 1 as of this writing).
-    strings: PathPredict<Option<SharedString>, T>,
-
-    /// Number prediction based on path.
-    numbers: PathPredict<Option<F64>, T>,
-
-    /// Bool prediction.
-    bools: PathPredict<Option<bool>, T>,
-
-    /// Identifier prediction based on scope.
-    identifiers: ContextPredict<Option<ScopeIndex>, IdentifierName, T>,
-
-    /// List length prediction based on path.
-    list_lengths: PathPredict<Option<u32>, T>,
-
-    /// A trivial model for bools with equal frequency for either value.
+    /// A dictionary.
     ///
-    /// Used to represent trivial dictionaries.
-    iso_bit_model: ContextPredict<(), bool, T>,
+    /// This is a shared reference as we typically wish to
+    /// access this field after the DictionaryBuilder
+    /// has been consumed and released by a `Serializer`.
+    dictionary: &'a mut Dictionary</* instances */ usize>,
+
+    /// Number of instances of each string in the current file.
+    instances_of_strings_in_current_file: KindedStringMap<usize>,
+
+    /// Number of files in which each string appears.
+    /// Whenever we're done with one file, we use the keys
+    /// from `instances_of_strings_in_current_file` to fill
+    /// `files_containing_string`.
+    ///
+    /// This is a shared reference as we typically wish to
+    /// access this field after the DictionaryBuilder
+    /// has been consumed and released by a `Serializer`.
+    files_containing_string: &'a mut KindedStringMap<usize>,
 }
 
-/// Initialize the ExactEncodingModel
-impl Visitor for ExactEncodingModelData</* Number of instances */ usize> {
-    type Error = ();
-    fn enter_label(&mut self, label: &Label, path: &ASTPath, scopes: &ScopePath) -> Result<(), Self::Error> {
-        match label {
-            Label::Tag(ref tag) => {
-                let mut entry = self.tags.entry(path, tag);
-                entry.value.and_modify(|instances| {
-                    *instances += 1
-                }).or_insert(1);
-            }
-            Label::String(ref string) => {
-                let mut entry = self.strings.entry(path, string);
-                entry.value.and_modify(|instances| {
-                    *instances += 1
-                }).or_insert(1);
-            }
-            Label::Number(ref num) => {
-                let mut entry = self.numbers.entry(path, num);
-                entry.value.and_modify(|instances| {
-                    *instances += 1
-                }).or_insert(1);
-            }
-            Label::List(ref len) => {
-                let mut entry = self.list_lengths.entry(path, len);
-                entry.value.and_modify(|instances| {
-                    *instances += 1
-                }).or_insert(1);
-            }
-            Label::Declare(ref string) | Label::LiteralReference(Some(ref string)) => {
-                let scope = scopes.get(0)
-                    .map(PathItem::interface)
-                    .map(Clone::clone);
-                let mut entry = self.identifiers.entry(scope, string);
-                entry.value.and_modify(|instances| {
-                        *instances += 1
-                    }).or_insert(1);
-            }
-            Label::Bool(ref value) => {
-                let mut entry = self.bools.entry(path, value);
-                entry.value.and_modify(|instances| {
-                    *instances += 1
-                }).or_insert(1);
-            }
-            _ => {
-                warn!(target: "entropy", "Skipping initialization of predictor for label {:?} (not implemented yet)", label);
-            }
+impl<'a> DictionaryBuilder<'a> {
+    pub fn new(max_path_depth: usize, dictionary: &'a mut Dictionary<usize>, files_containing_string: &'a mut KindedStringMap<usize>) -> Self {
+        DictionaryBuilder {
+            max_path_depth,
+            dictionary,
+            instances_of_strings_in_current_file: KindedStringMap::default(),
+            files_containing_string
         }
+    }
+
+    /// Increment the number of cases in which `value` is a possible value for `path`.
+    ///
+    /// Since we do not want to store every single possible path, we use tails of
+    /// `path` limited to `max_path_depth` items. We also store shorter path, to
+    /// let us analyze later, on a case-by-case basis, whether having longer paths
+    /// is useful or just increases the size of the dictionary.
+    ///
+    /// Note: This is a function rather than a method because making it a method
+    /// would require us to borrow mutably `source` *and* while calling into `self`.
+    /// Not very borrow-checker-compatible.
+    fn add_instance_to_path<V>(max_path_depth: usize, value: V, path: &IOPath, source: &mut PathPredict<V, usize>)
+        where
+            V: 'a + std::hash::Hash + Eq + Clone + std::fmt::Debug,
+    {
+        let len = usize::min(max_path_depth, path.len()) + 1;
+        // Update predictions with a path length of 0..len.
+        for len in 0 .. len {
+            let tail = path.tail(len);
+            source.entry(tail, &value)
+                .value
+                .and_modify(|instances| {
+                    *instances += 1 // We already have at least one association `tail` => `value`, increment.
+                }).or_insert(1);    // First time we associate `tail` => `value`, store 1.
+        }
+    }
+
+    /// Count the string `value` as used in the current file.
+    fn add_instance_to_strings<V>(value: V, bucket: &mut HashMap<V, usize>)
+        where
+            V: std::hash::Hash + Eq + Clone + std::fmt::Debug
+    {
+        bucket.entry(value)
+            .and_modify(|instances| {
+                *instances += 1 // We have already seen this string in this file, increment.
+            }).or_insert(1);    // First time we see this string in this file, store 1.
+    }
+
+    /// Take all strings of a given nature present in a file (as stored
+    /// in `self.instances_of_strings_in_current_file`) and mark them as
+    /// appearing in one more file (as stored in `self.files_containing_string`).
+    ///
+    /// The caller is responsible for making sure that `source` is a
+    /// `self.instances_of_strings_in_current_file.XXX` and `destination`
+    /// is the corresponding `self.files_containing_string.XXX`.
+    ///
+    /// Note: This is a function rather than a method because making it a method
+    /// would require us to borrow mutably `source` *and* while calling into `self`.
+    /// Not very borrow-checker-compatible.
+    fn transfer_instances_of_strings<V>(source: &mut HashMap<V, usize>, destination: &mut HashMap<V, usize>)
+        where
+            V: std::hash::Hash + Eq + Clone + std::fmt::Debug
+    {
+        for (k, _) in source.drain() {
+            // Increase the number of files in `destination` that contain `k` by 1,
+            // ignoring the number of instances of `k` in `source`.
+            destination.entry(k)
+                .and_modify(|instances| {
+                    *instances += 1
+                }).or_insert(1);
+        }
+    }
+
+    fn done_with_file(&mut self) {
+        // Count the number of files in which string instances appear.
+        Self::transfer_instances_of_strings(
+                &mut self.instances_of_strings_in_current_file.identifier_name_instances,
+                &mut self.files_containing_string.identifier_name_instances
+        );
+        Self::transfer_instances_of_strings(
+                &mut self.instances_of_strings_in_current_file.property_key_instances,
+                &mut self.files_containing_string.property_key_instances
+        );
+        Self::transfer_instances_of_strings(
+                &mut self.instances_of_strings_in_current_file.interface_name_instances,
+                &mut self.files_containing_string.interface_name_instances
+        );
+        Self::transfer_instances_of_strings(
+                &mut self.instances_of_strings_in_current_file.string_literal_instances,
+                &mut self.files_containing_string.string_literal_instances
+        );
+        Self::transfer_instances_of_strings(
+                &mut self.instances_of_strings_in_current_file.string_enum_instances,
+                &mut self.files_containing_string.string_enum_instances
+        );
+    }
+}
+
+impl<'a> TokenWriter for DictionaryBuilder<'a> {
+    type Tree = ();
+    type Statistics = usize /* placeholder */;
+    type Data = [u8;0];
+
+    fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
+        self.done_with_file();
+        debug!(target: "entropy", "Built a dictionary with len: {}", self.dictionary.len());
+        Ok(([], 0))
+    }
+
+    fn bool_at(&mut self, value: Option<bool>, path: &IOPath) -> Result<(), TokenWriterError> {
+        Self::add_instance_to_path(self.max_path_depth, value, path, &mut self.dictionary.bool_by_path);
+        Ok(())
+    }
+
+    fn float_at(&mut self, value: Option<f64>, path: &IOPath) -> Result<(), TokenWriterError> {
+        let value = value.map(|x| x.into());
+        Self::add_instance_to_path(self.max_path_depth, value, path, &mut self.dictionary.float_by_path);
+        Ok(())
+    }
+
+    fn unsigned_long_at(&mut self, value: u32, path: &IOPath) -> Result<(), TokenWriterError> {
+        Self::add_instance_to_path(self.max_path_depth, value, path, &mut self.dictionary.unsigned_long_by_path);
+        Ok(())
+    }
+
+    fn string_enum_at(&mut self, value: &SharedString, path: &IOPath) -> Result<(), TokenWriterError> {
+        Self::add_instance_to_path(self.max_path_depth, value.clone(), path, &mut self.dictionary.string_enum_by_path);
+        Self::add_instance_to_strings(value.clone(), &mut self.instances_of_strings_in_current_file.string_enum_instances);
+        Ok(())
+    }
+
+    fn string_at(&mut self, value: Option<&SharedString>, path: &IOPath) -> Result<(), TokenWriterError> {
+        Self::add_instance_to_path(self.max_path_depth, value.cloned(), path, &mut self.dictionary.string_literal_by_path);
+        Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.string_literal_instances);
+        Ok(())
+    }
+
+    fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &IOPath) -> Result<(), TokenWriterError> {
+        Self::add_instance_to_path(self.max_path_depth, value.cloned(), path, &mut self.dictionary.property_key_by_path);
+        Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.property_key_instances);
+        Ok(())
+    }
+
+    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &IOPath) -> Result<(), TokenWriterError> {
+        Self::add_instance_to_path(self.max_path_depth, value.cloned(), path, &mut self.dictionary.identifier_name_by_path);
+        Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.identifier_name_instances);
+        Ok(())
+    }
+
+    fn enter_list_at(&mut self, len: usize, path: &IOPath) -> Result<(), TokenWriterError> {
+        Self::add_instance_to_path(self.max_path_depth, Some(len as u32), path, &mut self.dictionary.list_length_by_path);
+        Ok(())
+    }
+
+    fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, _children: usize, path: &IOPath)  -> Result<(), TokenWriterError> {
+        Self::add_instance_to_path(self.max_path_depth, tag.clone(), path, &mut self.dictionary.interface_name_by_path);
+        Self::add_instance_to_strings(tag.clone(), &mut self.instances_of_strings_in_current_file.interface_name_instances);
+        Ok(())
+    }
+
+    fn tagged_tuple(&mut self, _tag: &InterfaceName, _children: &[(FieldName, Self::Tree)]) -> Result<(), TokenWriterError> {
+        // Needed to keep the driver happy.
+        Ok(())
+    }
+
+    fn list_at(&mut self, _children: Vec<Self::Tree>, _path: &IOPath) -> Result<(), TokenWriterError> {
+        // Needed to keep the driver happy.
         Ok(())
     }
 }

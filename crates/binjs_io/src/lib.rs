@@ -235,10 +235,12 @@ pub enum Format {
         options: multistream::Options,
         targets: multistream::Targets,
     },
+/*
     Entropy {
         options: entropy::write::Options,
         model: Box<entropy::Model>,
     }
+*/
 }
 
 /// Support picking a random format.
@@ -306,6 +308,7 @@ impl Format {
                     stats
                 }
             ,
+/*
             Format::Entropy { .. } =>
                 Format::Entropy {
                     options: entropy::write::Options {
@@ -319,6 +322,7 @@ impl Format {
                     },
                     model: Box::new(entropy::model::ExactModel)
                 }
+*/
         }
     }
 
@@ -328,7 +332,7 @@ impl Format {
             Format::Simple { .. } => "Simple".to_string(),
             Format::Multipart { .. } => "Multipart".to_string(),
             Format::XML => "XML".to_string(),
-            Format::Entropy { .. } => "Entropy".to_string(),
+//            Format::Entropy { .. } => "Entropy".to_string(),
         }
     }
 
@@ -344,10 +348,12 @@ impl Format {
                 // Nothing to do
                 Ok(())
             }
+/*
             Format::Entropy { ..} => {
                 // Nothing to do
                 Ok(())
             }
+*/
             Format::Multipart {
                 targets: multipart::Targets {
                     ref mut grammar_table,
@@ -395,12 +401,12 @@ impl Format {
 
     /// Return all existing format providers, to manage
     /// command-line arguments.
-    fn providers() -> [&'static FormatProvider; 4] {
+   fn providers() -> [&'static FormatProvider; 3] {
         [
             &multipart::FormatProvider,
             &simple::FormatProvider,
             &xml::FormatProvider,
-            &entropy::FormatProvider,
+//            &entropy::FormatProvider,
         ]
     }
 
