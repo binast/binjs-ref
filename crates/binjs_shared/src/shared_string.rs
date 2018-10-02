@@ -71,3 +71,35 @@ impl SharedString {
         SharedString::Dynamic(Rc::new(value))
     }
 }
+
+#[macro_export]
+macro_rules! shared_string {
+    (pub $name: ident) => {
+        #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+        pub struct $name(pub shared_string::SharedString);
+        impl $name {
+            pub fn from_str(value: &'static str) -> Self {
+                $name(shared_string::SharedString::from_str(value))
+            }
+            pub fn from_string(value: String) -> Self {
+                $name(shared_string::SharedString::from_string(value))
+            }
+            pub fn as_str(&self) -> &str {
+                self.0.as_str()
+            }
+            pub fn as_shared_string(&self) -> &shared_string::SharedString {
+                &self.0
+            }
+        }
+        impl<'a> PartialEq<&'a str> for $name {
+            fn eq(&self, other: &&'a str) -> bool {
+                self.0.eq(other)
+            }
+        }
+        impl Default for $name {
+            fn default() -> Self {
+                Self::from_str("<uninitialized SharedString>")
+            }
+        }
+    }
+}

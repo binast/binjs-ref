@@ -63,6 +63,8 @@ pub mod write;
 use self::predict::Symbol;
 use self::tree::F64;
 
+use binjs_shared::{ IdentifierName, InterfaceName, SharedString };
+
 use std::rc::Rc;
 
 use clap;
@@ -72,11 +74,11 @@ pub type ASTPath = tree::ASTPath;
 pub type ScopePath = tree::ScopePath;
 
 pub trait EncodingModel {
-    fn tag_frequency_for_encoding(&mut self, tag: &tree::Tag, path: &ASTPath) -> Result<Symbol, ()>;
+    fn tag_frequency_for_encoding(&mut self, tag: &InterfaceName, path: &ASTPath) -> Result<Symbol, ()>;
     fn bool_frequency_for_encoding(&mut self, value: &Option<bool>, path: &ASTPath) -> Result<Symbol, ()>;
-    fn string_frequency_for_encoding(&mut self, string: &Option<Rc<String>>, path: &ASTPath) -> Result<Symbol, ()>;
+    fn string_frequency_for_encoding(&mut self, string: &Option<SharedString>, path: &ASTPath) -> Result<Symbol, ()>;
     fn number_frequency_for_encoding(&mut self, number: &Option<F64>, path: &ASTPath) -> Result<Symbol, ()>;
-    fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &ScopePath) -> Result<Symbol, ()>;
+    fn identifier_frequency_for_encoding(&mut self, string: &IdentifierName, scopes: &ScopePath) -> Result<Symbol, ()>;
     fn list_length_frequency_for_encoding(&mut self, value: &Option<u32>, path: &ASTPath) -> Result<Symbol, ()>;
 
     /// Utility: return the frequency information for a true/false value in which

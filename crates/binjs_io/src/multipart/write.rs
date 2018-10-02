@@ -5,7 +5,7 @@ use io::*;
 use ::{ CompressionTarget, TokenWriterError };
 use multipart::*;
 
-use binjs_shared::SharedString;
+use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
 use std;
 use std::collections::{ HashMap, HashSet };
@@ -223,7 +223,7 @@ impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone +
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)] // FIXME: Clone shouldn't be necessary. Sigh.
 pub struct NodeDescription {
-    kind: SharedString,
+    kind: InterfaceName,
 }
 
 /// Format:
@@ -235,7 +235,8 @@ impl Serializable for NodeDescription {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
-        total += self.kind.write(out)?;
+        total += self.kind.as_shared_string()
+            .write(out)?;
         Ok(total)
     }
 }
@@ -753,12 +754,12 @@ impl TokenWriter for TreeTokenWriter {
     // - index in the grammar table (varnum);
     // - for each item, in the order specified
     //    - the item (see item)
-    fn tagged_tuple(&mut self, name: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, name: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         let data;
         let description = NodeDescription {
-            kind: SharedString::from_string(name.to_string()),
+            kind: name.clone()
         };
-        debug!(target: "multipart", "writing tagged tuple {} with {} children as {:?}",
+        debug!(target: "multipart", "writing tagged tuple {:?} with {} children as {:?}",
             name,
             children.len(),
             description,
@@ -940,7 +941,7 @@ pub struct Statistics {
     pub tree: SectionStatistics,
 
     pub per_kind_index: VecMap<NodeStatistics>,
-    pub per_kind_name: HashMap<SharedString, NodeStatistics>,
+    pub per_kind_name: HashMap<InterfaceName, NodeStatistics>,
     pub per_description: HashMap<NodeDescription, NodeStatistics>,
 
     /// Mapping length -> number of lists of that length.
@@ -1134,7 +1135,7 @@ impl<'a> Display for NodeAndStatistics<'a> {
 
 struct NodeNameAndStatistics {
     total_uncompressed_bytes: usize,
-    nodes: Vec<(SharedString, NodeStatistics)>
+    nodes: Vec<(InterfaceName, NodeStatistics)>
 }
 
 impl Display for NodeNameAndStatistics {
@@ -1149,7 +1150,7 @@ impl Display for NodeNameAndStatistics {
                 header_bytes: 0,
                 total_uncompressed_bytes: self.total_uncompressed_bytes,
                 total_number_of_entries,
-                name: name,
+                name: name.as_str(),
                 stats
             };
             write!(f, "{}", for_display)?;

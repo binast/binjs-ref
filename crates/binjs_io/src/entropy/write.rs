@@ -1,13 +1,13 @@
 
 use entropy::{ EncodingModel, Model };
 use entropy::predict::{ Symbol };
-use entropy::tree:: { EXPECTED_PATH_DEPTH, EXPECTED_SCOPE_DEPTH, ASTPath, F64, Label, ScopeIndex, ScopePath, SharedTree, SubTree, Tag, Visitor, WalkTree };
+use entropy::tree:: { EXPECTED_PATH_DEPTH, EXPECTED_SCOPE_DEPTH, ASTPath, F64, Label, ScopeIndex, ScopePath, SharedTree, SubTree, Visitor, WalkTree };
 
 use io::TokenWriter;
 use ::TokenWriterError;
 use util::GenericCounter;
 
-use binjs_shared:: { IdentifierName, PropertyKey, SharedString };
+use binjs_shared:: { FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString };
 
 use range_encoding::opus;
 
@@ -138,7 +138,7 @@ impl<'a> Compressor<'a> {
         Ok(())
     }
 
-    fn encode_uncompressed_string(&mut self, value: &Rc<String>) -> Result<(), std::io::Error> {
+    fn encode_uncompressed_string(&mut self, value: &SharedString) -> Result<(), std::io::Error> {
         self.encode_uncompressed_varnum(Some(value.len() as u32))?;
         for byte in value.bytes() {
             for shift in 0..7 {
@@ -148,7 +148,7 @@ impl<'a> Compressor<'a> {
         }
         Ok(())
     }
-    fn encode_uncompressed_maybe_string(&mut self, value: &Option<Rc<String>>) -> Result<(), std::io::Error> {
+    fn encode_uncompressed_maybe_string(&mut self, value: &Option<SharedString>) -> Result<(), std::io::Error> {
         match value {
             None => self.encode_uncompressed_varnum(None),
             Some(ref s) => self.encode_uncompressed_string(s)
@@ -166,7 +166,8 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_tags {
                     return Ok(())
                 }
-                self.encode_value("tag", symbol, move |me| me.encode_uncompressed_string(tag.content()))?;
+                self.encode_value("tag", symbol, move |me|
+                    me.encode_uncompressed_string(tag.as_shared_string()))?;
             }
             Label::Number(ref value) => {
                 let symbol = self.model.number_frequency_for_encoding(value, path)
@@ -212,7 +213,11 @@ impl<'a> Visitor for Compressor<'a> {
                 if !self.options.encode_identifiers {
                     return Ok(())
                 }
-                self.encode_value("id", symbol, move |me| me.encode_uncompressed_maybe_string(&Some(string.clone())))?;
+                self.encode_value("id", symbol, move |me| {
+                    let string = string.as_shared_string()
+                        .clone();
+                    me.encode_uncompressed_maybe_string(&Some(string))
+                })?
             }
             _ => {
                 warn!(target: "entropy", "Skipping serialization of label {:?} (not implemented yet)", label);
@@ -247,15 +252,16 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
     type Tree = SharedTree;
     type Data = Vec<u8>;
 
-    fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         self.new_tree(SubTree {
-            label: Label::Tag(Tag::new(tag)),
+            label: Label::Tag(tag.clone()),
             children: children.iter()
                 .map(|(_, tree)| tree.clone())
                 .collect()
         })
     }
 
+/*
     fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         let tuple = self.tagged_tuple(tag, children)?;
         let index = self.scope_counter.next();
@@ -264,6 +270,7 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
             children: vec![tuple]
         })
     }
+*/
 
     fn identifier_name(&mut self, name: Option<&IdentifierName>) -> Result<Self::Tree, TokenWriterError> {
         unimplemented!()
@@ -294,13 +301,13 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
 
     fn string(&mut self, value: Option<&SharedString>) -> Result<Self::Tree, TokenWriterError> {
         self.new_tree(SubTree {
-            label: Label::String(value.map(|x| Rc::new(x.to_string()))),
+            label: Label::String(value.cloned()),
             children: vec![]
         })
     }
 
     fn string_enum(&mut self, value: &SharedString) -> Result<Self::Tree, TokenWriterError> {
-        self.tagged_tuple(value, &[])
+        self.tagged_tuple(&InterfaceName(value.clone()), &[])
     }
 
     fn list(&mut self, children: Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError> {

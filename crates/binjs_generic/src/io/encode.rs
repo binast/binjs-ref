@@ -2,7 +2,7 @@ use util::type_of;
 
 use binjs_io::{ TokenWriter, TokenWriterError };
 use binjs_meta::spec::*;
-use binjs_shared::SharedString;
+use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
 use std;
 use std::cell::*;
@@ -103,10 +103,11 @@ impl<'a, B, Tree> Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
                             let fields = interface.contents().fields();
                             let contents = self.encode_structure(object, fields, interface.name())?;
                             // Write the contents with the tag of the refined interface.
+                            let interface_name = InterfaceName::from_string(type_field.to_string());
                             let labelled = self.builder
                                 .borrow_mut()
-                                .tagged_tuple(&type_field, &contents)
-                                .map_err(Error::TokenWriterError)?;
+                                .tagged_tuple(&interface_name, &contents)
+                                .map_err(Error::TokenWriterError)?; // FIXME: We should consolidate spec::InterfaceName and shared::InterfaceName
                             return Ok(labelled)
                         } else {
                             return Err(Error::Mismatch {
@@ -117,9 +118,10 @@ impl<'a, B, Tree> Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
                     }
                     JSON::Null if is_optional => {
                         // Write the contents with the tag of the refined interface.
+                        let null_name = InterfaceName::from_string(self.grammar.get_null_name().to_str().to_string());
                         let labelled = self.builder
                             .borrow_mut()
-                            .tagged_tuple(self.grammar.get_null_name().to_str(), &[])
+                            .tagged_tuple(&null_name, &[])
                             .map_err(Error::TokenWriterError)?;
                         return Ok(labelled)
                     }
@@ -203,15 +205,16 @@ impl<'a, B, Tree> Encoder<'a, B, Tree> where B: TokenWriter<Tree=Tree> {
             got: value.dump()
         })
     }
-    fn encode_structure<'b>(&self, object: &'b Object, fields: &'b [Field], node: &NodeName) -> Result<Vec<(&'b str, B::Tree)>, Error> {
+    fn encode_structure(&self, object: &Object, fields: &[Field], node: &NodeName) -> Result<Vec<(FieldName, B::Tree)>, Error> {
         let mut result = Vec::with_capacity(fields.len());
         'fields: for field in fields {
+            let field_name = FieldName::from_string(field.name().to_str().to_string());
             if let Some(source) = object.get(field.name().to_string()) {
                 let encoded = self.encode_from_type(source, field.type_(), node, false)?;
-                result.push((field.name().to_str(), encoded))
+                result.push((field_name, encoded))
             } else if field.type_().is_optional() {
                 let encoded = self.encode_from_type(&JSON::Null, field.type_(), node, false)?;
-                result.push((field.name().to_str(), encoded))
+                result.push((field_name, encoded))
             } else {
                 debug!("Error in {:?}", object);
                 return Err(Error::missing_field(field.name().to_string(), node));

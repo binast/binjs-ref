@@ -1,7 +1,8 @@
 use entropy::{ DecodingModel, EncodingModel, Model };
 use entropy::predict::{ ContextPredict, PathPredict, Symbol };
-use entropy::tree::{ EXPECTED_PATH_DEPTH, EXPECTED_SCOPE_DEPTH, ASTPath, F64, Label, ScopeIndex, ScopePath, SharedTree, Tag, Visitor, WalkTree };
+use entropy::tree::{ EXPECTED_PATH_DEPTH, EXPECTED_SCOPE_DEPTH, ASTPath, F64, Label, ScopeIndex, ScopePath, SharedTree, Visitor, WalkTree };
 
+use binjs_shared::{ IdentifierName, InterfaceName, SharedString };
 use binjs_shared::ast::PathItem;
 
 use std;
@@ -32,10 +33,10 @@ impl ExactEncodingModel {
     }
 }
 impl EncodingModel for ExactEncodingModel {
-    fn string_frequency_for_encoding(&mut self, value: &Option<Rc<String>>, path: &ASTPath) -> Result<Symbol, ()> {
+    fn string_frequency_for_encoding(&mut self, value: &Option<SharedString>, path: &ASTPath) -> Result<Symbol, ()> {
         Self::get_from_path(&mut self.probabilities.strings, value, path)
     }
-    fn tag_frequency_for_encoding(&mut self, value: &Tag, path: &ASTPath) -> Result<Symbol, ()> {
+    fn tag_frequency_for_encoding(&mut self, value: &InterfaceName, path: &ASTPath) -> Result<Symbol, ()> {
         Self::get_from_path(&mut self.probabilities.tags, value, path)
     }
     fn bool_frequency_for_encoding(&mut self, value: &Option<bool>, path: &ASTPath) -> Result<Symbol, ()> {
@@ -52,7 +53,7 @@ impl EncodingModel for ExactEncodingModel {
             .ok_or(())?;
         Ok(segment.clone())
     }
-    fn identifier_frequency_for_encoding(&mut self, string: &Rc<String>, scopes: &ScopePath) -> Result<Symbol, ()> {
+    fn identifier_frequency_for_encoding(&mut self, string: &IdentifierName, scopes: &ScopePath) -> Result<Symbol, ()> {
         let scope = scopes.get(0)
             .map(PathItem::interface)
             .cloned();
@@ -106,10 +107,10 @@ impl ExactEncodingModel {
 
 pub struct ExactEncodingModelData<T> {
     /// Tag prediction based on path (depth 1 as of this writing).
-    tags: PathPredict<Tag, T>,
+    tags: PathPredict<InterfaceName, T>,
 
     /// Non-identifier string prediction based on path (depth 1 as of this writing).
-    strings: PathPredict<Option<Rc<String>>, T>,
+    strings: PathPredict<Option<SharedString>, T>,
 
     /// Number prediction based on path.
     numbers: PathPredict<Option<F64>, T>,
@@ -118,7 +119,7 @@ pub struct ExactEncodingModelData<T> {
     bools: PathPredict<Option<bool>, T>,
 
     /// Identifier prediction based on scope.
-    identifiers: ContextPredict<Option<ScopeIndex>, Rc<String>, T>,
+    identifiers: ContextPredict<Option<ScopeIndex>, IdentifierName, T>,
 
     /// List length prediction based on path.
     list_lengths: PathPredict<Option<u32>, T>,
