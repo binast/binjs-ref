@@ -159,4 +159,9 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
             &self.items
         }
     }
+
+    /// Iter through the path, from the root to the current position.
+    pub fn iter(&self) -> impl Iterator<Item = &PathItem<I, F>> {
+        self.items.iter()
+    }
 }
