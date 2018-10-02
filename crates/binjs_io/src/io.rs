@@ -390,8 +390,8 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     fn string_enum(&mut self, str: &SharedString) -> Result<Self::Tree, TokenWriterError> {
         self.string(Some(str))
     }
-    fn string_enum_at(&mut self, value: &SharedString, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.string_enum(value)
+    fn string_enum_at(&mut self, value: &SharedString, path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.string_at(Some(value), path)
     }
 
     /// Write a single number.
