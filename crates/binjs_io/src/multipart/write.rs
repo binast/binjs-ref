@@ -753,17 +753,6 @@ impl TokenWriter for TreeTokenWriter {
             nature: Nature::List,
         }))
     }
-    fn untagged_tuple(&mut self, children: &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
-        let result = UnresolvedTree {
-            data: UnresolvedTreeNode::Tuple(children.iter()
-                .map(|tree| tree.0.clone())
-                .collect()
-            ),
-            nature: Nature::UntaggedTuple,
-        };
-        debug!(target: "multipart", "writing untagged tuple {} children", children.len());
-        Ok(self.register(result))
-    }
 
     // Tagged tuple:
     //

@@ -317,10 +317,6 @@ impl<'a> TokenWriter for TreeTokenWriter<'a> {
         })
     }
 
-    fn untagged_tuple(&mut self, _: &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-
     fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
         let model = self.model.encoding(&self.root);
         let root = self.root.clone();

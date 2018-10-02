@@ -577,7 +577,13 @@ impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: Toke
     fn serialize(&mut self, value: &'a Option<{name}>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional sum {name}\");
         match *value {{
-            None => self.writer.tagged_tuple_at(&InterfaceName::from_str(\"{null}\"), &[], path),
+            None => {{
+                let interface_name = InterfaceName::from_str(\"{null}\");
+                self.writer.enter_tagged_tuple_at(&interface_name, 0, path)?;
+                let result = self.writer.tagged_tuple_at(&interface_name, &[], path)?;
+                self.writer.exit_tagged_tuple_at(&interface_name, path)?;
+                Ok(result)
+            }}
             Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum, path)
         }}
     }}
@@ -837,12 +843,15 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &'a {name}, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing list {name}\");
+        self.writer.enter_list_at(value.len(), path)?;
         let mut children = Vec::with_capacity(value.len());
         for child in value {{
             // All the children of the list share the same path.
             children.push(self.serialize(child, path)?);
         }}
-        self.writer.list_at(children, path)
+        let result = self.writer.list_at(children, path)?;
+        self.writer.exit_list_at(path)?;
+        Ok(result)
     }}
 }}
 ",
@@ -1053,7 +1062,13 @@ impl<'a, W> Serialization<W, &'a Option<{name}>> for Serializer<W> where W: Toke
     fn serialize(&mut self, value: &'a Option<{name}>, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional tagged tuple {name}\");
         match *value {{
-            None => self.writer.tagged_tuple_at(&InterfaceName::from_str(\"{null}\"), &[], path),
+            None => {{
+                let interface_name = InterfaceName::from_str(\"{null}\");
+                self.writer.enter_tagged_tuple_at(&interface_name, 0, path)?;
+                let result = self.writer.tagged_tuple_at(&interface_name, &[], path)?;
+                self.writer.exit_tagged_tuple_at(&interface_name, path)?;
+                Ok(result)
+            }}
             Some(ref sum) => (self as &mut Serialization<W, &'a {name}>).serialize(sum, path)
         }}
     }}
@@ -1062,11 +1077,15 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
     fn serialize(&mut self, {value}: &'a {name}, path: &mut IOPath) -> Result<W::Tree, TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
         let interface_name = InterfaceName::from_str(\"{name}\"); // String is shared
+
+        self.writer.enter_tagged_tuple_at(&interface_name, {len}, path)?;
         path.enter_interface(interface_name.clone());
         let {mut} children = Vec::with_capacity({len});
 {fields}
         let result = self.writer.{tagged_tuple}(&interface_name, &children, path);
-        path.exit_interface(interface_name);
+        path.exit_interface(interface_name.clone());
+        self.writer.exit_tagged_tuple_at(&interface_name, path)?;
+
         result
     }}
 }}
