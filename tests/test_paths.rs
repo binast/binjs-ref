@@ -161,7 +161,6 @@ test!(test_es6_paths, {
         .expect("Could not walk");
 
     // Extract properties, as a sample.
-    //let borrow = trace.borrow();
     let mut properties : Vec<_> = trace.borrow()
         .iter()
         .filter_map(|step| {
