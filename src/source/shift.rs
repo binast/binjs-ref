@@ -142,7 +142,11 @@ impl SourceParser for Shift {
     type Error = Error;
     fn parse_str(&self, data: &str) -> Result<JSON, Error> {
         // Escape `"`.
-        let data = data.replace("\"", "\\\"");
+        let data = data
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\r", "\\r")
+            .replace("\n", "\\n");
 
         // A script to parse a string, write it to stdout as JSON.
         let script = format!(

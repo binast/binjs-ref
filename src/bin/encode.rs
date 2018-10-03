@@ -49,6 +49,17 @@ macro_rules! progress {
     }
 }
 
+enum Source<'a> {
+    FromFile { path: &'a Path },
+    FromStdin { text: String },
+}
+
+struct EncodeParams<'a> {
+    source: Source<'a>,
+    dest_bin_path: Option<PathBuf>,
+    dest_txt_path: Option<PathBuf>,
+}
+
 fn handle_path<'a>(options: &mut Options<'a>,
     source_path: &Path,
     sub_dir: &Path)
@@ -76,7 +87,7 @@ fn handle_path<'a>(options: &mut Options<'a>,
         return;
     }
     let (dest_txt_path, dest_bin_path) = match options.dest_dir {
-        None => (None, None), // Do not write
+        None => (None, None), // Use stdout
         Some(ref d) => {
             let file_name = source_path.file_stem()
                 .expect("Could not extract file name");
@@ -102,13 +113,37 @@ fn handle_path<'a>(options: &mut Options<'a>,
         progress!(options.quiet, "Compressing to memory");
     }
 
-    let source_len = std::fs::metadata(source_path)
-        .expect("Could not open source")
-        .len();
-
     progress!(options.quiet, "Parsing.");
-    let json = options.parser.parse_file(source_path)
-        .expect("Could not parse source");
+
+    handle_path_or_text(options, EncodeParams {
+        source: Source::FromFile { path: source_path },
+        dest_bin_path,
+        dest_txt_path,
+    });
+}
+
+fn handle_path_or_text<'a>(options: &mut Options<'a>,
+    params: EncodeParams)
+{
+    let (source_path, source_len, json) = match params.source {
+        Source::FromFile { path } => {
+            (Some(path),
+             std::fs::metadata(path)
+                 .expect("Could not open source")
+                 .len(),
+             options.parser.parse_file(path)
+                 .expect("Could not parse source"))
+        }
+        Source::FromStdin { text } => {
+            (None,
+             text.len() as u64,
+             options.parser.parse_str(text.as_str())
+             .expect("Could not parse source"))
+        }
+    };
+    let dest_bin_path = params.dest_bin_path;
+    let dest_txt_path = params.dest_txt_path;
+
     let mut ast = binjs::specialized::es6::ast::Script::import(&json)
         .expect("Could not import AST");
     binjs::specialized::es6::scopes::AnnotationVisitor::new()
@@ -132,11 +167,13 @@ fn handle_path<'a>(options: &mut Options<'a>,
     let encoder = Encoder::new();
     let data = encoder.encode(&mut options.format, &ast)
         .expect("Could not encode");
-    options.format.with_sections::<_, ()>(|contents, name| {
-        export_section(&dest_bin_path, contents, name);
-        Ok(())
-    })
+    if dest_txt_path.is_some() {
+        options.format.with_sections::<_, ()>(|contents, name| {
+            export_section(&dest_bin_path, contents, name);
+            Ok(())
+        })
         .expect("Could not write sections");
+    };
     let dest_len = data.as_ref().as_ref().len();
 
     if let Some(ref bin_path) = dest_bin_path {
@@ -146,7 +183,8 @@ fn handle_path<'a>(options: &mut Options<'a>,
         dest.write((*data).as_ref())
             .expect("Could not write destination file");
     } else {
-        progress!(options.quiet, "Skipping write.");
+        stdout().write((*data).as_ref())
+            .expect("Could not write to stdout");
     }
 
     if let Some(ref txt_path) = dest_txt_path {
@@ -154,7 +192,8 @@ fn handle_path<'a>(options: &mut Options<'a>,
             progress!(options.quiet, "A file with name {:?} already exists, skipping copy.", txt_path);
         } else {
             progress!(options.quiet, "Copying source file.");
-            std::fs::copy(source_path, txt_path)
+
+            std::fs::copy(source_path.unwrap(), txt_path)
                 .expect("Could not copy source file");
         }
     }
@@ -188,14 +227,12 @@ fn main_aux() {
                 .short("i")
                 .multiple(true)
                 .takes_value(true)
-                .required(true)
-                .help("Input files to use. Must be JS source file. May be specified multiple times"),
+                .help("Input files to use. Must be JS source file. May be specified multiple times. If not specified, stdin is used."),
             Arg::with_name("out")
                 .long("out")
                 .short("o")
                 .takes_value(true)
-                .required(true)
-                .help("Output directory to use. Files in this directory may be overwritten."),
+                .help("Output directory to use. Files in this directory may be overwritten. Requires --in. If not specified, stdout is used"),
             Arg::with_name("statistics")
                 .long("show-stats")
                 .help("Show statistics."),
@@ -223,17 +260,24 @@ fn main_aux() {
         .get_matches();
 
     // Common options.
-    let quiet = matches.is_present("quiet");
-
     let sources : Vec<_> = matches.values_of("in")
-        .expect("Missing `in`")
-        .map(Path::new)
-        .collect();
+        .map_or_else(|| Vec::new(),
+                     |input| input
+                     .map(Path::new)
+                     .collect());
 
-    let dest_dir = match matches.value_of("out") {
-        None => None,
-        Some(path) => Some(Path::new(path).to_path_buf())
+    let dest_dir = if sources.len() == 0 {
+        // If --in is not specified, --out is not used even if specified.
+        // Instead, the result is printed to stdout.
+        None
+    } else {
+        match matches.value_of("out") {
+            None => None,
+            Some(path) => Some(Path::new(path).to_path_buf())
+        }
     };
+
+    let quiet = matches.is_present("quiet") || dest_dir.is_none();
 
     // Format options.
     let format = binjs::io::Format::from_matches(&matches)
@@ -257,8 +301,21 @@ fn main_aux() {
         quiet
     };
 
-    for source_path in sources {
-        handle_path(&mut options, source_path, PathBuf::new().as_path());
+    if sources.len() == 0 {
+        // Use stdin if --in is not specified.
+        let mut buffer = String::new();
+        stdin().read_to_string(&mut buffer)
+            .expect("Failed to read from stdin");
+
+        handle_path_or_text(&mut options, EncodeParams {
+            source: Source::FromStdin { text: buffer },
+            dest_bin_path: None,
+            dest_txt_path: None
+        });
+    } else {
+        for source_path in sources {
+            handle_path(&mut options, source_path, PathBuf::new().as_path());
+        }
     }
 
     if show_stats {
