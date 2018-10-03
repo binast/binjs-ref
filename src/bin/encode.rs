@@ -216,8 +216,6 @@ fn main() {
 fn main_aux() {
     env_logger::init();
 
-    let format_providers = binjs::io::Format::providers();
-
     let matches = App::new("BinJS encoder")
         .author("David Teller, <dteller@mozilla.com>")
         .about("Encode a JavaScript text source to a JavaScript binary source in the BinJS format.")
@@ -252,11 +250,7 @@ fn main_aux() {
                 .short("q")
                 .help("Do not print progress"),
         ])
-        .subcommand(SubCommand::with_name("advanced")
-            .subcommands(format_providers.iter()
-                .map(|x| x.subcommand())
-            )
-        )
+        .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
     // Common options.

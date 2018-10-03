@@ -96,6 +96,8 @@ pub mod xml;
 
 mod util;
 
+const ADVANCED_COMMAND: &str = "advanced";
+
 /// A strategy for placing the dictionary.
 #[derive(Clone, Debug)]
 pub enum DictionaryPlacement {
@@ -393,7 +395,7 @@ impl Format {
 
     /// Return all existing format providers, to manage
     /// command-line arguments.
-    pub fn providers() -> [&'static FormatProvider; 4] {
+    fn providers() -> [&'static FormatProvider; 4] {
         [
             &multipart::FormatProvider,
             &simple::FormatProvider,
@@ -408,17 +410,28 @@ impl Format {
         &multipart::FormatProvider
     }
 
+    /// Returns command-line argument for advanced.
+    /// FormatProvider's subcommands are hidden behind "advanced" command.
+    pub fn subcommand<'a, 'b>() -> clap::App<'a, 'b> {
+        clap::SubCommand::with_name(ADVANCED_COMMAND)
+            .subcommands(Format::providers().iter()
+                .map(|x| x.subcommand())
+            )
+    }
+
     /// Create a Format based on command-line arguments.
     ///
     /// Pick the first format provider that was invoked by
     /// `matches` as a subcommand. If none, pick the default
     /// provider, without any command-line arguments.
     pub fn from_matches(matches: &clap::ArgMatches) -> Result<Self, std::io::Error> {
-        for provider in Self::providers().into_iter() {
-            let subcommand = provider.subcommand();
-            let key = subcommand.get_name();
-            if let Some(matches) = matches.subcommand_matches(key) {
-                return provider.handle_subcommand(Some(matches));
+        if let Some(matches) = matches.subcommand_matches(ADVANCED_COMMAND) {
+            for provider in Self::providers().into_iter() {
+                let subcommand = provider.subcommand();
+                let key = subcommand.get_name();
+                if let Some(matches) = matches.subcommand_matches(key) {
+                    return provider.handle_subcommand(Some(matches));
+                }
             }
         }
         Self::default_provider()
