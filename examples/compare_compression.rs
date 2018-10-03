@@ -94,8 +94,6 @@ fn get_compressed_sizes(path: &std::path::Path) -> Sizes {
 
 fn main() {
     env_logger::init();
-    let format_providers = binjs::io::Format::providers();
-
     let dest_path_binjs = "/tmp/binjs-test.js.binjs";
 
     let matches = App::new("Compare BinJS compression and brotli/gzip compression")
@@ -109,9 +107,7 @@ fn main() {
                 .takes_value(true)
                 .help("Glob path towards source files"),
         ])
-        .subcommands(format_providers.iter()
-            .map(|x| x.subcommand())
-        )
+        .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
     let mut format = binjs::io::Format::from_matches(&matches)
