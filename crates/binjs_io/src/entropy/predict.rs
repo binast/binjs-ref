@@ -1,4 +1,4 @@
-use entropy::tree::{ ASTPath, ASTPathItem, Tag };
+use entropy::tree::{ ASTPath, ASTPathItem };
 
 use std;
 use std::cell::RefCell;

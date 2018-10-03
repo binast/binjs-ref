@@ -3,7 +3,7 @@
 
 use binjs_io::{ Guard, TokenReader };
 use binjs_meta::spec::*;
-use binjs_shared::ToJSON;
+use binjs_shared::{ FieldName, InterfaceName, ToJSON };
 
 use json;
 use json::JsonValue as JSON;
@@ -17,10 +17,10 @@ use std::rc::Rc;
 pub enum Error<E> where E: Debug {
     UnexpectedValue(String),
     TokenReaderError(E),
-    NoSuchInterface(String),
+    NoSuchInterface(InterfaceName),
     NoSuchRefinement(String),
-    NoSuchKind(String),
-    NoSuchField(String),
+    NoSuchKind(InterfaceName),
+    NoSuchField(FieldName),
     NoSuchType(String),
     InvalidValue(String),
     MissingField {
@@ -95,7 +95,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 // 3. Check that the object is appropriate here.
                 if object_name != interface.name().to_str() {
                     return Err(self.raise_error(Error::UnexpectedValue(format!("Object named {} instead of {}",
-                        object_name,
+                        object_name.as_str(),
                         interface.name().to_str()))));
                 }
 
@@ -104,7 +104,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             }
         }
     }
-    pub fn decode_object_contents(&mut self, interface: &Interface, field_names: Option<Rc<Box<[String]>>>, guard: E::TaggedGuard) -> Result<JSON, Error<E::Error>> {
+    pub fn decode_object_contents(&mut self, interface: &Interface, field_names: Option<Rc<Box<[FieldName]>>>, guard: E::TaggedGuard) -> Result<JSON, Error<E::Error>> {
         debug!(target: "decode", "decode_object_contents: Interface {:?} ", interface.name());
         let mut object = Object::new();
 
@@ -122,7 +122,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             // Read the fields **in the order** in which they appear in the stream.
             for field in field_names.as_ref().iter() {
                 debug!(target: "decode", "decode_object_contents: Looking at field {:?} ", field);
-                let field_name = self.grammar.get_field_name(field)
+                let field_name = self.grammar.get_field_name(field.as_str())
                     .ok_or_else(|| self.raise_error(Error::NoSuchField(field.clone())))?;
                 let type_ =
                     if let Some(type_) = expected.remove(field_name) {
@@ -133,7 +133,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                         return Err(self.raise_error(Error::NoSuchField(field.clone())))
                     };
                 let item = self.decode_from_type(type_, false)?;
-                object.insert(field, item);
+                object.insert(field.as_str(), item);
             }
             debug!(target: "decode", "decode_object_contents: Remaining fields {:?} ", expected);
 
@@ -250,8 +250,8 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 let (interface_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
                     .map_err(Error::TokenReaderError)?;
                 debug!(target: "decoder", "decoder: found kind {:?}", interface_name);
-                let interface_node_name = self.grammar.get_node_name(&interface_name)
-                    .ok_or_else(|| Error::NoSuchInterface(interface_name.to_string().clone()))?;
+                let interface_node_name = self.grammar.get_node_name(interface_name.as_str())
+                    .ok_or_else(|| Error::NoSuchInterface(interface_name.clone()))?;
 
                 if interface_node_name == self.grammar.get_null_name() {
                     if is_optional {
@@ -261,7 +261,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     }
                 }
                 let interface = self.grammar.get_interface_by_name(&interface_node_name)
-                    .ok_or_else(|| self.raise_error(Error::NoSuchInterface(interface_name.to_string().clone())))?;
+                    .ok_or_else(|| self.raise_error(Error::NoSuchInterface(interface_name.clone())))?;
 
                 // 2. Check that the interface somehow belongs in `sum`
                 if sum.types().iter()
@@ -271,7 +271,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     }).is_none()
                 {
                     return Err(self.raise_error(Error::UnexpectedValue(format!("Unexpected interface {interface} doesn't fit in sum {sum:?}",
-                        interface = interface_name,
+                        interface = interface_name.as_str(),
                         sum = sum.types()))));
                 }
 

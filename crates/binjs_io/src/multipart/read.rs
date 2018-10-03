@@ -14,7 +14,7 @@ use io::*;
 use multipart::{ FormatInTable, HEADER_GRAMMAR_TABLE, HEADER_STRINGS_TABLE, HEADER_TREE };
 use util::{ PoisonLock, Pos, ReadConst };
 
-use binjs_shared::SharedString;
+use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
 impl Into<std::io::Error> for TokenReaderError {
     fn into(self) -> std::io::Error {
@@ -467,7 +467,7 @@ impl TokenReader for TreeTokenReader {
     /// Returns the tag name, `None` for fields and a
     /// sub-extractor dedicated
     /// to that tuple. The sub-extractor MUST be consumed entirely.
-    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), Self::Error> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
             let index = state.reader.read_varnum()
@@ -475,10 +475,10 @@ impl TokenReader for TreeTokenReader {
             let description = state.grammar_table.get(index)
                 .ok_or(TokenReaderError::BadKindIndex(index))?;
 
-            let tag = description.kind.clone();
+            let tag = InterfaceName(description.kind.clone());
             let guard = SimpleGuard::new(clone);
             debug!(target: "multipart", "Reading tagged tuple with kind \"{}\"",
-                tag);
+                tag.as_shared_string());
             Ok((tag, None, guard))
         })
     }
