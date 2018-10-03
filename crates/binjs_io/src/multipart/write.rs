@@ -5,7 +5,7 @@ use io::*;
 use ::{ CompressionTarget, TokenWriterError };
 use multipart::*;
 
-use binjs_shared::SharedString;
+use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
 use std;
 use std::collections::{ HashMap, HashSet };
@@ -97,7 +97,7 @@ impl Serializable for Option<SharedString> {
 /// An entry in an WriterTable.
 ///
 /// This entry tracks the number of instances of the entry used in the table.
-struct TableEntry<T> where T: Clone + std::fmt::Debug { // We shouldn't need the `Clone`, sigh.
+struct TableEntry<T> where T: Clone + std::fmt::Debug + Ord { // We shouldn't need the `Clone`, sigh.
     /// Number of instances of this entry around.
     instances: RefCell<u32>,
 
@@ -107,7 +107,7 @@ struct TableEntry<T> where T: Clone + std::fmt::Debug { // We shouldn't need the
     /// The index, actually computed in `write()`.
     index: TableIndex<T>
 }
-impl<T> TableEntry<T> where T: Clone + std::fmt::Debug {
+impl<T> TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
     fn new(data: T) -> Self {
         TableEntry {
             instances: RefCell::new(1),
@@ -116,13 +116,31 @@ impl<T> TableEntry<T> where T: Clone + std::fmt::Debug {
         }
     }
 }
+impl<T> PartialEq for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == std::cmp::Ordering::Equal
+    }
+}
+impl<T> Eq for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
+}
+impl<T> PartialOrd for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl<T> Ord for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        u32::cmp(&*other.instances.borrow(), &*self.instances.borrow())
+            .then_with(|| self.data.cmp(&other.data))
+    }
+}
 
 /// A table, used to define a varnum-indexed header
-struct WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
+struct WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord {
     map: HashMap<Entry, TableEntry<Entry>>
 }
 
-impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
+impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord {
     pub fn new() -> Self {
         WriterTable {
             map: HashMap::new()
@@ -131,7 +149,7 @@ impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + F
 }
 
 
-impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
+impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord {
     /// Get an entry from the header.
     ///
     /// The number of entries is incremented by 1.
@@ -173,13 +191,13 @@ impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + F
 ///       -   byte length of entry (varnum);
 /// - for each entry,
 /// -   serialization of entry.
-impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug {
+impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
-        // Sort entries by number of uses.
+        // Sort entries by number of uses and entry data specific ordering
         let mut contents : Vec<_> = self.map.values().collect();
-        contents.sort_unstable_by(|a, b| u32::cmp(&*b.instances.borrow(), &*a.instances.borrow()));
+        contents.sort_unstable();
 
         // Assign TableIndex
         for i in 0..contents.len() {
@@ -221,9 +239,9 @@ impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone +
 }
 
 
-#[derive(PartialEq, Eq, Clone, Hash, Debug)] // FIXME: Clone shouldn't be necessary. Sigh.
+#[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Hash, Debug)] // FIXME: Clone shouldn't be necessary. Sigh.
 pub struct NodeDescription {
-    kind: SharedString,
+    kind: InterfaceName,
 }
 
 /// Format:
@@ -235,7 +253,8 @@ impl Serializable for NodeDescription {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
-        total += self.kind.write(out)?;
+        total += self.kind.as_shared_string()
+            .write(out)?;
         Ok(total)
     }
 }
@@ -753,12 +772,12 @@ impl TokenWriter for TreeTokenWriter {
     // - index in the grammar table (varnum);
     // - for each item, in the order specified
     //    - the item (see item)
-    fn tagged_tuple(&mut self, name: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, name: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         let data;
         let description = NodeDescription {
-            kind: SharedString::from_string(name.to_string()),
+            kind: name.clone()
         };
-        debug!(target: "multipart", "writing tagged tuple {} with {} children as {:?}",
+        debug!(target: "multipart", "writing tagged tuple {:?} with {} children as {:?}",
             name,
             children.len(),
             description,
@@ -940,7 +959,7 @@ pub struct Statistics {
     pub tree: SectionStatistics,
 
     pub per_kind_index: VecMap<NodeStatistics>,
-    pub per_kind_name: HashMap<SharedString, NodeStatistics>,
+    pub per_kind_name: HashMap<InterfaceName, NodeStatistics>,
     pub per_description: HashMap<NodeDescription, NodeStatistics>,
 
     /// Mapping length -> number of lists of that length.
@@ -1134,7 +1153,7 @@ impl<'a> Display for NodeAndStatistics<'a> {
 
 struct NodeNameAndStatistics {
     total_uncompressed_bytes: usize,
-    nodes: Vec<(SharedString, NodeStatistics)>
+    nodes: Vec<(InterfaceName, NodeStatistics)>
 }
 
 impl Display for NodeNameAndStatistics {
@@ -1149,7 +1168,7 @@ impl Display for NodeNameAndStatistics {
                 header_bytes: 0,
                 total_uncompressed_bytes: self.total_uncompressed_bytes,
                 total_number_of_entries,
-                name: name,
+                name: name.as_str(),
                 stats
             };
             write!(f, "{}", for_display)?;

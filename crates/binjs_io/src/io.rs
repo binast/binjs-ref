@@ -7,7 +7,7 @@
 //! In practice, this API is kept as a trait to simplify unit testing and
 //! experimentation of sophisticated compression schemes.
 
-use binjs_shared::{ IdentifierName, PropertyKey, SharedString, self };
+use binjs_shared::{ IdentifierName, InterfaceName, FieldName, PropertyKey, SharedString, self };
 
 use ::{ TokenWriterError };
 
@@ -152,7 +152,7 @@ macro_rules! print_file_structure(
 );
 
 
-pub type Path = binjs_shared::ast::Path</* Interface */ SharedString, /* Field */ (usize, SharedString)>;
+pub type Path = binjs_shared::ast::Path<InterfaceName, /* Field */ (usize, FieldName)>;
 
 /// An API for reading tokens.
 ///
@@ -196,7 +196,9 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     type UntaggedGuard;
 
     /// Poison the reader, ensuring that it will never be used for reading again.
-    fn poison(&mut self);
+    fn poison(&mut self) {
+        // Do nothing.
+    }
 
     /// Read a single UTF-8 string.
     ///
@@ -295,22 +297,9 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// call `guard.done()` to ensure that the tuple was properly
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
-    fn tagged_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error>;
-    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple(&mut self) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), Self::Error>;
+    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), Self::Error> {
         self.tagged_tuple()
-    }
-
-    /// Start reading a tagged `[Scope]` tuple, i.e. a tuple to
-    /// which identifier declarations/references may be attached.
-    ///
-    /// The default implementation uses `tagged_tuple`,
-    /// but some encodings may use the extra information e.g. to
-    /// perform DeBruijn indices, or prediction based on the scope.
-    fn tagged_scoped_tuple(&mut self) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
-        self.tagged_tuple()
-    }
-    fn tagged_scoped_tuple_at(&mut self, _path: &Path) -> Result<(SharedString, Option<Rc<Box<[String]>>>, Self::TaggedGuard), Self::Error> {
-        self.tagged_scoped_tuple()
     }
 
     /// Start reading an untagged tuple.
@@ -354,29 +343,20 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// recorded by the `TokenWriter`.
     ///
     /// The interface MUST have a Tag.
-    fn tagged_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError>;
-    fn tagged_tuple_at(&mut self, tag: &str, children: &[(&str, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.tagged_tuple(tag, children)
+    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
     }
-
-    /// Write a tagged `[Scope]` tuple, i.e. a tuple  i.e. a tuple to
-    /// which identifier declarations/references may be attached.
-    ///
-    /// The default implementation uses `tagged_tuple`,
-    /// but some encodings may use the extra information e.g. to
-    /// perform DeBruijn indices, or prediction based on the scope.
-    fn tagged_scope_tuple(&mut self, tag: &str, children: &[(&str, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple_at(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.tagged_tuple(tag, children)
-    }
-    fn tagged_scope_tuple_at(&mut self, tag: &str, children: &[(&str, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.tagged_scope_tuple(tag, children)
     }
 
     /// Write an untagged tuple.
     ///
     /// The number of items is specified by the grammar, so it MAY not be
     /// recorded by the `TokenWriter`.
-    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, TokenWriterError>;
+    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
+    }
     fn untagged_tuple_at(&mut self, children: &[Self::Tree], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.untagged_tuple(children)
     }
@@ -385,7 +365,9 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     ///
     /// By opposition to a tuple, the number of items is variable and MUST
     /// be somehow recorded by the `TokenWriter`.
-    fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError>;
+    fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
+    }
     fn list_at(&mut self, items: Vec<Self::Tree>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.list(items)
     }
@@ -393,7 +375,9 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// Write a single UTF-8 string.
     ///
     /// If specified, the string MUST be UTF-8.
-    fn string(&mut self, Option<&SharedString>) -> Result<Self::Tree, TokenWriterError>;
+    fn string(&mut self, Option<&SharedString>) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
+    }
     fn string_at(&mut self, value: Option<&SharedString>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.string(value)
     }
@@ -411,26 +395,34 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     }
 
     /// Write a single number.
-    fn float(&mut self, Option<f64>) -> Result<Self::Tree, TokenWriterError>;
+    fn float(&mut self, Option<f64>) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
+    }
     fn float_at(&mut self, value: Option<f64>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.float(value)
     }
 
     /// Write a single u32.
-    fn unsigned_long(&mut self, u32) -> Result<Self::Tree, TokenWriterError>;
+    fn unsigned_long(&mut self, u32) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
+    }
     fn unsigned_long_at(&mut self, value: u32, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.unsigned_long(value)
     }
 
     /// Write single bool.
     // FIXME: Split `bool` from `maybe_bool`.
-    fn bool(&mut self, Option<bool>) -> Result<Self::Tree, TokenWriterError>;
+    fn bool(&mut self, Option<bool>) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
+    }
     fn bool_at(&mut self, value: Option<bool>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.bool(value)
     }
 
     /// Write the number of bytes left in this tuple.
-    fn offset(&mut self) -> Result<Self::Tree, TokenWriterError>;
+    fn offset(&mut self) -> Result<Self::Tree, TokenWriterError> {
+        unimplemented!()
+    }
     fn offset_at(&mut self, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.offset()
     }

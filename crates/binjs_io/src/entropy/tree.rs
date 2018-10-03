@@ -1,4 +1,5 @@
 use binjs_shared;
+use binjs_shared::{ IdentifierName, InterfaceName, SharedString };
 use util::Counter;
 
 use std;
@@ -16,33 +17,17 @@ pub const EXPECTED_PATH_DEPTH: usize = 2048;
 /// or decreasing the number of reallocations inside the `ScopePath`.
 pub const EXPECTED_SCOPE_DEPTH: usize = 128;
 
-pub type ASTPath = binjs_shared::ast::Path<Rc<String>, usize>;
-pub type ASTPathItem = binjs_shared::ast::PathItem<Rc<String>, usize>;
+pub type ASTPath = binjs_shared::ast::Path<InterfaceName, usize>;
+pub type ASTPathItem = binjs_shared::ast::PathItem<InterfaceName, usize>;
 
 pub type ScopePath = binjs_shared::ast::Path<ScopeIndex, ()>;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Tag(Rc<String>);
-impl Default for Tag {
-    fn default() -> Tag {
-        Self::new("")
-    }
-}
-impl Tag {
-    pub fn new(s: &str) -> Self {
-        Tag(Rc::new(s.to_string()))
-    }
-    pub fn content(&self) -> &Rc<String> {
-        &self.0
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord)]
 pub enum Label {
     /// A non-identifier string. may be `None` if
     /// we deal with a `string?` (in webidl) and the
     /// string is `null`.
-    String(Option<Rc<String>>),
+    String(Option<SharedString>),
 
     /// A number. May be `None` if we're dealing
     /// with a `number?` (in webidl) and the number
@@ -63,17 +48,17 @@ pub enum Label {
     /// is `null`.
     List(Option<u32>),
 
-    Tag(Tag),
+    Tag(InterfaceName),
 
     /// Scope. Any `Declare` within the `Scope`
     /// stays in the `Scope`.
     Scope(ScopeIndex),
 
     /// Declare a variable throughout the current `Scope`.
-    Declare(Rc<String>),
+    Declare(IdentifierName),
 
     /// Reference a variable throughout the current `Scope`.
-    LiteralReference(Option<Rc<String>>),
+    LiteralReference(Option<IdentifierName>),
 }
 
 impl Eq for Label { /* Yes, it's probably not entirely true for f64 */ }
@@ -122,13 +107,13 @@ impl WalkTree for SubTree {
         visitor.enter_label(&self.label, path, scopes)?;
         match self.label {
             Label::Tag(ref tag) => {
-                path.enter_interface(tag.0.clone());
+                path.enter_interface(tag.clone());
                 for (index, child) in self.children.iter().enumerate() {
                     path.enter_field(index);
                     child.walk(visitor, path, scopes)?;
                     path.exit_field(index);
                 }
-                path.exit_interface(tag.0.clone())
+                path.exit_interface(tag.clone())
             }
             Label::Scope(ref scope) => {
                 scopes.enter_interface(scope.clone());

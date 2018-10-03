@@ -1,11 +1,11 @@
 use binjs_io::{ self, Deserialization, Guard, TokenReader, TokenReaderError, TokenWriterError };
 pub use binjs_io::{ Serialization, TokenSerializer, TokenWriter };
-use binjs_shared::{ IdentifierName, Offset, PropertyKey, SharedString, self };
+use binjs_shared::{ FieldName, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString, self };
 
 use std::io::{ Read, Seek };
 
 /// A path used when (de)serializing ES6 ASTs.
-pub type IOPath = binjs_shared::ast::Path<SharedString, (/* child index */ usize, /* field name */ SharedString)>;
+pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
 /// A structure used for deserialization purposes.
 pub struct Deserializer<R> where R: TokenReader {
@@ -338,3 +338,4 @@ impl Encoder {
         }
     }
 }
+

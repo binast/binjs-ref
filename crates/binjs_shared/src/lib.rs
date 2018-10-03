@@ -26,57 +26,18 @@ pub enum VisitMe<T> {
     DoneHere,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub struct IdentifierName(pub SharedString);
+/// An identifier, inside the grammar.
+shared_string!(pub IdentifierName);
 pub type Identifier = IdentifierName;
-impl IdentifierName {
-    pub fn from_str(value: &'static str) -> Self {
-        IdentifierName(SharedString::from_str(value))
-    }
-    pub fn from_string(value: String) -> Self {
-        IdentifierName(SharedString::from_string(value))
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-    pub fn as_shared_string(&self) -> &SharedString {
-        &self.0
-    }
-}
-impl<'a> PartialEq<&'a str> for IdentifierName {
-    fn eq(&self, other: &&'a str) -> bool {
-        self.0.eq(other)
-    }
-}
-impl Default for IdentifierName {
-    fn default() -> Self {
-        Self::from_str("<uninitialized IdentifierName>")
-    }
-}
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub struct PropertyKey(pub SharedString);
-impl PropertyKey {
-    pub fn from_str(value: &'static str) -> Self {
-        PropertyKey(SharedString::from_str(value))
-    }
-    pub fn from_string(value: String) -> Self {
-        PropertyKey(SharedString::from_string(value))
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-    pub fn as_shared_string(&self) -> &SharedString {
-        &self.0
-    }
-}
-impl<'a> PartialEq<&'a str> for PropertyKey {
-    fn eq(&self, other: &&'a str) -> bool {
-        self.0.eq(other)
-    }
-}
-impl Default for PropertyKey {
-    fn default() -> Self {
-        Self::from_str("<uninitialized PropertyKey>")
-    }
-}
+/// A property, inside the grammar.
+shared_string!(pub PropertyKey);
+
+/// An interface *of* the grammar.
+shared_string!(pub InterfaceName);
+
+/// A field name *of* the grammar.
+shared_string!(pub FieldName);
+
+
+
