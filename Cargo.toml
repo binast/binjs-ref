@@ -27,7 +27,7 @@ lzw = "*"
 rand = "^0.4"
 test-logger = "*"
 vec_map = "*"
-webidl = "*"
+webidl = "^0.7"
 yaml-rust = "*"
 
 [[bin]]
