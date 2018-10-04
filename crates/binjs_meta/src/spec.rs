@@ -28,6 +28,9 @@ impl NodeName {
     pub fn to_str(&self) -> &str {
         self.0.as_ref()
     }
+    pub fn to_rc_string(&self) -> &Rc<String> {
+        &self.0
+    }
 }
 impl Debug for NodeName {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -52,6 +55,9 @@ pub struct FieldName(Rc<String>);
 impl FieldName {
     pub fn to_string(&self) -> &String {
         self.0.as_ref()
+    }
+    pub fn to_rc_string(&self) -> &Rc<String> {
+        &self.0
     }
 }
 impl Debug for FieldName {
