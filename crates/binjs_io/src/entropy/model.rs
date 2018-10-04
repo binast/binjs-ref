@@ -1,6 +1,5 @@
-// use entropy::predict::{ ContextPredict, PathPredict, Symbol };
-
-use entropy::predict::PathPredict;
+use entropy::predict::{ PathPredict };
+use entropy::probabilities::{ InstancesToProbabilities, Symbol };
 
 use io::TokenWriter;
 use ::TokenWriterError;
@@ -11,6 +10,13 @@ use std;
 use std::collections::HashMap;
 
 pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
+
+/// A newtype for `usize` used to count instances of some item in a given file.
+int_alias!(InstancesInFile, usize);
+
+/// A newtype for `usize` used to count the number of files containing some item.
+int_alias!(FilesContaining, usize);
+
 
 #[derive(Debug, Default)]
 pub struct Dictionary<T> {
@@ -47,7 +53,6 @@ pub struct Dictionary<T> {
     // - identifier names predicted by window?
     // - literal strings by window?
     // - directives?
-    // - property keys, identifier names, literal strings by file?
 }
 impl<T> Dictionary<T> {
     /// Return the number of states in this dictionary.
@@ -61,6 +66,25 @@ impl<T> Dictionary<T> {
         + self.interface_name_by_path.len()
         + self.string_literal_by_path.len()
         + self.list_length_by_path.len()
+    }
+}
+impl InstancesToProbabilities for Dictionary<usize> {
+    type AsProbabilities = Dictionary<Symbol>;
+
+    /// Convert a dictionary counting instances into a dictionary that
+    /// counting probabilities.
+    fn instances_to_probabilities(self) -> Dictionary<Symbol> {
+        Dictionary {
+            bool_by_path: self.bool_by_path.instances_to_probabilities(),
+            float_by_path: self.float_by_path.instances_to_probabilities(),
+            unsigned_long_by_path: self.unsigned_long_by_path.instances_to_probabilities(),
+            string_enum_by_path: self.string_enum_by_path.instances_to_probabilities(),
+            property_key_by_path: self.property_key_by_path.instances_to_probabilities(),
+            identifier_name_by_path: self.identifier_name_by_path.instances_to_probabilities(),
+            interface_name_by_path: self.interface_name_by_path.instances_to_probabilities(),
+            string_literal_by_path: self.string_literal_by_path.instances_to_probabilities(),
+            list_length_by_path: self.list_length_by_path.instances_to_probabilities(),
+        }
     }
 }
 
@@ -87,6 +111,49 @@ pub struct KindedStringMap<T> {
     pub string_enum_instances: HashMap<SharedString, T>,
 }
 
+impl InstancesToProbabilities for StringsInFile<FilesContaining> {
+    type AsProbabilities = StringsInFile<Symbol>;
+
+    /// Convert a dictionary counting instances into a dictionary
+    /// counting probabilities.
+    fn instances_to_probabilities(self) -> StringsInFile<Symbol> {
+        StringsInFile {
+            identifier_name_instances: self.identifier_name_instances.instances_to_probabilities(),
+            property_key_instances: self.property_key_instances.instances_to_probabilities(),
+            interface_name_instances: self.interface_name_instances.instances_to_probabilities(),
+            string_literal_instances: self.string_literal_instances.instances_to_probabilities(),
+            string_enum_instances: self.string_enum_instances.instances_to_probabilities(),
+        }
+    }
+}
+
+impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
+    where K: Eq + std::hash::Hash
+{
+    type AsProbabilities = HashMap<K, Symbol>;
+
+    fn instances_to_probabilities(self) -> HashMap<K, Symbol> {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let instances = self.values()
+            .map(|x| x.0 as u32)
+            .collect();
+        let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)
+            .unwrap())); // FISME: Handle the empty case.
+
+        self.into_iter()
+            .enumerate()
+            .map(|(index, (key, _))| {
+                (key, Symbol {
+                    index,
+                    distribution: distribution.clone()
+                })
+            })
+            .collect()
+    }
+}
+
 /// A structure used to build a dictionary based on a sample of files.
 ///
 /// In this version, we use several dictionary lengths, to determine the
@@ -103,21 +170,14 @@ pub struct DictionaryBuilder<'a> {
     dictionary: &'a mut Dictionary</* instances */ usize>,
 
     /// Number of instances of each string in the current file.
-    instances_of_strings_in_current_file: KindedStringMap<usize>,
+    instances_of_strings_in_current_file: KindedStringMap<InstancesInFile>,
 
     /// Number of files in which each string appears.
-    /// Whenever we're done with one file, we use the keys
-    /// from `instances_of_strings_in_current_file` to fill
-    /// `files_containing_string`.
-    ///
-    /// This is a shared reference as we typically wish to
-    /// access this field after the DictionaryBuilder
-    /// has been consumed and released by a `Serializer`.
-    files_containing_string: &'a mut KindedStringMap<usize>,
+    files_containing_string: &'a mut KindedStringMap<FilesContaining>,
 }
 
 impl<'a> DictionaryBuilder<'a> {
-    pub fn new(max_path_depth: usize, dictionary: &'a mut Dictionary<usize>, files_containing_string: &'a mut KindedStringMap<usize>) -> Self {
+    pub fn new(max_path_depth: usize, dictionary: &'a mut Dictionary<usize>, files_containing_string: &'a mut KindedStringMap<FilesContaining>) -> Self {
         DictionaryBuilder {
             max_path_depth,
             dictionary,
@@ -153,14 +213,14 @@ impl<'a> DictionaryBuilder<'a> {
     }
 
     /// Count the string `value` as used in the current file.
-    fn add_instance_to_strings<V>(value: V, bucket: &mut HashMap<V, usize>)
+    fn add_instance_to_strings<V>(value: V, bucket: &mut HashMap<V, InstancesInFile>)
         where
             V: std::hash::Hash + Eq + Clone + std::fmt::Debug
     {
         bucket.entry(value)
             .and_modify(|instances| {
-                *instances += 1 // We have already seen this string in this file, increment.
-            }).or_insert(1);    // First time we see this string in this file, store 1.
+                *instances += InstancesInFile(1) // We have already seen this string in this file, increment.
+            }).or_insert(InstancesInFile(1));    // First time we see this string in this file, store 1.
     }
 
     /// Take all strings of a given nature present in a file (as stored
@@ -174,7 +234,7 @@ impl<'a> DictionaryBuilder<'a> {
     /// Note: This is a function rather than a method because making it a method
     /// would require us to borrow mutably `source` *and* while calling into `self`.
     /// Not very borrow-checker-compatible.
-    fn transfer_instances_of_strings<V>(source: &mut HashMap<V, usize>, destination: &mut HashMap<V, usize>)
+    fn transfer_instances_of_strings<V>(source: &mut HashMap<V, InstancesInFile>, destination: &mut HashMap<V, FilesContaining>)
         where
             V: std::hash::Hash + Eq + Clone + std::fmt::Debug
     {
@@ -183,8 +243,8 @@ impl<'a> DictionaryBuilder<'a> {
             // ignoring the number of instances of `k` in `source`.
             destination.entry(k)
                 .and_modify(|instances| {
-                    *instances += 1
-                }).or_insert(1);
+                    *instances += FilesContaining(1)
+                }).or_insert(FilesContaining(1));
         }
     }
 

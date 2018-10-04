@@ -57,6 +57,7 @@
 pub mod model;
 
 mod predict;
+mod probabilities;
 
 
 /*

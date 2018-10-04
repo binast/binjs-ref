@@ -44,6 +44,7 @@ enum Event {
     TaggedTupleAt {
         interface: InterfaceName,
         path: IOPath,
+        len: usize,
     },
     ListAt {
         len: usize,
@@ -102,10 +103,11 @@ impl TokenWriter for PathTraceWriter {
         });
         Ok(())
     }
-    fn tagged_tuple_at(&mut self, tag: &InterfaceName, _children: &[(FieldName, Self::Tree)], path: &IOPath) -> Result<Self::Tree, TokenWriterError> {
-        self.trace.borrow_mut().push(Event::TaggedTupleAt {
+    fn tagged_tuple_at(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)], path: &IOPath) -> Result<Self::Tree, TokenWriterError> {
+        self.trace.borrow_mut().push(Step::TaggedTupleAt {
             interface: tag.clone(),
-            path: path.clone()
+            path: path.clone(),
+            len: children.len(),
         });
         Ok(())
     }
