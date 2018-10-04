@@ -21,6 +21,18 @@ macro_rules! progress {
     }
 }
 
+// Command line options.
+struct Options<'a> {
+    // True if --print-json is specified.
+    print_json: bool,
+
+    // True if --quiet or -q is specified.
+    quiet: bool,
+
+    // The OUTPUT path, or None if not specified.
+    dest_path: Option<&'a str>,
+}
+
 fn main() {
     env_logger::init();
 
@@ -29,11 +41,9 @@ fn main() {
         .about("Decode a JavaScript BinJS source to a JavaScript text source.")
         .args(&[
             Arg::with_name("INPUT")
-                .required(true)
-                .help("Input file to use. Must be a BinJS source file."),
+                .help("Input file to use. Must be a BinJS source file. If not specified, stdin is used"),
             Arg::with_name("OUTPUT")
-                .required(true)
-                .help("Output file to use. Will be overwritten."),
+                .help("Output file to use. Will be overwritten. If not specified, stdout is used"),
             Arg::with_name("dump")
                 .long("dump")
                 .takes_value(false)
@@ -42,43 +52,41 @@ fn main() {
                 .long("quiet")
                 .short("q")
                 .help("Do not print progress"),
+            Arg::with_name("print-json")
+                .long("print-json")
+                .help("Print JSON of parse tree"),
         ])
     .get_matches();
 
-    let quiet = matches.is_present("quiet");
-    let source_path = matches.value_of("INPUT")
-        .expect("Expected input file");
-    let dest_path = matches.value_of("OUTPUT")
-        .expect("Expected output file");
+    let source_path = matches.value_of("INPUT");
+    let dest_path = matches.value_of("OUTPUT");
+    let quiet = matches.is_present("quiet") || dest_path.is_none();
 
     // Setup.
-    let printer = Shift::new();
+    let options = Options {
+        print_json: matches.is_present("print-json"),
+        quiet,
+        dest_path,
+    };
 
     progress!(quiet, "Reading.");
-    let file = File::open(source_path)
-        .expect("Could not open source");
-    let stream = BufReader::new(file);
+    let tree : binjs::specialized::es6::ast::Script = match source_path {
+        Some(path) => {
+            parse_tree(&|| BufReader::new(File::open(path)
+                                          .expect("Could not open source")),
+                       &options)
+        }
+        None => {
+            let mut buffer = Vec::new();
+            stdin().read_to_end(&mut buffer)
+                .expect("Failed to read from stdin");
 
-    progress!(quiet, "Attempting to decode as multipart.");
-    let tree : binjs::specialized::es6::ast::Script = if let Ok(reader) = binjs::io::multipart::TreeTokenReader::new(stream) {
-        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
-        deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
-            .expect("Could not decode")
-    } else {
-        progress!(quiet, "... falling back to simple format.");
-
-        let file = File::open(source_path)
-            .expect("Could not open source");
-        let stream = BufReader::new(file);
-
-        let reader = binjs::io::simple::TreeTokenReader::new(stream);
-        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
-        deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
-            .expect("Could not decode")
+            parse_tree(&|| Cursor::new(&buffer), &options)
+        }
     };
 
     let json = tree.export();
-    if matches.is_present("print-json") {
+    if options.print_json {
         progress!(quiet, "Printing to screen...");
         let pretty = json.pretty(2);
         println!("{}", pretty);
@@ -92,12 +100,38 @@ fn main() {
         root: &builder.node_name("Script"),
     };
     let spec = builder.into_spec(spec_options);
+    let printer = Shift::new();
     let source = printer.to_source(&spec, &json)
         .expect("Could not pretty-print");
 
     progress!(quiet, "Writing.");
-    let mut dest = File::create(dest_path)
-        .expect("Could not create destination file");
-    dest.write(source.as_bytes())
-        .expect("Could not write destination file");
+    match options.dest_path {
+        Some(path) => {
+            let mut dest = File::create(path)
+                .expect("Could not create destination file");
+            dest.write(source.as_bytes())
+                .expect("Could not write destination file");
+        }
+        None => {
+            stdout().write(source.as_bytes())
+                .expect("Could not write destination file");
+        }
+    }
+}
+
+fn parse_tree<R: Read + Seek>(get_stream: &Fn() -> R, options: &Options) -> binjs::specialized::es6::ast::Script
+{
+    progress!(options.quiet, "Attempting to decode as multipart.");
+    if let Ok(reader) = binjs::io::multipart::TreeTokenReader::new(get_stream()) {
+        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
+        deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
+            .expect("Could not decode")
+    } else {
+        progress!(options.quiet, "... falling back to simple format.");
+
+        let reader = binjs::io::simple::TreeTokenReader::new(get_stream());
+        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
+        deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
+            .expect("Could not decode")
+    }
 }

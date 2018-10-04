@@ -21,8 +21,6 @@ use std::io::Write;
 fn main() {
     env_logger::init();
 
-    let format_providers = binjs::io::Format::providers();
-
     let matches = App::new("BinJS source file generator")
         .author("David Teller <dteller@mozilla.com>")
         .about(
@@ -46,11 +44,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .long("random-metadata")
                 .help("If specified, generate random ast metadata (declared variables, etc.).")
         ])
-        .subcommand(SubCommand::with_name("advanced")
-            .subcommands(format_providers.iter()
-                .map(|x| x.subcommand())
-            )
-        )
+        .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
     let mut rng = rand::thread_rng();

@@ -14,8 +14,6 @@ use std::io::*;
 fn main() {
     env_logger::init();
 
-    let format_providers = binjs::io::Format::providers();
-
     let matches = App::new("BinJS roundtrip tester")
         .author("David Teller, <dteller@mozilla.com>")
         .about("Check that encoding + decoding a file yields the same AST.")
@@ -42,9 +40,7 @@ fn main() {
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
         ])
-        .subcommands(format_providers.iter()
-            .map(|x| x.subcommand())
-        )
+        .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
     let mut format = binjs::io::Format::from_matches(&matches)
