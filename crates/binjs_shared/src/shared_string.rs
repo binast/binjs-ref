@@ -64,7 +64,7 @@ impl SharedString {
     pub fn from_str(value: &'static str) -> Self {
         SharedString::Static(value)
     }
-    pub fn from_rc(value: Rc<String>) -> Self {
+    pub fn from_rc_string(value: Rc<String>) -> Self {
         SharedString::Dynamic(value)
     }
     pub fn from_string(value: String) -> Self {
@@ -83,6 +83,9 @@ macro_rules! shared_string {
             }
             pub fn from_string(value: String) -> Self {
                 $name(shared_string::SharedString::from_string(value))
+            }
+            pub fn from_rc_string(value: std::rc::Rc<String>) -> Self {
+                $name(shared_string::SharedString::from_rc_string(value))
             }
             pub fn as_str(&self) -> &str {
                 self.0.as_str()

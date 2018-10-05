@@ -274,7 +274,6 @@ impl<'a> DictionaryBuilder<'a> {
 }
 
 impl<'a> TokenWriter for DictionaryBuilder<'a> {
-    type Tree = ();
     type Statistics = usize /* placeholder */;
     type Data = [u8;0];
 
@@ -329,19 +328,13 @@ impl<'a> TokenWriter for DictionaryBuilder<'a> {
         Ok(())
     }
 
-    fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, _children: usize, path: &IOPath)  -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, _children: &[&FieldName], path: &IOPath)  -> Result<(), TokenWriterError> {
         Self::add_instance_to_path(self.max_path_depth, tag.clone(), path, &mut self.dictionary.interface_name_by_path);
         Self::add_instance_to_strings(tag.clone(), &mut self.instances_of_strings_in_current_file.interface_name_instances);
         Ok(())
     }
 
-    fn tagged_tuple(&mut self, _tag: &InterfaceName, _children: &[(FieldName, Self::Tree)]) -> Result<(), TokenWriterError> {
-        // Needed to keep the driver happy.
-        Ok(())
-    }
-
-    fn list_at(&mut self, _children: Vec<Self::Tree>, _path: &IOPath) -> Result<(), TokenWriterError> {
-        // Needed to keep the driver happy.
+    fn offset_at(&mut self, _path: &IOPath) -> Result<(), TokenWriterError> {
         Ok(())
     }
 }
