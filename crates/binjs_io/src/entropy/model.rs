@@ -18,7 +18,7 @@ int_alias!(InstancesInFile, usize);
 int_alias!(FilesContaining, usize);
 
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Dictionary<T> {
     /// All booleans appearing in the AST, predicted by path.
     pub bool_by_path: PathPredict<Option<bool>, T>,

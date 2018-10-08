@@ -3,6 +3,8 @@ use std::hash::Hash;
 use std::ops::Deref;
 use std::rc::Rc;
 
+use serde::de::{ Deserialize, Deserializer };
+use serde::ser::{ Serialize, Serializer };
 
 /// An implementation of strings that may easily be shared without copies.
 ///
@@ -57,6 +59,25 @@ impl Default for SharedString {
         SharedString::Static("<uninitialized SharedString>")
     }
 }
+/// Shared strings are serialized as strings. This loses any sharing :/
+impl Serialize for SharedString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer
+    {
+        self.deref().serialize(serializer)
+    }
+}
+/// Shared strings are deserialized as Dynamic strings.
+impl<'de> Deserialize<'de> for SharedString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>
+    {
+        let dynamic = String::deserialize(deserializer)?;
+        Ok(SharedString::Dynamic(Rc::new(dynamic)))
+    }
+}
 impl SharedString {
     pub fn as_str(&self) -> &str {
         self.deref()
@@ -75,7 +96,7 @@ impl SharedString {
 #[macro_export]
 macro_rules! shared_string {
     (pub $name: ident) => {
-        #[derive(Clone, Eq, PartialOrd, Ord, Debug, Hash)]
+        #[derive(Clone, Eq, PartialOrd, Ord, Debug, Hash, Serialize, Deserialize)]
         pub struct $name(pub shared_string::SharedString);
         impl $name {
             pub fn from_str(value: &'static str) -> Self {
