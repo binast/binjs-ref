@@ -20,7 +20,7 @@ pub struct Entry<'a, K, T> where K: 'a, T: 'a {
 }
 
 /// A generic predictor, associating a context and a key to a value.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
     by_context: HashMap<C, HashMap<K, T>>,
 }
@@ -95,7 +95,7 @@ impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq 
 /// limit the prediction depth, e.g. to 0 (don't use any context),
 /// 1 (use only the parent + child index) or 2 (use parent +
 /// grand-parent and both child indices).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
     context_predict: ContextPredict<IOPath, K, T>,
 }

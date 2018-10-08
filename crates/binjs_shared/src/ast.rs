@@ -44,7 +44,7 @@ use std::fmt::*;
 /// path.exit_interface("Interface 1"); // Exiting the wrong interface would panic.
 /// ```
 
-#[derive(PartialEq, Eq, Hash, Clone, Default)]
+#[derive(PartialEq, Eq, Hash, Clone, Default, Deserialize, Serialize)]
 pub struct Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     /// Some(foo) if we have entered interface foo but no field yet.
     /// Otherwise, None.
@@ -60,7 +60,7 @@ impl<I, F> From<Vec<PathItem<I, F>>> for Path<I, F> where I: Debug + PartialEq, 
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Deserialize, Serialize)]
 pub struct PathItem<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     pub interface: I,
     pub field: F,
