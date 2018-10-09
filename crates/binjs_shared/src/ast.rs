@@ -161,7 +161,7 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     /// If there are fewer than `len` elements, return
     /// as many elements as possible.
     pub fn tail(&self, len: usize) -> &[PathItem<I, F>] {
-        if len >= self.len() {
+        if len < self.len() {
             &self.items[self.len() - len..]
         } else {
             &self.items
