@@ -105,9 +105,6 @@
 //!       - number of items (`varnum`);
 //!       - for each item
 //!          - the token;
-//!   - a untagged tuple, represented as
-//!     - for each item
-//!       - the token;
 //!   - a tagged tuple, represented as
 //!     - an entry in the grammar table (`varnum`);
 //!     - for each field
@@ -267,56 +264,6 @@ fn test_multipart_io() {
             assert_eq!(escapes_string, data);
         }
 
-        println!("Testing untagged tuple I/O");
-
-        {
-            options.reset();
-            let mut writer = TreeTokenWriter::new(options.clone());
-            writer.untagged_tuple(&[])
-                .expect("Writing empty untagged tuple");
-
-            let (output, _) = writer.done()
-                .expect("Finalizing data");
-            File::create(format!("/tmp/test-empty-untagged-tuple-{}.binjs", suffix)).unwrap()
-                .write_all(&output).unwrap();
-
-            let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let guard = reader.untagged_tuple()
-                .expect("Reading empty untagged tuple");
-
-            guard.done()
-                .expect("Empty untagged tuple read properly");
-
-        }
-
-        {
-            options.reset();
-            let mut writer = TreeTokenWriter::new(options.clone());
-            let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
-            let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
-            writer.untagged_tuple(&[item_0, item_1])
-                .expect("Writing trivial untagged tuple");
-
-            let (output, _) = writer.done()
-                .expect("Finalizing data");
-            File::create(format!("/tmp/test-trivial-untagged-tuple-{}.binjs", suffix)).unwrap()
-                .write_all(&output).unwrap();
-
-            let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let guard = reader.untagged_tuple()
-                .expect("Reading trivial untagged tuple");
-            let simple_string = reader.string()
-                .expect("Reading trivial tuple[0]")
-                .expect("Non-null string");
-            assert_eq!(&simple_string, "foo");
-            let simple_string = reader.string()
-                .expect("Reading trivial tuple[1]")
-                .expect("Non-null string");
-            assert_eq!(&simple_string, "bar");
-
-            guard.done()
-                .expect("Untagged tuple read properly");
-        }
 
         println!("Testing tagged tuple I/O");
 

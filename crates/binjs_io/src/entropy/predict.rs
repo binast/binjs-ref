@@ -1,5 +1,3 @@
-use entropy::tree::{ ASTPath, ASTPathItem };
-
 use std;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -7,6 +5,11 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use range_encoding;
+
+use binjs_shared::{ FieldName, InterfaceName };
+
+pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
+pub type IOPathItem = binjs_shared::ast::PathItem<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
 /// Representation of a symbol in a Cumulative Distribution Frequency (CDF).
 #[derive(Clone)]
@@ -25,6 +28,7 @@ pub struct Entry<'a, K, T> where K: 'a, T: 'a {
 }
 
 /// A generic predictor, associating a context and a key to a value.
+#[derive(Debug, Default)]
 pub struct ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
     by_context: HashMap<C, HashMap<K, T>>,
 }
@@ -34,7 +38,11 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
             by_context: HashMap::new()
         }
     }
-    pub fn get_mut(&mut self, context: &C, key: &K) -> Option<&mut T> {
+    pub fn get_mut<C2: ?Sized>(&mut self, context: &C2, key: &K) -> Option<&mut T>
+        where
+            C: std::borrow::Borrow<C2>,
+            C2: Hash + Eq
+    {
         let by_key = self.by_context.get_mut(context)?;
         by_key.get_mut(key)
     }
@@ -46,6 +54,13 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
             len: by_key.len(),
             value: by_key.entry(key.clone()),
         }
+    }
+
+    /// The number of states in this predictor.
+    pub fn len(&self) -> usize {
+        self.by_context.values()
+            .map(|map| map.len())
+            .sum()
     }
 }
 impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
@@ -85,51 +100,42 @@ impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash 
 /// limit the prediction depth, e.g. to 0 (don't use any context),
 /// 1 (use only the parent + child index) or 2 (use parent +
 /// grand-parent and both child indices).
+#[derive(Debug, Default)]
 pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
-    /// Depth to use for prediction.
-    ///
-    /// 0: no context
-    /// 1: use parent
-    /// 2: use parent + grand parent
-    /// ...
-    depth: usize,
-
-    // FIXME: Performance-wise, we can certainly do better than `Vec<ASTPathItem>`.
-    context_predict: ContextPredict<Vec<ASTPathItem>, K, T>,
+    context_predict: ContextPredict<IOPath, K, T>,
 }
+
 
 impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
     /// Utility: convert a number of instances for each symbol into
     /// a probability distribution.
     pub fn instances_to_probabilities(self) -> PathPredict<K, Symbol> {
         PathPredict {
-            depth: self.depth,
             context_predict: self.context_predict.instances_to_probabilities()
         }
     }
 }
 
 impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
-    pub fn new(depth: usize) -> Self {
+    pub fn new() -> Self {
         PathPredict {
-            depth,
             context_predict: ContextPredict::new(),
         }
     }
 
-    pub fn get_mut(&mut self, path: &ASTPath, key: &K) -> Option<&mut T> {
-        let tail = path.tail(self.depth)
-            .iter()
-            .cloned()
-            .collect();
-        self.context_predict.get_mut(&tail, key)
+    pub fn get_mut(&mut self, tail: &[IOPathItem], key: &K) -> Option<&mut T> {
+        self.context_predict.get_mut(tail, key)
     }
 
-    pub fn entry(&mut self, path: &ASTPath, key: &K) -> Entry<K, T> {
-        let tail = path.tail(self.depth)
-            .iter()
+    pub fn entry(&mut self, tail: &[IOPathItem], key: &K) -> Entry<K, T> {
+        let tail : Vec<_> = tail.iter()
             .cloned()
-            .collect();
-        self.context_predict.entry(tail, key)
+            .collect(); // Note: that's bound to be expensive. Ideally, we'd like to avoid most allocations here.
+        self.context_predict.entry(tail.into(), key)
+    }
+
+    /// The number of states in this predictor.
+    pub fn len(&self) -> usize {
+        self.context_predict.len()
     }
 }

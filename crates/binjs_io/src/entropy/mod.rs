@@ -55,19 +55,20 @@
 //! and/or custom dictionary later.
 
 pub mod model;
+
 mod predict;
-mod tree;
-pub mod read;
-pub mod write;
 
-use self::predict::Symbol;
-use self::tree::F64;
+// pub mod read;
+// pub mod write;
 
-use binjs_shared::{ IdentifierName, InterfaceName, SharedString };
+// use self::predict::Symbol;
+// use self::tree::F64;
 
-use std::rc::Rc;
+// use binjs_shared::{ IdentifierName, InterfaceName, SharedString };
 
-use clap;
+// use std::rc::Rc;
+
+/*
 use range_encoding::CumulativeDistributionFrequency;
 
 pub type ASTPath = tree::ASTPath;
@@ -100,10 +101,12 @@ pub trait DecodingModel {
     fn init_tag_frequency_for_decoding(&mut self, path: &ASTPath, cdf: Vec<u32>);
 }
 
+*/
 
+/*
 /// Command-line management.
+use clap;
 
-/// Command-line management.
 pub struct FormatProvider;
 impl ::FormatProvider for FormatProvider {
     fn subcommand<'a, 'b>(&self) -> clap::App<'a, 'b> {
@@ -204,3 +207,4 @@ impl ::FormatProvider for FormatProvider {
         })
     }
 }
+*/

@@ -342,23 +342,19 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// The number of items is specified by the grammar, so it MAY not be
     /// recorded by the `TokenWriter`.
     ///
-    /// The interface MUST have a Tag.
-    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    /// By convention, a null tagged tuple is the special tagged tuple "null",
+    /// with no children.
+    fn tagged_tuple(&mut self, _tag: &InterfaceName, _children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         unimplemented!()
     }
     fn tagged_tuple_at(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.tagged_tuple(tag, children)
     }
-
-    /// Write an untagged tuple.
-    ///
-    /// The number of items is specified by the grammar, so it MAY not be
-    /// recorded by the `TokenWriter`.
-    fn untagged_tuple(&mut self, &[Self::Tree]) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
+    fn enter_tagged_tuple_at(&mut self, _tag: &InterfaceName, _children: usize, _path: &Path) -> Result<(), TokenWriterError> {
+        Ok(())
     }
-    fn untagged_tuple_at(&mut self, children: &[Self::Tree], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.untagged_tuple(children)
+    fn exit_tagged_tuple_at(&mut self, _tag: &InterfaceName, _path: &Path) -> Result<(), TokenWriterError> {
+        Ok(())
     }
 
     /// Write a list.
@@ -370,6 +366,12 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     }
     fn list_at(&mut self, items: Vec<Self::Tree>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.list(items)
+    }
+    fn enter_list_at(&mut self, _len: usize, _path: &Path) -> Result<(), TokenWriterError> {
+        Ok(())
+    }
+    fn exit_list_at(&mut self, _path: &Path) -> Result<(), TokenWriterError> {
+        Ok(())
     }
 
     /// Write a single UTF-8 string.
@@ -390,8 +392,8 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     fn string_enum(&mut self, str: &SharedString) -> Result<Self::Tree, TokenWriterError> {
         self.string(Some(str))
     }
-    fn string_enum_at(&mut self, value: &SharedString, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.string_enum(value)
+    fn string_enum_at(&mut self, value: &SharedString, path: &Path) -> Result<Self::Tree, TokenWriterError> {
+        self.string_at(Some(value), path)
     }
 
     /// Write a single number.
@@ -426,7 +428,6 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     fn offset_at(&mut self, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
         self.offset()
     }
-
 
     fn property_key(&mut self, value: Option<&PropertyKey>) -> Result<Self::Tree, TokenWriterError> {
         let string = value.map(PropertyKey::as_shared_string);

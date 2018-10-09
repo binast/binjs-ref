@@ -75,7 +75,7 @@ impl SharedString {
 #[macro_export]
 macro_rules! shared_string {
     (pub $name: ident) => {
-        #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+        #[derive(Clone, Eq, PartialOrd, Ord, Debug, Hash)]
         pub struct $name(pub shared_string::SharedString);
         impl $name {
             pub fn from_str(value: &'static str) -> Self {
@@ -89,6 +89,11 @@ macro_rules! shared_string {
             }
             pub fn as_shared_string(&self) -> &shared_string::SharedString {
                 &self.0
+            }
+        }
+        impl PartialEq for $name {
+            fn eq(&self, other: &$name) -> bool {
+                self.0.eq(&other.0)
             }
         }
         impl<'a> PartialEq<&'a str> for $name {
