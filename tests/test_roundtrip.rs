@@ -137,7 +137,7 @@ fn main() {
                     tree: CompressionTarget::new(Compression::Identity),
                 };
                 debug!(target: "test_roundtrip", "Encoding.");
-                let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());
+                let writer  = binjs::io::TokenWriterTreeAdapter::new(binjs::io::multipart::TreeTokenWriter::new(options.clone()));
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast, &mut IOPath::new())
                     .expect("Could not encode AST");
@@ -196,7 +196,7 @@ fn main() {
 
                 // Roundtrip `simple`
                 debug!(target: "test_roundtrip", "Encoding");
-                let mut writer = binjs::io::simple::TreeTokenWriter::new();
+                let mut writer = binjs::io::TokenWriterTreeAdapter::new(binjs::io::simple::TreeTokenWriter::new());
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast, &mut IOPath::new())
                     .expect("Could not encode AST");
@@ -230,7 +230,7 @@ fn main() {
                 debug!(target: "test_roundtrip", "Starting multipart round trip for {:?} with options {:?}", entry, options);
                 debug!(target: "test_roundtrip", "Encoding.");
                 options.reset();
-                let writer  = binjs::io::multipart::TreeTokenWriter::new(options.clone());
+                let writer  = binjs::io::TokenWriterTreeAdapter::new(binjs::io::multipart::TreeTokenWriter::new(options.clone()));
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                 serializer.serialize(&ast, &mut IOPath::new())
                     .expect("Could not encode AST");

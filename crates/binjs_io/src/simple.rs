@@ -444,7 +444,7 @@ impl TreeTokenWriter {
         Ok(self.register(result))
     }
 }
-impl TokenWriter for TreeTokenWriter {
+impl TokenWriterWithTree for TreeTokenWriter {
     type Tree = AbstractTree;
     type Data = Vec<u8>;
     type Statistics = Statistics;
@@ -559,7 +559,7 @@ impl TokenWriter for TreeTokenWriter {
     ///   - field names (string, \0 terminated)
     /// - </head>
     /// - contents
-    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(&FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: tagged_tuple");
         let mut prefix = Vec::new();
         prefix.extend_from_str("<head>");

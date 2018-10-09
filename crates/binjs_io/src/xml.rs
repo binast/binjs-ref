@@ -2,7 +2,7 @@
 //!
 //! Used mainly to extract statistics and/or to compare with XML-based compression mechanisms.
 
-use ::{ TokenWriter, TokenWriterError };
+use ::{ TokenWriterWithTree, TokenWriterError };
 
 use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
@@ -80,7 +80,7 @@ impl Encoder {
         Ok(result)
     }
 }
-impl TokenWriter for Encoder {
+impl TokenWriterWithTree for Encoder {
     type Statistics = u32; // Ignored for the time being.
     type Tree = Rc<SubTree>;
     type Data = Vec<u8>;
@@ -101,7 +101,7 @@ impl TokenWriter for Encoder {
         self.register(SubTree::String(data.map(Clone::clone)))
     }
 
-    fn tagged_tuple(&mut self, tag: &InterfaceName, items: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, tag: &InterfaceName, items: &[(&FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         self.register(SubTree::Node {
             name: tag.as_shared_string()
                 .clone(),

@@ -10,8 +10,14 @@ extern crate itertools;
 extern crate lzw;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate num_alias;
 extern crate rand;
 extern crate range_encoding;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+
 extern crate vec_map;
 extern crate xml as xml_rs;
 

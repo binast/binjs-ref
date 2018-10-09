@@ -135,7 +135,7 @@ fn main() {
             let data: Box<AsRef<[u8]>>  = match format {
                 Format::Multipart { ref mut targets, .. } => {
                     targets.reset();
-                    let writer = binjs::io::multipart::TreeTokenWriter::new(targets.clone());
+                    let writer = binjs::io::TokenWriterTreeAdapter::new(binjs::io::multipart::TreeTokenWriter::new(targets.clone()));
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                     serializer.serialize(&ast, &mut IOPath::new())
                         .expect("Could not encode AST");

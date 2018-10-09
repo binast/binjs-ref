@@ -16,6 +16,7 @@ binjs_meta = { path = "crates/binjs_meta", version = "*" }
 binjs_shared = { path = "crates/binjs_shared", version = "*" }
 assert_matches = "*"
 bencher = "^0.1"
+bincode = "*"
 clap = "*"
 env_logger = "^0.5"
 glob = "*"
@@ -44,6 +45,11 @@ path = "src/bin/decode.rs"
 # Dump a BinAST file structure to stdout.
 name = "binjs_dump"
 path = "src/bin/dump.rs"
+
+[[bin]]
+# Create a dictionary based on a sample.
+name = "binjs_generate_dictionary"
+path = "src/bin/generate_dictionary.rs"
 
 [[bench]]
 name = "bench_fb"
