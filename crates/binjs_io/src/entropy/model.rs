@@ -8,6 +8,9 @@ use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, PropertyKey, 
 
 use std;
 use std::collections::HashMap;
+use std::ops::Deref;
+
+use serde;
 
 pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
@@ -16,7 +19,13 @@ int_alias!(InstancesInFile, usize);
 
 /// A newtype for `usize` used to count the number of files containing some item.
 int_alias!(FilesContaining, usize);
-
+impl serde::ser::Serialize for FilesContaining {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::ser::Serializer
+    {
+        self.deref().serialize(serializer)
+    }
+}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Dictionary<T> {
@@ -57,15 +66,29 @@ pub struct Dictionary<T> {
 impl<T> Dictionary<T> {
     /// Return the number of states in this dictionary.
     pub fn len(&self) -> usize {
-          self.bool_by_path.len()
-        + self.float_by_path.len()
-        + self.unsigned_long_by_path.len()
-        + self.string_enum_by_path.len()
-        + self.property_key_by_path.len()
-        + self.identifier_name_by_path.len()
-        + self.interface_name_by_path.len()
-        + self.string_literal_by_path.len()
-        + self.list_length_by_path.len()
+        // Make sure that we don't forget a field.
+        let Dictionary {
+            ref bool_by_path,
+            ref float_by_path,
+            ref unsigned_long_by_path,
+            ref string_enum_by_path,
+            ref property_key_by_path,
+            ref identifier_name_by_path,
+            ref string_literal_by_path,
+            ref list_length_by_path,
+            ref interface_name_by_path,
+        } = *self;
+
+        bool_by_path.len()
+        + float_by_path.len()
+        + unsigned_long_by_path.len()
+        + string_enum_by_path.len()
+        + property_key_by_path.len()
+        + identifier_name_by_path.len()
+        + interface_name_by_path.len()
+        + string_literal_by_path.len()
+        + list_length_by_path.len()
+        + interface_name_by_path.len()
     }
 }
 impl InstancesToProbabilities for Dictionary<usize> {
@@ -93,7 +116,7 @@ impl InstancesToProbabilities for Dictionary<usize> {
 /// This container is used to collect statistics, such as the number
 /// of instances of a given string in a file, or the number of files
 /// that contain a given string.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct KindedStringMap<T> {
     /// Instances of IdentifierName.
     pub identifier_name_instances: HashMap<Option<IdentifierName>, T>,
@@ -110,14 +133,31 @@ pub struct KindedStringMap<T> {
     /// Instances of string enums.
     pub string_enum_instances: HashMap<SharedString, T>,
 }
+impl<T> KindedStringMap<T> {
+    pub fn len(&self) -> usize {
+        // Make sure that we don't forget a field.
+        let KindedStringMap {
+            ref identifier_name_instances,
+            ref property_key_instances,
+            ref interface_name_instances,
+            ref string_literal_instances,
+            ref string_enum_instances,
+        } = *self;
+        identifier_name_instances.len()
+        + property_key_instances.len()
+        + string_literal_instances.len()
+        + string_enum_instances.len()
+        + interface_name_instances.len()
+    }
+}
 
-impl InstancesToProbabilities for StringsInFile<FilesContaining> {
-    type AsProbabilities = StringsInFile<Symbol>;
+impl InstancesToProbabilities for KindedStringMap<FilesContaining> {
+    type AsProbabilities = KindedStringMap<Symbol>;
 
     /// Convert a dictionary counting instances into a dictionary
     /// counting probabilities.
-    fn instances_to_probabilities(self) -> StringsInFile<Symbol> {
-        StringsInFile {
+    fn instances_to_probabilities(self) -> KindedStringMap<Symbol> {
+        KindedStringMap {
             identifier_name_instances: self.identifier_name_instances.instances_to_probabilities(),
             property_key_instances: self.property_key_instances.instances_to_probabilities(),
             interface_name_instances: self.interface_name_instances.instances_to_probabilities(),
@@ -137,10 +177,10 @@ impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
         use std::rc::Rc;
 
         let instances = self.values()
-            .map(|x| x.0 as u32)
+            .map(|x| *x.deref() as u32)
             .collect();
         let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)
-            .unwrap())); // FISME: Handle the empty case.
+            .unwrap())); // FIXME: Handle the empty case.
 
         self.into_iter()
             .enumerate()

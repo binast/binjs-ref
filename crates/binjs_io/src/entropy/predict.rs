@@ -58,7 +58,7 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
 
 
 impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
-    type  AsProbabilities = ContextPredict<C, K, Symbol>;
+    type AsProbabilities = ContextPredict<C, K, Symbol>;
     fn instances_to_probabilities(self) -> ContextPredict<C, K, Symbol> {
         let by_context = self.by_context.into_iter()
             .map(|(context, by_key)| {

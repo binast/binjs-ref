@@ -48,7 +48,9 @@ test!(test_model_dictionary_builder, {
     }
 
     // We may now access data.
-    eprintln!("Built a dictionary with length {}", dictionary.len());
+    eprintln!("Built a dictionary with {} states, {} strings",
+        dictionary.len(),
+        files_containing_string.len());
 
     eprintln!("Checking identifiers per file");
     check_strings(

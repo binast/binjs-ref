@@ -2,6 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Representation of a symbol in a Cumulative Distribution Frequency (CDF).
+///
+/// Note: We most likely don't want this struct to implement Serde's Deserialize/Serialize,
+/// as this would lead to endless replication of `distribution`.
 #[derive(Clone)]
 pub struct Symbol {
     /// The index of the symbol in the Cumulative Distribution Frequency (CDF).
