@@ -44,6 +44,7 @@ enum Event {
     TaggedTupleAt {
         interface: InterfaceName,
         path: IOPath,
+        len: usize,
     },
     ListAt {
         len: usize,
@@ -64,7 +65,6 @@ struct PathTraceWriter {
 }
 
 impl TokenWriter for PathTraceWriter {
-    type Tree = ();
     type Statistics = usize;
     type Data = [u8;0];
     fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &IOPath) -> Result<(), TokenWriterError> {
@@ -102,32 +102,37 @@ impl TokenWriter for PathTraceWriter {
         });
         Ok(())
     }
-    fn tagged_tuple_at(&mut self, tag: &InterfaceName, _children: &[(FieldName, Self::Tree)], path: &IOPath) -> Result<Self::Tree, TokenWriterError> {
+    fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, children: &[&FieldName], path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::TaggedTupleAt {
             interface: tag.clone(),
-            path: path.clone()
+            path: path.clone(),
+            len: children.len(),
         });
         Ok(())
     }
-    fn list_at(&mut self, items: Vec<()>, path: &IOPath) -> Result<Self::Tree, TokenWriterError> {
+    fn enter_list_at(&mut self, len: usize, path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::ListAt {
-            len: items.len(),
+            len,
             path: path.clone()
         });
         Ok(())
     }
-    fn float_at(&mut self, value: Option<f64>, path: &IOPath) -> Result<Self::Tree, TokenWriterError> {
+    fn float_at(&mut self, value: Option<f64>, path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::FloatAt {
             value: value.clone(),
             path: path.clone()
         });
         Ok(())
     }
-    fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &IOPath) -> Result<Self::Tree, TokenWriterError> {
+    fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::PropertyKeyAt {
             value: value.cloned(),
             path: path.clone()
         });
+        Ok(())
+    }
+    fn offset_at(&mut self, _path: &IOPath) -> Result<(), TokenWriterError> {
+        // Nothing to do.
         Ok(())
     }
     fn done(self) ->  Result<(Self::Data, Self::Statistics), TokenWriterError> {

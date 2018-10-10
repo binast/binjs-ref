@@ -194,7 +194,7 @@ fn test_multipart_io() {
     use binjs_shared::{ FieldName, InterfaceName, SharedString };
 
     use ::CompressionTarget;
-    use io::{ Guard, TokenReader, TokenWriter };
+    use io::{ Guard, TokenReader, TokenWriterWithTree };
     use multipart::*;
 
     use std::fs::*;
@@ -226,7 +226,7 @@ fn test_multipart_io() {
 
         {
             options.reset();
-            let mut writer : ::multipart::TreeTokenWriter = TreeTokenWriter::new(options.clone());
+            let mut writer = TreeTokenWriter::new(options.clone());
             writer.string(Some(&SharedString::from_str("simple string")))
                 .expect("Writing simple string");
 
@@ -274,9 +274,9 @@ fn test_multipart_io() {
             let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
             let item_2 = writer.float(Some(3.1415)).unwrap();
             writer.tagged_tuple(&InterfaceName::from_str("some tuple"), &[
-                (FieldName::from_str("abc"), item_0),
-                (FieldName::from_str("def"), item_1),
-                (FieldName::from_str("value"), item_2)
+                (&FieldName::from_str("abc"), item_0),
+                (&FieldName::from_str("def"), item_1),
+                (&FieldName::from_str("value"), item_2)
             ])
                 .expect("Writing trivial tagged tuple");
 

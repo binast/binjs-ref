@@ -45,7 +45,7 @@ test!(test_simple_tokenization, {
         visitor.annotate(&mut ast);
 
         println!("Encoding sample {}", ast.pretty(2));
-        let writer  = binjs::io::simple::TreeTokenWriter::new();
+        let writer  = binjs::io::TokenWriterTreeAdapter::new(binjs::io::simple::TreeTokenWriter::new());
         let encoder = binjs::generic::io::encode::Encoder::new(&spec, writer);
 
         encoder.encode(&ast)
