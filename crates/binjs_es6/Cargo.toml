@@ -15,4 +15,4 @@ log = "*"
 [build-dependencies]
 binjs_generate_library = { path = "../binjs_generate_library/", version = "*" }
 binjs_meta = { path = "../binjs_meta/", version = "*" }
-webidl = "^0.7"
+webidl = "^0.8"

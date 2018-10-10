@@ -11,5 +11,5 @@ log = "^0.4"
 
 [dev-dependencies]
 clap = "^2"
-webidl = "^0.7"
+webidl = "*"
 yaml-rust = "^0.4"
