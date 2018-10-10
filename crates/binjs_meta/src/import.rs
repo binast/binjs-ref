@@ -94,6 +94,7 @@ impl Importer {
     fn import_typedef(&mut self, typedef: &Typedef) {
         let name = self.builder.node_name(&typedef.name);
         // The following are, unfortunately, not true typedefs.
+        // Ignore their definition.
         let type_ = match typedef.name.as_ref() {
             "Identifier"  => spec::TypeSpec::IdentifierName
                 .required(),
@@ -103,6 +104,9 @@ impl Importer {
                 .required(),
             _ => self.convert_type(&*typedef.type_)
         };
+        debug!(target: "meta::import", "Importing typedef {type_:?} {name:?}",
+            type_ = type_,
+            name = name);
         let mut node = self.builder.add_typedef(&name)
             .unwrap_or_else(|| panic!("Error: Name {} is defined more than once in the spec.", name));
         assert!(!type_.is_optional());

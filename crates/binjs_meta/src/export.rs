@@ -190,6 +190,8 @@ impl TypeDeanonymizer {
             TypeSpec::Boolean |
             TypeSpec::Number |
             TypeSpec::UnsignedLong |
+            TypeSpec::PropertyKey |
+            TypeSpec::IdentifierName |
             TypeSpec::String |
             TypeSpec::Offset |
             TypeSpec::Void    => {
@@ -201,13 +203,14 @@ impl TypeDeanonymizer {
                         debug!(target: "export_utils", "import_typespec: Attempting to redefine typedef {name}", name = my_name.to_str());
                     }
                 }
-                (None, self.builder.node_name(&format!("@@{:?}", type_spec)))
-            }
-            TypeSpec::PropertyKey => {
-                (None, self.builder.node_name("PropertyKey"))
-            }
-            TypeSpec::IdentifierName => {
-                (None, self.builder.node_name("IdentifierName"))
+                // This is a workaround for typedefs in the webidl that are not truly typedefs.
+                // See https://github.com/Yoric/ecmascript-binary-ast/pull/1
+                let name = match *type_spec {
+                    TypeSpec::PropertyKey => self.builder.node_name("PropertyKey"),
+                    TypeSpec::IdentifierName => self.builder.node_name("IdentifierName"),
+                    _ => self.builder.node_name(&format!("@@{:?}", type_spec)),
+                };
+                (None, name)
             }
             TypeSpec::NamedType(ref link) => {
                 let resolved = spec.get_type_by_name(link)
@@ -243,6 +246,8 @@ impl TypeDeanonymizer {
                             Some(IsNullable { is_nullable: true, .. }) |
                             Some(IsNullable { content: Primitive::Interface(_), .. }) => Type::named(&content).required(),
                             Some(IsNullable { content: Primitive::String, .. }) => Type::string().required(),
+                            Some(IsNullable { content: Primitive::IdentifierName, .. }) => Type::identifier_name().required(),
+                            Some(IsNullable { content: Primitive::PropertyKey, .. }) => Type::property_key().required(),
                             Some(IsNullable { content: Primitive::Number, .. }) => Type::number().required(),
                             Some(IsNullable { content: Primitive::UnsignedLong, .. }) => Type::unsigned_long().required(),
                             Some(IsNullable { content: Primitive::Boolean, .. }) => Type::bool().required(),
