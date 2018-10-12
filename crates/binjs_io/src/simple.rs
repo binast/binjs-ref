@@ -444,7 +444,7 @@ impl TreeTokenWriter {
         Ok(self.register(result))
     }
 }
-impl TokenWriter for TreeTokenWriter {
+impl TokenWriterWithTree for TreeTokenWriter {
     type Tree = AbstractTree;
     type Data = Vec<u8>;
     type Statistics = Statistics;
@@ -559,7 +559,7 @@ impl TokenWriter for TreeTokenWriter {
     ///   - field names (string, \0 terminated)
     /// - </head>
     /// - contents
-    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, tag: &InterfaceName, children: &[(&FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         debug!(target: "simple_writer", "TreeTokenWriter: tagged_tuple");
         let mut prefix = Vec::new();
         prefix.extend_from_str("<head>");
@@ -620,7 +620,7 @@ impl ::FormatProvider for FormatProvider {
 #[test]
 fn test_simple_io() {
     use binjs_shared::{ FieldName, InterfaceName, SharedString };
-
+    use io::TokenWriterWithTree;
     use std::fs::*;
 
     use std::io::{ Cursor, Write };
@@ -717,8 +717,8 @@ fn test_simple_io() {
         let item_1 = writer.float(Some(3.1415)).unwrap();
         writer.tagged_tuple(&InterfaceName::from_str("BindingIdentifier"),
             &[
-                (FieldName::from_str("label"), item_0),
-                (FieldName::from_str("value"), item_1)
+                (&FieldName::from_str("label"), item_0),
+                (&FieldName::from_str("value"), item_1)
             ])
             .expect("Writing trivial tagged tuple");
 

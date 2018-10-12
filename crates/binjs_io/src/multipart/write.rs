@@ -666,7 +666,7 @@ impl TreeTokenWriter {
     }
 }
 
-impl TokenWriter for TreeTokenWriter {
+impl TokenWriterWithTree for TreeTokenWriter {
     type Tree = Tree;
     type Data = Box<[u8]>;
     type Statistics = Statistics;
@@ -761,7 +761,7 @@ impl TokenWriter for TreeTokenWriter {
     // - index in the grammar table (varnum);
     // - for each item, in the order specified
     //    - the item (see item)
-    fn tagged_tuple(&mut self, name: &InterfaceName, children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(&mut self, name: &InterfaceName, children: &[(&FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
         let data;
         let description = NodeDescription {
             kind: name.clone()

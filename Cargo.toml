@@ -16,6 +16,7 @@ binjs_meta = { path = "crates/binjs_meta", version = "*" }
 binjs_shared = { path = "crates/binjs_shared", version = "*" }
 assert_matches = "*"
 bencher = "^0.1"
+bincode = "*"
 clap = "*"
 env_logger = "^0.5"
 glob = "*"
@@ -27,7 +28,7 @@ lzw = "*"
 rand = "^0.4"
 test-logger = "*"
 vec_map = "*"
-webidl = "^0.7"
+webidl = "*"
 yaml-rust = "*"
 
 [[bin]]
@@ -44,6 +45,14 @@ path = "src/bin/decode.rs"
 # Dump a BinAST file structure to stdout.
 name = "binjs_dump"
 path = "src/bin/dump.rs"
+
+[[bin]]
+# From a sample of JS source files, extract the distribution
+# of probabilities for all ASTs, write this distribution to
+# disk. The distribution may then be reused by binjs_encode
+# using the entropy format to encode further files.
+name = "binjs_generate_prediction_tables"
+path = "src/bin/generate_dictionary.rs"
 
 [[bench]]
 name = "bench_fb"

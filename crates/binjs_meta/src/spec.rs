@@ -2,6 +2,8 @@
 
 pub use util::ToStr;
 
+use itertools::Itertools;
+
 use std;
 use std::cell::*;
 use std::collections::{ HashMap, HashSet };
@@ -329,6 +331,8 @@ impl TypeSpec {
             TypeSpec::UnsignedLong => Some(IsNullable::non_nullable(Primitive::UnsignedLong)),
             TypeSpec::String => Some(IsNullable::non_nullable(Primitive::String)),
             TypeSpec::Offset => Some(IsNullable::non_nullable(Primitive::Offset)),
+            TypeSpec::IdentifierName => Some(IsNullable::non_nullable(Primitive::IdentifierName)),
+            TypeSpec::PropertyKey => Some(IsNullable::non_nullable(Primitive::PropertyKey)),
             TypeSpec::NamedType(ref name) => {
                 match spec.get_type_by_name(name).unwrap() {
                     NamedType::Interface(ref interface) =>
@@ -366,6 +370,8 @@ pub enum Primitive {
     UnsignedLong,
     Offset,
     Interface(Rc<Interface>),
+    IdentifierName,
+    PropertyKey,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -726,10 +732,20 @@ impl SpecBuilder {
             .map(|(k, v)| (k, Rc::new(RefCell::into_inner(v))))
             .collect();
 
-        let mut node_names = HashMap::new();
-        for name in interfaces_by_name.keys().chain(string_enums_by_name.keys()).chain(typedefs_by_name.keys()) {
-            node_names.insert(name.to_string().clone(), name.clone());
-        }
+        let node_names: HashMap<_, _> = interfaces_by_name
+            .keys()
+            .chain(string_enums_by_name
+                .keys())
+            .chain(typedefs_by_name
+                .keys())
+            .map(|name| {
+                (name.to_string().clone(), name.clone())
+            })
+            .collect();
+        debug!(target: "spec", "Established list of node names: {:?} ({})",
+            node_names.keys()
+                .sorted(),
+            node_names.len());
 
         // 2. Collect all field names.
         let mut fields = HashMap::new();

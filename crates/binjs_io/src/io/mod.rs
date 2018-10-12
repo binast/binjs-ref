@@ -23,6 +23,11 @@ use std::rc::Rc;
 #[cfg(multistream)]
 use itertools::Itertools;
 
+mod deprecated;
+
+pub use self::deprecated::{ TokenWriterWithTree, TokenWriterTreeAdapter };
+
+
 /// An API for printing the binary representation and its structural
 /// interpretation of the file.
 ///
@@ -324,9 +329,6 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
 /// may be used both for debugging purposes and for encodings that depend
 /// on the current position in the AST (e.g. entropy coding).
 pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
-    /// The type of trees manipulated by this writer.
-    type Tree;
-
     /// Statistics produced by this writer.
     type Statistics;
 
@@ -344,16 +346,8 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     ///
     /// By convention, a null tagged tuple is the special tagged tuple "null",
     /// with no children.
-    fn tagged_tuple(&mut self, _tag: &InterfaceName, _children: &[(FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-    fn tagged_tuple_at(&mut self, tag: &InterfaceName, children: &[(FieldName, Self::Tree)], _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.tagged_tuple(tag, children)
-    }
-    fn enter_tagged_tuple_at(&mut self, _tag: &InterfaceName, _children: usize, _path: &Path) -> Result<(), TokenWriterError> {
-        Ok(())
-    }
-    fn exit_tagged_tuple_at(&mut self, _tag: &InterfaceName, _path: &Path) -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(&mut self, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError>;
+    fn exit_tagged_tuple_at(&mut self, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
         Ok(())
     }
 
@@ -361,15 +355,7 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     ///
     /// By opposition to a tuple, the number of items is variable and MUST
     /// be somehow recorded by the `TokenWriter`.
-    fn list(&mut self, Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-    fn list_at(&mut self, items: Vec<Self::Tree>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.list(items)
-    }
-    fn enter_list_at(&mut self, _len: usize, _path: &Path) -> Result<(), TokenWriterError> {
-        Ok(())
-    }
+    fn enter_list_at(&mut self, _len: usize, _path: &Path) -> Result<(), TokenWriterError>;
     fn exit_list_at(&mut self, _path: &Path) -> Result<(), TokenWriterError> {
         Ok(())
     }
@@ -377,75 +363,36 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
     /// Write a single UTF-8 string.
     ///
     /// If specified, the string MUST be UTF-8.
-    fn string(&mut self, Option<&SharedString>) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-    fn string_at(&mut self, value: Option<&SharedString>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.string(value)
-    }
+    fn string_at(&mut self, value: Option<&SharedString>, _path: &Path) -> Result<(), TokenWriterError>;
 
     /// Write a single UTF-8 value from a string enumeration.
     ///
     /// The default implementation uses `self.string``, but some encodings may use
     /// the extra information e.g. to represent the enumeration by an index in the
     /// list of possible values, or to encode string enums as interfaces.
-    fn string_enum(&mut self, str: &SharedString) -> Result<Self::Tree, TokenWriterError> {
-        self.string(Some(str))
-    }
-    fn string_enum_at(&mut self, value: &SharedString, path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.string_at(Some(value), path)
-    }
+    fn string_enum_at(&mut self, value: &SharedString, path: &Path) -> Result<(), TokenWriterError>;
 
     /// Write a single number.
-    fn float(&mut self, Option<f64>) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-    fn float_at(&mut self, value: Option<f64>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.float(value)
-    }
+    fn float_at(&mut self, value: Option<f64>, _path: &Path) -> Result<(), TokenWriterError>;
 
     /// Write a single u32.
-    fn unsigned_long(&mut self, u32) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-    fn unsigned_long_at(&mut self, value: u32, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.unsigned_long(value)
-    }
+    fn unsigned_long_at(&mut self, value: u32, _path: &Path) -> Result<(), TokenWriterError>;
 
     /// Write single bool.
-    // FIXME: Split `bool` from `maybe_bool`.
-    fn bool(&mut self, Option<bool>) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-    fn bool_at(&mut self, value: Option<bool>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.bool(value)
-    }
+    fn bool_at(&mut self, value: Option<bool>, _path: &Path) -> Result<(), TokenWriterError>;
 
     /// Write the number of bytes left in this tuple.
-    fn offset(&mut self) -> Result<Self::Tree, TokenWriterError> {
-        unimplemented!()
-    }
-    fn offset_at(&mut self, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.offset()
-    }
+    fn offset_at(&mut self, _path: &Path) -> Result<(), TokenWriterError>;
 
-    fn property_key(&mut self, value: Option<&PropertyKey>) -> Result<Self::Tree, TokenWriterError> {
+    fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &Path) -> Result<(), TokenWriterError> {
         let string = value.map(PropertyKey::as_shared_string);
-        self.string(string)
+        self.string_at(string, path)
     }
-    fn property_key_at(&mut self, value: Option<&PropertyKey>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.property_key(value)
-    }
-    // FIXME: Split `property_key` from `maybe_property_key`.
 
-    fn identifier_name(&mut self, value: Option<&IdentifierName>) -> Result<Self::Tree, TokenWriterError> {
+    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &Path) -> Result<(), TokenWriterError> {
         let string = value.map(IdentifierName::as_shared_string);
-        self.string(string)
+        self.string_at(string, path)
     }
-    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, _path: &Path) -> Result<Self::Tree, TokenWriterError> {
-        self.identifier_name(value)
-    }
-    // FIXME: Split `identifier_name` from `maybe_identifier_name`.
 }
 
 
@@ -509,7 +456,7 @@ pub trait Serialization<W, T> where W: TokenWriter, T: Sized {
     /// Serialize a piece of data.
     ///
     /// `path` indicates the path from the root of the AST.
-    fn serialize(&mut self, data: T, path: &mut Path) -> Result<W::Tree, TokenWriterError>;
+    fn serialize(&mut self, data: T, path: &mut Path) -> Result<(), TokenWriterError>;
 }
 pub trait TokenSerializer<W> where W: TokenWriter {
     fn done(self) -> Result<(W::Data, W::Statistics), TokenWriterError>;

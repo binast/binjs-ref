@@ -1,3 +1,5 @@
+use entropy::probabilities::{ InstancesToProbabilities, Symbol };
+
 use std;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -11,16 +13,6 @@ use binjs_shared::{ FieldName, InterfaceName };
 pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 pub type IOPathItem = binjs_shared::ast::PathItem<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
-/// Representation of a symbol in a Cumulative Distribution Frequency (CDF).
-#[derive(Clone)]
-pub struct Symbol {
-    /// The index of the symbol in the Cumulative Distribution Frequency (CDF).
-    pub index: usize,
-
-    /// The Cumulative Distribution Frequency (CDF), shared between a number of symbols.
-    pub distribution: Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>,
-}
-
 pub struct Entry<'a, K, T> where K: 'a, T: 'a {
     /// The number of entries for this key in the context.
     pub len: usize,
@@ -28,7 +20,7 @@ pub struct Entry<'a, K, T> where K: 'a, T: 'a {
 }
 
 /// A generic predictor, associating a context and a key to a value.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
     by_context: HashMap<C, HashMap<K, T>>,
 }
@@ -63,17 +55,20 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
             .sum()
     }
 }
-impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
-    /// Utility: convert a number of instances for each symbol into
-    /// a probability distribution.
-    pub fn instances_to_probabilities(mut self) -> ContextPredict<C, K, Symbol> {
-        let by_context = self.by_context.drain()
+
+
+impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
+    type AsProbabilities = ContextPredict<C, K, Symbol>;
+    fn instances_to_probabilities(self) -> ContextPredict<C, K, Symbol> {
+        let by_context = self.by_context.into_iter()
             .map(|(context, by_key)| {
                 let instances : Vec<_> = by_key.values()
                     .map(|x| *x as u32)
                     .collect();
                 let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances).
-                    unwrap())); // FIXME: This will fail if `by_key` is empty.
+                    unwrap()));
+                    // FIXME: This will fail if `by_key` is empty.
+                    // FIXME: We should have a fallback distribution in case everything is empty.
 
                 let by_key = by_key.into_iter()
                     .enumerate()
@@ -100,16 +95,15 @@ impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash 
 /// limit the prediction depth, e.g. to 0 (don't use any context),
 /// 1 (use only the parent + child index) or 2 (use parent +
 /// grand-parent and both child indices).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
     context_predict: ContextPredict<IOPath, K, T>,
 }
 
 
-impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
-    /// Utility: convert a number of instances for each symbol into
-    /// a probability distribution.
-    pub fn instances_to_probabilities(self) -> PathPredict<K, Symbol> {
+impl<K> InstancesToProbabilities for PathPredict<K, usize> where K: Eq + Hash + Clone {
+    type AsProbabilities = PathPredict<K, Symbol>;
+    fn instances_to_probabilities(self) -> PathPredict<K, Symbol> {
         PathPredict {
             context_predict: self.context_predict.instances_to_probabilities()
         }

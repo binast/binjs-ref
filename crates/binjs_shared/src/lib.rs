@@ -2,6 +2,9 @@ extern crate itertools;
 extern crate json;
 #[macro_use]
 extern crate log;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 mod json_conversion;
 pub use json_conversion::*;
@@ -44,7 +47,7 @@ shared_string!(pub FieldName);
 
 /// A container for f64 values that implements an *arbitrary*
 /// total order, equality relation, hash.
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Deserialize, Serialize)]
 pub struct F64(f64);
 impl From<f64> for F64 {
     fn from(value: f64) -> F64 {

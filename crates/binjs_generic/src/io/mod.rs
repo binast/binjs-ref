@@ -45,16 +45,17 @@ impl Encoder {
     }
     pub fn encode(&self, grammar: &binjs_meta::spec::Spec, format: &mut binjs_io::Format, ast: &JSON) -> Result<Box<AsRef<[u8]>>, std::io::Error>
     {
+        use binjs_io::TokenWriterTreeAdapter;
         match *format {
             binjs_io::Format::Simple { .. } => {
-                let writer = binjs_io::simple::TreeTokenWriter::new();
+                let writer = TokenWriterTreeAdapter::new(binjs_io::simple::TreeTokenWriter::new());
                 let mut encoder = encode::Encoder::new(grammar, writer);
                 encoder.generic_encode(ast)?;
                 let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Multipart { ref mut targets, .. } => {
-                let writer = binjs_io::multipart::TreeTokenWriter::new(targets.clone());
+                let writer = TokenWriterTreeAdapter::new(binjs_io::multipart::TreeTokenWriter::new(targets.clone()));
                 let mut encoder = encode::Encoder::new(grammar, writer);
                 encoder.generic_encode(ast)?;
                 let (data, _) = encoder.done()?;
@@ -80,7 +81,7 @@ impl Encoder {
                 Ok(Box::new(data))
             }
             binjs_io::Format::XML => {
-                let writer = binjs_io::xml::Encoder::new();
+                let writer = TokenWriterTreeAdapter::new(binjs_io::xml::Encoder::new());
                 let mut encoder = encode::Encoder::new(grammar, writer);
                 encoder.generic_encode(ast)?;
                 let (data, _) = encoder.done()?;

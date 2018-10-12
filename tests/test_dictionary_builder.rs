@@ -4,7 +4,7 @@ extern crate itertools;
 use binjs::generic::{ FromJSON, IdentifierName, InterfaceName, PropertyKey, SharedString };
 use binjs::source::{ Shift, SourceParser };
 use binjs::io::{ TokenSerializer };
-use binjs::io::entropy::model::{ Dictionary, DictionaryBuilder, KindedStringMap };
+use binjs::io::entropy::model::{ Dictionary, DictionaryBuilder, FilesContaining, KindedStringMap };
 use binjs::specialized::es6::io::IOPath;
 
 use std::collections::HashMap;
@@ -48,7 +48,9 @@ test!(test_model_dictionary_builder, {
     }
 
     // We may now access data.
-    eprintln!("Built a dictionary with length {}", dictionary.len());
+    eprintln!("Built a dictionary with {} states, {} strings",
+        dictionary.len(),
+        files_containing_string.len());
 
     eprintln!("Checking identifiers per file");
     check_strings(
@@ -124,7 +126,7 @@ test!(test_model_dictionary_builder, {
     );
 });
 
-fn check_strings<T, F>(found: &HashMap<T, usize>, expected: Vec<(&str, usize)>, f: F)
+fn check_strings<T, F>(found: &HashMap<T, FilesContaining>, expected: Vec<(&str, usize)>, f: F)
     where
         F: Fn(&str) -> T,
         T: Eq + std::hash::Hash + Ord + Clone + std::fmt::Debug,
@@ -136,7 +138,7 @@ fn check_strings<T, F>(found: &HashMap<T, usize>, expected: Vec<(&str, usize)>, 
     let expected = expected
         .into_iter()
         .map(|(name, instances)| {
-            (f(name), instances)
+            (f(name), FilesContaining(instances))
         })
         .sorted();
     assert_eq!(found, expected);
