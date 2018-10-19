@@ -26,12 +26,25 @@ impl FromJSON for bool {
 }
 impl FromJSON for f64 {
     fn import(value: &JSON) -> Result<Self, FromJSONError> {
-        match value.as_f64() {
-            None => Err(FromJSONError {
+        // JSON.as_f64() doesn't keep the precision.
+        match value {
+            JSON::Number(n) => {
+                if n.is_nan() {
+                    Ok(std::f64::NAN)
+                } else {
+                    let (positive, mantissa, exponent) = n.as_parts();
+                    let as_str = if positive {
+                        format!("{}e{}", mantissa, exponent)
+                    } else {
+                        format!("-{}e{}", mantissa, exponent)
+                    };
+                    Ok(as_str.parse::<f64>().expect("cannot parse the number!"))
+                }
+            }
+            _ => Err(FromJSONError {
                 expected: "Number".to_string(),
                 got: value.dump()
-            }),
-            Some(ref s) => Ok(*s)
+            })
         }
     }
 }
