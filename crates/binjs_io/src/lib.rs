@@ -39,6 +39,7 @@ pub enum TokenWriterError {
 
 #[derive(Debug)]
 pub enum TokenReaderError {
+    NotInDictionary(String),
     ReadError(std::io::Error),
     BadLength { expected: usize, got: usize },
     BadHeader,
@@ -58,6 +59,7 @@ pub enum TokenReaderError {
     EmptyVariant,
     EmptyBool,
     EmptyString,
+    EmptyList,
     BadEnumVariant,
 }
 impl TokenReaderError {

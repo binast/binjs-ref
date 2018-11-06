@@ -16,7 +16,7 @@ impl Decoder {
     pub fn new() -> Self {
         Decoder
     }
-    pub fn decode<R: std::io::Read + std::io::Seek>(&self, grammar: &binjs_meta::spec::Spec, format: &mut binjs_io::Format, source: R) -> Result<JSON, decode::Error<binjs_io::TokenReaderError>> {
+    pub fn decode<R: std::io::Read + std::io::Seek>(&self, grammar: &binjs_meta::spec::Spec, format: &mut binjs_io::Format, source: R) -> Result<JSON, decode::Error> {
         match *format {
             binjs_io::Format::Simple { .. } => {
                 let reader = binjs_io::simple::TreeTokenReader::new(source);
@@ -87,8 +87,12 @@ impl Encoder {
                 let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
-            binjs_io::Format::Entropy { .. } => {
-                unimplemented!()
+            binjs_io::Format::Entropy { ref options } => {
+                let writer = binjs_io::entropy::write::Encoder::new((*options).clone());
+                let mut encoder = encode::Encoder::new(grammar, writer);
+                encoder.generic_encode(ast)?;
+                let (data, _) = encoder.done()?;
+                Ok(Box::new(data))
             }
         }
     }

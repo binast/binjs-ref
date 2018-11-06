@@ -81,8 +81,7 @@ impl<R> ListGuard<R> where R: Read + Seek {
     }
 }
 impl<R> Guard for ListGuard<R> where R: Read + Seek {
-    type Error = TokenReaderError;
-    fn done(mut self) -> Result<(), Self::Error> {
+    fn done(mut self) -> Result<(), TokenReaderError> {
         self.finalized = true;
         let mut owner = self.owner.borrow_mut();
         if owner.is_poisoned() {
@@ -121,8 +120,7 @@ impl<R> TaggedGuard<R> where R: Read + Seek {
     }
 }
 impl<R> Guard for TaggedGuard<R> where R: Read + Seek {
-    type Error = TokenReaderError;
-    fn done(mut self) -> Result<(), Self::Error> {
+    fn done(mut self) -> Result<(), TokenReaderError> {
         self.finalized = true;
         let mut owner = self.owner.borrow_mut();
         if owner.is_poisoned() {
@@ -160,8 +158,7 @@ impl<R> UntaggedGuard<R> where R: Read + Seek {
     }
 }
 impl<R> Guard for UntaggedGuard<R> where R: Read + Seek {
-    type Error = TokenReaderError;
-    fn done(mut self) -> Result<(), Self::Error> {
+    fn done(mut self) -> Result<(), TokenReaderError> {
         self.finalized = true;
         let mut owner = self.owner.borrow_mut();
         if owner.is_poisoned() {
@@ -205,13 +202,12 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
     type ListGuard = ListGuard<R>;
     type TaggedGuard = TaggedGuard<R>;
     type UntaggedGuard = UntaggedGuard<R>;
-    type Error = TokenReaderError;
 
     fn poison(&mut self) {
         self.owner.borrow_mut().poison();
     }
 
-    fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
+    fn bool_at(&mut self, _path: &Path) -> Result<Option<bool>, TokenReaderError> {
         debug!(target: "simple_reader", "bool");
         let mut buf : [u8; 1] = [0];
         let mut owner = self.owner.borrow_mut();
@@ -225,7 +221,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn offset(&mut self) -> Result<u32, Self::Error> {
+    fn offset_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         debug!(target: "simple_reader", "offset");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -233,7 +229,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn float(&mut self) -> Result<Option<f64>, Self::Error> {
+    fn float_at(&mut self, _path: &Path) -> Result<Option<f64>, TokenReaderError> {
         debug!(target: "simple_reader", "float");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -244,7 +240,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn unsigned_long(&mut self) -> Result<u32, Self::Error> {
+    fn unsigned_long_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         debug!(target: "simple_reader", "unsigned_long");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -253,7 +249,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn string(&mut self) -> Result<Option<SharedString>, Self::Error> {
+    fn string_at(&mut self, _path: &Path) -> Result<Option<SharedString>, TokenReaderError> {
         debug!(target: "simple_reader", "string");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -278,7 +274,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error> {
+    fn list_at(&mut self, _path: &Path) -> Result<(u32, Self::ListGuard), TokenReaderError> {
         debug!(target: "simple_reader", "list");
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
@@ -292,7 +288,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn tagged_tuple(&mut self) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), TokenReaderError> {
         debug!(target: "simple_reader", "tagged tuple");
         let clone = self.owner.clone();
         let mut owner = self.owner.borrow_mut();
@@ -324,7 +320,7 @@ impl<R> TokenReader for TreeTokenReader<R> where R: Read + Seek {
         })
     }
 
-    fn untagged_tuple(&mut self) -> Result<Self::UntaggedGuard, Self::Error> {
+    fn untagged_tuple_at(&mut self, _path: &Path) -> Result<Self::UntaggedGuard, TokenReaderError> {
         debug!(target: "simple_reader", "untagged tuple");
         let mut owner = self.owner.borrow_mut();
         owner.try(|state| {
@@ -620,10 +616,13 @@ impl ::FormatProvider for FormatProvider {
 #[test]
 fn test_simple_io() {
     use binjs_shared::{ FieldName, InterfaceName, SharedString };
+    use binjs_shared::ast::Path;
     use io::TokenWriterWithTree;
     use std::fs::*;
 
     use std::io::{ Cursor, Write };
+
+    let path = Path::new();
 
     eprintln!("Testing string I/O");
 
@@ -638,7 +637,7 @@ fn test_simple_io() {
             .unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
-        let simple_string = reader.string()
+        let simple_string = reader.string_at(&path)
             .expect("Reading simple string")
             .expect("Non-null string");
         assert_eq!(&simple_string, "simple string");
@@ -656,7 +655,7 @@ fn test_simple_io() {
             .write_all(result).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(result));
-        let escapes_string = reader.string()
+        let escapes_string = reader.string_at(&path)
             .expect("Reading string with escapes")
             .expect("Non-null string");
         assert_eq!(escapes_string, data);
@@ -674,7 +673,7 @@ fn test_simple_io() {
             .write_all(data).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
-        let guard = reader.untagged_tuple()
+        let guard = reader.untagged_tuple_at(&path)
             .expect("Reading empty untagged tuple");
 
         guard.done()
@@ -694,13 +693,13 @@ fn test_simple_io() {
             .write_all(data).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
-        let guard = reader.untagged_tuple()
+        let guard = reader.untagged_tuple_at(&path)
             .expect("Reading trivial untagged tuple");
-        let simple_string = reader.string()
+        let simple_string = reader.string_at(&path)
             .expect("Reading trivial tuple[0]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
-        let simple_string = reader.string()
+        let simple_string = reader.string_at(&path)
             .expect("Reading trivial tuple[1]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
@@ -727,7 +726,7 @@ fn test_simple_io() {
             .write_all(data).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
-        let (name, fields, guard) = reader.tagged_tuple()
+        let (name, fields, guard) = reader.tagged_tuple_at(&path)
             .expect("Reading trivial tagged tuple");
         assert_eq!(name, "BindingIdentifier");
 
@@ -735,11 +734,11 @@ fn test_simple_io() {
         let fields = fields.expect("Missing fields");
         assert!(fields[0] == "label");
         assert!(fields[1] == "value");
-        let simple_string = reader.string()
+        let simple_string = reader.string_at(&path)
             .expect("Reading trivial tagged tuple[0]")
             .expect("Reading a non-null string");
         assert_eq!(simple_string, "foo");
-        let simple_float = reader.float()
+        let simple_float = reader.float_at(&path)
             .expect("Reading trivial tagged tuple[1]")
             .expect("Reading a non-null float");
         assert_eq!(simple_float, 3.1415);
@@ -760,7 +759,7 @@ fn test_simple_io() {
                 .write_all(data).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
-        let (len, guard) = reader.list()
+        let (len, guard) = reader.list_at(&path)
             .expect("Reading empty list");
         assert_eq!(len, 0);
 
@@ -780,15 +779,15 @@ fn test_simple_io() {
             .write_all(data).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
-        let (len, guard) = reader.list()
+        let (len, guard) = reader.list_at(&path)
             .expect("Reading trivial list");
         assert_eq!(len, 2);
 
-        let simple_string = reader.string()
+        let simple_string = reader.string_at(&path)
             .expect("Reading trivial list[0]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
-        let simple_string = reader.string()
+        let simple_string = reader.string_at(&path)
             .expect("Reading trivial list[1]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
@@ -811,19 +810,19 @@ fn test_simple_io() {
             .write_all(data).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
-        let (len, guard) = reader.list()
+        let (len, guard) = reader.list_at(&path)
             .expect("Reading outer list");
         assert_eq!(len, 1);
 
-        let (len, inner_guard) = reader.list()
+        let (len, inner_guard) = reader.list_at(&path)
             .expect("Reading inner list");
         assert_eq!(len, 2);
 
-        let simple_string = reader.string()
+        let simple_string = reader.string_at(&path)
             .expect("Reading trivial list[0]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "foo");
-        let simple_string = reader.string()
+        let simple_string = reader.string_at(&path)
             .expect("Reading trivial list[1]")
             .expect("Non-null string");
         assert_eq!(&simple_string, "bar");
