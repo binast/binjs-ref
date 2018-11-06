@@ -11,6 +11,7 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 multistream = []
 
 [dependencies]
+bincode = "*"
 binjs_shared = { path = "../binjs_shared", version = "*" }
 brotli = "*"
 clap = "^2.32"

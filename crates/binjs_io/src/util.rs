@@ -90,7 +90,7 @@ impl<S> PoisonLock<S> {
     }
 }
 
-
+/*
 pub trait Counter {
     fn internal_make(value: usize) -> Self;
 }
@@ -112,3 +112,4 @@ impl<T> GenericCounter<T> where T: Counter {
         result
     }
 }
+*/

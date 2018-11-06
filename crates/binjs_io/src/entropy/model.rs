@@ -19,6 +19,14 @@ int_alias!(InstancesInFile, usize);
 
 /// A newtype for `usize` used to count the number of files containing some item.
 int_alias!(FilesContaining, usize);
+impl<'de> serde::de::Deserialize<'de> for FilesContaining {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>
+    {
+        Ok(FilesContaining(usize::deserialize(deserializer)?))
+    }
+}
 impl serde::ser::Serialize for FilesContaining {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: serde::ser::Serializer
@@ -27,8 +35,40 @@ impl serde::ser::Serialize for FilesContaining {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+
+/// Add a single symbol to the table.
+///
+/// Used instead of a method as we need generality wrt the field name.
+///
+/// Usage:
+/// `symbol!(self, name_of_the_probability_table, "Description, used for debugging", value_to_encode, path_in_the_ast)`
+macro_rules! symbol {
+    ( $me: ident, $table: ident, $description: expr, $path:expr, $value: expr ) => {
+        {
+            let tail = $path.tail($me.dictionary.depth);
+            $me.dictionary
+                .$table
+                .entry(tail, &$value)
+                .value
+                .and_modify(|instances| {
+                    *instances += 1 // We already have at least one association `tail` => `value`, increment.
+                }).or_insert_with(|| {
+                    debug!(target: "entropy", "Injecting {} in context path: {:?}: {:?}",
+                        $description,
+                        tail,
+                        $value);
+                    1
+                });    // First time we associate `tail` => `value`, store 1.
+
+            Ok(())
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Dictionary<T> {
+    pub depth: usize,
+
     /// All booleans appearing in the AST, predicted by path.
     pub bool_by_path: PathPredict<Option<bool>, T>,
 
@@ -64,6 +104,21 @@ pub struct Dictionary<T> {
     // - directives?
 }
 impl<T> Dictionary<T> {
+    pub fn new(depth: usize) -> Self {
+        Dictionary {
+            depth,
+            bool_by_path: PathPredict::new(),
+            float_by_path: PathPredict::new(),
+            unsigned_long_by_path: PathPredict::new(),
+            string_enum_by_path: PathPredict::new(),
+            property_key_by_path: PathPredict::new(),
+            identifier_name_by_path: PathPredict::new(),
+            string_literal_by_path: PathPredict::new(),
+            list_length_by_path: PathPredict::new(),
+            interface_name_by_path: PathPredict::new(),
+        }
+    }
+
     /// Return the number of states in this dictionary.
     pub fn len(&self) -> usize {
         // Make sure that we don't forget a field.
@@ -77,6 +132,7 @@ impl<T> Dictionary<T> {
             ref string_literal_by_path,
             ref list_length_by_path,
             ref interface_name_by_path,
+            depth: _,
         } = *self;
 
         bool_by_path.len()
@@ -96,17 +152,18 @@ impl InstancesToProbabilities for Dictionary<usize> {
 
     /// Convert a dictionary counting instances into a dictionary that
     /// counting probabilities.
-    fn instances_to_probabilities(self) -> Dictionary<Symbol> {
+    fn instances_to_probabilities(self, _description: &str) -> Dictionary<Symbol> {
         Dictionary {
-            bool_by_path: self.bool_by_path.instances_to_probabilities(),
-            float_by_path: self.float_by_path.instances_to_probabilities(),
-            unsigned_long_by_path: self.unsigned_long_by_path.instances_to_probabilities(),
-            string_enum_by_path: self.string_enum_by_path.instances_to_probabilities(),
-            property_key_by_path: self.property_key_by_path.instances_to_probabilities(),
-            identifier_name_by_path: self.identifier_name_by_path.instances_to_probabilities(),
-            interface_name_by_path: self.interface_name_by_path.instances_to_probabilities(),
-            string_literal_by_path: self.string_literal_by_path.instances_to_probabilities(),
-            list_length_by_path: self.list_length_by_path.instances_to_probabilities(),
+            depth: self.depth,
+            bool_by_path: self.bool_by_path.instances_to_probabilities("bool_by_path"),
+            float_by_path: self.float_by_path.instances_to_probabilities("float_by_path"),
+            unsigned_long_by_path: self.unsigned_long_by_path.instances_to_probabilities("unsigned_long_by_path"),
+            string_enum_by_path: self.string_enum_by_path.instances_to_probabilities("string_enum_by_path"),
+            property_key_by_path: self.property_key_by_path.instances_to_probabilities("property_key_by_path"),
+            identifier_name_by_path: self.identifier_name_by_path.instances_to_probabilities("identifier_name_by_path"),
+            interface_name_by_path: self.interface_name_by_path.instances_to_probabilities("interface_name_by_path"),
+            string_literal_by_path: self.string_literal_by_path.instances_to_probabilities("string_literal_by_path"),
+            list_length_by_path: self.list_length_by_path.instances_to_probabilities("list_length_by_path"),
         }
     }
 }
@@ -116,7 +173,7 @@ impl InstancesToProbabilities for Dictionary<usize> {
 /// This container is used to collect statistics, such as the number
 /// of instances of a given string in a file, or the number of files
 /// that contain a given string.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct KindedStringMap<T> {
     /// Instances of IdentifierName.
     pub identifier_name_instances: HashMap<Option<IdentifierName>, T>,
@@ -156,13 +213,13 @@ impl InstancesToProbabilities for KindedStringMap<FilesContaining> {
 
     /// Convert a dictionary counting instances into a dictionary
     /// counting probabilities.
-    fn instances_to_probabilities(self) -> KindedStringMap<Symbol> {
+    fn instances_to_probabilities(self, _description:&str) -> KindedStringMap<Symbol> {
         KindedStringMap {
-            identifier_name_instances: self.identifier_name_instances.instances_to_probabilities(),
-            property_key_instances: self.property_key_instances.instances_to_probabilities(),
-            interface_name_instances: self.interface_name_instances.instances_to_probabilities(),
-            string_literal_instances: self.string_literal_instances.instances_to_probabilities(),
-            string_enum_instances: self.string_enum_instances.instances_to_probabilities(),
+            identifier_name_instances: self.identifier_name_instances.instances_to_probabilities("identifier_name_instances"),
+            property_key_instances: self.property_key_instances.instances_to_probabilities("property_key_instances"),
+            interface_name_instances: self.interface_name_instances.instances_to_probabilities("interface_name_instances"),
+            string_literal_instances: self.string_literal_instances.instances_to_probabilities("string_literal_instances"),
+            string_enum_instances: self.string_enum_instances.instances_to_probabilities("string_enum_instances"),
         }
     }
 }
@@ -172,7 +229,7 @@ impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
 {
     type AsProbabilities = HashMap<K, Symbol>;
 
-    fn instances_to_probabilities(self) -> HashMap<K, Symbol> {
+    fn instances_to_probabilities(self, _description: &str) -> HashMap<K, Symbol> {
         use std::cell::RefCell;
         use std::rc::Rc;
 
@@ -199,9 +256,6 @@ impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
 /// In this version, we use several dictionary lengths, to determine the
 /// best version for a file.
 pub struct DictionaryBuilder<'a> {
-    /// Attempt to build predictions with a depth of 0 (no context) up to max_path_depth ancestors.
-    max_path_depth: usize,
-
     /// A dictionary.
     ///
     /// This is a shared reference as we typically wish to
@@ -217,38 +271,11 @@ pub struct DictionaryBuilder<'a> {
 }
 
 impl<'a> DictionaryBuilder<'a> {
-    pub fn new(max_path_depth: usize, dictionary: &'a mut Dictionary<usize>, files_containing_string: &'a mut KindedStringMap<FilesContaining>) -> Self {
+    pub fn new(dictionary: &'a mut Dictionary<usize>, files_containing_string: &'a mut KindedStringMap<FilesContaining>) -> Self {
         DictionaryBuilder {
-            max_path_depth,
             dictionary,
             instances_of_strings_in_current_file: KindedStringMap::default(),
             files_containing_string
-        }
-    }
-
-    /// Increment the number of cases in which `value` is a possible value for `path`.
-    ///
-    /// Since we do not want to store every single possible path, we use tails of
-    /// `path` limited to `max_path_depth` items. We also store shorter path, to
-    /// let us analyze later, on a case-by-case basis, whether having longer paths
-    /// is useful or just increases the size of the dictionary.
-    ///
-    /// Note: This is a function rather than a method because making it a method
-    /// would require us to borrow mutably `source` *and* while calling into `self`.
-    /// Not very borrow-checker-compatible.
-    fn add_instance_to_path<V>(max_path_depth: usize, value: V, path: &IOPath, source: &mut PathPredict<V, usize>)
-        where
-            V: 'a + std::hash::Hash + Eq + Clone + std::fmt::Debug,
-    {
-        let len = usize::min(max_path_depth, path.len()) + 1;
-        // Update predictions with a path length of 0..len.
-        for len in 0 .. len {
-            let tail = path.tail(len);
-            source.entry(tail, &value)
-                .value
-                .and_modify(|instances| {
-                    *instances += 1 // We already have at least one association `tail` => `value`, increment.
-                }).or_insert(1);    // First time we associate `tail` => `value`, store 1.
         }
     }
 
@@ -324,52 +351,52 @@ impl<'a> TokenWriter for DictionaryBuilder<'a> {
     }
 
     fn bool_at(&mut self, value: Option<bool>, path: &IOPath) -> Result<(), TokenWriterError> {
-        Self::add_instance_to_path(self.max_path_depth, value, path, &mut self.dictionary.bool_by_path);
+        symbol!(self, bool_by_path, "bool_by_path", path, value)?;
         Ok(())
     }
 
     fn float_at(&mut self, value: Option<f64>, path: &IOPath) -> Result<(), TokenWriterError> {
         let value = value.map(|x| x.into());
-        Self::add_instance_to_path(self.max_path_depth, value, path, &mut self.dictionary.float_by_path);
+        symbol!(self, float_by_path, "float_by_path", path, value)?;
         Ok(())
     }
 
     fn unsigned_long_at(&mut self, value: u32, path: &IOPath) -> Result<(), TokenWriterError> {
-        Self::add_instance_to_path(self.max_path_depth, value, path, &mut self.dictionary.unsigned_long_by_path);
+        symbol!(self, unsigned_long_by_path, "unsigned_long_by_path", path, value)?;
         Ok(())
     }
 
     fn string_enum_at(&mut self, value: &SharedString, path: &IOPath) -> Result<(), TokenWriterError> {
-        Self::add_instance_to_path(self.max_path_depth, value.clone(), path, &mut self.dictionary.string_enum_by_path);
+        symbol!(self, string_enum_by_path, "string_enum_by_path", path, value.clone())?;
         Self::add_instance_to_strings(value.clone(), &mut self.instances_of_strings_in_current_file.string_enum_instances);
         Ok(())
     }
 
     fn string_at(&mut self, value: Option<&SharedString>, path: &IOPath) -> Result<(), TokenWriterError> {
-        Self::add_instance_to_path(self.max_path_depth, value.cloned(), path, &mut self.dictionary.string_literal_by_path);
+        symbol!(self, string_literal_by_path, "string_literal_by_path", path, value.cloned())?;
         Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.string_literal_instances);
         Ok(())
     }
 
     fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &IOPath) -> Result<(), TokenWriterError> {
-        Self::add_instance_to_path(self.max_path_depth, value.cloned(), path, &mut self.dictionary.property_key_by_path);
+        symbol!(self, property_key_by_path, "property_key_by_path", path, value.cloned())?;
         Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.property_key_instances);
         Ok(())
     }
 
     fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &IOPath) -> Result<(), TokenWriterError> {
-        Self::add_instance_to_path(self.max_path_depth, value.cloned(), path, &mut self.dictionary.identifier_name_by_path);
+        symbol!(self, identifier_name_by_path, "identifier_name_by_path", path, value.cloned())?;
         Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.identifier_name_instances);
         Ok(())
     }
 
     fn enter_list_at(&mut self, len: usize, path: &IOPath) -> Result<(), TokenWriterError> {
-        Self::add_instance_to_path(self.max_path_depth, Some(len as u32), path, &mut self.dictionary.list_length_by_path);
+        symbol!(self, list_length_by_path, "list_length_by_path", path, Some(len as u32))?;
         Ok(())
     }
 
     fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, _children: &[&FieldName], path: &IOPath)  -> Result<(), TokenWriterError> {
-        Self::add_instance_to_path(self.max_path_depth, tag.clone(), path, &mut self.dictionary.interface_name_by_path);
+        symbol!(self, interface_name_by_path, "interface_name_by_path", path, tag.clone())?;
         Self::add_instance_to_strings(tag.clone(), &mut self.instances_of_strings_in_current_file.interface_name_instances);
         Ok(())
     }

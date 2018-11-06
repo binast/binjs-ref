@@ -87,15 +87,9 @@ impl Encoder {
                 let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
-/*
-            binjs_io::Format::Entropy { ref model, ref options } => {
-                let writer = binjs_io::entropy::write::TreeTokenWriter::new(model.as_ref(), options.clone());
-                let mut encoder = encode::Encoder::new(grammar, writer);
-                encoder.generic_encode(ast)?;
-                let (data, _) = encoder.done()?;
-                Ok(Box::new(data))
+            binjs_io::Format::Entropy { .. } => {
+                unimplemented!()
             }
-*/
         }
     }
 }
