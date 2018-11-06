@@ -18,5 +18,5 @@ pub struct Symbol {
 /// or a set of probability distributions.
 pub trait InstancesToProbabilities {
     type AsProbabilities;
-    fn instances_to_probabilities(self) -> Self::AsProbabilities;
+    fn instances_to_probabilities(self, description: &str) -> Self::AsProbabilities;
 }

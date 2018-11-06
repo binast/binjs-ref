@@ -23,7 +23,6 @@ struct Options<'a> {
     parser: &'a Shift,
     lazification: u32,
     quiet: bool,
-    max_path_length_in_model: usize,
 }
 
 macro_rules! progress {
@@ -99,8 +98,7 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>,
     let old_string_len = shared_files_containing_string.len();
 
     {
-        let builder = DictionaryBuilder::new(options.max_path_length_in_model,
-            shared_dictionary, shared_files_containing_string);
+        let builder = DictionaryBuilder::new(shared_dictionary, shared_files_containing_string);
         let mut serializer = binjs::specialized::es6::io::Serializer::new(builder);
         serializer.serialize(&ast, &mut IOPath::new())
             .expect("Could not generate dictionary");
@@ -196,7 +194,7 @@ fn main_aux() {
 
     // Setup.
     let parser = Shift::new();
-    let mut dictionary = Dictionary::default();
+    let mut dictionary = Dictionary::new(depth);
     let mut files_containing_string = KindedStringMap::default();
     let mut number_of_files = 0;
 
@@ -204,7 +202,6 @@ fn main_aux() {
         parser: &parser,
         lazification,
         quiet,
-        max_path_length_in_model: depth,
     };
 
     // Process files.

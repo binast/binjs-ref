@@ -55,6 +55,8 @@
 //! and/or custom dictionary later.
 
 pub mod model;
+pub mod read;
+pub mod write;
 
 mod predict;
 mod probabilities;
@@ -62,8 +64,16 @@ mod probabilities;
 use self::model::{ Dictionary, FilesContaining, KindedStringMap };
 use self::probabilities::Symbol;
 
+#[derive(Clone)]
 pub struct Options {
+    /// The (shared) AST probability tables, generally shipped separately
+    /// from the compressed files and used to predict the probability
+    /// of a symbol occurring at a specific position in the AST.
     probability_tables: Dictionary<Symbol>,
+
+    /// The (shared) String probability tables, generally shipped separately
+    /// from the compressed files. Not yet used for (de)compression
+    /// at this stage.
     string_tables: KindedStringMap<Symbol>,
 }
 
@@ -87,6 +97,11 @@ impl ::FormatProvider for FormatProvider {
                 .long("external-dictionary-strings")
                 .takes_value(true)
                 .required(true)
+            )
+            .arg(Arg::with_name("path-depth")
+                .long("path-depth")
+                .takes_value(true)
+                .default_value("3")
             )
     }
 
@@ -112,8 +127,8 @@ impl ::FormatProvider for FormatProvider {
 
         Ok(::Format::Entropy {
             options: Options {
-                probability_tables: probability_tables.instances_to_probabilities(),
-                string_tables: string_tables.instances_to_probabilities(),
+                probability_tables: probability_tables.instances_to_probabilities("probability_tables"),
+                string_tables: string_tables.instances_to_probabilities("string_tables"),
             }
         })
     }

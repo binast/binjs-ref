@@ -33,6 +33,7 @@ pub use bytes::compress::Compression;
 #[derive(Debug)]
 pub enum TokenWriterError {
     InvalidOffsetField,
+    NotInDictionary(String),
     WriteError(std::io::Error),
 }
 
