@@ -1033,14 +1033,15 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                         .iter()
                         .enumerate()
                         .map(|(index, field)| format!("
-        print_file_structure!(self.reader, \".{name}\");
-        let path_field = ({index}, FieldName::from_str(\"{name}\")); // String is shared
+        print_file_structure!(self.reader, \".{field_name}\");
+        let path_field = ({index}, FieldName::from_str(\"{field_name}\")); // String is shared
         path.enter_field(path_field.clone());
-        let data_{name} = self.deserialize(path) as Result<{spec}, TokenReaderError>;
+        let data_{rust_field_name} = self.deserialize(path) as Result<{spec}, TokenReaderError>;
         path.exit_field(path_field);
-        let data_{name} = data_{name}?;
+        let data_{rust_field_name} = data_{rust_field_name}?;
 ",
-                            name = field.name().to_rust_identifier_case(),
+                            rust_field_name = field.name().to_rust_identifier_case(),
+                            field_name = field.name().to_str(),
                             spec = field_specs_map.get(field.name()).unwrap(),
                             index = index))
                         .format("\n"),
