@@ -275,7 +275,7 @@ fn main_aux() {
 
     // Format options.
     let format = binjs::io::Format::from_matches(&matches)
-        .expect("Could not determine encoding format");
+        .expect("Could not parse encoding format");
     progress!(quiet, "Using format: {}", format.name());
 
     let show_stats = matches.is_present("statistics");
