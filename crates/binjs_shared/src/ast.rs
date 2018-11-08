@@ -44,14 +44,14 @@ use std::fmt::*;
 /// path.exit_interface("Interface 1"); // Exiting the wrong interface would panic.
 /// ```
 
-#[derive(PartialEq, Eq, Hash, Clone, Default, Deserialize, Serialize)]
-pub struct Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+#[derive(Clone, Default, Deserialize, Serialize)]
+pub struct Path<I, F> where I: Debug, F: Debug {
     /// Some(foo) if we have entered interface foo but no field yet.
     /// Otherwise, None.
     interface: Option<I>,
     items: Vec<PathItem<I, F>>,
 }
-impl<I, F> From<Vec<PathItem<I, F>>> for Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+impl<I, F> From<Vec<PathItem<I, F>>> for Path<I, F> where I: Debug, F: Debug {
     fn from(items: Vec<PathItem<I, F>>) -> Self {
         Path {
             interface: None,
@@ -59,13 +59,32 @@ impl<I, F> From<Vec<PathItem<I, F>>> for Path<I, F> where I: Debug + PartialEq, 
         }
     }
 }
+impl<I, F> std::hash::Hash for Path<I, F> where I: Debug + std::hash::Hash, F: Debug + std::hash::Hash {
+    /// As we implement Borrow<[PathItem<...>] for Path, we must ensure that `Hash`
+    /// gives the same result for a `Path` and its `[PathItem]` representation.
+    fn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {
+        self.items.as_slice()
+            .hash(hasher)
+    }
+}
+impl<I, F> std::cmp::PartialEq for Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+    /// As we implement Borrow<[PathItem<...>] for Path, we must ensure that `Eq`
+    /// gives the same result for a `Eq` and its `[PathItem]` representation.
+    fn eq(&self, other: &Self) -> bool {
+        self.items == other.items
+    }
+}
+impl<I, F> std::cmp::Eq for Path<I, F> where I: Debug + Eq, F: Debug + Eq {
+    // Nothing to do.
+}
+
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Deserialize, Serialize)]
-pub struct PathItem<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+pub struct PathItem<I, F> where I: Debug, F: Debug {
     pub interface: I,
     pub field: F,
 }
-impl<I, F> PathItem<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+impl<I, F> PathItem<I, F> where I: Debug, F: Debug {
     pub fn interface(&self) -> &I {
         &self.interface
     }
@@ -75,7 +94,7 @@ impl<I, F> PathItem<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
 }
 
 
-impl<I, F> Debug for Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+impl<I, F> Debug for Path<I, F> where I: Debug, F: Debug {
     fn fmt(&self, f: &mut Formatter) -> Result {
         use itertools::Itertools;
         write!(f, "[{items}{more}]",
