@@ -249,6 +249,7 @@ impl Decoder {
         where
             Deserializer<binjs_io::simple::TreeTokenReader<R>> : Deserialization<binjs_io::simple::TreeTokenReader<R>, AST>,
             Deserializer<binjs_io::multipart::TreeTokenReader> : Deserialization<binjs_io::multipart::TreeTokenReader, AST>,
+            Deserializer<binjs_io::entropy::read::Decoder<R>> : Deserialization<binjs_io::entropy::read::Decoder<R>, AST>,
     {
         let mut path = IOPath::new();
         match *format {
@@ -263,6 +264,13 @@ impl Decoder {
                 let mut deserializer = Deserializer::new(reader);
                 let ast = deserializer.deserialize(&mut path)?;
                 Ok(ast)
+            }
+            binjs_io::Format::Entropy { ref options } => {
+                let reader = binjs_io::entropy::read::Decoder::new((*options).clone(), source)?;
+                let mut deserializer = Deserializer::new(reader);
+                let ast = deserializer.deserialize(&mut path)?;
+                Ok(ast)
+
             }
             _ => unimplemented!()
         }
