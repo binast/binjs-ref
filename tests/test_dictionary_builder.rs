@@ -17,7 +17,7 @@ extern crate test_logger;
 test!(test_model_dictionary_builder, {
     let parser = Shift::new();
 
-    let mut dictionary = Dictionary::default();
+    let mut dictionary = Dictionary::new(3);
     let mut files_containing_string = KindedStringMap::default();
     let sources = [
         "var x = y",
@@ -26,7 +26,7 @@ test!(test_model_dictionary_builder, {
         "function foo(x, y) { var i; for (i = 0; i < 100; ++i) { console.log('Some text', x, y + i, x + y + i, x + y + i + 1); } }"
     ];
     for source in sources.into_iter() {
-        let builder = DictionaryBuilder::new(3, &mut dictionary, &mut files_containing_string);
+        let builder = DictionaryBuilder::new(&mut dictionary, &mut files_containing_string);
 
         println!("Parsing");
         let ast  = parser.parse_str(source)
