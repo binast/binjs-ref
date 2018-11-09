@@ -232,11 +232,15 @@ pub struct TreeTokenReader {
 impl TreeTokenReader {
     pub fn new<R: Read + Seek>(mut reader: R) -> Result<Self, TokenReaderError> {
         // Check magic headers.
-        const MAGIC_HEADER: &'static [u8; 5] = b"BINJS";
+        const MAGIC_HEADER: &'static [u8; 8] = b"\x89BJS\r\n\0\n";
+        const OLD_MAGIC_HEADER: &'static [u8; 5] = b"BINJS";
         const FORMAT_VERSION: u32 = 1;
 
-        reader.read_const(MAGIC_HEADER)
-            .map_err(TokenReaderError::ReadError)?;
+        if let Err(e) = reader.read_const(MAGIC_HEADER)
+            .map_err(TokenReaderError::ReadError) {
+                reader.read_const(OLD_MAGIC_HEADER)
+                    .map_err(TokenReaderError::ReadError)?;
+        }
 
         let version = reader.read_varnum()
             .map_err(TokenReaderError::ReadError)?;
