@@ -922,7 +922,8 @@ impl Visitor<()> for AnnotationVisitor {
 
         // 1. If the declaration is at the toplevel, the name is declared as a `var`.
         // 2. If the declaration is in a function's toplevel block, the name is declared as a `var`.
-        // 3. Otherwise, the name is declared as a `let`.
+        // 3. Otherwise, the name would be declared as a `let`, subject to proper Annex B requirements.
+        //      NB: Since we don't current support Lexical bindings, we treat all functions as Var..
         debug!(target: "annotating", "exit_eager_function_declaration sees {:?} at {:?}", node.name.name, path.get(0));
         match path.get(0).expect("Impossible AST walk") {
             &WalkPathItem { field: ASTField::Statements, interface: ASTNode::Script } |
@@ -949,7 +950,7 @@ impl Visitor<()> for AnnotationVisitor {
             _ => {
                 // Case 3.
                 debug!(target: "annotating", "exit_eager_function_declaration says it's a non const lexical (case 3)");
-                self.non_const_lexical_names_stack.last_mut()
+                self.var_names_stack.last_mut()
                     .unwrap()
                     .insert(name);
             }
