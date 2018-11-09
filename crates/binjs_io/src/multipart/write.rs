@@ -543,7 +543,7 @@ impl TreeTokenWriter {
     }
 
     pub fn done(mut self) -> Result<(Box<[u8]>, Statistics), TokenWriterError> {
-        const MAGIC_HEADER: &[u8; 5] = b"\x89BJS\r\n\0\n";
+        const MAGIC_HEADER: &[u8; 8] = b"\x89BJS\r\n\0\n";
         // Write header to byte stream
         self.data.write_all(MAGIC_HEADER)
             .map_err(TokenWriterError::WriteError)?;
