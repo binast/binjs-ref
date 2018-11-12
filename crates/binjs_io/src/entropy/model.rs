@@ -48,17 +48,7 @@ macro_rules! symbol {
             let tail = $path.tail($me.dictionary.depth);
             $me.dictionary
                 .$table
-                .entry(tail, &$value)
-                .value
-                .and_modify(|instances| {
-                    *instances += 1 // We already have at least one association `tail` => `value`, increment.
-                }).or_insert_with(|| {
-                    debug!(target: "entropy", "Injecting {} in context path: {:?}: {:?}",
-                        $description,
-                        tail,
-                        $value);
-                    1
-                });    // First time we associate `tail` => `value`, store 1.
+                .add(tail, $value);
 
             Ok(())
         }

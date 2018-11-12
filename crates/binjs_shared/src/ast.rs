@@ -118,6 +118,11 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
         }
     }
 
+    pub fn extend_from_slice(&mut self, slice: &[PathItem<I, F>]) where I: Clone, F: Clone {
+        self.items
+            .extend_from_slice(slice)
+    }
+
     /// Create an empty `Path`, initialized to hold up
     /// to `capacity` elements without resize.
     pub fn with_capacity(capacity: usize) -> Self {

@@ -14,11 +14,6 @@ use range_encoding;
 pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 pub type IOPathItem = binjs_shared::ast::PathItem<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
-pub struct Entry<'a, K, T> where K: 'a, T: 'a {
-    /// The number of entries for this key in the context.
-    pub len: usize,
-    pub value: std::collections::hash_map::Entry<'a, K, T>
-}
 
 /// An access by index, used in `ContextPredict<C, K, T>`, to
 /// extract a `K` (value) from a `C` (context, as provided by
@@ -116,15 +111,6 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
         by_key.get_mut(key)
     }
 
-    pub fn entry(&mut self, context: C, key: &K) -> Entry<K, T> {
-        let by_key = self.by_context.entry(context)
-            .or_insert_with(|| (HashMap::new(), ByIndex::new()));
-        Entry {
-            len: by_key.0.len(),
-            value: by_key.0.entry(key.clone()),
-        }
-    }
-
     /// The number of states in this predictor.
     pub fn len(&self) -> usize {
         self.by_context.values()
@@ -150,6 +136,16 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
         Some(self.by_context.get(context)?
             .0
             .keys())
+    }
+}
+
+impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
+    pub fn add(&mut self, context: C, key: K) {
+        let by_key = self.by_context.entry(context)
+            .or_insert_with(|| (HashMap::new(), ByIndex::new()));
+        by_key.0.entry(key)
+            .and_modify(|instances| *instances += 1)
+            .or_insert(1);
     }
 }
 impl<C, K> ContextPredict<C, K, Symbol> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
@@ -237,13 +233,6 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
         self.context_predict.get_mut(tail, key)
     }
 
-    pub fn entry(&mut self, tail: &[IOPathItem], key: &K) -> Entry<K, T> {
-        let tail : Vec<_> = tail.iter()
-            .cloned()
-            .collect(); // Note: that's bound to be expensive. Ideally, we'd like to avoid most allocations here.
-        self.context_predict.entry(tail.into(), key)
-    }
-
     /// The number of states in this predictor.
     pub fn len(&self) -> usize {
         self.context_predict.len()
@@ -263,7 +252,13 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
         self.context_predict.keys_at(path)
     }
 }
-
+impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
+    pub fn add(&mut self, path: &[IOPathItem], key: K) {
+        let mut as_path = IOPath::new();
+        as_path.extend_from_slice(path);
+        self.context_predict.add(as_path, key);
+    }
+}
 impl<K> PathPredict<K, Symbol> where K: Eq + Hash + Clone {
     /// Get a value by path and index.
     ///
