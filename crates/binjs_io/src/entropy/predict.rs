@@ -6,7 +6,6 @@ use std;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 use range_encoding;
@@ -14,108 +13,119 @@ use range_encoding;
 pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 pub type IOPathItem = binjs_shared::ast::PathItem<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
+mod context_information {
+    use entropy::probabilities::SymbolInfo;
+    use std::collections::HashMap;
+    use std::hash::Hash;
 
-/// An access by index, used in `ContextPredict<C, K, T>`, to
-/// extract a `K` (value) from a `C` (context, as provided by
-/// `entropy::read::Decoder`) and a symbol number (as provided
-/// by the bit-level symbol decoder).
-///
-/// If the `ContextPredict<C, K, T>` is used for building the
-/// dictionary (e.g. `T = usize`), this access by index is
-/// meaningless as the indices are unstable. Therefore, we only
-/// initialize `ByIndex<T, K>` when converting from a
-/// `ContextPredict<C, K, usize>` to a `ContextPredict<C, J, SymbolInfo>`.
-///
-/// This is encoded at type-level by ensuring that `ByIndex<T, K>::get`
-/// is only implemented when `T = SymbolInfo`.
-#[derive(Clone, Debug)]
-struct ByIndex<T, K> {
-    /// Phantom data, used to represent phantom type `T`.
+    /// Information available at a given prediction context (e.g. at a path in the AST).
     ///
-    /// Doesn't carry data, used only for type-checking.
-    phantom: PhantomData<T>,
+    /// This data structure is only meant to be used in two settings:
+    ///
+    /// - to count the number of instances of values in a context (instantiated with `T=usize`,
+    ///     in which case the `usize` is a number of instances); or
+    /// - once number of instances have been converted to frequency information and unique indices
+    ///     (instantiated with `T=SymbolInfo`, in which case the `SymbolInfo` contains the unique index).
+    ///
+    /// For this reason, all the meaningful methods of this struct are implemented only if `T=usize`
+    /// or `T=SymbolInfo`.
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    pub struct ContextInformation<K, T> where K: Eq + Hash {
+        /// K => T mapping, always valid
+        by_value: HashMap<K, T>,
 
-    /// The mapping from index => value.
-    by_index: Vec<K>
-}
-impl<T, K> ByIndex<T, K> {
-    pub fn new() -> Self {
-        ByIndex {
-            phantom: PhantomData,
-            by_index: Vec::new(),
+        /// usize => K mapping.
+        ///
+        /// This vector is populated only when `T = SymbolInfo`. When that is the case,
+        /// `by_index` is effectively the reverse mapping from `by_value` (using the
+        /// index embedded in `SymbolInfo`).
+        by_index: Vec<K>,
+    }
+    impl<K, T> ContextInformation<K, T> where K: Eq + Hash {
+        pub fn new() -> Self {
+            ContextInformation {
+                by_value: HashMap::new(),
+                by_index: Vec::new(),
+            }
+        }
+
+        /// Return the number of entries.
+        pub fn len(&self) -> usize {
+            self.by_value.len()
+        }
+    }
+
+    // Methods that make sense only when we have finished computing frequency information.
+    impl<K> ContextInformation<K, SymbolInfo> where K: Eq + Hash {
+        pub fn by_value(&self) -> &HashMap<K, SymbolInfo> {
+            &self.by_value
+        }
+
+        pub fn by_value_mut(&mut self) -> &mut HashMap<K, SymbolInfo> {
+            &mut self.by_value
+        }
+
+        pub fn by_index(&self, index: usize) -> Option<&K> {
+            self.by_index.get(index)
+        }
+    }
+
+    // Methods that make sense only while we are collecting instances.
+
+    impl<K> ContextInformation<K, usize> where K: Eq + Hash {
+        pub fn add(&mut self, key: K) {
+            self.by_value.entry(key)
+            .and_modify(|instances| *instances += 1)
+            .or_insert(1);
+        }
+    }
+
+    impl<K> ::entropy::probabilities::InstancesToProbabilities for ContextInformation<K, usize> where K: Clone + Eq + Hash {
+        type AsProbabilities = ContextInformation<K, SymbolInfo>;
+        fn instances_to_probabilities(self, _description: &str) -> ContextInformation<K, SymbolInfo> {
+            let instances: Vec<_> = self
+                .by_value
+                .values()
+                .map(|x| *x as u32)
+                .collect();
+
+            let distribution = std::rc::Rc::new(std::cell::RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances).
+                unwrap()));
+            // FIXME: This will fail if `by_key` is empty.
+            // FIXME: We should have a fallback distribution in case everything is empty.
+
+            let (by_value, by_index): (HashMap<_, _>, Vec<_>) = self.by_value
+                .into_iter()
+                .enumerate()
+                .map(|(index, (key, _))| {
+                    let entry_key = (key.clone(), SymbolInfo {
+                        index,
+                        distribution: distribution.clone(),
+                    });
+                    (entry_key, key)
+                })
+                .unzip();
+            ContextInformation {
+                by_value,
+                by_index
+            }
         }
     }
 }
-impl<K> ByIndex<SymbolInfo, K> {
-    pub fn get(&self, index: usize) -> Option<&K> {
-        self.by_index.get(index)
-    }
-}
-impl<'de, T, K> serde::de::Deserialize<'de> for ByIndex<T, K> where K: serde::de::Deserialize<'de> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>
-    {
-        let vec = Vec::deserialize(deserializer)?;
-        Ok(ByIndex {
-            phantom: PhantomData,
-            by_index: vec,
-        })
-    }
-}
-impl<T, K> serde::ser::Serialize for ByIndex<T, K> where K: serde::ser::Serialize {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: serde::ser::Serializer
-    {
-        self.by_index.serialize(serializer)
-    }
-}
-impl<K> From<Vec<K>> for ByIndex<SymbolInfo, K> {
-    fn from(by_index: Vec<K>) -> Self {
-        ByIndex {
-            phantom: PhantomData,
-            by_index
-        }
-    }
-}
+use self::context_information::ContextInformation;
 
 /// A generic predictor, associating a context and a key to a value.
 ///
 /// For most use cases, you probably want one of the more specialized predictors.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
-    by_context: HashMap<C, (HashMap<K, T>, ByIndex<T, K>)>,
+    by_context: HashMap<C, ContextInformation<K, T>>,
 }
 impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
     pub fn new() -> Self {
         Self {
-            by_context: HashMap::new(),
+            by_context: HashMap::new()
         }
-    }
-
-    pub fn get<C2: ?Sized>(&self, context: &C2, key: &K) -> Option<&T>
-        where
-            C: std::borrow::Borrow<C2>,
-            C2: Hash + Eq
-    {
-        let (by_key, _) = self.by_context.get(context)?;
-        by_key.get(key)
-    }
-
-    pub fn get_mut<C2: ?Sized>(&mut self, context: &C2, key: &K) -> Option<&mut T>
-        where
-            C: std::borrow::Borrow<C2>,
-            C2: Hash + Eq
-    {
-        let (by_key, _) = self.by_context.get_mut(context)?;
-        by_key.get_mut(key)
-    }
-
-    /// The number of states in this predictor.
-    pub fn len(&self) -> usize {
-        self.by_context.values()
-            .map(|(map, _)| map.len())
-            .sum()
     }
 
     /// All the contexts known to this predictor.
@@ -125,41 +135,58 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
         self.by_context.keys()
     }
 
-    /// All the values known to this predictor in a given context.
-    ///
-    /// Used mainly for debugging.
-    pub fn keys_at<C2: ?Sized>(&self, context: &C2) -> Option<impl Iterator<Item=&K>>
-        where
-            C: std::borrow::Borrow<C2>,
-            C2: Hash + Eq
-    {
-        Some(self.by_context.get(context)?
-            .0
-            .keys())
+    /// The number of states in this predictor.
+    pub fn len(&self) -> usize {
+        self.by_context.values()
+            .map(ContextInformation::len)
+            .sum()
     }
 }
 
 impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
+    /// Insert a value in a context.
+    ///
+    /// Only usable when we're still collecting values (`T = usize`).
     pub fn add(&mut self, context: C, key: K) {
         let by_key = self.by_context.entry(context)
-            .or_insert_with(|| (HashMap::new(), ByIndex::new()));
-        by_key.0.entry(key)
-            .and_modify(|instances| *instances += 1)
-            .or_insert(1);
+            .or_insert_with(|| ContextInformation::new());
+        by_key.add(key)
     }
 }
+
 impl<C, K> ContextPredict<C, K, SymbolInfo> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
-    /// Get a value by context and index.
+    /// Get a key by context and index.
     ///
     /// This method is only implemented when `T=SymbolInfo` as the index is initialized
-    /// by `instances_to_probabilities`.
-    pub fn get_at<C2: ?Sized>(&mut self, context: &C2, index: usize) -> Option<&K>
+    /// by `instances_to_probabilities`. The index corresponds to the one defined in
+    /// the `SymbolInfo`.
+    pub fn by_index<C2: ?Sized>(&mut self, context: &C2, index: usize) -> Option<&K>
         where
             C: std::borrow::Borrow<C2>,
             C2: Hash + Eq
     {
-        let (_, by_index) = self.by_context.get(context)?;
-        by_index.get(index)
+        self.by_context.get(context)?
+            .by_index(index)
+    }
+
+    pub fn by_key<C2: ?Sized>(&self, context: &C2, key: &K) -> Option<&SymbolInfo>
+        where
+            C: std::borrow::Borrow<C2>,
+            C2: Hash + Eq
+    {
+        self.by_context.get(context)?
+            .by_value()
+            .get(key)
+    }
+
+    pub fn by_key_mut<C2: ?Sized>(&mut self, context: &C2, key: &K) -> Option<&mut SymbolInfo>
+        where
+            C: std::borrow::Borrow<C2>,
+            C2: Hash + Eq
+    {
+        self.by_context.get_mut(context)?
+            .by_value_mut()
+            .get_mut(key)
     }
 }
 
@@ -168,27 +195,7 @@ impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq 
     fn instances_to_probabilities(self, description: &str) -> ContextPredict<C, K, SymbolInfo> {
         debug!(target: "entropy", "Converting ContextPredict {} to probabilities", description);
         let by_context = self.by_context.into_iter()
-            .map(|(context, (by_key, _))| {
-                let instances : Vec<_> = by_key.values()
-                    .map(|x| *x as u32)
-                    .collect();
-                let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances).
-                    unwrap()));
-                    // FIXME: This will fail if `by_key` is empty.
-                    // FIXME: We should have a fallback distribution in case everything is empty.
-
-                let (by_key, by_index): (HashMap<_, _>, Vec<_>) = by_key.into_iter()
-                    .enumerate()
-                    .map(|(index, (key, _))| {
-                        let entry_key = (key.clone(), SymbolInfo {
-                            index,
-                            distribution: distribution.clone(),
-                        });
-                        (entry_key, key)
-                    })
-                    .unzip();
-                (context, (by_key, by_index.into()))
-            })
+            .map(|(context, info)| (context, info.instances_to_probabilities("ContextInformation")))
             .collect();
         ContextPredict {
             by_context,
@@ -196,13 +203,12 @@ impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq 
     }
 }
 
-
 /// A predictor used to predict the probability of a symbol based on
 /// its position in a tree. The predictor is typically customized to
 /// limit the prediction depth, e.g. to 0 (don't use any context),
 /// 1 (use only the parent + child index) or 2 (use parent +
 /// grand-parent and both child indices).
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
     context_predict: ContextPredict<IOPath, K, T>,
 }
@@ -225,14 +231,6 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
         }
     }
 
-    pub fn get(&mut self, tail: &[IOPathItem], key: &K) -> Option<&T> {
-        self.context_predict.get(tail, key)
-    }
-
-    pub fn get_mut(&mut self, tail: &[IOPathItem], key: &K) -> Option<&mut T> {
-        self.context_predict.get_mut(tail, key)
-    }
-
     /// The number of states in this predictor.
     pub fn len(&self) -> usize {
         self.context_predict.len()
@@ -243,13 +241,6 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
     /// Used mainly for debugging.
     pub fn paths(&self) -> impl Iterator<Item=&IOPath> {
         self.context_predict.contexts()
-    }
-
-    /// All the values known to this predictor at a given path.
-    ///
-    /// Used mainly for debugging.
-    pub fn keys_at(&self, path: &[IOPathItem]) -> Option<impl Iterator<Item=&K>> {
-        self.context_predict.keys_at(path)
     }
 }
 impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
@@ -264,23 +255,36 @@ impl<K> PathPredict<K, SymbolInfo> where K: Eq + Hash + Clone {
     ///
     /// This method is only implemented when `T=SymbolInfo` as the index is initialized
     /// by `instances_to_probabilities`.
-    pub fn get_at(&mut self, tail: &[IOPathItem], index: usize) -> Option<&K> {
-        self.context_predict.get_at(tail, index)
+    pub fn by_index(&mut self, tail: &[IOPathItem], index: usize) -> Option<&K> {
+        self.context_predict.by_index(tail, index)
     }
+
+
+    pub fn by_key(&mut self, tail: &[IOPathItem], key: &K) -> Option<&SymbolInfo> {
+        self.context_predict.by_key(tail, key)
+    }
+
+    pub fn by_key_mut(&mut self, tail: &[IOPathItem], key: &K) -> Option<&mut SymbolInfo> {
+        self.context_predict.by_key_mut(tail, key)
+    }
+
 
     /// Get frequency information for a given path.
     pub fn frequencies_at(&mut self, path: &[IOPathItem]) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>> {
-        let in_context =
-            if let Some((in_context, _)) = self.context_predict
+        let info =
+            if let Some(info) = self.context_predict
                 .by_context
                 .get_mut(path)
             {
-                in_context
+                info
             } else {
                 return None;
             };
-        in_context.values_mut()
+        info
+            .by_value_mut()
+            .values_mut()
             .next()
             .map(|any| &any.distribution)
     }
 }
+
