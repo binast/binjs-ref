@@ -61,7 +61,7 @@ macro_rules! symbol {
                     .map(|k| format!("{:?}", k))
                     .format(", "));
 
-            // 2. Locate the `Symbol` information for this value given the
+            // 2. Locate the `SymbolInfo` information for this value given the
             // shortened path information.
             let symbol = $me.options
                 .probability_tables

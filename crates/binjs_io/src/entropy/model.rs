@@ -1,5 +1,5 @@
 use entropy::predict::{ PathPredict };
-use entropy::probabilities::{ InstancesToProbabilities, Symbol };
+use entropy::probabilities::{ InstancesToProbabilities, SymbolInfo };
 
 use io::TokenWriter;
 use ::TokenWriterError;
@@ -138,11 +138,11 @@ impl<T> Dictionary<T> {
     }
 }
 impl InstancesToProbabilities for Dictionary<usize> {
-    type AsProbabilities = Dictionary<Symbol>;
+    type AsProbabilities = Dictionary<SymbolInfo>;
 
     /// Convert a dictionary counting instances into a dictionary that
     /// counting probabilities.
-    fn instances_to_probabilities(self, _description: &str) -> Dictionary<Symbol> {
+    fn instances_to_probabilities(self, _description: &str) -> Dictionary<SymbolInfo> {
         Dictionary {
             depth: self.depth,
             bool_by_path: self.bool_by_path.instances_to_probabilities("bool_by_path"),
@@ -199,11 +199,11 @@ impl<T> KindedStringMap<T> {
 }
 
 impl InstancesToProbabilities for KindedStringMap<FilesContaining> {
-    type AsProbabilities = KindedStringMap<Symbol>;
+    type AsProbabilities = KindedStringMap<SymbolInfo>;
 
     /// Convert a dictionary counting instances into a dictionary
     /// counting probabilities.
-    fn instances_to_probabilities(self, _description:&str) -> KindedStringMap<Symbol> {
+    fn instances_to_probabilities(self, _description:&str) -> KindedStringMap<SymbolInfo> {
         KindedStringMap {
             identifier_name_instances: self.identifier_name_instances.instances_to_probabilities("identifier_name_instances"),
             property_key_instances: self.property_key_instances.instances_to_probabilities("property_key_instances"),
@@ -217,9 +217,9 @@ impl InstancesToProbabilities for KindedStringMap<FilesContaining> {
 impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
     where K: Eq + std::hash::Hash
 {
-    type AsProbabilities = HashMap<K, Symbol>;
+    type AsProbabilities = HashMap<K, SymbolInfo>;
 
-    fn instances_to_probabilities(self, _description: &str) -> HashMap<K, Symbol> {
+    fn instances_to_probabilities(self, _description: &str) -> HashMap<K, SymbolInfo> {
         use std::cell::RefCell;
         use std::rc::Rc;
 
@@ -232,7 +232,7 @@ impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
         self.into_iter()
             .enumerate()
             .map(|(index, (key, _))| {
-                (key, Symbol {
+                (key, SymbolInfo {
                     index,
                     distribution: distribution.clone()
                 })

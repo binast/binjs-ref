@@ -62,19 +62,19 @@ mod predict;
 mod probabilities;
 
 use self::model::{ Dictionary, FilesContaining, KindedStringMap };
-use self::probabilities::Symbol;
+use self::probabilities::SymbolInfo;
 
 #[derive(Clone)]
 pub struct Options {
     /// The (shared) AST probability tables, generally shipped separately
     /// from the compressed files and used to predict the probability
     /// of a symbol occurring at a specific position in the AST.
-    probability_tables: Dictionary<Symbol>,
+    probability_tables: Dictionary<SymbolInfo>,
 
     /// The (shared) String probability tables, generally shipped separately
     /// from the compressed files. Not yet used for (de)compression
     /// at this stage.
-    string_tables: KindedStringMap<Symbol>,
+    string_tables: KindedStringMap<SymbolInfo>,
 }
 
 /// Command-line management.

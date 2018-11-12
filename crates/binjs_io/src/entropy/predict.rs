@@ -1,4 +1,4 @@
-use entropy::probabilities::{ InstancesToProbabilities, Symbol };
+use entropy::probabilities::{ InstancesToProbabilities, SymbolInfo };
 
 use binjs_shared::{ FieldName, InterfaceName };
 
@@ -24,10 +24,10 @@ pub type IOPathItem = binjs_shared::ast::PathItem<InterfaceName, (/* child index
 /// dictionary (e.g. `T = usize`), this access by index is
 /// meaningless as the indices are unstable. Therefore, we only
 /// initialize `ByIndex<T, K>` when converting from a
-/// `ContextPredict<C, K, usize>` to a `ContextPredict<C, J, Symbol>`.
+/// `ContextPredict<C, K, usize>` to a `ContextPredict<C, J, SymbolInfo>`.
 ///
 /// This is encoded at type-level by ensuring that `ByIndex<T, K>::get`
-/// is only implemented when `T = Symbol`.
+/// is only implemented when `T = SymbolInfo`.
 #[derive(Clone, Debug)]
 struct ByIndex<T, K> {
     /// Phantom data, used to represent phantom type `T`.
@@ -46,7 +46,7 @@ impl<T, K> ByIndex<T, K> {
         }
     }
 }
-impl<K> ByIndex<Symbol, K> {
+impl<K> ByIndex<SymbolInfo, K> {
     pub fn get(&self, index: usize) -> Option<&K> {
         self.by_index.get(index)
     }
@@ -70,7 +70,7 @@ impl<T, K> serde::ser::Serialize for ByIndex<T, K> where K: serde::ser::Serializ
         self.by_index.serialize(serializer)
     }
 }
-impl<K> From<Vec<K>> for ByIndex<Symbol, K> {
+impl<K> From<Vec<K>> for ByIndex<SymbolInfo, K> {
     fn from(by_index: Vec<K>) -> Self {
         ByIndex {
             phantom: PhantomData,
@@ -148,10 +148,10 @@ impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash 
             .or_insert(1);
     }
 }
-impl<C, K> ContextPredict<C, K, Symbol> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
+impl<C, K> ContextPredict<C, K, SymbolInfo> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
     /// Get a value by context and index.
     ///
-    /// This method is only implemented when `T=Symbol` as the index is initialized
+    /// This method is only implemented when `T=SymbolInfo` as the index is initialized
     /// by `instances_to_probabilities`.
     pub fn get_at<C2: ?Sized>(&mut self, context: &C2, index: usize) -> Option<&K>
         where
@@ -164,8 +164,8 @@ impl<C, K> ContextPredict<C, K, Symbol> where C: Eq + Hash + Clone, K: Eq + Hash
 }
 
 impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq + Hash + Clone + std::fmt::Debug, K: Eq + Hash + Clone {
-    type AsProbabilities = ContextPredict<C, K, Symbol>;
-    fn instances_to_probabilities(self, description: &str) -> ContextPredict<C, K, Symbol> {
+    type AsProbabilities = ContextPredict<C, K, SymbolInfo>;
+    fn instances_to_probabilities(self, description: &str) -> ContextPredict<C, K, SymbolInfo> {
         debug!(target: "entropy", "Converting ContextPredict {} to probabilities", description);
         let by_context = self.by_context.into_iter()
             .map(|(context, (by_key, _))| {
@@ -180,7 +180,7 @@ impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq 
                 let (by_key, by_index): (HashMap<_, _>, Vec<_>) = by_key.into_iter()
                     .enumerate()
                     .map(|(index, (key, _))| {
-                        let entry_key = (key.clone(), Symbol {
+                        let entry_key = (key.clone(), SymbolInfo {
                             index,
                             distribution: distribution.clone(),
                         });
@@ -209,8 +209,8 @@ pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
 
 
 impl<K> InstancesToProbabilities for PathPredict<K, usize> where K: Eq + Hash + Clone {
-    type AsProbabilities = PathPredict<K, Symbol>;
-    fn instances_to_probabilities(self, description: &str) -> PathPredict<K, Symbol> {
+    type AsProbabilities = PathPredict<K, SymbolInfo>;
+    fn instances_to_probabilities(self, description: &str) -> PathPredict<K, SymbolInfo> {
         PathPredict {
             context_predict: self.context_predict
                 .instances_to_probabilities(description)
@@ -259,10 +259,10 @@ impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
         self.context_predict.add(as_path, key);
     }
 }
-impl<K> PathPredict<K, Symbol> where K: Eq + Hash + Clone {
+impl<K> PathPredict<K, SymbolInfo> where K: Eq + Hash + Clone {
     /// Get a value by path and index.
     ///
-    /// This method is only implemented when `T=Symbol` as the index is initialized
+    /// This method is only implemented when `T=SymbolInfo` as the index is initialized
     /// by `instances_to_probabilities`.
     pub fn get_at(&mut self, tail: &[IOPathItem], index: usize) -> Option<&K> {
         self.context_predict.get_at(tail, index)

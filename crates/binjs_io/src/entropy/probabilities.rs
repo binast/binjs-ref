@@ -6,7 +6,7 @@ use std::rc::Rc;
 /// Note: We most likely don't want this struct to implement Serde's Deserialize/Serialize,
 /// as this would lead to endless replication of `distribution`.
 #[derive(Clone)]
-pub struct Symbol {
+pub struct SymbolInfo {
     /// The index of the symbol in the Cumulative Distribution Frequency (CDF).
     pub index: usize,
 
