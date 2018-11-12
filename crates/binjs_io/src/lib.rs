@@ -102,6 +102,8 @@ pub mod xml;
 
 mod util;
 
+mod escaped_wtf8;
+
 const ADVANCED_COMMAND: &str = "advanced";
 
 /// A strategy for placing the dictionary.

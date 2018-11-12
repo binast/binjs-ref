@@ -3,6 +3,7 @@ use bytes::compress::*;
 use bytes::varnum::*;
 use io::*;
 use ::{ CompressionTarget, TokenWriterError };
+use escaped_wtf8;
 use multipart::*;
 
 use binjs_shared::{ FieldName, InterfaceName, SharedString };
@@ -55,25 +56,28 @@ impl Serializable for Vec<u8> {
 }
 
 /// A `String` is serialized as:
-/// - number of UTF-8 bytes (varnum);
-/// - sequence of UTF-8 bytes.
+/// - number of WTF-8 bytes (varnum);
+/// - sequence of WTF-8 bytes.
 impl Serializable for SharedString {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
-        total += out.write_varnum(self.len() as u32)?;
-        out.write_all(self.deref().as_bytes())?;
+        let bytes = self.deref().as_bytes();
+
+        let unescaped = escaped_wtf8::unescape(bytes);
+        total += out.write_varnum(unescaped.len() as u32)?;
+        out.write_all(unescaped.deref())?;
         total += self.len();
         Ok(total)
     }
 }
 
 /// A `String | null` is serialized as:
-/// - number of UTF-8 bytes (varnum);
-/// - sequence of UTF-8 bytes.
+/// - number of WTF-8 bytes (varnum);
+/// - sequence of WTF-8 bytes.
 ///
 /// With the following special case used to represent the null string:
-/// - number of UTF-8 bytes (2 as varnum);
-/// - sequence [255, 0] (which is invalid UTF-8).
+/// - number of WTF-8 bytes (2 as varnum);
+/// - sequence [255, 0] (which is invalid WTF-8).
 impl Serializable for Option<SharedString> {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         const EMPTY_STRING: [u8; 2] = [255, 0];

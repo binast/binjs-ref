@@ -11,6 +11,7 @@ use bytes::varnum::*;
 use bytes::serialize::*;
 use ::TokenReaderError;
 use io::*;
+use escaped_wtf8;
 use multipart::{ FormatInTable, HEADER_GRAMMAR_TABLE, HEADER_STRINGS_TABLE, HEADER_TREE };
 use util::{ PoisonLock, Pos, ReadConst };
 
@@ -46,7 +47,8 @@ impl Deserializer for Option<SharedString> {
         if &bytes == &[255, 0] {
             Ok(None)
         } else {
-            String::from_utf8(bytes)
+            let escaped = escaped_wtf8::escape(bytes);
+            String::from_utf8(escaped)
                 .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
                 .map(SharedString::from_string)
                 .map(Some)
@@ -363,7 +365,7 @@ impl TokenReader for TreeTokenReader {
                     debug!(target: "multipart", "Reading string {:?} => {:?}", index, result);
                     match result {
                         Some(s) => {
-                            print_file_structure!(state.reader, "string=\"{}\"", s);
+                            print_file_structure!(state.reader, "string=\"{}\"", escaped_wtf8::for_print(s));
                             Ok(Some(s.clone()))
                         },
                         None => {
