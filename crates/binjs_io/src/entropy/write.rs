@@ -66,7 +66,7 @@ macro_rules! symbol {
             let symbol = $me.options
                 .probability_tables
                 .$table
-                .by_key_mut(path, &$value)
+                .by_value_mut(path, &$value)
                 .ok_or_else(|| {
                     debug!(target: "entropy", "Couldn't find value {:?} at {:?} ({})",
                         $value, path, $description);

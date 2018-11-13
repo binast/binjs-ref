@@ -18,30 +18,32 @@ mod context_information {
     use std::collections::HashMap;
     use std::hash::Hash;
 
-    /// Information available at a given prediction context (e.g. at a path in the AST).
+    /// A container for the statistics available in a given prediction context
+    /// (a typical prediction context is a path in the AST, or a position in
+    /// the file, etc.).
     ///
-    /// This data structure is only meant to be used in two settings:
+    /// This container is meant to be used in two settings:
     ///
-    /// - to count the number of instances of values in a context (instantiated with `T=usize`,
+    /// - to count the number of instances of values in a context (instantiated with `Statistics=usize`,
     ///     in which case the `usize` is a number of instances); or
     /// - once number of instances have been converted to frequency information and unique indices
-    ///     (instantiated with `T=SymbolInfo`, in which case the `SymbolInfo` contains the unique index).
+    ///     (instantiated with `Statistics=SymbolInfo`, in which case the `SymbolInfo` contains the unique index).
     ///
-    /// For this reason, all the meaningful methods of this struct are implemented only if `T=usize`
-    /// or `T=SymbolInfo`.
+    /// For this reason, all the meaningful methods of this struct are implemented only if `Statistics=usize`
+    /// or `Statistics=SymbolInfo`.
     #[derive(Clone, Debug, Deserialize, Serialize)]
-    pub struct ContextInformation<K, T> where K: Eq + Hash {
-        /// K => T mapping, always valid
-        by_value: HashMap<K, T>,
+    pub struct ContextInformation<NodeValue, Statistics> where NodeValue: Eq + Hash {
+        /// NodeValue => Statistics mapping, always valid
+        by_value: HashMap<NodeValue, Statistics>,
 
-        /// usize => K mapping.
+        /// usize => NodeValue mapping.
         ///
-        /// This vector is populated only when `T = SymbolInfo`. When that is the case,
+        /// This vector is populated only when `Statistics = SymbolInfo`. When that is the case,
         /// `by_index` is effectively the reverse mapping from `by_value` (using the
         /// index embedded in `SymbolInfo`).
-        by_index: Vec<K>,
+        by_index: Vec<NodeValue>,
     }
-    impl<K, T> ContextInformation<K, T> where K: Eq + Hash {
+    impl<NodeValue, Statistics> ContextInformation<NodeValue, Statistics> where NodeValue: Eq + Hash {
         pub fn new() -> Self {
             ContextInformation {
                 by_value: HashMap::new(),
@@ -56,33 +58,34 @@ mod context_information {
     }
 
     // Methods that make sense only when we have finished computing frequency information.
-    impl<K> ContextInformation<K, SymbolInfo> where K: Eq + Hash {
-        pub fn by_value(&self) -> &HashMap<K, SymbolInfo> {
+    impl<NodeValue> ContextInformation<NodeValue, SymbolInfo> where NodeValue: Eq + Hash {
+        pub fn by_value(&self) -> &HashMap<NodeValue, SymbolInfo> {
             &self.by_value
         }
 
-        pub fn by_value_mut(&mut self) -> &mut HashMap<K, SymbolInfo> {
+        pub fn by_value_mut(&mut self) -> &mut HashMap<NodeValue, SymbolInfo> {
             &mut self.by_value
         }
 
-        pub fn by_index(&self, index: usize) -> Option<&K> {
+        pub fn by_index(&self, index: usize) -> Option<&NodeValue> {
             self.by_index.get(index)
         }
     }
 
     // Methods that make sense only while we are collecting instances.
 
-    impl<K> ContextInformation<K, usize> where K: Eq + Hash {
-        pub fn add(&mut self, key: K) {
-            self.by_value.entry(key)
+    impl<NodeValue> ContextInformation<NodeValue, usize> where NodeValue: Eq + Hash {
+        /// Register a value as being used in this context.
+        pub fn add(&mut self, node_value: NodeValue) {
+            self.by_value.entry(node_value)
             .and_modify(|instances| *instances += 1)
             .or_insert(1);
         }
     }
 
-    impl<K> ::entropy::probabilities::InstancesToProbabilities for ContextInformation<K, usize> where K: Clone + Eq + Hash {
-        type AsProbabilities = ContextInformation<K, SymbolInfo>;
-        fn instances_to_probabilities(self, _description: &str) -> ContextInformation<K, SymbolInfo> {
+    impl<NodeValue> ::entropy::probabilities::InstancesToProbabilities for ContextInformation<NodeValue, usize> where NodeValue: Clone + Eq + Hash {
+        type AsProbabilities = ContextInformation<NodeValue, SymbolInfo>;
+        fn instances_to_probabilities(self, _description: &str) -> ContextInformation<NodeValue, SymbolInfo> {
             let instances: Vec<_> = self
                 .by_value
                 .values()
@@ -91,18 +94,19 @@ mod context_information {
 
             let distribution = std::rc::Rc::new(std::cell::RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances).
                 unwrap()));
-            // FIXME: This will fail if `by_key` is empty.
+            // FIXME: This will fail if `by_value` is empty.
             // FIXME: We should have a fallback distribution in case everything is empty.
 
             let (by_value, by_index): (HashMap<_, _>, Vec<_>) = self.by_value
                 .into_iter()
                 .enumerate()
-                .map(|(index, (key, _))| {
-                    let entry_key = (key.clone(), SymbolInfo {
+                .map(|(index, (value, _))| {
+                    let for_by_value = (value.clone(), SymbolInfo {
                         index,
                         distribution: distribution.clone(),
                     });
-                    (entry_key, key)
+                    let for_by_index = value;
+                    (for_by_value, for_by_index)
                 })
                 .unzip();
             ContextInformation {
@@ -114,14 +118,35 @@ mod context_information {
 }
 use self::context_information::ContextInformation;
 
-/// A generic predictor, associating a context and a key to a value.
+/// A generic mechanism used to predict possible values in a given context (e.g.
+/// AST path or file position) in a file.
+///
+/// This mechanism is meant to be used as follows:
+///
+/// 1. Create a new `ContextPredict<Context, NodeValue, usize>` and use `ContextPredict::add` to count the number
+///     of instances of each possible `NodeValue` in each possible `Context`. Alternatively, load this data
+///     from an existing dictionary.
+/// 2. Convert the `ContextPredict<Context, NodeValue, usize>` into a `ContextPredict<Context, NodeValue, SymbolInfo>`
+///     by calling `ContextPredict::instances_to_probabilities`.
+/// 3. Use method `ContextPredict::<_, _, SymbolInfo>::by_node_value` and `by_node_value_mut` to get the statistics
+///     information in a specific context for a specific node value (used for compression). This information contains
+///     an index designed to be written to a compressed stream.
+/// 4. Use method `ContextPredict::<_, _, SymbolInfo>::frequencies_at` to get the statistics information in a
+///     specific context for all node values that have shown up in this context (used for decompression). This
+///     information is used to extract an index from a compressed stream.
+/// 5. Use method `ContextPredict::<_, _, SymbolInfo>::index_at` to get a specific node value in a specific
+///     context from the index extracted from the compressed stream.
+///
+/// As most methods of this struct can only be used if `Statistics = usize` xor `Statistics = SymbolInfo`,
+/// the implementation of these methods is only available respectively if `Statistics = usize` or if
+/// `Statistics = SymbolInfo`.
 ///
 /// For most use cases, you probably want one of the more specialized predictors.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
-    by_context: HashMap<C, ContextInformation<K, T>>,
+pub struct ContextPredict<Context, NodeValue, Statistics> where Context: Eq + Hash + Clone, NodeValue: Eq + Hash + Clone {
+    by_context: HashMap<Context, ContextInformation<NodeValue, Statistics>>,
 }
-impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
+impl<Context, NodeValue, Statistics> ContextPredict<Context, NodeValue, Statistics> where Context: Eq + Hash + Clone, NodeValue: Eq + Hash + Clone {
     pub fn new() -> Self {
         Self {
             by_context: HashMap::new()
@@ -131,7 +156,7 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
     /// All the contexts known to this predictor.
     ///
     /// Used mainly for debugging.
-    pub fn contexts(&self) -> impl Iterator<Item=&C> {
+    pub fn contexts(&self) -> impl Iterator<Item=&Context> {
         self.by_context.keys()
     }
 
@@ -143,56 +168,54 @@ impl<C, K, T> ContextPredict<C, K, T> where C: Eq + Hash + Clone, K: Eq + Hash +
     }
 }
 
-impl<C, K> ContextPredict<C, K, usize> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
-    /// Insert a value in a context.
-    ///
-    /// Only usable when we're still collecting values (`T = usize`).
-    pub fn add(&mut self, context: C, key: K) {
-        let by_key = self.by_context.entry(context)
+impl<Context, NodeValue> ContextPredict<Context, NodeValue, usize> where Context: Eq + Hash + Clone, NodeValue: Eq + Hash + Clone {
+    /// Register a value as being used in this context.
+    pub fn add(&mut self, context: Context, value: NodeValue) {
+        let by_value = self.by_context.entry(context)
             .or_insert_with(|| ContextInformation::new());
-        by_key.add(key)
+        by_value.add(value)
     }
 }
 
-impl<C, K> ContextPredict<C, K, SymbolInfo> where C: Eq + Hash + Clone, K: Eq + Hash + Clone {
-    /// Get a key by context and index.
+impl<Context, NodeValue> ContextPredict<Context, NodeValue, SymbolInfo> where Context: Eq + Hash + Clone, NodeValue: Eq + Hash + Clone {
+    /// Get a value by context and index.
     ///
-    /// This method is only implemented when `T=SymbolInfo` as the index is initialized
+    /// This method is only implemented when `Statistics=SymbolInfo` as the index is initialized
     /// by `instances_to_probabilities`. The index corresponds to the one defined in
     /// the `SymbolInfo`.
-    pub fn by_index<C2: ?Sized>(&mut self, context: &C2, index: usize) -> Option<&K>
+    pub fn by_index<C2: ?Sized>(&mut self, context: &C2, index: usize) -> Option<&NodeValue>
         where
-            C: std::borrow::Borrow<C2>,
+            Context: std::borrow::Borrow<C2>,
             C2: Hash + Eq
     {
         self.by_context.get(context)?
             .by_index(index)
     }
 
-    pub fn by_key<C2: ?Sized>(&self, context: &C2, key: &K) -> Option<&SymbolInfo>
+    pub fn by_value<C2: ?Sized>(&self, context: &C2, value: &NodeValue) -> Option<&SymbolInfo>
         where
-            C: std::borrow::Borrow<C2>,
+            Context: std::borrow::Borrow<C2>,
             C2: Hash + Eq
     {
         self.by_context.get(context)?
             .by_value()
-            .get(key)
+            .get(value)
     }
 
-    pub fn by_key_mut<C2: ?Sized>(&mut self, context: &C2, key: &K) -> Option<&mut SymbolInfo>
+    pub fn by_value_mut<C2: ?Sized>(&mut self, context: &C2, value: &NodeValue) -> Option<&mut SymbolInfo>
         where
-            C: std::borrow::Borrow<C2>,
+            Context: std::borrow::Borrow<C2>,
             C2: Hash + Eq
     {
         self.by_context.get_mut(context)?
             .by_value_mut()
-            .get_mut(key)
+            .get_mut(value)
     }
 }
 
-impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq + Hash + Clone + std::fmt::Debug, K: Eq + Hash + Clone {
-    type AsProbabilities = ContextPredict<C, K, SymbolInfo>;
-    fn instances_to_probabilities(self, description: &str) -> ContextPredict<C, K, SymbolInfo> {
+impl<Context, NodeValue> InstancesToProbabilities for ContextPredict<Context, NodeValue, usize> where Context: Eq + Hash + Clone + std::fmt::Debug, NodeValue: Eq + Hash + Clone {
+    type AsProbabilities = ContextPredict<Context, NodeValue, SymbolInfo>;
+    fn instances_to_probabilities(self, description: &str) -> ContextPredict<Context, NodeValue, SymbolInfo> {
         debug!(target: "entropy", "Converting ContextPredict {} to probabilities", description);
         let by_context = self.by_context.into_iter()
             .map(|(context, info)| (context, info.instances_to_probabilities("ContextInformation")))
@@ -203,20 +226,36 @@ impl<C, K> InstancesToProbabilities for ContextPredict<C, K, usize> where C: Eq 
     }
 }
 
-/// A predictor used to predict the probability of a symbol based on
-/// its position in a tree. The predictor is typically customized to
-/// limit the prediction depth, e.g. to 0 (don't use any context),
-/// 1 (use only the parent + child index) or 2 (use parent +
-/// grand-parent and both child indices).
+/// A specialized predictor used to predict possible values at a possible path in the AST.
+///
+/// This mechanism is meant to be used as follows:
+///
+/// 1. Create a new `PathPredict<NodeValue, usize>` and use `PathPredict::add` to count the number
+///     of instances of each possible `NodeValue` in each possible path. Alternatively, load this data
+///     from an existing dictionary.
+/// 2. Convert the `PathPredict<NodeValue, usize>` into a `PathPredict<NodeValue, SymbolInfo>`
+///     by calling `PathPredict::<_, usize>::instances_to_probabilities`.
+/// 3. Use method `PathPredict::<_, SymbolInfo>::by_node_value` and `by_node_value_mut` to get the statistics
+///     information in a specific path for a specific node value (used for compression). This information contains
+///     an index designed to be written to a compressed stream.
+/// 4. Use method `PathPredict::<_, SymbolInfo>::frequencies_at` to get the statistics information in a
+///     specific path for all node values that have shown up in this path (used for decompression). This
+///     information is used to extract an index from a compressed stream.
+/// 5. Use method `PathPredict::<_, SymbolInfo>::index_at` to get a specific node value in a specific
+///     path from the index extracted from the compressed stream.
+///
+/// As most methods of this struct can only be used if `Statistics = usize` xor `Statistics = SymbolInfo`,
+/// the implementation of these methods is only available respectively if `Statistics = usize` or if
+/// `Statistics = SymbolInfo`.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct PathPredict<K, T> where K: Eq + Hash + Clone {
-    context_predict: ContextPredict<IOPath, K, T>,
+pub struct PathPredict<NodeValue, Statistics> where NodeValue: Eq + Hash + Clone {
+    context_predict: ContextPredict<IOPath, NodeValue, Statistics>,
 }
 
 
-impl<K> InstancesToProbabilities for PathPredict<K, usize> where K: Eq + Hash + Clone {
-    type AsProbabilities = PathPredict<K, SymbolInfo>;
-    fn instances_to_probabilities(self, description: &str) -> PathPredict<K, SymbolInfo> {
+impl<NodeValue> InstancesToProbabilities for PathPredict<NodeValue, usize> where NodeValue: Eq + Hash + Clone {
+    type AsProbabilities = PathPredict<NodeValue, SymbolInfo>;
+    fn instances_to_probabilities(self, description: &str) -> PathPredict<NodeValue, SymbolInfo> {
         PathPredict {
             context_predict: self.context_predict
                 .instances_to_probabilities(description)
@@ -224,7 +263,7 @@ impl<K> InstancesToProbabilities for PathPredict<K, usize> where K: Eq + Hash + 
     }
 }
 
-impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
+impl<NodeValue, Statistics> PathPredict<NodeValue, Statistics> where NodeValue: Eq + Hash + Clone + std::fmt::Debug {
     pub fn new() -> Self {
         PathPredict {
             context_predict: ContextPredict::new(),
@@ -243,29 +282,30 @@ impl<K, T> PathPredict<K, T> where K: Eq + Hash + Clone + std::fmt::Debug {
         self.context_predict.contexts()
     }
 }
-impl<K> PathPredict<K, usize> where K: Eq + Hash + Clone {
-    pub fn add(&mut self, path: &[IOPathItem], key: K) {
+impl<NodeValue> PathPredict<NodeValue, usize> where NodeValue: Eq + Hash + Clone {
+        /// Register a value as being used at this path.
+    pub fn add(&mut self, path: &[IOPathItem], value: NodeValue) {
         let mut as_path = IOPath::new();
         as_path.extend_from_slice(path);
-        self.context_predict.add(as_path, key);
+        self.context_predict.add(as_path, value);
     }
 }
-impl<K> PathPredict<K, SymbolInfo> where K: Eq + Hash + Clone {
+impl<NodeValue> PathPredict<NodeValue, SymbolInfo> where NodeValue: Eq + Hash + Clone {
     /// Get a value by path and index.
     ///
-    /// This method is only implemented when `T=SymbolInfo` as the index is initialized
+    /// This method is only implemented when `Statistics=SymbolInfo` as the index is initialized
     /// by `instances_to_probabilities`.
-    pub fn by_index(&mut self, tail: &[IOPathItem], index: usize) -> Option<&K> {
+    pub fn by_index(&mut self, tail: &[IOPathItem], index: usize) -> Option<&NodeValue> {
         self.context_predict.by_index(tail, index)
     }
 
 
-    pub fn by_key(&mut self, tail: &[IOPathItem], key: &K) -> Option<&SymbolInfo> {
-        self.context_predict.by_key(tail, key)
+    pub fn by_value(&mut self, tail: &[IOPathItem], value: &NodeValue) -> Option<&SymbolInfo> {
+        self.context_predict.by_value(tail, value)
     }
 
-    pub fn by_key_mut(&mut self, tail: &[IOPathItem], key: &K) -> Option<&mut SymbolInfo> {
-        self.context_predict.by_key_mut(tail, key)
+    pub fn by_value_mut(&mut self, tail: &[IOPathItem], value: &NodeValue) -> Option<&mut SymbolInfo> {
+        self.context_predict.by_value_mut(tail, value)
     }
 
 
