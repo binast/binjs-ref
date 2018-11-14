@@ -58,6 +58,14 @@ impl Shift {
             /* rethrow */ throw ex;
         }};
         var process = require('process');
+        /* See crates/binjs_io/src/escaped_wtf8.rs */
+        result = result
+            .replace(/[\u007F\uD800-\uDFFF]/ug, function(m) {{
+                if (m == "\u007F") {{
+                    return "\u007F007F";
+                }}
+                return "\u007F" + m.charCodeAt(0).toString(16);
+            }});
         process.stdout.write(result);
         console.warn(result);
         "##,
