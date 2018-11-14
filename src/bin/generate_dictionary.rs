@@ -11,7 +11,7 @@ use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
 use binjs::specialized::es6::ast::Walker;
 use binjs::io::{ Path as IOPath, TokenSerializer };
-use binjs::io::entropy::model::{ Dictionary, DictionaryBuilder, KindedStringMap, FilesContaining };
+use binjs::io::entropy::model::{ Dictionary, DictionaryBuilder, KindedStringMap, FilesContaining, Instances };
 
 use std::fs::*;
 use std::thread;
@@ -36,7 +36,7 @@ macro_rules! progress {
 
 
 fn handle_path<'a>(options: &mut Options<'a>,
-    shared_dictionary: &mut Dictionary<usize>,
+    shared_dictionary: &mut Dictionary<Instances>,
     shared_files_containing_string: &mut KindedStringMap<FilesContaining>,
     shared_number_of_files: &mut usize,
     source_path: &Path,
@@ -72,7 +72,7 @@ fn handle_path<'a>(options: &mut Options<'a>,
 }
 
 fn handle_path_or_text<'a>(options: &mut Options<'a>,
-    shared_dictionary: &mut Dictionary<usize>,
+    shared_dictionary: &mut Dictionary<Instances>,
     shared_files_containing_string: &mut KindedStringMap<FilesContaining>,
     shared_number_of_files: &mut usize,
     source: &Path)

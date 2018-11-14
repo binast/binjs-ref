@@ -77,7 +77,7 @@ macro_rules! symbol {
             // (`symbol.distribution`). Use them to write the probability at bit-level.
             let mut borrow = symbol.distribution
                 .borrow_mut();
-            $me.writer.symbol(symbol.index, borrow.deref_mut())
+            $me.writer.symbol(symbol.index.into(), borrow.deref_mut())
                 .map_err(TokenWriterError::WriteError)?;
             Ok(())
         }

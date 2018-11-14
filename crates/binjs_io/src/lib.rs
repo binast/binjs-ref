@@ -6,13 +6,13 @@ extern crate binjs_shared;
 
 extern crate brotli;
 extern crate clap;
+#[macro_use]
+extern crate derive_more;
 extern crate flate2;
 extern crate itertools;
 extern crate lzw;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate num_alias;
 extern crate rand;
 extern crate range_encoding;
 #[macro_use]

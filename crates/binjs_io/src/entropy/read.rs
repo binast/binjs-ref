@@ -1,4 +1,5 @@
 //! An entropy decoder
+use super::probabilities::SymbolIndex;
 
 use ::TokenReaderError;
 use ::io::{ FileStructurePrinter, Path, TokenReader, TrivialGuard };
@@ -65,7 +66,7 @@ macro_rules! symbol {
             // 4. Deduce the value we have just read.
             let value = $me.options.probability_tables
                 .$table
-                .by_index(path, index as usize)
+                .by_index(path, SymbolIndex::new(index as usize))
                 .ok_or_else(|| TokenReaderError::NotInDictionary(format!("{} [{}]", stringify!($ident), index)))?;
             Ok(value.clone())
         }

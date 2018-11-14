@@ -1,6 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// A newtype for `usize` used to count the number of some item in a given file.
+#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy, Constructor)]
+pub struct SymbolIndex(usize);
+
 /// Representation of a symbol in a Cumulative Distribution Frequency (CDF).
 ///
 /// Note: We most likely don't want this struct to implement Serde's Deserialize/Serialize,
@@ -8,7 +12,7 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub struct SymbolInfo {
     /// The index of the symbol in the Cumulative Distribution Frequency (CDF).
-    pub index: usize,
+    pub index: SymbolIndex,
 
     /// The Cumulative Distribution Frequency (CDF), shared between a number of symbols.
     pub distribution: Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>,

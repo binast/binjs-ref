@@ -212,7 +212,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     None if is_optional =>
                         Ok(self.register(JSON::Null)),
                     None =>
-                        Err(self.raise_error(Error::UnexpectedValue("null string".to_owned()))),
+                        Err(self.raise_error(Error::UnexpectedValue("unexpected null string".to_owned()))),
                     Some(string) =>
                         Ok(self.register(string.export()))
                 }
@@ -224,7 +224,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     None if is_optional =>
                         Ok(self.register(JSON::Null)),
                     None =>
-                        Err(self.raise_error(Error::UnexpectedValue("null string".to_owned()))),
+                        Err(self.raise_error(Error::UnexpectedValue("unexpected null identifier name".to_owned()))),
                     Some(string) =>
                         Ok(self.register(string.export()))
                 }
@@ -236,7 +236,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                     None if is_optional =>
                         Ok(self.register(JSON::Null)),
                     None =>
-                        Err(self.raise_error(Error::UnexpectedValue("null string".to_owned()))),
+                        Err(self.raise_error(Error::UnexpectedValue("unexpected null property key".to_owned()))),
                     Some(string) =>
                         Ok(self.register(string.export()))
                 }

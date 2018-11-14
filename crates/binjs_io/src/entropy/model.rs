@@ -1,5 +1,5 @@
-use entropy::predict::{ PathPredict };
-use entropy::probabilities::{ InstancesToProbabilities, SymbolInfo };
+use entropy::predict::PathPredict;
+use entropy::probabilities::{ InstancesToProbabilities, SymbolIndex, SymbolInfo };
 
 use io::TokenWriter;
 use ::TokenWriterError;
@@ -8,33 +8,18 @@ use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, PropertyKey, 
 
 use std;
 use std::collections::HashMap;
-use std::ops::Deref;
-
-use serde;
 
 pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
-/// A newtype for `usize` used to count instances of some item in a given file.
-int_alias!(InstancesInFile, usize);
+pub use entropy::predict::Instances;
+
+/// A newtype for `usize` used to count the number of some item in a given file.
+#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy)]
+pub struct InstancesInFile(pub usize);
 
 /// A newtype for `usize` used to count the number of files containing some item.
-int_alias!(FilesContaining, usize);
-impl<'de> serde::de::Deserialize<'de> for FilesContaining {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>
-    {
-        Ok(FilesContaining(usize::deserialize(deserializer)?))
-    }
-}
-impl serde::ser::Serialize for FilesContaining {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: serde::ser::Serializer
-    {
-        self.deref().serialize(serializer)
-    }
-}
-
+#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy)]
+pub struct FilesContaining(pub usize);
 
 /// Add a single symbol to the table.
 ///
@@ -137,7 +122,7 @@ impl<T> Dictionary<T> {
         + interface_name_by_path.len()
     }
 }
-impl InstancesToProbabilities for Dictionary<usize> {
+impl InstancesToProbabilities for Dictionary<Instances> {
     type AsProbabilities = Dictionary<SymbolInfo>;
 
     /// Convert a dictionary counting instances into a dictionary that
@@ -224,7 +209,10 @@ impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
         use std::rc::Rc;
 
         let instances = self.values()
-            .map(|x| *x.deref() as u32)
+            .map(|x| {
+                let x: usize = x.clone().into();
+                x as u32
+            })
             .collect();
         let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)
             .unwrap())); // FIXME: Handle the empty case.
@@ -233,7 +221,7 @@ impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
             .enumerate()
             .map(|(index, (key, _))| {
                 (key, SymbolInfo {
-                    index,
+                    index: SymbolIndex::from(index),
                     distribution: distribution.clone()
                 })
             })
@@ -251,7 +239,7 @@ pub struct DictionaryBuilder<'a> {
     /// This is a shared reference as we typically wish to
     /// access this field after the DictionaryBuilder
     /// has been consumed and released by a `Serializer`.
-    dictionary: &'a mut Dictionary</* instances */ usize>,
+    dictionary: &'a mut Dictionary<Instances>,
 
     /// Number of instances of each string in the current file.
     instances_of_strings_in_current_file: KindedStringMap<InstancesInFile>,
@@ -261,7 +249,7 @@ pub struct DictionaryBuilder<'a> {
 }
 
 impl<'a> DictionaryBuilder<'a> {
-    pub fn new(dictionary: &'a mut Dictionary<usize>, files_containing_string: &'a mut KindedStringMap<FilesContaining>) -> Self {
+    pub fn new(dictionary: &'a mut Dictionary<Instances>, files_containing_string: &'a mut KindedStringMap<FilesContaining>) -> Self {
         DictionaryBuilder {
             dictionary,
             instances_of_strings_in_current_file: KindedStringMap::default(),

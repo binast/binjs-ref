@@ -62,6 +62,7 @@ mod predict;
 mod probabilities;
 
 use self::model::{ Dictionary, FilesContaining, KindedStringMap };
+use self::predict::Instances;
 use self::probabilities::SymbolInfo;
 
 #[derive(Clone)]
@@ -115,7 +116,7 @@ impl ::FormatProvider for FormatProvider {
             .unwrap(); // Guaranteed by `clap`.
         let probability_tables_source = std::fs::File::open(&probability_tables_path)
             .expect("Could not open external-dictionary-probabilities");
-        let probability_tables : Dictionary<usize> = bincode::deserialize_from(probability_tables_source)
+        let probability_tables : Dictionary<Instances> = bincode::deserialize_from(probability_tables_source)
             .expect("Could not decode external-dictionary-probabilities");
 
         let string_tables_path = matches.value_of("external-dictionary-strings")
