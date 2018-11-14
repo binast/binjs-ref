@@ -4,8 +4,8 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::io::Deserialization;
 use binjs::generic::ToJSON;
+use binjs::specialized::es6::io::Decoder;
 use binjs::source::Shift;
 
 use std::fs::*;
@@ -23,14 +23,16 @@ macro_rules! progress {
 
 // Command line options.
 struct Options<'a> {
-    // True if --print-json is specified.
+    /// True if --print-json is specified.
     print_json: bool,
 
-    // True if --quiet or -q is specified.
-    quiet: bool,
-
-    // The OUTPUT path, or None if not specified.
+    /// The OUTPUT path, or None if not specified.
     dest_path: Option<&'a str>,
+
+    /// The format used to decode.
+    ///
+    /// The decoder will not attempt to sniff the format used.
+    format: binjs::io::Format,
 }
 
 fn main() {
@@ -56,17 +58,24 @@ fn main() {
                 .long("print-json")
                 .help("Print JSON of parse tree"),
         ])
-    .get_matches();
+        .subcommand(binjs::io::Format::subcommand())
+        .get_matches();
 
+    // Common options.
     let source_path = matches.value_of("INPUT");
     let dest_path = matches.value_of("OUTPUT");
     let quiet = matches.is_present("quiet") || dest_path.is_none();
 
+    // Format options.
+    let format = binjs::io::Format::from_matches(&matches)
+        .expect("Could not parse encoding format");
+    progress!(quiet, "Using format: {}", format.name());
+
     // Setup.
-    let options = Options {
+    let mut options = Options {
         print_json: matches.is_present("print-json"),
-        quiet,
         dest_path,
+        format,
     };
 
     progress!(quiet, "Reading.");
@@ -74,14 +83,14 @@ fn main() {
         Some(path) => {
             parse_tree(&|| BufReader::new(File::open(path)
                                           .expect("Could not open source")),
-                       &options)
+                       &mut options)
         }
         None => {
             let mut buffer = Vec::new();
             stdin().read_to_end(&mut buffer)
                 .expect("Failed to read from stdin");
 
-            parse_tree(&|| Cursor::new(&buffer), &options)
+            parse_tree(&|| Cursor::new(&buffer), &mut options)
         }
     };
 
@@ -119,19 +128,9 @@ fn main() {
     }
 }
 
-fn parse_tree<R: Read + Seek>(get_stream: &Fn() -> R, options: &Options) -> binjs::specialized::es6::ast::Script
+fn parse_tree<R: Read + Seek>(get_stream: &Fn() -> R, options: &mut Options) -> binjs::specialized::es6::ast::Script
 {
-    progress!(options.quiet, "Attempting to decode as multipart.");
-    if let Ok(reader) = binjs::io::multipart::TreeTokenReader::new(get_stream()) {
-        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
-        deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
-            .expect("Could not decode")
-    } else {
-        progress!(options.quiet, "... falling back to simple format.");
-
-        let reader = binjs::io::simple::TreeTokenReader::new(get_stream());
-        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
-        deserializer.deserialize(&mut binjs::specialized::es6::ast::IOPath::new())
-            .expect("Could not decode")
-    }
+    let decoder = Decoder::new();
+    decoder.decode(&mut options.format, get_stream())
+        .expect("Could not decode")
 }
