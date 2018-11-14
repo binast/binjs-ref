@@ -14,11 +14,11 @@ pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usiz
 pub use entropy::predict::Instances;
 
 /// A newtype for `usize` used to count the number of some item in a given file.
-#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy)]
+#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct InstancesInFile(pub usize);
 
 /// A newtype for `usize` used to count the number of files containing some item.
-#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy)]
+#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FilesContaining(pub usize);
 
 /// Add a single symbol to the table.
