@@ -192,6 +192,7 @@ fn test_multipart_io() {
     env_logger::init();
 
     use binjs_shared::{ FieldName, InterfaceName, SharedString };
+    use binjs_shared::ast::Path;
 
     use ::CompressionTarget;
     use io::{ Guard, TokenReader, TokenWriterWithTree };
@@ -222,7 +223,7 @@ fn test_multipart_io() {
     for mut options in all_options {
         println!("Options {:?}", options);
         let suffix = format!("{:?}-{:?}-{:?}", options.grammar_table, options.strings_table, options.tree);
-
+        let mut path = Path::new();
 
         {
             options.reset();
@@ -238,7 +239,7 @@ fn test_multipart_io() {
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output))
                 .expect("Creating reader");
-            let simple_string = reader.string()
+            let simple_string = reader.string_at(&path)
                 .expect("Reading simple string")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "simple string");
@@ -258,7 +259,7 @@ fn test_multipart_io() {
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let escapes_string = reader.string()
+            let escapes_string = reader.string_at(&path)
                 .expect("Reading string with escapes")
                 .expect("Non-null string");
             assert_eq!(escapes_string, data);
@@ -286,18 +287,18 @@ fn test_multipart_io() {
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (name, fields, guard) = reader.tagged_tuple()
+            let (name, fields, guard) = reader.tagged_tuple_at(&path)
                 .expect("Reading trivial tagged tuple");
             assert_eq!(name, "some tuple");
 
             assert_eq!(fields, None);
-            let simple_string_1 = reader.string()
+            let simple_string_1 = reader.string_at(&path)
                 .expect("Reading trivial tagged tuple[0]")
                 .expect("Reading a non-null string");
-            let simple_string_2 = reader.string()
+            let simple_string_2 = reader.string_at(&path)
                 .expect("Reading trivial tagged tuple[1]")
                 .expect("Reading a non-null string");
-            let simple_float = reader.float()
+            let simple_float = reader.float_at(&path)
                 .expect("Reading trivial tagged tuple[2]")
                 .expect("Reading a non-null float");
 
@@ -324,7 +325,7 @@ fn test_multipart_io() {
                     .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (len, guard) = reader.list()
+            let (len, guard) = reader.list_at(&path)
                 .expect("Reading empty list");
             assert_eq!(len, 0);
 
@@ -346,15 +347,15 @@ fn test_multipart_io() {
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (len, guard) = reader.list()
+            let (len, guard) = reader.list_at(&path)
                 .expect("Reading trivial list");
             assert_eq!(len, 2);
 
-            let simple_string = reader.string()
+            let simple_string = reader.string_at(&path)
                 .expect("Reading trivial list[0]")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "foo");
-            let simple_string = reader.string()
+            let simple_string = reader.string_at(&path)
                 .expect("Reading trivial list[1]")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "bar");
@@ -379,19 +380,19 @@ fn test_multipart_io() {
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (len, guard) = reader.list()
+            let (len, guard) = reader.list_at(&path)
                 .expect("Reading outer list");
             assert_eq!(len, 1);
 
-            let (len, inner_guard) = reader.list()
+            let (len, inner_guard) = reader.list_at(&path)
                 .expect("Reading inner list");
             assert_eq!(len, 2);
 
-            let simple_string = reader.string()
+            let simple_string = reader.string_at(&path)
                 .expect("Reading trivial list[0]")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "foo");
-            let simple_string = reader.string()
+            let simple_string = reader.string_at(&path)
                 .expect("Reading trivial list[1]")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "bar");

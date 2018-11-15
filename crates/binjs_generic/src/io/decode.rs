@@ -1,7 +1,7 @@
 //! With the help of an underlying `TokenReader`, decode a stream of bytes
 //! to a JSON matching a specific grammar.
 
-use binjs_io::{ Guard, TokenReader };
+use binjs_io::{ Guard, TokenReader, TokenReaderError };
 use binjs_meta::spec::*;
 use binjs_shared::{ FieldName, InterfaceName, ToJSON };
 
@@ -10,13 +10,14 @@ use json::JsonValue as JSON;
 use json::object::Object as Object;
 
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::rc::Rc;
 
+type Path = binjs_shared::ast::Path<binjs_shared::InterfaceName, (usize, binjs_shared::FieldName)>;
+
 #[derive(Debug)]
-pub enum Error<E> where E: Debug {
+pub enum Error {
     UnexpectedValue(String),
-    TokenReaderError(E),
+    TokenReaderError(TokenReaderError),
     NoSuchInterface(InterfaceName),
     NoSuchRefinement(String),
     NoSuchKind(InterfaceName),
@@ -49,7 +50,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
         self.latest = value.clone();
         value
     }
-    fn raise_error(&mut self, error: Error<E::Error>) -> Error<E::Error> {
+    fn raise_error(&mut self, error: Error) -> Error {
         self.extractor.poison();
         debug!(target: "decode", "Raising error {:?}", error);
         error
@@ -58,18 +59,18 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
         &self.latest
     }
 
-    pub fn decode(&mut self) -> Result<JSON, Error<E::Error>> {
+    pub fn decode(&mut self) -> Result<JSON, Error> {
         let start = self.grammar.get_root();
-        self.decode_from_named_type(&start, false)
+        let mut path = Path::new();
+        self.decode_from_named_type(&mut path, &start, false)
     }
-    fn decode_from_named_type(&mut self, named: &NamedType, is_optional: bool) -> Result<JSON, Error<E::Error>> {
+    fn decode_from_named_type(&mut self, path: &mut Path, named: &NamedType, is_optional: bool) -> Result<JSON, Error> {
         match *named {
             NamedType::Typedef(ref type_) =>
-                return self.decode_from_type(type_, is_optional),
+                return self.decode_from_type(path, type_, is_optional),
             NamedType::StringEnum(ref enum_) => {
-                let string = self.extractor.string()
-                    .map_err(Error::TokenReaderError)?
-                    .ok_or_else(|| self.raise_error(Error::UnexpectedValue("null string".to_owned())))?;
+                let string = self.extractor.string_enum_at(path)
+                    .map_err(Error::TokenReaderError)?;
                 for candidate in enum_.strings() {
                     if string == candidate.as_ref() {
                         return Ok(self.register(string.export()));
@@ -79,7 +80,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             }
             NamedType::Interface(ref interface) => {
                 // 1. Get the the interface.
-                let (object_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
+                let (object_name, mapped_field_names, guard) = self.extractor.tagged_tuple_at(path)
                     .map_err(Error::TokenReaderError)?;
                 debug!(target: "decoder", "decoder: found kind {:?} while looking for {:?}", object_name, interface.name().to_str());
 
@@ -100,11 +101,17 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 }
 
                 // 4. Parse within interface.
-                self.decode_object_contents(interface, mapped_field_names, guard)
+                let interface_name = InterfaceName::from_rc_string(interface.name()
+                    .to_rc_string()
+                    .clone());
+                path.enter_interface(interface_name.clone());
+                let result = self.decode_object_contents(path, interface, mapped_field_names, guard)?;
+                path.exit_interface(interface_name);
+                Ok(result)
             }
         }
     }
-    pub fn decode_object_contents(&mut self, interface: &Interface, field_names: Option<Rc<Box<[FieldName]>>>, guard: E::TaggedGuard) -> Result<JSON, Error<E::Error>> {
+    pub fn decode_object_contents(&mut self, path: &mut Path, interface: &Interface, field_names: Option<Rc<Box<[FieldName]>>>, guard: E::TaggedGuard) -> Result<JSON, Error> {
         debug!(target: "decode", "decode_object_contents: Interface {:?} ", interface.name());
         let mut object = Object::new();
 
@@ -113,8 +120,9 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             let mut expected: HashMap<_,_> = interface.contents()
                 .fields()
                 .iter()
-                .map(|field| {
-                    (field.name().clone(), field.type_())
+                .enumerate()
+                .map(|(i, field)| {
+                    (field.name().clone(), (i, field.type_()))
                 })
                 .collect();
             debug!(target: "decode", "decode_object_contents: Expecting fields {:?} ", expected);
@@ -124,21 +132,24 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 debug!(target: "decode", "decode_object_contents: Looking at field {:?} ", field);
                 let field_name = self.grammar.get_field_name(field.as_str())
                     .ok_or_else(|| self.raise_error(Error::NoSuchField(field.clone())))?;
-                let type_ =
-                    if let Some(type_) = expected.remove(field_name) {
-                        type_
+                let (index, type_) =
+                    if let Some((index, type_)) = expected.remove(field_name) {
+                        (index, type_)
                     } else {
                         debug!(target: "decode", "decode_object_contents: I didn't expect field {:?}.", field);
                         self.extractor.poison();
                         return Err(self.raise_error(Error::NoSuchField(field.clone())))
                     };
-                let item = self.decode_from_type(type_, false)?;
+                let field_name = binjs_shared::FieldName::from_rc_string(field_name.to_rc_string().clone());
+                path.enter_field((index, field_name.clone()));
+                let item = self.decode_from_type(path, type_, false)?;
+                path.exit_field((index, field_name.clone()));
                 object.insert(field.as_str(), item);
             }
             debug!(target: "decode", "decode_object_contents: Remaining fields {:?} ", expected);
 
             // Any field missing? Find out if there is a default value.
-            for (name, type_) in expected.drain() {
+            for (name, (_, type_)) in expected.drain() {
                 let name = name.to_str();
                 if type_.is_optional() {
                     object.insert(name, JSON::Null);
@@ -153,11 +164,14 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
 
         } else {
             // Read the fields **in the order** in which they appear in the spec.
-            for field in interface.contents().fields() {
+            for (index, field) in interface.contents().fields().iter().enumerate() {
                 debug!(target: "decode", "decode_object_contents: Looking at field {:?} with type {:?}",
                     field.name(),
                     field.type_());
-                let item = self.decode_from_type(field.type_(), false)?;
+                let field_name = binjs_shared::FieldName::from_rc_string(field.name().to_rc_string().clone());
+                path.enter_field((index, field_name.clone()));
+                let item = self.decode_from_type(path, field.type_(), false)?;
+                path.exit_field((index, field_name));
                 object.insert(field.name().to_str(), item);
             }
         }
@@ -172,39 +186,63 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
 
         Ok(self.register(JSON::Object(object)))
     }
-    pub fn decode_from_type(&mut self, kind: &Type, is_optional: bool) -> Result<JSON, Error<E::Error>> {
+    pub fn decode_from_type(&mut self, path: &mut Path, kind: &Type, is_optional: bool) -> Result<JSON, Error> {
         use binjs_meta::spec::TypeSpec::*;
         debug!(target: "decoder", "decode: {:?}", kind);
         let is_optional = kind.is_optional() || is_optional;
         match *kind.spec() {
             Array { contents: ref kind, supports_empty } => {
-                let (len, guard) = self.extractor.list()
+                let (len, guard) = self.extractor.list_at(path)
                     .map_err(Error::TokenReaderError)?;
                 if len == 0 && !supports_empty {
                     return Err(self.raise_error(Error::InvalidValue("Empty list".to_string())));
                 }
                 let mut values = Vec::with_capacity(len as usize);
                 for _ in 0..len {
-                    values.push(self.decode_from_type(kind, false)?);
+                    values.push(self.decode_from_type(path, kind, false)?);
                 }
                 guard.done()
                     .map_err(Error::TokenReaderError)?;
                 Ok(self.register(JSON::Array(values)))
             }
-            String | IdentifierName | PropertyKey => {
-                let extracted = self.extractor.string()
+            String => {
+                let extracted = self.extractor.string_at(path)
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
                     None if is_optional =>
                         Ok(self.register(JSON::Null)),
                     None =>
-                        Err(self.raise_error(Error::UnexpectedValue("null string".to_owned()))),
+                        Err(self.raise_error(Error::UnexpectedValue("unexpected null string".to_owned()))),
+                    Some(string) =>
+                        Ok(self.register(string.export()))
+                }
+            }
+            IdentifierName => {
+                let extracted = self.extractor.identifier_name_at(path)
+                    .map_err(Error::TokenReaderError)?;
+                match extracted {
+                    None if is_optional =>
+                        Ok(self.register(JSON::Null)),
+                    None =>
+                        Err(self.raise_error(Error::UnexpectedValue("unexpected null identifier name".to_owned()))),
+                    Some(string) =>
+                        Ok(self.register(string.export()))
+                }
+            }
+            PropertyKey => {
+                let extracted = self.extractor.property_key_at(path)
+                    .map_err(Error::TokenReaderError)?;
+                match extracted {
+                    None if is_optional =>
+                        Ok(self.register(JSON::Null)),
+                    None =>
+                        Err(self.raise_error(Error::UnexpectedValue("unexpected null property key".to_owned()))),
                     Some(string) =>
                         Ok(self.register(string.export()))
                 }
             }
             Boolean => {
-                let extracted = self.extractor.bool()
+                let extracted = self.extractor.bool_at(path)
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
                     None =>
@@ -214,12 +252,12 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 }
             }
             Offset => {
-                let offset = self.extractor.offset()
+                let offset = self.extractor.offset_at(path)
                     .map_err(Error::TokenReaderError)?;
                 Ok(self.register(json::from(offset)))
             }
             Number => {
-                let extracted = self.extractor.float()
+                let extracted = self.extractor.float_at(path)
                     .map_err(Error::TokenReaderError)?;
                 match extracted {
                     None =>
@@ -229,14 +267,14 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 }
             }
             UnsignedLong => {
-                let extracted = self.extractor.unsigned_long()
+                let extracted = self.extractor.unsigned_long_at(path)
                     .map_err(Error::TokenReaderError)?;
                 Ok(self.register(json::from(extracted)))
             }
             NamedType(ref name) => {
                 let named_type = self.grammar.get_type_by_name(name)
                     .ok_or_else(|| self.raise_error(Error::NoSuchType(name.to_string().clone())))?;
-                let result = self.decode_from_named_type(&named_type, is_optional)?;
+                let result = self.decode_from_named_type(path, &named_type, is_optional)?;
                 if let JSON::Null = result {
                     if !is_optional {
                         return Err(self.raise_error(Error::UnexpectedValue("null".to_string())));
@@ -247,7 +285,7 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
             TypeSum(ref sum) => {
                 // The `sum` is necessarily a sum of interfaces, so this must be an object.
                 // 1. Get the the interface.
-                let (interface_name, mapped_field_names, guard) = self.extractor.tagged_tuple()
+                let (interface_name, mapped_field_names, guard) = self.extractor.tagged_tuple_at(path)
                     .map_err(Error::TokenReaderError)?;
                 debug!(target: "decoder", "decoder: found kind {:?}", interface_name);
                 let interface_node_name = self.grammar.get_node_name(interface_name.as_str())
@@ -276,7 +314,10 @@ impl<'a, E> Decoder<'a, E> where E: TokenReader {
                 }
 
                 // 3. Parse within interface.
-                self.decode_object_contents(interface, mapped_field_names, guard)
+                path.enter_interface(interface_name.clone());
+                let result = self.decode_object_contents(path, interface, mapped_field_names, guard)?;
+                path.exit_interface(interface_name.clone());
+                Ok(result)
             }
             Void => Ok(self.register(JSON::Null)),
         }

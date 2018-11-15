@@ -1,17 +1,18 @@
 #![feature(box_patterns)]
 #![feature(vec_resize_default)]
 
+extern crate bincode; // Used to store dictionaries. This is a temporary format.
 extern crate binjs_shared;
 
 extern crate brotli;
 extern crate clap;
+#[macro_use]
+extern crate derive_more;
 extern crate flate2;
 extern crate itertools;
 extern crate lzw;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate num_alias;
 extern crate rand;
 extern crate range_encoding;
 #[macro_use]
@@ -32,11 +33,13 @@ pub use bytes::compress::Compression;
 #[derive(Debug)]
 pub enum TokenWriterError {
     InvalidOffsetField,
+    NotInDictionary(String),
     WriteError(std::io::Error),
 }
 
 #[derive(Debug)]
 pub enum TokenReaderError {
+    NotInDictionary(String),
     ReadError(std::io::Error),
     BadLength { expected: usize, got: usize },
     BadHeader,
@@ -56,6 +59,7 @@ pub enum TokenReaderError {
     EmptyVariant,
     EmptyBool,
     EmptyString,
+    EmptyList,
     BadEnumVariant,
 }
 impl TokenReaderError {
@@ -243,12 +247,9 @@ pub enum Format {
         options: multistream::Options,
         targets: multistream::Targets,
     },
-/*
     Entropy {
-        options: entropy::write::Options,
-        model: Box<entropy::Model>,
+        options: entropy::Options,
     }
-*/
 }
 
 /// Support picking a random format.
@@ -316,21 +317,7 @@ impl Format {
                     stats
                 }
             ,
-/*
-            Format::Entropy { .. } =>
-                Format::Entropy {
-                    options: entropy::write::Options {
-                        inline_dictionaries: rng.gen_weighted_bool(2),
-                        encode_tags: rng.gen_weighted_bool(2),
-                        encode_bools: rng.gen_weighted_bool(2),
-                        encode_numbers: rng.gen_weighted_bool(2),
-                        encode_list_lengths: rng.gen_weighted_bool(2),
-                        encode_strings: rng.gen_weighted_bool(2),
-                        encode_identifiers: rng.gen_weighted_bool(2),
-                    },
-                    model: Box::new(entropy::model::ExactModel)
-                }
-*/
+            Format::Entropy { .. } => unimplemented!()
         }
     }
 
@@ -340,7 +327,7 @@ impl Format {
             Format::Simple { .. } => "Simple".to_string(),
             Format::Multipart { .. } => "Multipart".to_string(),
             Format::XML => "XML".to_string(),
-//            Format::Entropy { .. } => "Entropy".to_string(),
+            Format::Entropy { .. } => "Entropy".to_string(),
         }
     }
 
@@ -356,12 +343,10 @@ impl Format {
                 // Nothing to do
                 Ok(())
             }
-/*
             Format::Entropy { ..} => {
                 // Nothing to do
                 Ok(())
             }
-*/
             Format::Multipart {
                 targets: multipart::Targets {
                     ref mut grammar_table,
@@ -409,12 +394,12 @@ impl Format {
 
     /// Return all existing format providers, to manage
     /// command-line arguments.
-   fn providers() -> [&'static FormatProvider; 3] {
+   fn providers() -> [&'static FormatProvider; 4] {
         [
             &multipart::FormatProvider,
             &simple::FormatProvider,
             &xml::FormatProvider,
-//            &entropy::FormatProvider,
+            &entropy::FormatProvider,
         ]
     }
 

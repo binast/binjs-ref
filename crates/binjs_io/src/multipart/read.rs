@@ -287,7 +287,7 @@ impl TreeTokenReader {
 }
 
 pub struct SimpleGuard {
-    parent: TrivialGuard<TokenReaderError>,
+    parent: TrivialGuard,
     owner: Rc<RefCell<PoisonLock<ReaderState>>>,
 }
 impl SimpleGuard {
@@ -299,8 +299,7 @@ impl SimpleGuard {
     }
 }
 impl Guard for SimpleGuard {
-    type Error = TokenReaderError;
-    fn done(mut self) -> Result<(), Self::Error> {
+    fn done(mut self) -> Result<(), TokenReaderError> {
         self.parent.finalized = true;
         Ok(())
     }
@@ -328,8 +327,7 @@ impl ListGuard {
     }
 }
 impl Guard for ListGuard {
-    type Error = TokenReaderError;
-    fn done(mut self) -> Result<(), Self::Error> {
+    fn done(mut self) -> Result<(), TokenReaderError> {
         self.parent.parent.finalized = true;
 
         let owner = self.parent.owner.borrow_mut();
@@ -347,7 +345,6 @@ impl Drop for ListGuard {
 }
 
 impl TokenReader for TreeTokenReader {
-    type Error = TokenReaderError;
     type TaggedGuard = SimpleGuard;
     type UntaggedGuard = SimpleGuard;
     type ListGuard = ListGuard;
@@ -356,7 +353,7 @@ impl TokenReader for TreeTokenReader {
         self.owner.borrow_mut().poison();
     }
 
-    fn string(&mut self) -> Result<Option<SharedString>, Self::Error> {
+    fn string_at(&mut self, _path: &Path) -> Result<Option<SharedString>, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
             let index = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
@@ -381,7 +378,7 @@ impl TokenReader for TreeTokenReader {
 
 
     /// Read a single `f64`. Note that all numbers are `f64`.
-    fn float(&mut self) -> Result<Option<f64>, Self::Error> {
+    fn float_at(&mut self, _path: &Path) -> Result<Option<f64>, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
             let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
             state.reader.read(&mut buf)
@@ -401,7 +398,7 @@ impl TokenReader for TreeTokenReader {
     }
 
     /// Read a single `u32`.
-    fn unsigned_long(&mut self) -> Result<u32, Self::Error> {
+    fn unsigned_long_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
             let result = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)? as u32;
@@ -412,7 +409,7 @@ impl TokenReader for TreeTokenReader {
     }
 
     /// Read a single `bool`.
-    fn bool(&mut self) -> Result<Option<bool>, Self::Error> {
+    fn bool_at(&mut self, _path: &Path) -> Result<Option<bool>, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
             let mut buf : [u8; 1] = unsafe { std::mem::uninitialized() };
             state.reader.read(&mut buf)
@@ -436,7 +433,7 @@ impl TokenReader for TreeTokenReader {
     }
 
     /// Read a single `u32`.
-    fn offset(&mut self) -> Result<u32, Self::Error> {
+    fn offset_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
             let byte_len = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
@@ -453,7 +450,7 @@ impl TokenReader for TreeTokenReader {
     /// Returns an extractor for that list and the number of elements
     /// in the list. Before dropping the sub-extractor, callers MUST
     /// either reach the end of the list or call `skip()`.
-    fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error> {
+    fn list_at(&mut self, _path: &Path) -> Result<(u32, Self::ListGuard), TokenReaderError> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(move |state| {
             let guard = ListGuard::new(clone);
@@ -469,7 +466,7 @@ impl TokenReader for TreeTokenReader {
     /// Returns the tag name, `None` for fields and a
     /// sub-extractor dedicated
     /// to that tuple. The sub-extractor MUST be consumed entirely.
-    fn tagged_tuple(&mut self) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), Self::Error> {
+    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), TokenReaderError> {
         let clone = self.owner.clone();
         self.owner.borrow_mut().try(|state| {
             let index = state.reader.read_varnum()
@@ -487,7 +484,7 @@ impl TokenReader for TreeTokenReader {
 
     /// Start reading an untagged tuple. The sub-extractor MUST
     /// be consumed entirely.
-    fn untagged_tuple(&mut self) -> Result<Self::UntaggedGuard, Self::Error> {
+    fn untagged_tuple_at(&mut self, _path: &Path) -> Result<Self::UntaggedGuard, TokenReaderError> {
         let clone = self.owner.clone();
         debug!(target: "multipart", "Reading untagged tuple");
         Ok(SimpleGuard::new(clone))

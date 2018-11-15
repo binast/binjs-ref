@@ -217,14 +217,14 @@ impl ToJSON for {name} {{
 
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
-    fn deserialize_variant_{lowercase_name}_aux(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
+    fn deserialize_variant_{lowercase_name}_aux(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> where R: TokenReader {{
         let key = self.reader.string_enum_at(path)?;
         match key.as_str() {{
 {variants}
             _ => Err(From::from(TokenReaderError::invalid_value(&\"{lowercase_name}\"))),
         }}
     }}
-    fn deserialize_variant_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
+    fn deserialize_variant_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> where R: TokenReader {{
         let result = self.deserialize_variant_{lowercase_name}_aux(path);
         if result.is_err() {{
             self.reader.poison();
@@ -234,7 +234,7 @@ impl<R> Deserializer<R> where R: TokenReader {{
 }}
 
 impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing variant {name}\");
         self.deserialize_variant_{lowercase_name}(path)
     }}
@@ -453,7 +453,7 @@ impl Default for {name} {{
 
                     let from_reader = format!("
 impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}\");
         let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}, found {{}}\", kind.as_str());
@@ -473,7 +473,7 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
     }}
 }}
 impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional sum {name}\");
         let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
         let path_interface = kind.clone();
@@ -951,7 +951,7 @@ pub struct {name} {{
 
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
-    fn deserialize_tuple_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
+    fn deserialize_tuple_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> where R: TokenReader {{
         let (interface_name, _, guard) = self.reader.tagged_tuple_at(path)?;
         let result =
             if let \"{name}\" = interface_name.as_str() {{
@@ -976,7 +976,7 @@ impl<R> Deserializer<R> where R: TokenReader {{
 }}
 
 impl<R> InnerDeserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
-    fn deserialize_inner(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> where R: TokenReader {{
+    fn deserialize_inner(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> where R: TokenReader {{
         let _ = path; // Deactivate warnings if there are no fields.
         print_file_structure!(self.reader, \"{name} {{{{\");
 {fields_def}
@@ -988,13 +988,13 @@ impl<R> InnerDeserialization<R, {name}> for Deserializer<R> where R: TokenReader
 }}
 
 impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}\");
         self.deserialize_tuple_{lowercase_name}(path)
     }}
 }}
 impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenReader {{
-    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, R::Error> {{
+    fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {name}\");
         let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
         let result = match kind.as_str() {{
@@ -1033,14 +1033,15 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                         .iter()
                         .enumerate()
                         .map(|(index, field)| format!("
-        print_file_structure!(self.reader, \".{name}\");
-        let path_field = ({index}, FieldName::from_str(\"{name}\")); // String is shared
+        print_file_structure!(self.reader, \".{field_name}\");
+        let path_field = ({index}, FieldName::from_str(\"{field_name}\")); // String is shared
         path.enter_field(path_field.clone());
-        let data_{name} = self.deserialize(path) as Result<{spec}, R::Error>;
+        let data_{rust_field_name} = self.deserialize(path) as Result<{spec}, TokenReaderError>;
         path.exit_field(path_field);
-        let data_{name} = data_{name}?;
+        let data_{rust_field_name} = data_{rust_field_name}?;
 ",
-                            name = field.name().to_rust_identifier_case(),
+                            rust_field_name = field.name().to_rust_identifier_case(),
+                            field_name = field.name().to_str(),
                             spec = field_specs_map.get(field.name()).unwrap(),
                             index = index))
                         .format("\n"),

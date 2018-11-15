@@ -9,14 +9,13 @@
 
 use binjs_shared::{ IdentifierName, InterfaceName, FieldName, PropertyKey, SharedString, self };
 
-use ::{ TokenWriterError };
+use ::{ TokenReaderError, TokenWriterError };
 
 #[cfg(multistream)]
 use std::collections::HashMap;
-use std::fmt::{ Debug, Display };
+use std::fmt::Display;
 #[cfg(multistream)]
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::ops::Add;
 use std::rc::Rc;
 
@@ -170,21 +169,11 @@ pub type Path = binjs_shared::ast::Path<InterfaceName, /* Field */ (usize, Field
 /// which lets the reader determine what item we're reading in the AST. This
 /// may be used both for debugging purposes and for encodings that depend
 /// on the current position in the AST (e.g. entropy coding).
-pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::TokenReaderError>,
-                                                  Self::ListGuard: Guard<Error = Self::Error>,
-                                                  Self::TaggedGuard: Guard<Error = Self::Error>,
-                                                  Self::UntaggedGuard: Guard<Error = Self::Error>,
+pub trait TokenReader: FileStructurePrinter where Self::ListGuard: Guard,
+                                                  Self::TaggedGuard: Guard,
+                                                  Self::UntaggedGuard: Guard,
                                                   Self: Sized
 {
-    /// An error returned by the extractor.
-    ///
-    /// Errors are *not* recoverable within a `TokenReader`.
-    ///
-    /// For instance, if attempting to read with `string()`
-    /// fails, any further attempt to use the `TokenReader`
-    /// or any of its parents will also raise an error.
-    type Error;
-
     /// A guard, used to make sure that the consumer has properly read a list.
     ///
     /// See the documentation of `self.list`.
@@ -208,10 +197,7 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// Read a single UTF-8 string.
     ///
     /// The returned string MUST be valid UTF-8.
-    fn string(&mut self) -> Result<Option<SharedString>, Self::Error>;
-    fn string_at(&mut self, _path: &Path) -> Result<Option<SharedString>, Self::Error> {
-        self.string()
-    }
+    fn string_at(&mut self, _path: &Path) -> Result<Option<SharedString>, TokenReaderError>;
 
     /// Read a single UTF-8 value from a string enumeration.
     ///
@@ -220,65 +206,44 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// list of possible values, or to encode string enums as interfaces.
     ///
     /// The returned string MUST be valid UTF-8.
-    fn string_enum(&mut self) -> Result<SharedString, Self::Error> {
-        self.string()?
+    fn string_enum_at(&mut self, path: &Path) -> Result<SharedString, TokenReaderError> {
+        self.string_at(path)?
             .ok_or_else(|| ::TokenReaderError::EmptyVariant.into())
-    }
-    fn string_enum_at(&mut self, _path: &Path) -> Result<SharedString, Self::Error> {
-        self.string_enum()
     }
 
     /// Read a single identifier name.
     ///
-    /// The default implementation uses `self.string`/`self.string_at`, but
+    /// The default implementation uses `self.string_at`, but
     /// some encodings may use the extra information e.g. to represent the
     /// identifier as a DeBruijn index.
-    fn identifier_name(&mut self) -> Result<Option<IdentifierName>, Self::Error> {
-        let result = self.string()?
+    fn identifier_name_at(&mut self, path: &Path) -> Result<Option<IdentifierName>, TokenReaderError> {
+        let result = self.string_at(path)?
             .map(IdentifierName);
         Ok(result)
-    }
-    fn identifier_name_at(&mut self, _path: &Path) -> Result<Option<IdentifierName>, Self::Error> {
-        self.identifier_name()
     }
 
     /// Read a single property name.
     ///
-    /// The default implementation uses `self.string`/`self.string_at`, but
+    /// The default implementation uses `self.string_at`, but
     /// some encodings may use the extra information e.g. to initialize
     /// dictionaries.
-    fn property_key(&mut self) -> Result<Option<PropertyKey>, Self::Error> {
-        let result = self.string()?
+    fn property_key_at(&mut self, path: &Path) -> Result<Option<PropertyKey>, TokenReaderError> {
+        let result = self.string_at(path)?
             .map(PropertyKey);
         Ok(result)
     }
-    fn property_key_at(&mut self, _path: &Path) -> Result<Option<PropertyKey>, Self::Error> {
-        self.property_key()
-    }
 
     /// Read a single `f64`. Note that all user-level numbers are `f64`.
-    fn float(&mut self) -> Result<Option<f64>, Self::Error>;
-    fn float_at(&mut self, _path: &Path) -> Result<Option<f64>, Self::Error> {
-        self.float()
-    }
+    fn float_at(&mut self, _path: &Path) -> Result<Option<f64>, TokenReaderError>;
 
     /// Read a single `u32`.
-    fn unsigned_long(&mut self) -> Result<u32, Self::Error>;
-    fn unsigned_long_at(&mut self, _path: &Path) -> Result<u32, Self::Error> {
-        self.unsigned_long()
-    }
+    fn unsigned_long_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError>;
 
     /// Read a single `bool`.
-    fn bool(&mut self) -> Result<Option<bool>, Self::Error>;
-    fn bool_at(&mut self, _path: &Path) -> Result<Option<bool>, Self::Error> {
-        self.bool()
-    }
+    fn bool_at(&mut self, _path: &Path) -> Result<Option<bool>, TokenReaderError>;
 
     /// Read a single number of bytes.
-    fn offset(&mut self) -> Result<u32, Self::Error>;
-    fn offset_at(&mut self, _path: &Path) -> Result<u32, Self::Error> {
-        self.offset()
-    }
+    fn offset_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError>;
 
     /// Start reading a list.
     ///
@@ -287,10 +252,7 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// call `guard.done()` to ensure that the list was properly
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
-    fn list(&mut self) -> Result<(u32, Self::ListGuard), Self::Error>;
-    fn list_at(&mut self, _path: &Path) -> Result<(u32, Self::ListGuard), Self::Error> {
-        self.list()
-    }
+    fn list_at(&mut self, _path: &Path) -> Result<(u32, Self::ListGuard), TokenReaderError>;
 
     /// Start reading a tagged tuple. If the stream was encoded
     /// properly, the tag is attached to an **ordered** tuple of
@@ -302,10 +264,7 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// call `guard.done()` to ensure that the tuple was properly
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
-    fn tagged_tuple(&mut self) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), Self::Error>;
-    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), Self::Error> {
-        self.tagged_tuple()
-    }
+    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), TokenReaderError>;
 
     /// Start reading an untagged tuple.
     ///
@@ -313,10 +272,7 @@ pub trait TokenReader: FileStructurePrinter where Self::Error: Debug + From<::To
     /// call `guard.done()` to ensure that the tuple was properly
     /// read (in particular that all bytes were consumed). In most
     /// implementations, failure to do so will raise an assertion.
-    fn untagged_tuple(&mut self) -> Result<Self::UntaggedGuard, Self::Error>;
-    fn untagged_tuple_at(&mut self, _path: &Path) -> Result<Self::UntaggedGuard, Self::Error> {
-        self.untagged_tuple()
-    }
+    fn untagged_tuple_at(&mut self, _path: &Path) -> Result<Self::UntaggedGuard, TokenReaderError>;
 }
 
 /// Build an in-memory representation of a BinTree.
@@ -398,12 +354,8 @@ pub trait TokenWriter where Self::Statistics: Display + Sized + Add + Default {
 
 /// A guard used to ensure that some subset of the input stream was read properly.
 pub trait Guard {
-    /// The type of errors returned by the guard. This is typically
-    /// `TokenReader::Error`.
-    type Error;
-
     /// Ensure that the subset of the input stream was read properly.
-    fn done(self) -> Result<(), Self::Error>;
+    fn done(self) -> Result<(), TokenReaderError>;
 }
 
 /// Trivial implementation of a guard.
@@ -411,13 +363,11 @@ pub trait Guard {
 /// This implementation serves as a placeholder or as a building block for
 /// more sophisticated implementations: it does not check anything
 /// meaningful in `done()` but ensures that `done()` is eventually called.
-pub struct TrivialGuard<Error> {
-    phantom: PhantomData<Error>,
-
+pub struct TrivialGuard {
     /// `true` once `done()` has been called, `false` otherwise.
     pub finalized: bool,
 }
-impl<E> TrivialGuard<E> {
+impl TrivialGuard {
     /// Create a `TrivialGuard`.
     ///
     /// If the `TrivialGuard` is dropped before `done()` is called
@@ -425,23 +375,20 @@ impl<E> TrivialGuard<E> {
     /// an assertion failure.
     pub fn new() -> Self {
         TrivialGuard {
-            phantom: PhantomData,
             finalized: false
         }
     }
 }
 
-impl<Error> Guard for TrivialGuard<Error> {
-    type Error = Error;
-
+impl Guard for TrivialGuard {
     /// Mark the guard as safe to be dropped.
-    fn done(mut self) -> Result<(), Self::Error> {
+    fn done(mut self) -> Result<(), TokenReaderError> {
         self.finalized = true;
         Ok(())
     }
 }
 
-impl<Error> Drop for TrivialGuard<Error> {
+impl Drop for TrivialGuard {
     /// # Failures
     ///
     /// If the `TrivialGuard` is dropped before `done()` is called
@@ -467,8 +414,8 @@ pub trait TokenSerializerFamily<T> {
 }
 
 pub trait Deserialization<R, T> where R: TokenReader, T: Sized {
-    fn deserialize(&mut self, &mut Path) -> Result<T, R::Error>;
+    fn deserialize(&mut self, &mut Path) -> Result<T, TokenReaderError>;
 }
 pub trait InnerDeserialization<R, T> where R: TokenReader, T: Sized {
-    fn deserialize_inner(&mut self, &mut Path) -> Result<T, R::Error>;
+    fn deserialize_inner(&mut self, &mut Path) -> Result<T, TokenReaderError>;
 }
