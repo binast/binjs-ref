@@ -86,7 +86,7 @@ pub struct Options {
     content_lengths: Rc<RefCell<write::ContentInfo<usize>>>,
 }
 impl Options {
-    pub fn write_statistics(&self) -> Ref<write::ContentInfo<usize>> {
+    pub fn statistics_for_write(&self) -> Ref<write::ContentInfo<usize>> {
         self.content_lengths.borrow()
     }
 }
