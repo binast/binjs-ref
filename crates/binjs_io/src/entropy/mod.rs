@@ -65,6 +65,9 @@ use self::model::{ Dictionary, FilesContaining, KindedStringMap };
 use self::predict::Instances;
 use self::probabilities::SymbolInfo;
 
+use std::cell::{ RefCell, Ref };
+use std::rc::Rc;
+
 #[derive(Clone)]
 pub struct Options {
     /// The (shared) AST probability tables, generally shipped separately
@@ -76,6 +79,16 @@ pub struct Options {
     /// from the compressed files. Not yet used for (de)compression
     /// at this stage.
     string_tables: KindedStringMap<SymbolInfo>,
+
+    /// Statistics obtained while writing.
+    /// If several files are written with the same options, we accumulate
+    /// statistics.
+    content_lengths: Rc<RefCell<write::ContentInfo<usize>>>,
+}
+impl Options {
+    pub fn write_statistics(&self) -> Ref<write::ContentInfo<usize>> {
+        self.content_lengths.borrow()
+    }
 }
 
 /// Command-line management.
@@ -130,6 +143,7 @@ impl ::FormatProvider for FormatProvider {
             options: Options {
                 probability_tables: probability_tables.instances_to_probabilities("probability_tables"),
                 string_tables: string_tables.instances_to_probabilities("string_tables"),
+                content_lengths: Rc::new(RefCell::new(write::ContentInfo::default())),
             }
         })
     }
