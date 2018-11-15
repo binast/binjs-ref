@@ -1,5 +1,8 @@
 use std::io::{ Error, Write };
 
+#[derive(Default, AddAssign, Into, From, Clone, Copy)]
+pub struct Bytes(usize);
+
 /// An implementation of `Write` that discards its data but remembers
 /// how many bytes were written.
 #[derive(Default)]
@@ -15,8 +18,8 @@ impl LengthWriter {
     }
 
     /// Return the number of bytes written since creation.
-    pub fn len(&self) -> usize {
-        self.bytes_written
+    pub fn len(&self) -> Bytes {
+        self.bytes_written.into()
     }
 }
 
