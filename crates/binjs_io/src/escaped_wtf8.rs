@@ -104,9 +104,9 @@ pub fn escape(bytes: Vec<u8>) -> Vec<u8> {
             end + 1
         } else {
             if is_unit_2(input[end + 1]) && is_unit_3(input[end + 2]) {
-                let codepoint = ((input[end] as u16) & 0x0F << 12) |
+                let codepoint = (((input[end] as u16) & 0x0F) << 12) |
                     (((input[end + 1] & 0x3F) as u16) << 6) |
-                    ((input[end] & 0x3F) as u16);
+                    ((input[end + 2] & 0x3F) as u16);
 
                 buf.push(LONE_SURROGATE_ESCAPE_CHAR);
                 buf.push(encode_hex_char(((codepoint >> 12) & 0xf) as u8));
