@@ -108,10 +108,7 @@ mod context_information {
                 .map(|x| Into::<usize>::into(x.clone()) as u32)
                 .collect();
 
-            let distribution = std::rc::Rc::new(std::cell::RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances).
-                unwrap()));
-            // FIXME: This will fail if `stats_by_node_value` is empty.
-            // FIXME: We should have a fallback distribution in case everything is empty.
+            let distribution = std::rc::Rc::new(std::cell::RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)));
 
             let (stats_by_node_value, value_by_symbol_index): (HashMap<_, _>, Vec<_>) = self.stats_by_node_value
                 .into_iter()
