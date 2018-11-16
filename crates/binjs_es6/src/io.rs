@@ -287,12 +287,6 @@ impl Encoder {
             Serializer<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>> : Serialization<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>, &'a AST>,
             Serializer<TokenWriterTreeAdapter<binjs_io::xml::Encoder>> : Serialization<TokenWriterTreeAdapter<binjs_io::xml::Encoder>, &'a AST>,
             Serializer<binjs_io::entropy::write::Encoder> : Serialization<binjs_io::entropy::write::Encoder, &'a AST>
-/*
-        #[cfg(multistream)]
-        where
-            Serializer<binjs_io::multistream::TreeTokenWriter> : Serialization<binjs_io::multistream::TreeTokenWriter, &'a AST>,
-            Serializer<binjs_io::repair::Encoder> : Serialization<binjs_io::repair::Encoder, &'a AST>,
-*/
     {
         let mut path = IOPath::new();
         match *format {
@@ -310,25 +304,7 @@ impl Encoder {
                 let data = serializer.done()?;
                 Ok(Box::new(data))
             }
-            #[cfg(multistream)]
-            binjs_io::Format::MultiStream { ref mut targets, ref options } => {
-                targets.reset();
-                let writer = binjs_io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
-                let mut serializer = Serializer::new(writer);
-                serializer.serialize(&ast, &mut path)
-                    .expect("Could not encode AST");
-                let data = serializer.done()
-                    .expect("Could not finalize AST encoding");
-                Ok(Box::new(data))
-            }
-            #[cfg(multistream)]
-            binjs_io::Format::TreeRePair { ref options } => {
-                let writer = binjs_io::repair::Encoder::new(options.clone());
-                let mut serializer = Serializer::new(writer);
-                serializer.serialize(ast, &mut path)?;
-                let data = serializer.done()?;
-                Ok(Box::new(data))
-            }
+
             binjs_io::Format::XML => {
                 let writer = binjs_io::xml::Encoder::new();
                 let mut serializer = Serializer::new(TokenWriterTreeAdapter::new(writer));

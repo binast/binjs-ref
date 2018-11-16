@@ -143,27 +143,6 @@ fn main() {
                         .expect("Could not finalize AST encoding");
                     Box::new(data)
                 }
-                #[cfg(multistream)]
-                Format::TreeRePair { ref options } => {
-                    let writer = binjs::io::repair::Encoder::new(options.clone());
-                    let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                    serializer.serialize(&ast)
-                        .expect("Could not encode AST");
-                    let data = serializer.done()
-                        .expect("Could not finalize AST encoding");
-                    Box::new(data)
-                }
-                #[cfg(multistream)]
-                Format::MultiStream { ref mut targets, ref options } => {
-                    targets.reset();
-                    let writer = binjs::io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
-                    let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                    serializer.serialize(&ast)
-                        .expect("Could not encode AST");
-                    let data = serializer.done()
-                        .expect("Could not finalize AST encoding");
-                    Box::new(data)
-                }
                 _ => unimplemented!()
             };
 

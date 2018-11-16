@@ -11,14 +11,7 @@ use binjs_shared::{ IdentifierName, InterfaceName, FieldName, PropertyKey, Share
 
 use ::{ TokenReaderError, TokenWriterError };
 
-#[cfg(multistream)]
-use std::collections::HashMap;
-#[cfg(multistream)]
-use std::hash::Hash;
 use std::rc::Rc;
-
-#[cfg(multistream)]
-use itertools::Itertools;
 
 mod deprecated;
 

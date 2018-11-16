@@ -78,9 +78,6 @@ pub mod bytes;
 mod io;
 pub use io::*;
 
-#[cfg(multistream)]
-pub mod labels;
-
 /// A simple implementation of TokenReader/TokenWriter,
 /// designed specifically to help debug implementations
 /// of grammar encoders/decoders.
@@ -92,15 +89,6 @@ pub mod multipart;
 
 /// An encoding using entropy coding.
 pub mod entropy;
-
-
-#[cfg(multistream)]
-pub mod multistream;
-
-/// A tree comperssion mechanism.
-#[cfg(multistream)]
-pub mod repair;
-// pub mod repair2;
 
 pub mod xml;
 
@@ -119,24 +107,6 @@ pub enum DictionaryPlacement {
     /// Inline the dictionary. The first instance of a node is followed
     /// immediately by its definition.
     Inline
-}
-
-#[cfg(multistream)]
-/// A strategy for numbering nodes, labels, strings, ...
-#[derive(Clone, Debug)]
-pub enum NumberingStrategy {
-    /// Relative to the most recently used.
-    ///
-    /// Using twice the same value in a row will mean that the second index will be 0.
-    MRU,
-
-    /// Use global frequencey.
-    ///
-    /// The most common value will be numbered 0, the second most common will be numbered
-    /// 1, etc.
-    GlobalFrequency,
-
-    Prediction,
 }
 
 #[derive(Clone, Debug)]
@@ -235,16 +205,7 @@ pub enum Format {
         targets: multipart::Targets,
         stats: Rc<RefCell<multipart::Statistics>>
     },
-    #[cfg(multistream)]
-    TreeRePair {
-        options: repair::Options,
-    },
     XML,
-    #[cfg(multistream)]
-    MultiStream {
-        options: multistream::Options,
-        targets: multistream::Targets,
-    },
     Entropy {
         options: entropy::Options,
     }
@@ -271,19 +232,6 @@ impl Rand for Format {
                 }
             }),
             Rc::new(|_| Format::XML),
-            #[cfg(multistream)]
-            Rc::new(|_| Format::TreeRePair {
-                    options: repair::Options {
-                        max_rank: None,
-                        dictionary_placement: DictionaryPlacement::Header,
-                        numbering_strategy: NumberingStrategy::GlobalFrequency,
-                    }
-                }),
-            #[cfg(multistream)]
-            Rc::new(|rng| Format::MultiStream {
-                options: multistream::Options::rand(rng),
-                targets: multistream::Targets::rand(rng),
-            })
         ];
         let pick : Rc<Fn(&'a mut R) -> Format> = rng.choose(&generators)
             .map(Rc::clone)
@@ -334,11 +282,6 @@ impl Format {
                 // Nothing to do
                 Ok(())
             }
-            #[cfg(multistream)]
-            Format::TreeRePair { .. } => {
-                // Nothing to do
-                Ok(())
-            }
             Format::Entropy { ..} => {
                 // Nothing to do
                 Ok(())
@@ -354,35 +297,6 @@ impl Format {
                 f(grammar_table, "grammar")?;
                 f(strings_table, "strings")?;
                 f(tree, "tree")?;
-                Ok(())
-            }
-            #[cfg(multistream)]
-            Format::MultiStream { ref mut targets, .. } => {
-                let multistream::Targets {
-                    ref mut contents,
-                    ref mut header_identifiers,
-                    ref mut header_strings,
-                    ref mut header_tags,
-                } = *targets;
-                f(header_identifiers, "header_identifiers")?;
-                f(header_strings, "header_strings")?;
-                f(header_tags, "header_tags")?;
-                let multistream::PerCategory {
-                    ref mut declarations,
-                    ref mut idrefs,
-                    ref mut strings,
-                    ref mut numbers,
-                    ref mut bools,
-                    ref mut lists,
-                    ref mut tags
-                } = *contents;
-                f(declarations, "declarations")?;
-                f(idrefs, "idrefs")?;
-                f(strings, "strings")?;
-                f(numbers, "numbers")?;
-                f(bools, "bools")?;
-                f(lists, "lists")?;
-                f(tags, "tags")?;
                 Ok(())
             }
         }
