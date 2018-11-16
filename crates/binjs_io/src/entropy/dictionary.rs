@@ -30,10 +30,12 @@ pub struct FilesContaining(pub usize);
 macro_rules! symbol {
     ( $me: ident, $table: ident, $description: expr, $path:expr, $value: expr ) => {
         {
-            let tail = $path.tail($me.dictionary.depth);
+            use std::borrow::Borrow;
+
+            let path = $path.borrow();
             $me.dictionary
                 .$table
-                .add(tail, $value);
+                .add(path, $value);
 
             Ok(())
         }
@@ -42,8 +44,6 @@ macro_rules! symbol {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Dictionary<T> {
-    pub depth: usize,
-
     /// All booleans appearing in the AST, predicted by path.
     pub bool_by_path: PathPredict<Option<bool>, T>,
 
@@ -87,19 +87,18 @@ pub struct Dictionary<T> {
 impl<T> Dictionary<T> {
     pub fn new(depth: usize, width: usize) -> Self {
         Dictionary {
-            depth,
-            bool_by_path: PathPredict::new(),
-            float_by_path: PathPredict::new(),
-            unsigned_long_by_path: PathPredict::new(),
-            string_enum_by_path: PathPredict::new(),
-            property_key_by_path: PathPredict::new(),
+            bool_by_path: PathPredict::new(depth),
+            float_by_path: PathPredict::new(depth),
+            unsigned_long_by_path: PathPredict::new(depth),
+            string_enum_by_path: PathPredict::new(depth),
+            property_key_by_path: PathPredict::new(depth),
             property_key_by_window: WindowPredict::new(width),
-            identifier_name_by_path: PathPredict::new(),
+            identifier_name_by_path: PathPredict::new(depth),
             identifier_name_by_window: WindowPredict::new(width),
-            string_literal_by_path: PathPredict::new(),
+            string_literal_by_path: PathPredict::new(depth),
             string_literal_by_window: WindowPredict::new(width),
-            list_length_by_path: PathPredict::new(),
-            interface_name_by_path: PathPredict::new(),
+            list_length_by_path: PathPredict::new(depth),
+            interface_name_by_path: PathPredict::new(depth),
         }
     }
 
@@ -119,7 +118,6 @@ impl<T> Dictionary<T> {
             property_key_by_window: _,
             string_literal_by_window: _,
             identifier_name_by_window: _,
-            depth: _,
         } = *self;
 
         bool_by_path.len()
@@ -141,7 +139,6 @@ impl InstancesToProbabilities for Dictionary<Instances> {
     /// counting probabilities.
     fn instances_to_probabilities(self, _description: &str) -> Dictionary<SymbolInfo> {
         Dictionary {
-            depth: self.depth,
             bool_by_path: self.bool_by_path.instances_to_probabilities("bool_by_path"),
             float_by_path: self.float_by_path.instances_to_probabilities("float_by_path"),
             unsigned_long_by_path: self.unsigned_long_by_path.instances_to_probabilities("unsigned_long_by_path"),

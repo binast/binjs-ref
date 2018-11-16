@@ -190,13 +190,11 @@ impl Encoder {
 macro_rules! symbol {
     ( $me: ident, $table:ident, $info:ident, $description: expr, $path:expr, $value: expr ) => {
         {
-            // 1. Shorten the path.
-            let path = $path.tail($me.options
-                .probability_tables
-                .depth);
-            debug!(target: "entropy_details", "Known paths ({}, depth {}): [{}]",
+            use std::borrow::Borrow;
+
+            let path = $path.borrow();
+            debug!(target: "entropy_details", "Known paths ({}): [{}]",
                 $description,
-                $me.options.probability_tables.depth,
                 $me.options
                     .probability_tables
                     .$table
@@ -204,8 +202,8 @@ macro_rules! symbol {
                     .map(|k| format!("{:?}", k))
                     .format(", "));
 
-            // 2. Locate the `SymbolInfo` information for this value given the
-            // shortened path information.
+            // 1. Locate the `SymbolInfo` information for this value given the
+            // path information.
             let symbol = $me.options
                 .probability_tables
                 .$table
@@ -216,14 +214,14 @@ macro_rules! symbol {
                     TokenWriterError::NotInDictionary(format!("{}: {:?} at {:?}", $description, $value, path))
                 })?;
 
-            // 3. This gives us an index (`symbol.index`) and a probability distribution
+            // 2. This gives us an index (`symbol.index`) and a probability distribution
             // (`symbol.distribution`). Use them to write the probability at bit-level.
             let mut borrow = symbol.distribution
                 .borrow_mut();
             $me.writer.symbol(symbol.index.into(), borrow.deref_mut())
                 .map_err(TokenWriterError::WriteError)?;
 
-            // 4. Also, update statistics
+            // 3. Also, update statistics
             $me.content_lengths
                 .$info
                 .symbol(symbol.index.into(), borrow.deref_mut())

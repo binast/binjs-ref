@@ -262,6 +262,14 @@ impl<Context, NodeValue> InstancesToProbabilities for ContextPredict<Context, No
 /// `Statistics = SymbolInfo`.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct PathPredict<NodeValue, Statistics> where NodeValue: Eq + Hash + Clone {
+    /// The amount of context to use.
+    ///
+    /// With a depth of 0, paths are ignored. With a depth of 1, we only take into account
+    /// the node/field. With a depth of 2, we also take into account the node/field of the
+    /// grand parent, etc.
+    depth: usize,
+
+    /// Actual information stored.
     context_predict: ContextPredict<IOPath, NodeValue, Statistics>,
 }
 
@@ -270,15 +278,17 @@ impl<NodeValue> InstancesToProbabilities for PathPredict<NodeValue, Instances> w
     type AsProbabilities = PathPredict<NodeValue, SymbolInfo>;
     fn instances_to_probabilities(self, description: &str) -> PathPredict<NodeValue, SymbolInfo> {
         PathPredict {
+            depth: self.depth,
             context_predict: self.context_predict
                 .instances_to_probabilities(description)
         }
     }
 }
 
-impl<NodeValue, Statistics> PathPredict<NodeValue, Statistics> where NodeValue: Eq + Hash + Clone + std::fmt::Debug {
-    pub fn new() -> Self {
+impl<NodeValue, Statistics> PathPredict<NodeValue, Statistics> where NodeValue: Eq + Hash + Clone {
+    pub fn new(depth: usize,) -> Self {
         PathPredict {
+            depth,
             context_predict: ContextPredict::new(),
         }
     }
@@ -294,12 +304,22 @@ impl<NodeValue, Statistics> PathPredict<NodeValue, Statistics> where NodeValue: 
     pub fn paths(&self) -> impl Iterator<Item=&IOPath> {
         self.context_predict.contexts()
     }
+
+    fn tail<'a>(&self, path: &'a [IOPathItem]) -> &'a [IOPathItem] {
+        let path = if path.len() <= self.depth {
+            path
+        } else {
+            &path[path.len() - self.depth..]
+        };
+        path
+    }
 }
 impl<NodeValue> PathPredict<NodeValue, Instances> where NodeValue: Eq + Hash + Clone {
-        /// Register a value as being used at this path.
+    /// Register a value as being used at this path.
     pub fn add(&mut self, path: &[IOPathItem], value: NodeValue) {
+        let tail = self.tail(path);
         let mut as_path = IOPath::new();
-        as_path.extend_from_slice(path);
+        as_path.extend_from_slice(tail);
         self.context_predict.add(as_path, value);
     }
 }
@@ -308,26 +328,30 @@ impl<NodeValue> PathPredict<NodeValue, SymbolInfo> where NodeValue: Eq + Hash + 
     ///
     /// This method is only implemented when `Statistics=SymbolInfo` as the index is initialized
     /// by `instances_to_probabilities`.
-    pub fn value_by_symbol_index(&mut self, tail: &[IOPathItem], index: SymbolIndex) -> Option<&NodeValue> {
+    pub fn value_by_symbol_index(&mut self, path: &[IOPathItem], index: SymbolIndex) -> Option<&NodeValue> {
+        let tail = self.tail(path);
         self.context_predict.value_by_symbol_index(tail, index)
     }
 
 
-    pub fn stats_by_node_value(&mut self, tail: &[IOPathItem], value: &NodeValue) -> Option<&SymbolInfo> {
+    pub fn stats_by_node_value(&mut self, path: &[IOPathItem], value: &NodeValue) -> Option<&SymbolInfo> {
+        let tail = self.tail(path);
         self.context_predict.stats_by_node_value(tail, value)
     }
 
-    pub fn stats_by_node_value_mut(&mut self, tail: &[IOPathItem], value: &NodeValue) -> Option<&mut SymbolInfo> {
+    pub fn stats_by_node_value_mut(&mut self, path: &[IOPathItem], value: &NodeValue) -> Option<&mut SymbolInfo> {
+        let tail = self.tail(path);
         self.context_predict.stats_by_node_value_mut(tail, value)
     }
 
 
     /// Get frequency information for a given path.
     pub fn frequencies_at(&mut self, path: &[IOPathItem]) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>> {
+        let tail = self.tail(path);
         let info =
             if let Some(info) = self.context_predict
                 .by_context
-                .get_mut(path)
+                .get_mut(tail)
             {
                 info
             } else {
