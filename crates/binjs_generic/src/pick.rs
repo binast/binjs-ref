@@ -1,10 +1,12 @@
 use util::pick;
 
 use binjs_meta::spec::*;
+use std::iter;
 
 use json;
 use json::JsonValue as JSON;
 use rand;
+use rand::distributions::Alphanumeric;
 
 pub trait Pick {
     fn random<T: rand::Rng>(&self, syntax: &Spec, rng: &mut T, depth_limit: isize) -> JSON;
@@ -69,11 +71,11 @@ impl Pick for TypeSpec {
             {
                 const MAX_STRING_LEN : usize = 10;
                 let len = rng.gen_range(0, MAX_STRING_LEN);
-                let string : String = rng.gen_ascii_chars().take(len).collect();
+                let string : String = iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(len).collect();
                 json::from(string)
             }
             TypeSpec::Number => {
-                json::from(rng.next_f64())
+                json::from(rng.gen::<f64>())
             }
             TypeSpec::Void =>
                 JSON::Null,

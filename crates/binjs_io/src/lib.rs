@@ -26,7 +26,9 @@ use std::fmt::{ Debug, Formatter };
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use rand::{ Rand, Rng };
+use rand::Rng;
+use rand::distributions::{ Distribution, Standard };
+use rand::seq::SliceRandom;
 
 pub use bytes::compress::Compression;
 
@@ -163,9 +165,9 @@ impl CompressionTarget {
 
 /// Support picking a random compression target.
 /// Used for testing.
-impl Rand for CompressionTarget {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        Self::new(Compression::rand(rng))
+impl Distribution<CompressionTarget> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> CompressionTarget {
+        CompressionTarget::new(rng.gen())
     }
 }
 impl std::io::Write for CompressionTarget {
@@ -213,10 +215,10 @@ pub enum Format {
 
 /// Support picking a random format.
 /// Used for testing.
-impl Rand for Format {
-    fn rand<'a, R: Rng>(rng: &'a mut R) -> Self {
+impl Distribution<Format> for Standard {
+    fn sample<'a, R: Rng + ?Sized>(&self, rng: &'a mut R) -> Format {
         let generators = [
-            Rc::new(|_| Self::simple()) as Rc<Fn(&'a mut R) -> Format>,
+            Rc::new(|_| Format::simple()) as Rc<Fn(&'a mut R) -> Format>,
             Rc::new(|rng| {
                 use multipart::{ Statistics, Targets };
                 let stats = Rc::new(RefCell::new(Statistics::default()
@@ -224,16 +226,16 @@ impl Rand for Format {
 
                 Format::Multipart {
                     targets: Targets {
-                        strings_table: CompressionTarget::rand(rng),
-                        grammar_table: CompressionTarget::rand(rng),
-                        tree: CompressionTarget::rand(rng),
+                        strings_table: rng.gen(),
+                        grammar_table: rng.gen(),
+                        tree: rng.gen(),
                     },
                     stats
                 }
             }),
             Rc::new(|_| Format::XML),
         ];
-        let pick : Rc<Fn(&'a mut R) -> Format> = rng.choose(&generators)
+        let pick : Rc<Fn(&'a mut R) -> Format> = generators.choose(rng)
             .map(Rc::clone)
             .unwrap(); // Never empty
         pick(rng)
@@ -254,9 +256,9 @@ impl Format {
             Format::Multipart { stats, .. } =>
                 Format::Multipart {
                     targets: multipart::Targets {
-                        strings_table: CompressionTarget::rand(rng),
-                        grammar_table: CompressionTarget::rand(rng),
-                        tree: CompressionTarget::rand(rng),
+                        strings_table: rng.gen(),
+                        grammar_table: rng.gen(),
+                        tree: rng.gen(),
                     },
                     stats
                 }
