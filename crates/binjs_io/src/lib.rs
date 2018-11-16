@@ -230,9 +230,7 @@ pub trait FormatProvider {
 
 /// All the formats available for encoding/decoding.
 pub enum Format {
-    Simple {
-        stats: Rc<RefCell<simple::Statistics>>
-    },
+    Simple,
     Multipart {
         targets: multipart::Targets,
         stats: Rc<RefCell<multipart::Statistics>>
@@ -295,9 +293,7 @@ impl Rand for Format {
 }
 impl Format {
     pub fn simple() -> Self {
-        Format::Simple {
-            stats: Rc::new(RefCell::new(simple::Statistics::default()))
-        }
+        Format::Simple
     }
 
     /// Pick a random set of options.
@@ -305,7 +301,7 @@ impl Format {
     /// Used for testing.
     pub fn randomize_options<R: rand::Rng>(self, rng: &mut R) -> Self {
         match self {
-            Format::Simple { stats } => Format::Simple { stats },
+            Format::Simple => Format::Simple,
             Format::XML => Format::XML,
             Format::Multipart { stats, .. } =>
                 Format::Multipart {
