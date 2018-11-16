@@ -43,13 +43,12 @@ impl<R: Read> Decoder<R> {
 macro_rules! symbol {
     ( $me: ident, $table:ident, $description: expr, $path:expr ) => {
         {
+            use std::borrow::Borrow;
             use std::ops::DerefMut;
-
-            // 1. Shorten the path.
-            let path = $path.tail($me.options.probability_tables.depth);
+            let path = $path.borrow();
 
             let index = {
-                // 2. Get the frequency information for this shortened path.
+                // 1. Get the frequency information for this path.
                 let frequencies = $me.options.probability_tables
                     .$table
                     .frequencies_at(path)
