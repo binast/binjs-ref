@@ -169,7 +169,8 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    pub fn new(options: ::entropy::Options) -> Self {
+    /// Create a new Encoder.
+    pub fn new(options: ::entropy::Options) -> Self { // FIXME: We shouldn't need to clone the entire `options`. A shared immutable reference would do nicely.
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
             options,

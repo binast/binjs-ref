@@ -1,10 +1,13 @@
 extern crate binjs;
 extern crate itertools;
 
-use binjs::generic::{ FromJSON, IdentifierName, InterfaceName, PropertyKey, SharedString };
+use binjs::generic::{ FromJSON, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString };
 use binjs::source::{ Shift, SourceParser };
-use binjs::io::{ TokenSerializer };
+use binjs::io::{ Deserialization, TokenSerializer };
+use binjs::io::entropy;
 use binjs::io::entropy::dictionary::{ Dictionary, DictionaryBuilder, FilesContaining, KindedStringMap };
+use binjs::io::entropy::probabilities::InstancesToProbabilities;
+use binjs::specialized::es6::ast::{ Script, Visitor, Walker, WalkPath };
 use binjs::specialized::es6::io::IOPath;
 
 use std::collections::HashMap;
@@ -14,7 +17,16 @@ use itertools::Itertools;
 #[macro_use]
 extern crate test_logger;
 
-test!(test_model_dictionary_builder, {
+/// A visitor designed to reset offsets to 0.
+struct OffsetCleanerVisitor;
+impl Visitor<()> for OffsetCleanerVisitor {
+    fn visit_offset(&mut self, _path: &WalkPath, node: &mut Offset) -> Result<(), ()> {
+        *node = binjs::generic::Offset(0);
+        Ok(())
+    }
+}
+
+test!(test_entropy_roundtrip, {
     let parser = Shift::new();
 
     let mut dictionary = Dictionary::new(3, 32);
@@ -25,7 +37,7 @@ test!(test_model_dictionary_builder, {
         "'use strict'",
         "function foo(x, y) { var i; for (i = 0; i < 100; ++i) { console.log('Some text', x, y + i, x + y + i, x + y + i + 1); } }"
     ];
-    for source in sources.into_iter() {
+    for source in &sources {
         let builder = DictionaryBuilder::new(&mut dictionary, &mut files_containing_string);
 
         println!("Parsing");
@@ -48,25 +60,25 @@ test!(test_model_dictionary_builder, {
     }
 
     // We may now access data.
-    eprintln!("Built a dictionary with {} states, {} strings",
+    println!("Built a dictionary with {} states, {} strings",
         dictionary.len(),
         files_containing_string.len());
 
-    eprintln!("Checking identifiers per file");
+    println!("Checking identifiers per file");
     check_strings(
         &files_containing_string.identifier_name_instances,
         vec![("console", 1), ("foo", 1), ("i", 1), ("x", 3), ("y", 3)],
         |name| Some(IdentifierName::from_string(name.to_string()))
     );
 
-    eprintln!("Checking property keys per file");
+    println!("Checking property keys per file");
     check_strings(
         &files_containing_string.property_key_instances,
         vec![("log", 1)],
         |name| Some(PropertyKey::from_string(name.to_string()))
     );
 
-    eprintln!("Checking interface names per file");
+    println!("Checking interface names per file");
     check_strings(
         &files_containing_string.interface_name_instances,
         vec![
@@ -101,7 +113,7 @@ test!(test_model_dictionary_builder, {
         |name| InterfaceName::from_string(name.to_string())
     );
 
-    eprintln!("String literals per file");
+    println!("String literals per file");
     check_strings(
         &files_containing_string.string_literal_instances,
         vec![
@@ -111,7 +123,7 @@ test!(test_model_dictionary_builder, {
         |value| Some(SharedString::from_string(value.to_string()))
     );
 
-    eprintln!("String enum instances");
+    println!("String enum instances");
     check_strings(
         &files_containing_string.string_enum_instances,
         vec![
@@ -124,6 +136,49 @@ test!(test_model_dictionary_builder, {
         ],
         |value| SharedString::from_string(value.to_string())
     );
+
+    let options = entropy::Options::new(
+        dictionary.instances_to_probabilities("dictionary"),
+        files_containing_string.instances_to_probabilities("strings"),
+    );
+
+    println!("Starting roundtrip with dictionary");
+    for source in &sources {
+        println!("Reparsing");
+        let ast  = parser.parse_str(source)
+            .expect("Could not parse source");
+        let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
+            .expect("Could not import AST");
+
+        println!("Reannotating");
+        binjs::specialized::es6::scopes::AnnotationVisitor::new()
+            .annotate_script(&mut ast);
+
+        let mut path = IOPath::new();
+
+        println!("Serializing with entropy");
+        let encoder = entropy::write::Encoder::new(options.clone());
+        let mut serializer = binjs::specialized::es6::io::Serializer::new(encoder);
+        serializer.serialize(&ast, &mut path)
+            .expect("Could not walk");
+        let (data, _) = serializer.done()
+            .expect("Could not walk");
+        assert_eq!(path.len(), 0);
+
+        println!("Deserializing with entropy");
+        let decoder = entropy::read::Decoder::new(options.clone(), std::io::Cursor::new(data))
+            .expect("Could not create decoder");
+        let mut deserializer = binjs::specialized::es6::io::Deserializer::new(decoder);
+        let mut script : Script = deserializer.deserialize(&mut path)
+            .expect("Could not deserialize");
+
+        println!("Checking equality between ASTs");
+        // At this stage, we have a problem: offsets are 0 in `ast`, but not necessarily
+        // in `decoded`.
+        script.walk(&mut WalkPath::new(), &mut OffsetCleanerVisitor)
+            .expect("Could not cleanup offsets");
+        assert_eq!(ast, script);
+    }
 });
 
 fn check_strings<T, F>(found: &HashMap<T, FilesContaining>, expected: Vec<(&str, usize)>, f: F)
