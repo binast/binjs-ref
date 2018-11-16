@@ -313,8 +313,16 @@ fn main_aux() {
     }
 
     if show_stats {
-        if let Format::Multipart { ref stats, .. } = options.format {
-            progress!(options.quiet, "Statistics: {}", stats.borrow());
+        match options.format {
+            Format::Multipart { ref stats, .. } => {
+                progress!(options.quiet, "Statistics: {}", stats.borrow());
+            }
+            Format::Entropy { options: ref entropy } => {
+                progress!(options.quiet, "Statistics: {}", entropy.statistics_for_write());
+            }
+            _ => {
+                progress!(options.quiet, "No stats available for this format");
+            }
         }
     }
 }
