@@ -41,7 +41,7 @@ fn should_skip(rng: &mut Rng) -> bool {
     float < CHANCES_TO_SKIP
 }
 
-/// A visitor designed to resent offsets to 0.
+/// A visitor designed to reset offsets to 0.
 struct OffsetCleanerVisitor;
 impl Visitor<()> for OffsetCleanerVisitor {
     fn visit_offset(&mut self, _path: &WalkPath, node: &mut Offset) -> Result<(), ()> {

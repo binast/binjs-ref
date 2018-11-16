@@ -59,7 +59,7 @@ pub mod read;
 pub mod write;
 
 mod predict;
-mod probabilities;
+pub mod probabilities;
 
 use self::dictionary::{ Dictionary, FilesContaining, KindedStringMap };
 use self::predict::Instances;
@@ -94,6 +94,15 @@ pub struct Options {
     content_instances: Rc<RefCell<ContentInfo<Instances>>>,
 }
 impl Options {
+    pub fn new(probability_tables:Dictionary<SymbolInfo>, string_tables: KindedStringMap<SymbolInfo>) -> Self {
+        Options {
+            probability_tables,
+            string_tables,
+            content_lengths: Rc::new(RefCell::new(write::ContentInfo::default())),
+            content_instances: Rc::new(RefCell::new(write::ContentInfo::default())),
+        }
+    }
+
     /// Return the statistics as (number of instances, number of bytes).
     pub fn statistics_for_write(&self) -> ContentInfo<(Bytes, Instances)> {
         let borrow_lengths = self.content_lengths.borrow();

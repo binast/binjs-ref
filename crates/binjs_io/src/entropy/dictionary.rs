@@ -229,8 +229,7 @@ impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
                 x as u32
             })
             .collect();
-        let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)
-            .unwrap())); // FIXME: Handle the empty case.
+        let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)));
 
         self.into_iter()
             .enumerate()
