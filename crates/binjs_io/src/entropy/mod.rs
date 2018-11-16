@@ -64,8 +64,11 @@ mod probabilities;
 use self::dictionary::{ Dictionary, FilesContaining, KindedStringMap };
 use self::predict::Instances;
 use self::probabilities::SymbolInfo;
+use self::write::ContentInfo;
 
-use std::cell::{ RefCell, Ref };
+use ::bytes::lengthwriter::Bytes;
+
+use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -80,14 +83,32 @@ pub struct Options {
     /// at this stage.
     string_tables: KindedStringMap<SymbolInfo>,
 
-    /// Statistics obtained while writing.
+    /// Statistics obtained while writing: number of bytes written.
     /// If several files are written with the same options, we accumulate
     /// statistics.
-    content_lengths: Rc<RefCell<write::ContentInfo<usize>>>,
+    content_lengths: Rc<RefCell<ContentInfo<Bytes>>>,
+
+    /// Statistics obtained while writing: number of instances of each
+    /// kind written. If several files are written with the same options,
+    /// we accumulate statistics.
+    content_instances: Rc<RefCell<ContentInfo<Instances>>>,
 }
 impl Options {
-    pub fn statistics_for_write(&self) -> Ref<write::ContentInfo<usize>> {
-        self.content_lengths.borrow()
+    /// Return the statistics as (number of instances, number of bytes).
+    pub fn statistics_for_write(&self) -> ContentInfo<(Bytes, Instances)> {
+        let borrow_lengths = self.content_lengths.borrow();
+        let borrow_instances = self.content_instances.borrow();
+        ContentInfo {
+            bools: (borrow_lengths.bools, borrow_instances.bools),
+            floats: (borrow_lengths.floats, borrow_instances.floats),
+            unsigned_longs: (borrow_lengths.unsigned_longs, borrow_instances.unsigned_longs),
+            string_enums: (borrow_lengths.string_enums, borrow_instances.string_enums),
+            property_keys: (borrow_lengths.property_keys, borrow_instances.property_keys),
+            identifier_names: (borrow_lengths.identifier_names, borrow_instances.identifier_names),
+            interface_names: (borrow_lengths.interface_names, borrow_instances.interface_names),
+            string_literals: (borrow_lengths.string_literals, borrow_instances.string_literals),
+            list_lengths: (borrow_lengths.list_lengths, borrow_instances.list_lengths),
+        }
     }
 }
 
@@ -144,6 +165,7 @@ impl ::FormatProvider for FormatProvider {
                 probability_tables: probability_tables.instances_to_probabilities("probability_tables"),
                 string_tables: string_tables.instances_to_probabilities("string_tables"),
                 content_lengths: Rc::new(RefCell::new(write::ContentInfo::default())),
+                content_instances: Rc::new(RefCell::new(write::ContentInfo::default())),
             }
         })
     }
