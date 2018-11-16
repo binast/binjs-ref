@@ -9,6 +9,9 @@ pub mod compress;
 /// Encoding/decoding floating-point numbers.
 pub mod float;
 
+/// Determining the length of a stream without actually writing/storing data.
+pub mod lengthwriter;
+
 /// Serializing/deserializing traits.
 pub mod serialize;
 
