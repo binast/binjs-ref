@@ -236,10 +236,9 @@ macro_rules! symbol {
 }
 
 impl TokenWriter for Encoder {
-    type Statistics = usize; // Placeholder
     type Data = Vec<u8>;
 
-    fn done(self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
+    fn done(self) -> Result<Self::Data, TokenWriterError> {
         let data = self.writer.done()
             .map_err(TokenWriterError::WriteError)?;
         *self.options
@@ -253,7 +252,7 @@ impl TokenWriter for Encoder {
             .borrow_mut()
             +=
         self.content_instances;
-        Ok((data, 0))
+        Ok(data)
     }
 
     // --- Primitive values

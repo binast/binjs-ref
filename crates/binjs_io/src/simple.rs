@@ -363,27 +363,6 @@ impl AsRef<[u8]> for Data {
     }
 }
 
-#[derive(Default)]
-/// This encoder doesn't produce useful statistics.
-pub struct Statistics;
-impl std::fmt::Display for Statistics {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "No statistics available for this encoder")
-    }
-}
-
-impl std::ops::Add for Statistics {
-    type Output = Self;
-    fn add(self, _: Self) -> Self::Output {
-        Statistics
-    }
-}
-impl std::ops::AddAssign for Statistics {
-    fn add_assign(&mut self, _: Self) {
-        // Nothing to do.
-    }
-}
-
 #[derive(Clone)]
 enum TreeItem {
     Bytes(Vec<u8>),
@@ -443,13 +422,12 @@ impl TreeTokenWriter {
 impl TokenWriterWithTree for TreeTokenWriter {
     type Tree = AbstractTree;
     type Data = Vec<u8>;
-    type Statistics = Statistics;
 
-    fn done(self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
+    fn done(self) -> Result<Self::Data, TokenWriterError> {
         let unwrapped = Rc::try_unwrap(self.root)
             .unwrap_or_else(|e| panic!("We still have {} references to the root", Rc::strong_count(&e)));
         match unwrapped {
-            TreeItem::Bytes(bytes) => Ok((bytes, Statistics)),
+            TreeItem::Bytes(bytes) => Ok(bytes),
             TreeItem::Offset => Err(TokenWriterError::InvalidOffsetField),
         }
     }
@@ -603,12 +581,7 @@ impl ::FormatProvider for FormatProvider {
     }
 
     fn handle_subcommand(&self, _: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
-        use std::cell::RefCell;
-        use std::rc::Rc;
-
-        Ok(::Format::Simple {
-            stats: Rc::new(RefCell::new(::simple::Statistics::default()))
-        })
+        Ok(::Format::Simple)
     }
 }
 

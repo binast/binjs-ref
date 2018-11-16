@@ -546,7 +546,7 @@ impl TreeTokenWriter {
         Tree(result)
     }
 
-    pub fn done(mut self) -> Result<(Box<[u8]>, Statistics), TokenWriterError> {
+    pub fn done(mut self) -> Result<Box<[u8]>, TokenWriterError> {
         const MAGIC_HEADER: &[u8; 5] = b"BINJS";
         // Write header to byte stream
         self.data.write_all(MAGIC_HEADER)
@@ -666,16 +666,15 @@ impl TreeTokenWriter {
         self.statistics.uncompressed_bytes += self.statistics.grammar_table.compression.before_bytes
             + self.statistics.strings_table.compression.before_bytes
             + self.statistics.tree.compression.before_bytes;
-        Ok((self.data.clone().into_boxed_slice(), self.statistics))
+        Ok(self.data.clone().into_boxed_slice())
     }
 }
 
 impl TokenWriterWithTree for TreeTokenWriter {
     type Tree = Tree;
     type Data = Box<[u8]>;
-    type Statistics = Statistics;
 
-    fn done(self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
+    fn done(self) -> Result<Self::Data, TokenWriterError> {
         (self as TreeTokenWriter).done()
     }
 

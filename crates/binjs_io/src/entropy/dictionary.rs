@@ -333,13 +333,12 @@ impl<'a> DictionaryBuilder<'a> {
 }
 
 impl<'a> TokenWriter for DictionaryBuilder<'a> {
-    type Statistics = usize /* placeholder */;
-    type Data = [u8;0];
+    type Data = [u8;0]; // Placeholder
 
-    fn done(mut self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
+    fn done(mut self) -> Result<Self::Data, TokenWriterError> {
         self.done_with_file();
         debug!(target: "entropy", "Built a dictionary with len: {}", self.dictionary.len());
-        Ok(([], 0))
+        Ok([])
     }
 
     fn bool_at(&mut self, value: Option<bool>, path: &IOPath) -> Result<(), TokenWriterError> {

@@ -231,7 +231,7 @@ fn test_multipart_io() {
             writer.string(Some(&SharedString::from_str("simple string")))
                 .expect("Writing simple string");
 
-            let (output, _) = writer.done()
+            let output = writer.done()
                 .expect("Finalizing data");
             File::create(format!("/tmp/test-simple-string-{}.binjs", suffix))
                 .expect("Could not create file")
@@ -253,7 +253,7 @@ fn test_multipart_io() {
             writer.string(Some(&data))
                 .expect("Writing string with escapes");
 
-            let (output, _) = writer.done()
+            let output = writer.done()
                 .expect("Finalizing data");
             File::create(format!("/tmp/test-string-with-escapes-{}.binjs", suffix)).unwrap()
                 .write_all(&output).unwrap();
@@ -281,7 +281,7 @@ fn test_multipart_io() {
             ])
                 .expect("Writing trivial tagged tuple");
 
-            let (output, _) = writer.done()
+            let output = writer.done()
                 .expect("Finalizing data");
             File::create(format!("/tmp/test-simple-tagged-tuple-{}.binjs", suffix)).unwrap()
                 .write_all(&output).unwrap();
@@ -319,7 +319,7 @@ fn test_multipart_io() {
             writer.list(vec![])
                 .expect("Writing empty list");
 
-            let (output, _) = writer.done()
+            let output = writer.done()
                 .expect("Finalizing data");
             File::create(format!("/tmp/test-empty-list-{}.binjs", suffix)).unwrap()
                     .write_all(&output).unwrap();
@@ -341,7 +341,7 @@ fn test_multipart_io() {
             writer.list(vec![item_0, item_1])
                 .expect("Writing trivial list");
 
-            let (output, _) = writer.done()
+            let output = writer.done()
                 .expect("Finalizing data");
             File::create(format!("/tmp/test-trivial-list-{}.binjs", suffix)).unwrap()
                 .write_all(&output).unwrap();
@@ -374,7 +374,7 @@ fn test_multipart_io() {
             writer.list(vec![list])
                 .expect("Writing outer list");
 
-            let (output, _) = writer.done()
+            let output = writer.done()
                 .expect("Finalizing data");
             File::create(format!("/tmp/test-nested-lists-{}.binjs", suffix)).unwrap()
                 .write_all(&output).unwrap();

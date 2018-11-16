@@ -161,7 +161,7 @@ test!(test_entropy_roundtrip, {
         let mut serializer = binjs::specialized::es6::io::Serializer::new(encoder);
         serializer.serialize(&ast, &mut path)
             .expect("Could not walk");
-        let (data, _) = serializer.done()
+        let data = serializer.done()
             .expect("Could not walk");
         assert_eq!(path.len(), 0);
 

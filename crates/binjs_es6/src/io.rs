@@ -137,7 +137,7 @@ impl<W> Serializer<W> where W: TokenWriter {
 }
 
 impl<W> TokenSerializer<W> for Serializer<W> where W: TokenWriter {
-    fn done(self) -> Result<(W::Data, W::Statistics), TokenWriterError> {
+    fn done(self) -> Result<W::Data, TokenWriterError> {
         self.writer.done()
     }
 }
@@ -294,28 +294,29 @@ impl Encoder {
                 let writer = binjs_io::simple::TreeTokenWriter::new();
                 let mut serializer = Serializer::new(TokenWriterTreeAdapter::new(writer));
                 serializer.serialize(ast, &mut path)?;
-                let (data, _) = serializer.done()?;
+                let data = serializer.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Multipart { ref mut targets, .. } => {
                 let writer = binjs_io::multipart::TreeTokenWriter::new(targets.clone());
                 let mut serializer = Serializer::new(TokenWriterTreeAdapter::new(writer));
                 serializer.serialize(ast, &mut path)?;
-                let (data, _) = serializer.done()?;
+                let data = serializer.done()?;
                 Ok(Box::new(data))
             }
+
             binjs_io::Format::XML => {
                 let writer = binjs_io::xml::Encoder::new();
                 let mut serializer = Serializer::new(TokenWriterTreeAdapter::new(writer));
                 serializer.serialize(ast, &mut path)?;
-                let (data, _) = serializer.done()?;
+                let data = serializer.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Entropy { ref options } => {
                 let writer = binjs_io::entropy::write::Encoder::new((*options).clone());
                 let mut serializer = Serializer::new(writer);
                 serializer.serialize(ast, &mut path)?;
-                let (data, _) = serializer.done()?;
+                let data = serializer.done()?;
                 Ok(Box::new(data))
             }
         }

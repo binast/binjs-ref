@@ -39,12 +39,11 @@ impl Error {
 
 pub trait Encode {
     type Data;
-    type Statistics;
     fn generic_encode(&self, value: &JSON) -> Result<(), std::io::Error> {
         self.encode(value)
     }
     fn encode(&self, value: &JSON) -> Result<(), std::io::Error>;
-    fn done(self) -> Result<(Self::Data, Self::Statistics), std::io::Error>;
+    fn done(self) -> Result<Self::Data, std::io::Error>;
 }
 
 pub struct Encoder<'a, B> where B: TokenWriter {
@@ -308,7 +307,6 @@ impl<'a, B> Encoder<'a, B> where B: TokenWriter {
 
 impl<'a, B> Encode for Encoder<'a, B> where B: TokenWriter {
     type Data = B::Data;
-    type Statistics = B::Statistics;
     fn encode(&self, value: &JSON) -> Result<(), std::io::Error> {
         (self as &Encoder<'a, B>).encode(value)
             .map(|_| ())
@@ -316,7 +314,7 @@ impl<'a, B> Encode for Encoder<'a, B> where B: TokenWriter {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", err))
             })
     }
-    fn done(self) -> Result<(Self::Data, Self::Statistics), std::io::Error> {
+    fn done(self) -> Result<Self::Data, std::io::Error> {
         self.builder.into_inner().done()
             .map_err(|err| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{:?}", err))
