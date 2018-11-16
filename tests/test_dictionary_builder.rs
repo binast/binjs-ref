@@ -4,7 +4,7 @@ extern crate itertools;
 use binjs::generic::{ FromJSON, IdentifierName, InterfaceName, PropertyKey, SharedString };
 use binjs::source::{ Shift, SourceParser };
 use binjs::io::{ TokenSerializer };
-use binjs::io::entropy::model::{ Dictionary, DictionaryBuilder, FilesContaining, KindedStringMap };
+use binjs::io::entropy::dictionary::{ Dictionary, DictionaryBuilder, FilesContaining, KindedStringMap };
 use binjs::specialized::es6::io::IOPath;
 
 use std::collections::HashMap;
@@ -17,7 +17,7 @@ extern crate test_logger;
 test!(test_model_dictionary_builder, {
     let parser = Shift::new();
 
-    let mut dictionary = Dictionary::new(3);
+    let mut dictionary = Dictionary::new(3, 32);
     let mut files_containing_string = KindedStringMap::default();
     let sources = [
         "var x = y",

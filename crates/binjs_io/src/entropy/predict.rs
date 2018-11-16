@@ -17,9 +17,21 @@ pub type IOPathItem = binjs_shared::ast::PathItem<InterfaceName, (/* child index
 #[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy)]
 pub struct Instances(usize);
 
+/// A newtype for `usize` used to represent an index in a dictionary of values.
+#[derive(Add, Constructor, Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Into, Debug, Hash, Serialize, Deserialize)]
+struct DictionaryIndex(usize);
+
+/// A newtype for `usize` used to represent a reference to a value already encountered.
+///
+/// By convention, `0` is the latest value, `1` the value before, etc.
+#[derive(Constructor, Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Hash, Into, Debug, Serialize, Deserialize)]
+struct BackReference(usize);
+
+
 mod context_information {
     use super::Instances;
     use entropy::probabilities::{ SymbolIndex, SymbolInfo };
+
     use std::collections::HashMap;
     use std::hash::Hash;
 
@@ -72,8 +84,7 @@ mod context_information {
         }
 
         pub fn value_by_symbol_index(&self, index: SymbolIndex) -> Option<&NodeValue> {
-            let index: usize = index.into();
-            self.value_by_symbol_index.get(index)
+            self.value_by_symbol_index.get(Into::<usize>::into(index))
         }
     }
 
@@ -94,10 +105,7 @@ mod context_information {
             let instances: Vec<_> = self
                 .stats_by_node_value
                 .values()
-                .map(|x| {
-                    let x: usize = x.clone().into();
-                    x as u32
-                })
+                .map(|x| Into::<usize>::into(x.clone()) as u32)
                 .collect();
 
             let distribution = std::rc::Rc::new(std::cell::RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances).
@@ -336,3 +344,192 @@ impl<NodeValue> PathPredict<NodeValue, SymbolInfo> where NodeValue: Eq + Hash + 
     }
 }
 
+
+
+
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+enum WindowPrediction {
+    BackReference(BackReference),
+    DictionaryIndex(DictionaryIndex),
+}
+
+/// A prediction mechanism based on a sliding window.
+///
+/// Whenever encoding/decoding a value, if this value is one of the `width` latest
+/// seen values, we use a backreference, otherwise, we use an index into a global
+/// list of values. This strategy should work well when backreferences have a high
+/// probability of happening.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WindowPredict<NodeValue, Statistics> where NodeValue: Clone + Eq + Hash {
+    /// The window width.
+    width: usize,
+
+    /// The `width` values seen most recently, indexed by `BackReference`. Note that
+    /// this vector starts empty and may contain fewer than `width` values. A value
+    /// may never appear twice in this vector.
+    latest_values: Vec<NodeValue>,
+
+    /// A dictionary of all values encountered so far.
+    /// Whenever we encounter a value that had previously not been encountered,
+    /// we append it at the end. Values never move.
+    value_by_dictionary_index: Vec<NodeValue>,
+
+    /// A mapping from NodeValue to the `DictionaryIndex` used to represent them
+    /// in `value_by_dictionary_index`. Mapping for a given value never changes.
+    dictionary_index_by_value: HashMap<NodeValue, DictionaryIndex>,
+
+    /// Actual statistics on values.
+    info: ContextInformation<WindowPrediction, Statistics>,
+}
+impl<NodeValue, Statistics> WindowPredict<NodeValue, Statistics> where NodeValue: Clone + Eq + Hash {
+    pub fn new(width: usize) -> Self {
+        WindowPredict {
+            width,
+            value_by_dictionary_index: Vec::with_capacity(1024), // FIXME: Magic number
+            dictionary_index_by_value: HashMap::with_capacity(1024),
+            latest_values: Vec::with_capacity(width),
+            info: ContextInformation::new(),
+        }
+    }
+
+    /// Update current window by moving the value at index `index` to the latest-seen
+    /// position (index 0).
+    ///
+    /// Fails if the index is not in [0, self.latest_values.len()[
+    fn window_move_to_front(&mut self, index: BackReference) -> Result<(), ()> {
+        let as_usize = Into::<usize>::into(index);
+        if as_usize >= self.latest_values.len() {
+            return Err(());
+        }
+        let ref mut slice = self.latest_values
+            .as_mut_slice()
+            [0..as_usize];
+        slice.rotate_right(1);
+        Ok(())
+    }
+
+    /// Update current window by putting a value to the latest-seen position (index 0).
+    ///
+    /// If the value is already in the window, it is moved to the latest-seen position,
+    /// otherwise, it is added directly in latest-seen position. If the resulting window
+    /// is too large, it is truncated.
+    fn window_insert_value(&mut self, value: &NodeValue) -> Option<BackReference> {
+        // It's possible that the value was present in the window.
+        if let Some(index) = self.latest_values
+            .iter()
+            .position(|v| v == value)
+        {
+            let index = BackReference(index);
+            self.window_move_to_front(index)
+                .unwrap(); // We have just checked that `index < self.latest_values.len()`.
+            return Some(index)
+        }
+        if self.latest_values.len() < self.width {
+            // If the window isn't full yet, simply add the value at start.
+            self.latest_values.insert(0, value.clone());
+        } else {
+            // Otherwise, push front and remove last.
+            let slice = self.latest_values
+                .as_mut_slice();
+            slice[slice.len() - 1] = value.clone();
+            slice.rotate_right(1);
+        }
+        None
+    }
+}
+impl<NodeValue> WindowPredict<NodeValue, Instances> where NodeValue: Clone + Eq + std::hash::Hash + std::fmt::Debug {
+    pub fn add(&mut self, value: NodeValue) {
+        // --- At this stage, we don't know whether the value is known.
+
+        let number_of_values = self.value_by_dictionary_index.len();
+        let dictionary_index = *self.dictionary_index_by_value.entry(value.clone())
+            .or_insert(DictionaryIndex(number_of_values));
+
+        if dictionary_index == DictionaryIndex(number_of_values) {
+            // We've just inserted `value`.
+            self.value_by_dictionary_index.push(value.clone());
+        } else {
+            // Value was already known.
+            let index : usize = dictionary_index.into();
+            debug_assert_eq!(value, self.value_by_dictionary_index[index]);
+        };
+
+        // --- We are now sure that the value is known.
+
+        // Update window.
+        let symbol = match self.window_insert_value(&value) {
+            Some(backref) => {
+                // If the value was already in the window, we'll
+                // favor this window, as this should give us a tighter
+                // set of common symbols.
+                WindowPrediction::BackReference(backref)
+            }
+            None => {
+                // Otherwise, fallback to the global dictionary.
+                WindowPrediction::DictionaryIndex(dictionary_index)
+            }
+        };
+        self.info.add(symbol);
+    }
+}
+
+impl<NodeValue> WindowPredict<NodeValue, SymbolInfo> where NodeValue: Clone + Eq + std::hash::Hash + std::fmt::Debug {
+    // FIXME: We should find a way to enforce a specific mapping between `index` and `WindowPredict`,
+    // to make it easy to decode.
+    pub fn value_by_symbol_index(&mut self, index: SymbolIndex) -> Option<NodeValue> {
+        match self.info.value_by_symbol_index(index) {
+            None => None,
+            Some(&WindowPrediction::DictionaryIndex(dictionary_index)) => {
+                // Global entry.
+                let result = self.value_by_dictionary_index
+                    .get(dictionary_index.0)?
+                    .clone();
+                self.window_insert_value(&result);
+                Some(result)
+            }
+            Some(&WindowPrediction::BackReference(index)) => {
+                let as_usize: usize = index.into();
+                let result = self.latest_values
+                    .get(as_usize)?
+                    .clone();
+                if let Err(_) = self.window_move_to_front(index) {
+                    return None;
+                }
+                Some(result)
+            }
+        }
+    }
+
+    pub fn stats_by_node_value_mut(&mut self, value: &NodeValue) -> Option<&mut SymbolInfo> {
+        // At this stage, the value may appear in both the dictionary
+        // and the window. We'll favor the window if possible.
+        let prediction =
+            match self.window_insert_value(value) {
+                Some(backref) => WindowPrediction::BackReference(backref),
+                None => {
+                    let index = self.dictionary_index_by_value
+                        .get(value)?
+                        .clone();
+                    WindowPrediction::DictionaryIndex(index)
+                }
+            };
+
+        self.info
+            .stats_by_node_value_mut()
+            .get_mut(&prediction)
+    }
+}
+
+impl<NodeValue> InstancesToProbabilities for WindowPredict<NodeValue, Instances> where NodeValue: Clone + Eq + Hash {
+    type AsProbabilities = WindowPredict<NodeValue, SymbolInfo>;
+    fn instances_to_probabilities(self, _description: &str) -> WindowPredict<NodeValue, SymbolInfo> {
+        WindowPredict {
+            width: self.width,
+            value_by_dictionary_index: self.value_by_dictionary_index,
+            dictionary_index_by_value: self.dictionary_index_by_value,
+            latest_values: Vec::with_capacity(self.width),
+            info: self.info.instances_to_probabilities("WindowPredict::info"),
+        }
+    }
+}

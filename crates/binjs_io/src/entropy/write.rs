@@ -195,6 +195,8 @@ impl TokenWriter for Encoder {
         Ok((data, 0))
     }
 
+    // --- Primitive values
+
     fn bool_at(&mut self, value: Option<bool>, path: &Path) -> Result<(), TokenWriterError> {
         symbol!(self, bool_by_path, bools, "bool_by_path",  path,  value)
     }
@@ -222,6 +224,9 @@ impl TokenWriter for Encoder {
     fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &Path) -> Result<(), TokenWriterError> {
         symbol!(self, property_key_by_path, property_keys, "property_key_by_path",  path,  value.cloned())
     }
+
+
+    // --- Composite stuff
 
     fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, _children: &[&FieldName], path: &Path) -> Result<(), TokenWriterError> {
         symbol!(self, interface_name_by_path, interface_names, "interface_name_by_path",  path,  tag)
