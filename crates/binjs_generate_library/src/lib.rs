@@ -603,7 +603,7 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                             .map(|case| {
                                 format!(
 "           {name}::{constructor}(box ref value) => {{
-                // Path will be updated in by the serializer for this tagged tuple.
+                // Path will be updated by the serializer for this tagged tuple.
                 (self as &mut Serialization<W, &'a {constructor}>).serialize(value, path)
             }}",
                                     name = name,
@@ -1078,8 +1078,12 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
 
         self.writer.enter_tagged_tuple_at(&interface_name, &field_names, path)?;
         path.enter_interface(interface_name.clone());
+        let result = loop {{ // Fake loop, used only to be able to `break` early.
 {fields}
+            break Ok(());
+        }};
         path.exit_interface(interface_name.clone());
+        result?;
         self.writer.exit_tagged_tuple_at(&interface_name, &field_names, path)?;
 
         Ok(())
@@ -1101,12 +1105,14 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                             .enumerate()
                             .map(|(index, field)| format!(
 "
-        let field_name = FieldName::from_str(\"{field_name}\");
-        let path_item = ({index}, field_name.clone()); // String is shared
-        path.enter_field(path_item.clone());
-        let result = (self as &mut Serialization<W, &'a _>).serialize(&value.{rust_field_name}, path);
-        path.exit_field(path_item);
-        result?;",
+            let field_name = FieldName::from_str(\"{field_name}\");
+            let path_item = ({index}, field_name.clone()); // String is shared
+            path.enter_field(path_item.clone());
+            let result = (self as &mut Serialization<W, &'a _>).serialize(&value.{rust_field_name}, path);
+            path.exit_field(path_item);
+            if let Err(err) = result {{
+                break Err(err); // Break with error
+            }}",
                                 index = index,
                                 field_name = field.name().to_str(),
                                 rust_field_name = field.name().to_rust_identifier_case()))
