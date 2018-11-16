@@ -61,25 +61,6 @@ impl Encoder {
                 let (data, _) = encoder.done()?;
                 Ok(Box::new(data))
             }
-            #[cfg(multistream)]
-            binjs_io::Format::MultiStream { ref mut targets, ref options } => {
-                targets.reset();
-                let writer = binjs_io::multistream::TreeTokenWriter::new(options.clone(), targets.clone());
-                let mut encoder = encode::Encoder::new(grammar, writer);
-                encoder.generic_encode(&ast)
-                    .expect("Could not encode AST");
-                let (data, _) = encoder.done()
-                    .expect("Could not finalize AST encoding");
-                Ok(Box::new(data))
-            }
-            #[cfg(multistream)]
-            binjs_io::Format::TreeRePair { ref options } => {
-                let writer = binjs_io::repair::Encoder::new(options.clone());
-                let mut encoder = encode::Encoder::new(grammar, writer);
-                encoder.generic_encode(ast)?;
-                let (data, _) = encoder.done()?;
-                Ok(Box::new(data))
-            }
             binjs_io::Format::XML => {
                 let writer = TokenWriterTreeAdapter::new(binjs_io::xml::Encoder::new());
                 let mut encoder = encode::Encoder::new(grammar, writer);
