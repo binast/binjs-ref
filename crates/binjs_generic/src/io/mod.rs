@@ -51,28 +51,28 @@ impl Encoder {
                 let writer = TokenWriterTreeAdapter::new(binjs_io::simple::TreeTokenWriter::new());
                 let mut encoder = encode::Encoder::new(grammar, writer);
                 encoder.generic_encode(ast)?;
-                let (data, _) = encoder.done()?;
+                let data = encoder.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Multipart { ref mut targets, .. } => {
                 let writer = TokenWriterTreeAdapter::new(binjs_io::multipart::TreeTokenWriter::new(targets.clone()));
                 let mut encoder = encode::Encoder::new(grammar, writer);
                 encoder.generic_encode(ast)?;
-                let (data, _) = encoder.done()?;
+                let data = encoder.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::XML => {
                 let writer = TokenWriterTreeAdapter::new(binjs_io::xml::Encoder::new());
                 let mut encoder = encode::Encoder::new(grammar, writer);
                 encoder.generic_encode(ast)?;
-                let (data, _) = encoder.done()?;
+                let data = encoder.done()?;
                 Ok(Box::new(data))
             }
             binjs_io::Format::Entropy { ref options } => {
                 let writer = binjs_io::entropy::write::Encoder::new((*options).clone());
                 let mut encoder = encode::Encoder::new(grammar, writer);
                 encoder.generic_encode(ast)?;
-                let (data, _) = encoder.done()?;
+                let data = encoder.done()?;
                 Ok(Box::new(data))
             }
         }

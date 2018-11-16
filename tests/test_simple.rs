@@ -50,7 +50,7 @@ test!(test_simple_tokenization, {
 
         encoder.encode(&ast)
             .expect("Could not encode AST");
-        let (data, _) = encoder.done()
+        let data = encoder.done()
             .expect("Could not finalize encoding");
 
         println!("Decoding sample");

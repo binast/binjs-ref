@@ -81,7 +81,6 @@ impl Encoder {
     }
 }
 impl TokenWriterWithTree for Encoder {
-    type Statistics = u32; // Ignored for the time being.
     type Tree = Rc<SubTree>;
     type Data = Vec<u8>;
 
@@ -120,14 +119,14 @@ impl TokenWriterWithTree for Encoder {
         unimplemented!()
     }
 
-    fn done(self) -> Result<(Self::Data, Self::Statistics), TokenWriterError> {
+    fn done(self) -> Result<Self::Data, TokenWriterError> {
         use xml_rs::writer::*;
         let mut buf = vec![];
         {
             let mut writer = EmitterConfig::new().perform_indent(true).create_writer(&mut buf);
             self.root.write(&mut writer).unwrap();
         }
-        Ok((buf, 0))
+        Ok(buf)
     }
 }
 

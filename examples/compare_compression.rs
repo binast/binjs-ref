@@ -139,7 +139,7 @@ fn main() {
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
                     serializer.serialize(&ast, &mut IOPath::new())
                         .expect("Could not encode AST");
-                    let (data, _) = serializer.done()
+                    let data = serializer.done()
                         .expect("Could not finalize AST encoding");
                     Box::new(data)
                 }

@@ -65,7 +65,6 @@ struct PathTraceWriter {
 }
 
 impl TokenWriter for PathTraceWriter {
-    type Statistics = usize;
     type Data = [u8;0];
     fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::IdentifierNameAt {
@@ -135,7 +134,7 @@ impl TokenWriter for PathTraceWriter {
         // Nothing to do.
         Ok(())
     }
-    fn done(self) ->  Result<(Self::Data, Self::Statistics), TokenWriterError> {
+    fn done(self) ->  Result<Self::Data, TokenWriterError> {
         unimplemented!()
     }
 }
