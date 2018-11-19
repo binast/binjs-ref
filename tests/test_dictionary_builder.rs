@@ -138,8 +138,7 @@ test!(test_entropy_roundtrip, {
     );
 
     let options = entropy::Options::new(
-        dictionary.instances_to_probabilities("dictionary"),
-        files_containing_string.instances_to_probabilities("strings"),
+        dictionary.instances_to_probabilities("dictionary")
     );
 
     println!("Starting roundtrip with dictionary");

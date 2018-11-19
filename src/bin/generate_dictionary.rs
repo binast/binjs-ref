@@ -245,13 +245,6 @@ fn main_aux() {
         .unwrap_or_else(|e| panic!("Could not create file: {:?}", e));
     bincode::serialize_into(file_dictionary, &dictionary)
         .expect("Could not serialize entropy dictionary");
-
-    let dest_strings = dest.join("dict.strings");
-    progress!(quiet, "Writing strings to {:?}", dest_strings);
-    let file_strings = File::create(dest_strings)
-        .unwrap_or_else(|e| panic!("Could not create file: {:?}", e));
-    bincode::serialize_into(file_strings, &files_containing_string)
-        .expect("Could not serialize strings dictionary");
 }
 
 
