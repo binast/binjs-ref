@@ -3,8 +3,11 @@
 use bytes::serialize::*;
 use bytes::varnum::*;
 
-use rand;
-use rand::{ Rand, Rng };
+use rand::Rng;
+use rand::distributions::Distribution;
+use rand::distributions::Standard;
+use rand::thread_rng;
+use rand::seq::SliceRandom;
 
 use std;
 use std::collections::HashSet;
@@ -32,11 +35,12 @@ pub enum Compression {
     Lzw,
 }
 
-impl Rand for Compression {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
+impl Distribution<Compression> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Compression {
         use self::Compression::*;
-        rng.choose(&[Identity, Gzip, /* Deflate is apprently broken https://github.com/alexcrichton/flate2-rs/issues/151 , */ Brotli /*, Lzw doesn't work yet */])
-            .unwrap() // The array is not empty.
+        let choices = [Identity, Gzip, /* Deflate is apprently broken https://github.com/alexcrichton/flate2-rs/issues/151 , */ Brotli /*, Lzw doesn't work yet */];
+        choices.choose(rng)
+            .unwrap()
             .clone()
     }
 }
@@ -79,7 +83,7 @@ impl Compression {
             Some("br") => Compression::Brotli,
             Some("gzip") => Compression::Gzip,
             Some("deflate") => Compression::Deflate,
-            Some("random") => Compression::rand(&mut rand::weak_rng()),
+            Some("random") => thread_rng().gen(),
             Some(_) => {
                 return None;
             }

@@ -18,7 +18,7 @@ binjs_meta = { path = "../binjs_meta", version = "*" }
 binjs_shared = { path = "../binjs_shared", version = "*" }
 json = "^0.11"
 log = "*"
-rand = "^0.4"
+rand = "^0.6"
 
 [dev-dependencies]
 clap = "^2.30"

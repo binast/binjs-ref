@@ -18,8 +18,6 @@ use binjs::specialized::es6::ast::{ IOPath, Script, Visitor, Walker, WalkPath };
 use std::io::Cursor;
 use std::thread;
 
-use rand::Rng;
-
 /// This test takes 1h+ on Travis, which is too long, so we need to
 /// reduce it. So each individual file + options combination has
 /// a `CHANCES_TO_SKIP` probability of being skipped.
@@ -36,8 +34,8 @@ fn progress() {
 ///
 /// Skipping is generally needed to avoid timeouts, because we
 /// are testing lots of files.
-fn should_skip(rng: &mut Rng) -> bool {
-    let float = rng.next_f64();
+fn should_skip<T: rand::Rng>(rng: &mut T) -> bool {
+    let float = rng.gen::<f64>();
     float < CHANCES_TO_SKIP
 }
 
