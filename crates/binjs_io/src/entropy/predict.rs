@@ -35,6 +35,8 @@ mod context_information {
     use std::collections::HashMap;
     use std::hash::Hash;
 
+    use itertools::Itertools;
+
     /// A container for the statistics available in a given prediction context
     /// (a typical prediction context is a path in the AST, or a position in
     /// the file, etc.).
@@ -99,7 +101,7 @@ mod context_information {
         }
     }
 
-    impl<NodeValue> ::entropy::probabilities::InstancesToProbabilities for ContextInformation<NodeValue, Instances> where NodeValue: Clone + Eq + Hash {
+    impl<NodeValue> ::entropy::probabilities::InstancesToProbabilities for ContextInformation<NodeValue, Instances> where NodeValue: Clone + Eq + Hash + Ord {
         type AsProbabilities = ContextInformation<NodeValue, SymbolInfo>;
         fn instances_to_probabilities(self, _description: &str) -> ContextInformation<NodeValue, SymbolInfo> {
             let instances: Vec<_> = self
@@ -111,6 +113,8 @@ mod context_information {
             let distribution = std::rc::Rc::new(std::cell::RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)));
 
             let (stats_by_node_value, value_by_symbol_index): (HashMap<_, _>, Vec<_>) = self.stats_by_node_value
+                .into_iter()
+                .sorted_by(|(value_1, _), (value_2, _)| Ord::cmp(value_1, value_2)) // We need to ensure that the order remains stable across process restarts.
                 .into_iter()
                 .enumerate()
                 .map(|(index, (value, _))| {
@@ -226,7 +230,7 @@ impl<Context, NodeValue> ContextPredict<Context, NodeValue, SymbolInfo> where Co
     }
 }
 
-impl<Context, NodeValue> InstancesToProbabilities for ContextPredict<Context, NodeValue, Instances> where Context: Eq + Hash + Clone + std::fmt::Debug, NodeValue: Eq + Hash + Clone {
+impl<Context, NodeValue> InstancesToProbabilities for ContextPredict<Context, NodeValue, Instances> where Context: Eq + Hash + Clone + std::fmt::Debug, NodeValue: Eq + Hash + Clone + Ord {
     type AsProbabilities = ContextPredict<Context, NodeValue, SymbolInfo>;
     fn instances_to_probabilities(self, description: &str) -> ContextPredict<Context, NodeValue, SymbolInfo> {
         debug!(target: "entropy", "Converting ContextPredict {} to probabilities", description);
@@ -274,7 +278,7 @@ pub struct PathPredict<NodeValue, Statistics> where NodeValue: Eq + Hash + Clone
 }
 
 
-impl<NodeValue> InstancesToProbabilities for PathPredict<NodeValue, Instances> where NodeValue: Eq + Hash + Clone {
+impl<NodeValue> InstancesToProbabilities for PathPredict<NodeValue, Instances> where NodeValue: Eq + Hash + Clone + Ord {
     type AsProbabilities = PathPredict<NodeValue, SymbolInfo>;
     fn instances_to_probabilities(self, description: &str) -> PathPredict<NodeValue, SymbolInfo> {
         PathPredict {
@@ -368,10 +372,18 @@ impl<NodeValue> PathPredict<NodeValue, SymbolInfo> where NodeValue: Eq + Hash + 
 
 
 
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+/// An index for a value in `WindowPredict`.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, PartialOrd, Ord)]
 enum WindowPrediction {
+    /// A recently encountered value.
+    ///
+    /// `0` is the index of the latest value, `width - 1` is the index of the oldest
+    /// value still in the window.
+    ///
+    /// Invariant: `0 <= BackReference < width`.
     BackReference(BackReference),
+
+    /// An index into a global dictionary.
     DictionaryIndex(DictionaryIndex),
 }
 
@@ -542,7 +554,7 @@ impl<NodeValue> WindowPredict<NodeValue, SymbolInfo> where NodeValue: Clone + Eq
     }
 }
 
-impl<NodeValue> InstancesToProbabilities for WindowPredict<NodeValue, Instances> where NodeValue: Clone + Eq + Hash {
+impl<NodeValue> InstancesToProbabilities for WindowPredict<NodeValue, Instances> where NodeValue: Clone + Eq + Hash + Ord {
     type AsProbabilities = WindowPredict<NodeValue, SymbolInfo>;
     fn instances_to_probabilities(self, _description: &str) -> WindowPredict<NodeValue, SymbolInfo> {
         WindowPredict {
