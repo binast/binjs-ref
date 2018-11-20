@@ -9,6 +9,7 @@
 
 use ::TokenWriterError;
 use ::io::{ Path, TokenWriter };
+use ::io::content::ContentInfo;
 use bytes::lengthwriter::{ Bytes, LengthWriter };
 use super::predict::Instances;
 
@@ -21,68 +22,6 @@ use range_encoding::opus;
 
 const INITIAL_BUFFER_SIZE_BYTES : usize = 32768;
 
-/// A container for information associated with a type of data we write to the stream
-/// as part of the content (i.e. not the header).
-///
-/// Typically used to collect/display the number of bytes written in each category.
-#[derive(Debug, Default, Add, Clone, AddAssign)]
-pub struct ContentInfo<T> {
-    pub bools: T,
-    pub floats: T,
-    pub unsigned_longs: T,
-    pub string_enums: T,
-    pub property_keys: T,
-    pub identifier_names: T,
-    pub interface_names: T,
-    pub string_literals: T,
-    pub list_lengths: T,
-}
-impl ContentInfo<opus::Writer<LengthWriter>> {
-    pub fn new() -> Self {
-        ContentInfo {
-            bools: opus::Writer::new(LengthWriter::new()),
-            floats: opus::Writer::new(LengthWriter::new()),
-            unsigned_longs: opus::Writer::new(LengthWriter::new()),
-            string_enums: opus::Writer::new(LengthWriter::new()),
-            property_keys: opus::Writer::new(LengthWriter::new()),
-            identifier_names: opus::Writer::new(LengthWriter::new()),
-            interface_names: opus::Writer::new(LengthWriter::new()),
-            string_literals: opus::Writer::new(LengthWriter::new()),
-            list_lengths: opus::Writer::new(LengthWriter::new()),
-        }
-    }
-    pub fn into_statistics(self) -> ContentInfo<Bytes> {
-        ContentInfo {
-            bools: self.bools.done()
-				.unwrap()
-				.len(),
-            floats: self.floats.done()
-				.unwrap()
-				.len(),
-            unsigned_longs: self.unsigned_longs.done()
-				.unwrap()
-				.len(),
-            string_enums: self.string_enums.done()
-				.unwrap()
-				.len(),
-            property_keys: self.property_keys.done()
-				.unwrap()
-				.len(),
-            identifier_names: self.identifier_names.done()
-				.unwrap()
-				.len(),
-            interface_names: self.interface_names.done()
-				.unwrap()
-				.len(),
-            string_literals: self.string_literals.done()
-				.unwrap()
-				.len(),
-            list_lengths: self.list_lengths.done()
-				.unwrap()
-				.len(),
-        }
-    }
-}
 impl std::fmt::Display for ContentInfo<(Bytes, Instances)> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         let bools_bytes = Into::<usize>::into(self.bools.0);
@@ -174,8 +113,8 @@ impl Encoder {
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
             options,
-            content_lengths: ContentInfo::new(),
-            content_instances: ContentInfo::default(),
+            content_lengths: ContentInfo::with(|_| opus::Writer::new(LengthWriter::new())),
+            content_instances: ContentInfo::with(|_| 0.into()),
         }
     }
 }
@@ -244,7 +183,9 @@ impl TokenWriter for Encoder {
             .borrow_mut()
             +=
         self.content_lengths
-            .into_statistics();
+            .into_with(|_, field| field.done()
+                .unwrap()
+                .len());
         *self.options
             .content_instances
             .borrow_mut()

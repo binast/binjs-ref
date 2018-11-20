@@ -77,7 +77,7 @@ pub mod bytes;
 
 /// Definition of TokenReader/TokenWriter traits.
 #[macro_use]
-mod io;
+pub mod io;
 pub use io::*;
 
 /// A simple implementation of TokenReader/TokenWriter,
