@@ -104,17 +104,16 @@ mod context_information {
     impl<NodeValue> ::entropy::probabilities::InstancesToProbabilities for ContextInformation<NodeValue, Instances> where NodeValue: Clone + Eq + Hash + Ord {
         type AsProbabilities = ContextInformation<NodeValue, SymbolInfo>;
         fn instances_to_probabilities(self, _description: &str) -> ContextInformation<NodeValue, SymbolInfo> {
-            let instances: Vec<_> = self
-                .stats_by_node_value
-                .values()
-                .map(|x| Into::<usize>::into(x.clone()) as u32)
+            let stats_by_node_value = self.stats_by_node_value.into_iter()
+                .sorted_by(|(value_1, _), (value_2, _)| Ord::cmp(value_1, value_2)); // We need to ensure that the order remains stable across process restarts.
+
+            let instances = stats_by_node_value.iter()
+                .map(|(_, instances)| Into::<usize>::into(instances.clone()) as u32)
                 .collect();
 
             let distribution = std::rc::Rc::new(std::cell::RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)));
 
-            let (stats_by_node_value, value_by_symbol_index): (HashMap<_, _>, Vec<_>) = self.stats_by_node_value
-                .into_iter()
-                .sorted_by(|(value_1, _), (value_2, _)| Ord::cmp(value_1, value_2)) // We need to ensure that the order remains stable across process restarts.
+            let (stats_by_node_value, value_by_symbol_index): (HashMap<_, _>, Vec<_>) = stats_by_node_value
                 .into_iter()
                 .enumerate()
                 .map(|(index, (value, _))| {
