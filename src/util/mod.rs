@@ -1,6 +1,7 @@
 use binjs_generic::syntax::ASTError;
 
 use rand;
+use rand::distributions::Alphanumeric;
 use json::JsonValue as JSON;
 use json::object::Object as Object;
 
@@ -11,9 +12,9 @@ use std::path::*;
 pub fn get_temporary_file(extension: &str) -> std::result::Result<(PathBuf, File), std::io::Error> {
     use rand::Rng;
     let directory = std::env::temp_dir();
-    let mut rng = rand::os::OsRng::new()
+    let mut rng = rand::rngs::OsRng::new()
         .unwrap();
-    let mut ascii = rng.gen_ascii_chars();
+    let ascii = rng.sample(Alphanumeric);
     let mut buf = Vec::with_capacity(8);
     let mut error = None;
     const ATTEMPTS : usize = 1024;
@@ -21,7 +22,7 @@ pub fn get_temporary_file(extension: &str) -> std::result::Result<(PathBuf, File
         // FIXME: There must be a nicer way to do this.
         buf.clear();
         for _ in 0..8 {
-            buf.push(ascii.next().unwrap());
+            buf.push(ascii);
         }
         let name : String = buf.iter().collect();
         let path = directory.as_path()
