@@ -12,8 +12,7 @@ use std::path::*;
 pub fn get_temporary_file(extension: &str) -> std::result::Result<(PathBuf, File), std::io::Error> {
     use rand::Rng;
     let directory = std::env::temp_dir();
-    let mut rng = rand::rngs::OsRng::new()
-        .unwrap();
+    let mut rng = rand::thread_rng();
     let ascii = rng.sample(Alphanumeric);
     let mut buf = Vec::with_capacity(8);
     let mut error = None;
