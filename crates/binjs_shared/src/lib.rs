@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate downcast_rs;
 extern crate itertools;
 extern crate json;
 #[macro_use]
@@ -10,6 +12,8 @@ mod json_conversion;
 pub use json_conversion::*;
 
 pub mod ast;
+pub use ast::Node;
+
 pub mod mru;
 mod shared_string;
 pub use shared_string::SharedString;

@@ -8,6 +8,7 @@
 //! experimentation of sophisticated compression schemes.
 
 use binjs_shared::{ IdentifierName, InterfaceName, FieldName, PropertyKey, SharedString, self };
+use binjs_shared::ast::Node;
 
 use ::{ TokenReaderError, TokenWriterError };
 
@@ -274,8 +275,8 @@ pub trait TokenWriter {
     ///
     /// By convention, a null tagged tuple is the special tagged tuple "null",
     /// with no children.
-    fn enter_tagged_tuple_at(&mut self, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError>;
-    fn exit_tagged_tuple_at(&mut self, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(&mut self, _node: &Node, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError>;
+    fn exit_tagged_tuple_at(&mut self, _node: &Node, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
         Ok(())
     }
 

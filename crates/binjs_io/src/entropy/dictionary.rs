@@ -4,7 +4,7 @@ use entropy::probabilities::{ InstancesToProbabilities, SymbolIndex, SymbolInfo 
 use io::TokenWriter;
 use ::TokenWriterError;
 
-use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString };
+use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString };
 
 use std;
 use std::collections::HashMap;
@@ -383,7 +383,7 @@ impl<'a> TokenWriter for DictionaryBuilder<'a> {
         Ok(())
     }
 
-    fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, _children: &[&FieldName], path: &IOPath)  -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(&mut self, _node: &Node, tag: &InterfaceName, _children: &[&FieldName], path: &IOPath)  -> Result<(), TokenWriterError> {
         symbol!(self, interface_name_by_path, "interface_name_by_path", path, tag.clone())?;
         Self::add_instance_to_strings(tag.clone(), &mut self.instances_of_strings_in_current_file.interface_name_instances);
         Ok(())

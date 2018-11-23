@@ -12,7 +12,7 @@ use ::io::{ Path, TokenWriter };
 use ::io::statistics::{ ContentInfo, Instances };
 use bytes::lengthwriter::LengthWriter;
 
-use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString };
+use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString };
 
 use std::ops::DerefMut;
 
@@ -158,7 +158,7 @@ impl TokenWriter for Encoder {
 
     // --- Composite stuff
 
-    fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, _children: &[&FieldName], path: &Path) -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(&mut self, _node: &Node, tag: &InterfaceName, _children: &[&FieldName], path: &Path) -> Result<(), TokenWriterError> {
         symbol!(self, interface_name_by_path, interface_names, "interface_name_by_path",  path,  tag)
     }
 

@@ -7,7 +7,7 @@
 
 extern crate binjs;
 
-use binjs::generic::{ FieldName, FromJSON, IdentifierName, InterfaceName, PropertyKey, SharedString };
+use binjs::generic::{ FieldName, FromJSON, IdentifierName, InterfaceName, Node, PropertyKey, SharedString };
 use binjs::source::{ Shift, SourceParser };
 use binjs::io::{ TokenWriter, TokenWriterError };
 use binjs::specialized::es6::io::IOPath;
@@ -101,7 +101,7 @@ impl TokenWriter for PathTraceWriter {
         });
         Ok(())
     }
-    fn enter_tagged_tuple_at(&mut self, tag: &InterfaceName, children: &[&FieldName], path: &IOPath) -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(&mut self, _node: &Node, tag: &InterfaceName, children: &[&FieldName], path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::TaggedTupleAt {
             interface: tag.clone(),
             path: path.clone(),

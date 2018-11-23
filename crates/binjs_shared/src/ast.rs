@@ -203,3 +203,9 @@ impl<I, F> std::borrow::Borrow<[PathItem<I, F>]> for Path<I, F> where I: Debug +
         &self.items
     }
 }
+
+/// The root type for nodes in the AST.
+pub trait Node: downcast_rs::Downcast {
+    fn name(&self) -> &'static str;
+}
+impl_downcast!(Node);
