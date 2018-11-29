@@ -1,4 +1,4 @@
-use binjs_io::{ self, Deserialization, Guard, TokenReader, TokenReaderError, TokenWriterTreeAdapter, TokenWriterError };
+use binjs_io::{ self, Deserialization, TokenReader, TokenReaderError, TokenWriterTreeAdapter, TokenWriterError };
 pub use binjs_io::{ Serialization, TokenSerializer, TokenWriter };
 use binjs_shared::{ FieldName, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString, self };
 
@@ -99,7 +99,7 @@ impl<R> Deserialization<R, Option<PropertyKey>> for Deserializer<R> where R: Tok
 
 impl<R, T> Deserialization<R, Vec<T>> for Deserializer<R> where R: TokenReader, Self: Deserialization<R, T> {
     fn deserialize(&mut self, path: &mut IOPath) -> Result<Vec<T>, TokenReaderError> {
-        let (len, guard) = self.reader.list_at(path)?;
+        let len = self.reader.enter_list_at(path)?;
         if len > 0 {
             print_file_structure!(self.reader, "list (length={}) [", len);
         } else {
@@ -112,7 +112,7 @@ impl<R, T> Deserialization<R, Vec<T>> for Deserializer<R> where R: TokenReader, 
         if len > 0 {
             print_file_structure!(self.reader, "]");
         }
-        guard.done()?;
+        self.reader.exit_list_at(path)?;
         Ok(result)
     }
 }

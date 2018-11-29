@@ -124,7 +124,7 @@ impl RustExporter {
         ast_buffer.push_str("
 use binjs_shared;
 use binjs_shared::{ FieldName, FromJSON, FromJSONError, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString, ToJSON, VisitMe };
-use binjs_io::{ Deserialization, Guard, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter, TokenWriterError };
+use binjs_io::{ Deserialization, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter, TokenWriterError };
 
 use io::*;
 
@@ -468,7 +468,7 @@ impl Default for {name} {{
 impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}\");
-        let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
+        let (kind, _) = self.reader.enter_tagged_tuple_at(path)?;
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}, found {{}}\", kind.as_str());
         let path_interface = kind.clone();
         let result = match kind.as_str() {{
@@ -481,14 +481,14 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
         if result.is_err() {{
             self.reader.poison();
         }}
-        guard.done()?;
+        self.reader.exit_tagged_tuple_at(path)?;
         result
     }}
 }}
 impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional sum {name}\");
-        let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
+        let (kind, _) = self.reader.enter_tagged_tuple_at(path)?;
         let path_interface = kind.clone();
         let result = match kind.as_str() {{
 {variants_some}
@@ -501,7 +501,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
         if result.is_err() {{
             self.reader.poison();
         }}
-        guard.done()?;
+        self.reader.exit_tagged_tuple_at(path)?;
         result
     }}
 }}
@@ -983,7 +983,7 @@ pub struct {rust_name} {{
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
     fn deserialize_tuple_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{rust_name}, TokenReaderError> where R: TokenReader {{
-        let (interface_name, _, guard) = self.reader.tagged_tuple_at(path)?;
+        let (interface_name, _) = self.reader.enter_tagged_tuple_at(path)?;
         let result =
             if let \"{name}\" = interface_name.as_str() {{
                 debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: present\");
@@ -1000,7 +1000,7 @@ impl<R> Deserializer<R> where R: TokenReader {{
             self.reader.poison();
         }}
         debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: finalizing\");
-        guard.done()?;
+        self.reader.exit_tagged_tuple_at(path)?;
         debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {name}: done\");
         result
     }}
@@ -1027,7 +1027,7 @@ impl<R> Deserialization<R, {rust_name}> for Deserializer<R> where R: TokenReader
 impl<R> Deserialization<R, Option<{rust_name}>> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{rust_name}>, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {rust_name}\");
-        let (kind, _, guard) = self.reader.tagged_tuple_at(path)?;
+        let (kind, _) = self.reader.enter_tagged_tuple_at(path)?;
         let result = match kind.as_str() {{
             \"{rust_name}\" => {{
                 let path_interface = kind.clone();
@@ -1050,7 +1050,7 @@ impl<R> Deserialization<R, Option<{rust_name}>> for Deserializer<R> where R: Tok
         if result.is_err() {{
             self.reader.poison();
         }}
-        guard.done()?;
+        self.reader.exit_tagged_tuple_at(path)?;
         result
     }}
 }}

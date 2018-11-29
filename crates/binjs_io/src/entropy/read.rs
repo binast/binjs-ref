@@ -2,7 +2,7 @@
 use super::probabilities::SymbolIndex;
 
 use ::TokenReaderError;
-use ::io::{ FileStructurePrinter, Path, TokenReader, TrivialGuard };
+use ::io::{ FileStructurePrinter, Path, TokenReader };
 
 use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString };
 
@@ -73,10 +73,6 @@ macro_rules! symbol {
 }
 
 impl<R: Read> TokenReader for Decoder<R> {
-    type ListGuard = TrivialGuard;
-    type TaggedGuard = TrivialGuard;
-    type UntaggedGuard = TrivialGuard;
-
     // ---- String types
 
     fn string_at(&mut self, path: &Path) -> Result<Option<SharedString>, TokenReaderError> {
@@ -118,19 +114,19 @@ impl<R: Read> TokenReader for Decoder<R> {
 
     // ---- Composed types
 
-    fn list_at(&mut self, path: &Path) -> Result<(u32, Self::ListGuard), TokenReaderError> {
+    fn enter_list_at(&mut self, path: &Path) -> Result<u32, TokenReaderError> {
         let length = symbol!(self, list_length_by_path, "list_length_by_path", path)?
             .ok_or_else(|| TokenReaderError::EmptyList)?;
             // For the moment, we cannot read an optional list.
-        Ok((length, TrivialGuard::new()))
+        Ok(length)
     }
 
-    fn tagged_tuple_at(&mut self, path: &Path) -> Result<(InterfaceName, Option<std::rc::Rc<Box<[FieldName]>>>, Self::TaggedGuard), TokenReaderError> {
+    fn enter_tagged_tuple_at(&mut self, path: &Path) -> Result<(InterfaceName, Option<std::rc::Rc<Box<[FieldName]>>>), TokenReaderError> {
         let name = symbol!(self, interface_name_by_path, "interface_name_by_path", path)?;
-        Ok((name, None, TrivialGuard::new()))
+        Ok((name, None))
     }
 
-    fn untagged_tuple_at(&mut self, _path: &Path) -> Result<Self::UntaggedGuard, TokenReaderError> {
+    fn enter_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
         unimplemented!()
     }
 }
