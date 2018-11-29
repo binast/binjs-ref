@@ -162,26 +162,8 @@ pub type Path = binjs_shared::ast::Path<InterfaceName, /* Field */ (usize, Field
 /// which lets the reader determine what item we're reading in the AST. This
 /// may be used both for debugging purposes and for encodings that depend
 /// on the current position in the AST (e.g. entropy coding).
-pub trait TokenReader: FileStructurePrinter where Self::ListGuard: Guard,
-                                                  Self::TaggedGuard: Guard,
-                                                  Self::UntaggedGuard: Guard,
-                                                  Self: Sized
+pub trait TokenReader: FileStructurePrinter where Self: Sized
 {
-    /// A guard, used to make sure that the consumer has properly read a list.
-    ///
-    /// See the documentation of `self.list`.
-    type ListGuard;
-
-    /// A guard, used to make sure that the consumer has properly read a tagged tuple.
-    ///
-    /// See the documentation of `self.tagged_tuple`.
-    type TaggedGuard;
-
-    /// A guard, used to make sure that the consumer has properly read an untagged tuple.
-    ///
-    /// See the documentation of `self.untagged_tuple`.
-    type UntaggedGuard;
-
     /// Poison the reader, ensuring that it will never be used for reading again.
     fn poison(&mut self) {
         // Do nothing.
@@ -239,33 +221,30 @@ pub trait TokenReader: FileStructurePrinter where Self::ListGuard: Guard,
     fn offset_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError>;
 
     /// Start reading a list.
-    ///
-    /// Returns a guard for that list and the number of elements
-    /// in the list. Once the list is read entirely, callers MUST
-    /// call `guard.done()` to ensure that the list was properly
-    /// read (in particular that all bytes were consumed). In most
-    /// implementations, failure to do so will raise an assertion.
-    fn list_at(&mut self, _path: &Path) -> Result<(u32, Self::ListGuard), TokenReaderError>;
+    fn enter_list_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError>;
+
+    /// Finish reading a list.
+    fn exit_list_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
+        Ok(())
+    }
 
     /// Start reading a tagged tuple. If the stream was encoded
     /// properly, the tag is attached to an **ordered** tuple of
     /// fields that may be extracted **in order**.
-    ///
-    /// Returns the tag name, the ordered array of fields in which
-    /// the contents must be read, and a guard for that tuple.
-    /// Once the tuple is read entirely, callers MUST
-    /// call `guard.done()` to ensure that the tuple was properly
-    /// read (in particular that all bytes were consumed). In most
-    /// implementations, failure to do so will raise an assertion.
-    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), TokenReaderError>;
+    fn enter_tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>), TokenReaderError>;
+
+    /// Finish reading a tagged tuple.
+    fn exit_tagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
+        Ok(())
+    }
 
     /// Start reading an untagged tuple.
-    ///
-    /// Once the tuple is read entirely, callers MUST
-    /// call `guard.done()` to ensure that the tuple was properly
-    /// read (in particular that all bytes were consumed). In most
-    /// implementations, failure to do so will raise an assertion.
-    fn untagged_tuple_at(&mut self, _path: &Path) -> Result<Self::UntaggedGuard, TokenReaderError>;
+    fn enter_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError>;
+
+    /// Finish reading an untagged tuple.
+    fn exit_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
+        Ok(())
+    }
 }
 
 /// Build an in-memory representation of a BinTree.
@@ -339,54 +318,6 @@ pub trait TokenWriter {
     fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &Path) -> Result<(), TokenWriterError> {
         let string = value.map(IdentifierName::as_shared_string);
         self.string_at(string, path)
-    }
-}
-
-
-/// A guard used to ensure that some subset of the input stream was read properly.
-pub trait Guard {
-    /// Ensure that the subset of the input stream was read properly.
-    fn done(self) -> Result<(), TokenReaderError>;
-}
-
-/// Trivial implementation of a guard.
-///
-/// This implementation serves as a placeholder or as a building block for
-/// more sophisticated implementations: it does not check anything
-/// meaningful in `done()` but ensures that `done()` is eventually called.
-pub struct TrivialGuard {
-    /// `true` once `done()` has been called, `false` otherwise.
-    pub finalized: bool,
-}
-impl TrivialGuard {
-    /// Create a `TrivialGuard`.
-    ///
-    /// If the `TrivialGuard` is dropped before `done()` is called
-    /// or `self.finalized` is set to `true`, the drop will cause
-    /// an assertion failure.
-    pub fn new() -> Self {
-        TrivialGuard {
-            finalized: false
-        }
-    }
-}
-
-impl Guard for TrivialGuard {
-    /// Mark the guard as safe to be dropped.
-    fn done(mut self) -> Result<(), TokenReaderError> {
-        self.finalized = true;
-        Ok(())
-    }
-}
-
-impl Drop for TrivialGuard {
-    /// # Failures
-    ///
-    /// If the `TrivialGuard` is dropped before `done()` is called
-    /// or `self.finalized` is set to `true`, the drop will cause
-    /// an assertion failure.
-    fn drop(&mut self) {
-        assert!(self.finalized)
     }
 }
 
