@@ -1,7 +1,7 @@
+pub use io::statistics::Bytes;
+
 use std::io::{ Error, Write };
 
-#[derive(Default, AddAssign, Into, From, Clone, Copy)]
-pub struct Bytes(usize);
 
 /// An implementation of `Write` that discards its data but remembers
 /// how many bytes were written.

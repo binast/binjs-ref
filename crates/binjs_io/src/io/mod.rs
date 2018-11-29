@@ -13,11 +13,13 @@ use ::{ TokenReaderError, TokenWriterError };
 
 use std::rc::Rc;
 
-pub mod content;
 
 mod deprecated;
 
 pub use self::deprecated::{ TokenWriterWithTree, TokenWriterTreeAdapter };
+
+/// Utilities to collect statistics about the data written.
+pub mod statistics;
 
 
 /// An API for printing the binary representation and its structural
