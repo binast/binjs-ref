@@ -3,7 +3,7 @@
 //! copy of the old `io::TokenWriter` along with a `TokenWriterTreeAdapter` which wraps a `TokenWriterWithTree`
 //! as a new `io::TokenWriter`.
 
-use binjs_shared::{ IdentifierName, InterfaceName, FieldName, PropertyKey, SharedString };
+use binjs_shared::{ IdentifierName, InterfaceName, FieldName, Node, PropertyKey, SharedString };
 
 use ::{ Path, TokenWriter, TokenWriterError };
 
@@ -110,12 +110,12 @@ impl<T> TokenWriter for TokenWriterTreeAdapter<T> where T: TokenWriterWithTree {
         self.writer.done()
     }
 
-    fn enter_tagged_tuple_at(&mut self, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(&mut self, _node: &Node, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
         self.stack.push(vec![]);
         Ok(())
     }
 
-    fn exit_tagged_tuple_at(&mut self, tag: &InterfaceName, children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
+    fn exit_tagged_tuple_at(&mut self, _node: &Node, tag: &InterfaceName, children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
         let values = self.stack.pop() // We pushed this `vec` in the call to `enter_tagged_tuple_at`.
             .expect("Empty stack while popping");
         let children : Vec<_> = children.iter()

@@ -12,8 +12,10 @@ extern crate rand;
 const DEFAULT_TREE_SIZE: isize = 5;
 
 use binjs::source::Shift;
-use binjs::generic::io::Encoder;
+use binjs::generic::FromJSON;
 use binjs::generic::pick::{ Pick, Picker };
+use binjs::specialized::es6::io::Encoder;
+use binjs::specialized::es6::ast::Walker;
 
 use clap::*;
 use std::io::Write;
@@ -42,7 +44,15 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .help("Expected file size (in AST depth). Default: 5."),
             Arg::with_name("random-ast-metadata")
                 .long("random-metadata")
-                .help("If specified, generate random ast metadata (declared variables, etc.).")
+                .help("If specified, generate random ast metadata (declared variables, etc.)."),
+            Arg::with_name("lazify")
+                .long("lazify")
+                .takes_value(true)
+                .default_value("0")
+                .validator(|s| s.parse::<u32>()
+                    .map(|_| ())
+                    .map_err(|e| format!("Invalid number {}", e)))
+                .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
         ])
         .subcommand(binjs::io::Format::subcommand())
         .get_matches();
@@ -59,6 +69,9 @@ Note that this tool does not attempt to make sure that the files are entirely co
     let number = matches.value_of("number")
         .expect("Missing argument `number`");
     let number : usize = number.parse()
+        .expect("Invalid number");
+
+    let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
         .expect("Invalid number");
 
     let size : isize = match matches.value_of("size") {
@@ -83,14 +96,25 @@ Note that this tool does not attempt to make sure that the files are entirely co
         if i >= number {
             break;
         }
-        let mut ast = Picker.random(&spec, &mut rng, size);
+        let json = Picker.random(&spec, &mut rng, size);
+
+        let mut ast = binjs::specialized::es6::ast::Script::import(&json)
+            .expect("Could not import AST");
+
+        if lazification > 0 {
+            let mut path = binjs::specialized::es6::ast::WalkPath::new();
+            let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(lazification);
+            ast.walk(&mut path, &mut visitor)
+                .expect("Could not introduce laziness");
+        }
 
         if !random_metadata {
             // Overwrite random annotations.
-            library.annotate(&mut ast);
+            binjs::specialized::es6::scopes::AnnotationVisitor::new()
+                .annotate_script(&mut ast);
         }
 
-        if let Ok(source) = parser.to_source(&spec, &ast) {
+        if let Ok(source) = parser.to_source(&spec, &json) {
             i += 1;
 
             println!("Generated sample {}/{}", i, number);
@@ -102,8 +126,8 @@ Note that this tool does not attempt to make sure that the files are entirely co
             }
 
             let encoder = Encoder::new();
-            let encoded = encoder.encode(&spec, &mut format, &ast)
-                .expect("Could not encode AST");
+            let encoded = encoder.encode(&mut format, &ast)
+                .expect("Could not encode");
 
             {
                 let mut encoded_file = std::fs::File::create(format!("{}-{}.binjs", prefix, i))

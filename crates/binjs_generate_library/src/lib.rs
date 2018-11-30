@@ -592,8 +592,8 @@ impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W:
         match *value {{
             None => {{
                 let interface_name = InterfaceName::from_str(\"{null}\");
-                self.writer.enter_tagged_tuple_at(&interface_name, &[], path)?;
-                self.writer.exit_tagged_tuple_at(&interface_name, &[], path)?;
+                self.writer.enter_tagged_tuple_at(&{null_interface}{{}}, &interface_name, &[], path)?;
+                self.writer.exit_tagged_tuple_at(&{null_interface}{{}}, &interface_name, &[], path)?;
                 Ok(())
             }}
             Some(ref sum) => (self as &mut Serialization<W, &'a {rust_name}>).serialize(sum, path)
@@ -610,6 +610,7 @@ impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWr
 }}
 ",
                         null = null_name,
+                        null_interface = null_name.to_class_cases(),
                         rust_name = name.to_class_cases(),
                         variants = types
                             .iter()
@@ -966,6 +967,14 @@ pub struct {rust_name} {{
 {fields}
 }}
 
+/// Make it possible to downcast/upcast between {rust_name} and `binjs_shared::ast::Node`.
+impl binjs_shared::Node for {rust_name} {{
+
+    /// The name of this node. Used mostly for debugging purposes.
+    fn name(&self) -> &'static str {{
+        \"{rust_name}\"
+    }}
+}}
 ",
                     fields = field_specs.iter()
                         .map(|(field_name, spec)| {
@@ -1084,9 +1093,6 @@ impl<R> Deserialization<R, Option<{rust_name}>> for Deserializer<R> where R: Tok
                             name = field.name().to_rust_identifier_case()))
                         .format("\n")
                     );
-                    let len = interface.contents()
-                        .fields()
-                        .len();
                     let to_writer = format!("
 impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &'a Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
@@ -1094,8 +1100,8 @@ impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W:
         match *value {{
             None => {{
                 let interface_name = InterfaceName::from_str(\"{null}\");
-                self.writer.enter_tagged_tuple_at(&interface_name, &[], path)?;
-                self.writer.exit_tagged_tuple_at(&interface_name, &[], path)?;
+                self.writer.enter_tagged_tuple_at(&{null_interface}{{}}, &interface_name, &[], path)?;
+                self.writer.exit_tagged_tuple_at(&{null_interface}{{}}, &interface_name, &[], path)?;
                 Ok(())
             }}
             Some(ref sum) => (self as &mut Serialization<W, &'a {rust_name}>).serialize(sum, path)
@@ -1103,12 +1109,12 @@ impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W:
     }}
 }}
 impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, {value}: &'a {rust_name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
+    fn serialize(&mut self, value: &'a {rust_name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
         let interface_name = InterfaceName::from_str(\"{name}\"); // String is shared
         let field_names = [{field_names}];
 
-        self.writer.enter_tagged_tuple_at(&interface_name, &field_names, path)?;
+        self.writer.enter_tagged_tuple_at(value, &interface_name, &field_names, path)?;
         path.enter_interface(interface_name.clone());
         let result = loop {{ // Fake loop, used only to be able to `break` early.
 {fields}
@@ -1116,14 +1122,14 @@ impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWr
         }};
         path.exit_interface(interface_name.clone());
         result?;
-        self.writer.exit_tagged_tuple_at(&interface_name, &field_names, path)?;
+        self.writer.exit_tagged_tuple_at(value, &interface_name, &field_names, path)?;
 
         Ok(())
     }}
 }}
 ",
-                        value = if len > 0 { "value" } else { "_" },
                         null = null_name,
+                        null_interface = null_name.to_class_cases(),
                         name = name,
                         rust_name = rust_name,
                         field_names = interface.contents()
