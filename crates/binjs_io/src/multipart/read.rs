@@ -286,69 +286,7 @@ impl TreeTokenReader {
     }
 }
 
-pub struct SimpleGuard {
-    parent: TrivialGuard,
-    owner: Rc<RefCell<PoisonLock<ReaderState>>>,
-}
-impl SimpleGuard {
-    fn new(owner: Rc<RefCell<PoisonLock<ReaderState>>>) -> Self {
-        SimpleGuard {
-            parent: TrivialGuard::new(),
-            owner
-        }
-    }
-}
-impl Guard for SimpleGuard {
-    fn done(mut self) -> Result<(), TokenReaderError> {
-        self.parent.finalized = true;
-        Ok(())
-    }
-}
-impl Drop for SimpleGuard {
-    fn drop(&mut self) {
-        debug!(target: "multipart", "Dropping SimpleGuard");
-        if self.owner.borrow().is_poisoned() {
-            // Don't trigger an assertion failure if we had to bailout because of an exception.
-            self.parent.finalized = true;
-        }
-        // Now `self.parent.drop()` will be called.
-    }
-}
-
-pub struct ListGuard {
-    parent: SimpleGuard
-}
-
-impl ListGuard {
-    fn new(owner: Rc<RefCell<PoisonLock<ReaderState>>>) -> Self {
-        ListGuard {
-            parent: SimpleGuard::new(owner),
-        }
-    }
-}
-impl Guard for ListGuard {
-    fn done(mut self) -> Result<(), TokenReaderError> {
-        self.parent.parent.finalized = true;
-
-        let owner = self.parent.owner.borrow_mut();
-        if owner.is_poisoned() {
-            return Ok(())
-        }
-        Ok(())
-    }
-}
-impl Drop for ListGuard {
-    fn drop(&mut self) {
-        debug!(target: "multipart", "Dropping ListGuard");
-        // Now `self.parent.drop()` will be called.
-    }
-}
-
 impl TokenReader for TreeTokenReader {
-    type TaggedGuard = SimpleGuard;
-    type UntaggedGuard = SimpleGuard;
-    type ListGuard = ListGuard;
-
     fn poison(&mut self) {
         self.owner.borrow_mut().poison();
     }
@@ -450,14 +388,12 @@ impl TokenReader for TreeTokenReader {
     /// Returns an extractor for that list and the number of elements
     /// in the list. Before dropping the sub-extractor, callers MUST
     /// either reach the end of the list or call `skip()`.
-    fn list_at(&mut self, _path: &Path) -> Result<(u32, Self::ListGuard), TokenReaderError> {
-        let clone = self.owner.clone();
+    fn enter_list_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         self.owner.borrow_mut().try(move |state| {
-            let guard = ListGuard::new(clone);
             let list_len = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             debug!(target: "multipart", "Reading list with {} items", list_len);
-            Ok((list_len, guard))
+            Ok(list_len)
         })
     }
 
@@ -466,8 +402,7 @@ impl TokenReader for TreeTokenReader {
     /// Returns the tag name, `None` for fields and a
     /// sub-extractor dedicated
     /// to that tuple. The sub-extractor MUST be consumed entirely.
-    fn tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>, Self::TaggedGuard), TokenReaderError> {
-        let clone = self.owner.clone();
+    fn enter_tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>), TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
             let index = state.reader.read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
@@ -475,19 +410,17 @@ impl TokenReader for TreeTokenReader {
                 .ok_or(TokenReaderError::BadKindIndex(index))?;
 
             let tag = InterfaceName(description.kind.clone());
-            let guard = SimpleGuard::new(clone);
             debug!(target: "multipart", "Reading tagged tuple with kind \"{}\"",
                 tag.as_shared_string());
-            Ok((tag, None, guard))
+            Ok((tag, None))
         })
     }
 
     /// Start reading an untagged tuple. The sub-extractor MUST
     /// be consumed entirely.
-    fn untagged_tuple_at(&mut self, _path: &Path) -> Result<Self::UntaggedGuard, TokenReaderError> {
-        let clone = self.owner.clone();
+    fn enter_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
         debug!(target: "multipart", "Reading untagged tuple");
-        Ok(SimpleGuard::new(clone))
+        Ok(())
     }
 }
 

@@ -195,7 +195,7 @@ fn test_multipart_io() {
     use binjs_shared::ast::Path;
 
     use ::CompressionTarget;
-    use io::{ Guard, TokenReader, TokenWriterWithTree };
+    use io::{ TokenReader, TokenWriterWithTree };
     use multipart::*;
 
     use std::fs::*;
@@ -287,7 +287,7 @@ fn test_multipart_io() {
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (name, fields, guard) = reader.tagged_tuple_at(&path)
+            let (name, fields) = reader.enter_tagged_tuple_at(&path)
                 .expect("Reading trivial tagged tuple");
             assert_eq!(name, "some tuple");
 
@@ -302,7 +302,7 @@ fn test_multipart_io() {
                 .expect("Reading trivial tagged tuple[2]")
                 .expect("Reading a non-null float");
 
-            guard.done()
+            reader.exit_tagged_tuple_at(&path)
                 .expect("Trivial tagged tuple read properly");
 
             assert_eq!(&simple_string_1, "foo");
@@ -325,11 +325,11 @@ fn test_multipart_io() {
                     .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (len, guard) = reader.list_at(&path)
+            let len = reader.enter_list_at(&path)
                 .expect("Reading empty list");
             assert_eq!(len, 0);
 
-            guard.done()
+            reader.exit_list_at(&path)
                 .expect("Empty list read properly");
         }
 
@@ -347,7 +347,7 @@ fn test_multipart_io() {
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (len, guard) = reader.list_at(&path)
+            let len = reader.enter_list_at(&path)
                 .expect("Reading trivial list");
             assert_eq!(len, 2);
 
@@ -360,7 +360,7 @@ fn test_multipart_io() {
                 .expect("Non-null string");
             assert_eq!(&simple_string, "bar");
 
-            guard.done()
+            reader.exit_list_at(&path)
                 .expect("Trivial list read properly");
         }
 
@@ -380,11 +380,11 @@ fn test_multipart_io() {
                 .write_all(&output).unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (len, guard) = reader.list_at(&path)
+            let len = reader.enter_list_at(&path)
                 .expect("Reading outer list");
             assert_eq!(len, 1);
 
-            let (len, inner_guard) = reader.list_at(&path)
+            let len = reader.enter_list_at(&path)
                 .expect("Reading inner list");
             assert_eq!(len, 2);
 
@@ -397,9 +397,9 @@ fn test_multipart_io() {
                 .expect("Non-null string");
             assert_eq!(&simple_string, "bar");
 
-            inner_guard.done()
+            reader.exit_list_at(&path)
                 .expect("Inner list read properly");
-            guard.done()
+            reader.exit_list_at(&path)
                 .expect("Inner list read properly");
 
         }
