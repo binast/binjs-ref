@@ -62,11 +62,9 @@ mod predict;
 pub mod probabilities;
 
 use self::dictionary::Dictionary;
-use self::predict::Instances;
 use self::probabilities::SymbolInfo;
 
-use ::bytes::lengthwriter::Bytes;
-use ::io::content::ContentInfo;
+use ::io::statistics::{ Bytes, BytesAndInstances, Instances, ContentInfo };
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -98,19 +96,19 @@ impl Options {
     }
 
     /// Return the statistics as (number of instances, number of bytes).
-    pub fn statistics_for_write(&self) -> ContentInfo<(Bytes, Instances)> {
+    pub fn statistics_for_write(&self) -> ContentInfo<BytesAndInstances> {
         let borrow_lengths = self.content_lengths.borrow();
         let borrow_instances = self.content_instances.borrow();
         ContentInfo {
-            bools: (borrow_lengths.bools, borrow_instances.bools),
-            floats: (borrow_lengths.floats, borrow_instances.floats),
-            unsigned_longs: (borrow_lengths.unsigned_longs, borrow_instances.unsigned_longs),
-            string_enums: (borrow_lengths.string_enums, borrow_instances.string_enums),
-            property_keys: (borrow_lengths.property_keys, borrow_instances.property_keys),
-            identifier_names: (borrow_lengths.identifier_names, borrow_instances.identifier_names),
-            interface_names: (borrow_lengths.interface_names, borrow_instances.interface_names),
-            string_literals: (borrow_lengths.string_literals, borrow_instances.string_literals),
-            list_lengths: (borrow_lengths.list_lengths, borrow_instances.list_lengths),
+            bools: BytesAndInstances::new(borrow_lengths.bools, borrow_instances.bools),
+            floats: BytesAndInstances::new(borrow_lengths.floats, borrow_instances.floats),
+            unsigned_longs: BytesAndInstances::new(borrow_lengths.unsigned_longs, borrow_instances.unsigned_longs),
+            string_enums: BytesAndInstances::new(borrow_lengths.string_enums, borrow_instances.string_enums),
+            property_keys: BytesAndInstances::new(borrow_lengths.property_keys, borrow_instances.property_keys),
+            identifier_names: BytesAndInstances::new(borrow_lengths.identifier_names, borrow_instances.identifier_names),
+            interface_names: BytesAndInstances::new(borrow_lengths.interface_names, borrow_instances.interface_names),
+            string_literals: BytesAndInstances::new(borrow_lengths.string_literals, borrow_instances.string_literals),
+            list_lengths: BytesAndInstances::new(borrow_lengths.list_lengths, borrow_instances.list_lengths),
         }
     }
 }

@@ -1,3 +1,4 @@
+pub use ::io::statistics::Instances;
 use entropy::probabilities::{ InstancesToProbabilities, SymbolIndex, SymbolInfo };
 
 use binjs_shared::{ FieldName, InterfaceName };
@@ -8,17 +9,16 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
+#[allow(unused_imports)] // We keep enabling/disabling this.
+use itertools::Itertools;
 use range_encoding;
 
 pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 pub type IOPathItem = binjs_shared::ast::PathItem<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
 
-/// A newtype for `usize` used to count the number of instances of some item.
-#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy)]
-pub struct Instances(usize);
 
 /// A newtype for `usize` used to represent an index in a dictionary of values.
-#[derive(Add, Constructor, Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Into, Debug, Hash, Serialize, Deserialize)]
+#[derive(Add, Constructor, Eq, PartialEq, Ord, PartialOrd, Clone, Copy, From, Into, Debug, Hash, Serialize, Deserialize)]
 struct DictionaryIndex(usize);
 
 /// A newtype for `usize` used to represent a reference to a value already encountered.
