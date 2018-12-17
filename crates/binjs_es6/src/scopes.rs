@@ -600,7 +600,7 @@ impl Visitor<()> for AnnotationVisitor {
             path = path);
         match self.binding_kind_stack.last() {
             None => {
-                println!("exit_binding identifier – marking {name:?} at {path:?}",
+                debug!(target: "annotating", "exit_binding identifier – marking {name:?} at {path:?}",
                        name = node.name,
                        path = path);
             }
