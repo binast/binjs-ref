@@ -5,12 +5,12 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 build = "build.rs"
 
 [dependencies]
-assert_matches = "*"
+assert_matches = "^1.0"
 binjs_io = { path = "../binjs_io/", version = "*" }
 binjs_shared = { path = "../binjs_shared/", version = "*" }
 itertools = "^0.7"
 json = "^0.11"
-log = "*"
+log = "^0.4"
 
 [build-dependencies]
 binjs_generate_library = { path = "../binjs_generate_library/", version = "*" }
