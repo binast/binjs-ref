@@ -645,7 +645,7 @@ fn test_simple_io() {
                 .write_all(data).unwrap();
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
-        let (len) = reader.enter_list_at(&path)
+        let len = reader.enter_list_at(&path)
             .expect("Reading empty list");
         assert_eq!(len, 0);
 
