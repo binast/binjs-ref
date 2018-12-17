@@ -80,11 +80,11 @@ fn main() {
             .collect::<Vec<_>>();
         for grammar_table in &compressions {
             for strings_table in &compressions {
-                for _ in &compressions {
+                for tree in &compressions {
                     vec.push(Targets {
                         grammar_table: CompressionTarget::new(grammar_table.clone()),
-                        strings_table: CompressionTarget::new(grammar_table.clone()),
-                        tree: CompressionTarget::new(grammar_table.clone()),
+                        strings_table: CompressionTarget::new(strings_table.clone()),
+                        tree: CompressionTarget::new(tree.clone()),
                     });
                 }
             }
