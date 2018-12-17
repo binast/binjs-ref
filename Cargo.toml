@@ -14,22 +14,22 @@ binjs_es6 = { path = "crates/binjs_es6", version = "*" }
 binjs_io = { path = "crates/binjs_io", version = "*" }
 binjs_meta = { path = "crates/binjs_meta", version = "*" }
 binjs_shared = { path = "crates/binjs_shared", version = "*" }
-assert_matches = "*"
+assert_matches = "^1.0"
 bencher = "^0.1"
-bincode = "*"
-clap = "*"
+bincode = "^1.0"
+clap = "^2.0"
 env_logger = "^0.5"
-glob = "*"
-Inflector = "^0.11.2"
-itertools = "*"
-json = "*"
-log = "*"
-lzw = "*"
+glob = "^0.2"
+Inflector = "^0.11"
+itertools = "^0.7"
+json = "^0.11"
+log = "^0.4"
+lzw = "^0.10"
 rand = "^0.6"
-test-logger = "*"
-vec_map = "*"
-webidl = "*"
-yaml-rust = "*"
+test-logger = "^0.1"
+vec_map = "^0.8"
+webidl = "^0.8"
+yaml-rust = "^0.4"
 
 [[bin]]
 # Encode a text source to a BinAST file.
