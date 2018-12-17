@@ -44,35 +44,7 @@ impl Shift {
         }
     }
 
-    fn parse_script_output(&self, script: &str) -> Result<String, Error> {
-        debug!(target: "Shift", "Preparing script {}", script);
-
-        let script = format!(
-            r##"
-        var result;
-        try {{
-            result = (function() {{
-                {}
-            }})();
-        }} catch (ex) {{
-            console.warn(ex);
-            /* rethrow */ throw ex;
-        }};
-        var process = require('process');
-        /* See crates/binjs_io/src/escaped_wtf8.rs */
-        result = result
-            .replace(/[\u007F\uD800-\uDFFF]/ug, function(m) {{
-                if (m == "\u007F") {{
-                    return "\u007F007F";
-                }}
-                return "\u007F" + m.charCodeAt(0).toString(16);
-            }});
-        process.stdout.write(result);
-        console.warn(result);
-        "##,
-            script
-        );
-
+    fn parse_script_output(&self, script: &str, data: &str) -> Result<String, Error> {
         debug!(target: "Shift", "Launching script {}", script);
 
         let node_memory = match env::var("NODE_MAX_OLD_SPACE_SIZE") {
@@ -82,6 +54,7 @@ impl Shift {
 
         let mut child = Command::new(&*self.bin_path)
             .arg(node_memory)
+            .arg(&format!("src/source/{}.js", script))
             .env("NODE_PATH", "node_modules")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -91,7 +64,7 @@ impl Shift {
 
         if let Some(ref mut stdin) = child.stdin {
             stdin
-                .write(script.as_bytes())
+                .write(data.as_bytes())
                 .map_err(Error::ExecutionError)?;
         }
 
@@ -107,8 +80,8 @@ impl Shift {
         Ok(result)
     }
 
-    fn parse_script_json_output(&self, script: &str) -> Result<JSON, Error> {
-        let stdout = self.parse_script_output(script)?;
+    fn parse_script_json_output(&self, script: &str, data: &str) -> Result<JSON, Error> {
+        let stdout = self.parse_script_output(script, data)?;
 
         // Now attempt to parse JSON
         json::parse(&stdout).map_err(Error::JsonError)
@@ -122,49 +95,18 @@ impl Shift {
         walker.walk(&mut ast).map_err(Error::InvalidAST)?;
         debug!(target: "Shift", "Prepared source\n{:#}", ast);
 
-        // Escape `"`.
-        let data = ast.dump().replace("\\", "\\\\").replace("\"", "\\\"");
-
-        // A script to parse a string, write it to stdout as JSON.
-        let script = format!(
-            r##"
-            var codegen = require('shift-codegen').default;
-            var ast     = JSON.parse("{}");
-            return codegen(ast);
-            "##,
-            data
-        );
-        self.parse_script_output(&script).map_err(|err| {
-            warn!("Could not pretty-print {}", ast.pretty(2));
-            err
-        })
+        self.parse_script_output("codegen", &ast.dump())
+            .map_err(|err| {
+                warn!("Could not pretty-print {}", ast.pretty(2));
+                err
+            })
     }
 }
 
 impl SourceParser for Shift {
     type Error = Error;
     fn parse_str(&self, data: &str) -> Result<JSON, Error> {
-        // Escape `"`.
-        let data = data
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\r", "\\r")
-            .replace("\n", "\\n");
-
-        // A script to parse a string, write it to stdout as JSON.
-        let script = format!(
-            r##"
-            var parseScript = require('shift-parser').parseScript;
-            var data = "{}";
-
-            var parsed = parseScript(data, {{ earlyErrors: false }});
-
-            return JSON.stringify(parsed);
-            "##,
-            data
-        );
-
-        let mut ast = self.parse_script_json_output(&script)?;
+        let mut ast = self.parse_script_json_output("parse_str", data)?;
         FromShift.convert(&mut ast);
         Ok(ast)
     }
@@ -177,17 +119,7 @@ impl SourceParser for Shift {
             .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?;
 
         // A script to parse a source file, write it to stdout as JSON.
-        let script = format!(
-            r##"
-            var parseScript = require('shift-parser').parseScript;
-            var fs      = require('fs');
-
-            var source  = fs.readFileSync({:?}, {{encoding: "utf-8"}});
-            return JSON.stringify(parseScript(source));
-            "##,
-            path
-        );
-        let mut ast = self.parse_script_json_output(&script)?;
+        let mut ast = self.parse_script_json_output("parse_file", path)?;
         FromShift.convert(&mut ast);
         Ok(ast)
     }
