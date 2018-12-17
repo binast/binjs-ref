@@ -40,7 +40,7 @@ impl RustExporter {
     /// Generate the dynamic version of a `Type`.
     fn type_(type_: &Type, prefix: &str) -> String {
         let spec = Self::type_spec(type_.spec(), prefix);
-        let ref spec = spec.trim_left();
+        let ref spec = spec.trim_start();
         format!("{prefix}{type_}{close}",
             type_ = spec,
             prefix = prefix,
@@ -1068,7 +1068,7 @@ impl<R> Deserialization<R, Option<{rust_name}>> for Deserializer<R> where R: Tok
                     null = null_name,
                     rust_name = rust_name,
                     lowercase_name = name.to_rust_identifier_case()
-                        .trim_right_matches('_'),
+                        .trim_end_matches('_'),
                     fields_def = interface.contents()
                         .fields()
                         .iter()
