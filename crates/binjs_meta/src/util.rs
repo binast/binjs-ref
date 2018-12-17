@@ -303,7 +303,7 @@ impl<T> Reindentable for T where T: ToStr {
                                 gobbled += pos + 1;
                                 let line = format!("{prefix}{rest}",
                                     prefix = prefix,
-                                    rest = rest[0..pos].trim_right());
+                                    rest = rest[0..pos].trim_end());
                                 lines.push(line)
                             }
                             _else => {
