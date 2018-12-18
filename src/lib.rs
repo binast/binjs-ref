@@ -37,6 +37,7 @@ extern crate log;
 extern crate lzw;
 extern crate rand;
 extern crate vec_map;
+extern crate which;
 
 /// Working with a generic (i.e. JSON-based) representation
 /// of the JavaScript AST.

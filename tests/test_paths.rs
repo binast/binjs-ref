@@ -167,7 +167,9 @@ test!(test_es6_paths, {
     println!("Preparing test.");
 
     let trace = Rc::new(RefCell::new(vec![]));
-    let parser = Shift::new();
+
+    let parser = Shift::try_new().expect("Could not launch Shift");
+
     let writer = PathTraceWriter {
         trace: trace.clone(),
     };

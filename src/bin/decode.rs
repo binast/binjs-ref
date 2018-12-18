@@ -110,9 +110,9 @@ fn main() {
         root: &builder.node_name("Script"),
     };
     let spec = builder.into_spec(spec_options);
-    let printer = Shift::new();
+    let printer = Shift::try_new().expect("Could not launch Shift");
     let source = printer
-        .to_source(&spec, &json)
+        .to_source(&spec, json)
         .expect("Could not pretty-print");
 
     progress!(quiet, "Writing.");

@@ -29,7 +29,7 @@ impl Visitor<()> for OffsetCleanerVisitor {
 }
 
 test!(test_entropy_roundtrip, {
-    let parser = Shift::new();
+    let parser = Shift::try_new().expect("Could not launch Shift");
 
     let mut dictionary = Dictionary::new(3, 32);
     let mut files_containing_string = KindedStringMap::default();

@@ -1,7 +1,6 @@
-var codegen = require('shift-codegen').default;
-var getStdin = require('get-stdin');
+'use strict';
 
-getStdin().then(ast => {
-	var parsed = JSON.parse(ast);
-	process.stdout.write(codegen(parsed));
-});
+const codegen = require('shift-codegen').default;
+const startJSONStream = require('./start-json-stream');
+
+startJSONStream(ast => codegen(ast));

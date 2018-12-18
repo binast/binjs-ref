@@ -296,7 +296,7 @@ fn main_aux() {
     let show_stats = matches.is_present("statistics");
 
     // Setup.
-    let parser = Shift::new();
+    let parser = Shift::try_new().expect("Could not launch Shift");
 
     let lazification =
         str::parse(matches.value_of("lazify").expect("Missing lazify")).expect("Invalid number");
