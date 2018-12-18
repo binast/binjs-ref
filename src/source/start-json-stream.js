@@ -16,12 +16,14 @@ function escapeWTF8(s) {
 
 module.exports = mapper =>
   process.stdin
-    .pipe(
-      split(line => {
+    .pipe(split(line => {
         line = JSON.parse(line);
-        line = mapper(line);
+        try {
+          line = { type: 'Ok', value: mapper(line) };
+        } catch (e) {
+          line = { type: 'Err', value: e.message };
+        }
         line = escapeWTF8(JSON.stringify(line));
         return line + '\n';
-      }, null, { trailing: false })
-    )
+      }, null, { trailing: false }))
     .pipe(process.stdout);

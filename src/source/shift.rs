@@ -30,6 +30,7 @@ pub enum Error {
     InvalidUTF8(std::string::FromUtf8Error),
     InvalidAST(ASTError),
     NodeNotFound(which::Error),
+    ParsingError(String),
 }
 
 pub struct NodeConfig {
@@ -91,7 +92,26 @@ impl Script {
         let input = json::stringify(input);
         writeln!(io.input, "{}", input).map_err(Error::ExecutionError)?;
         let output = io.output.next().unwrap().map_err(Error::ExecutionError)?;
-        json::parse(&output).map_err(Error::JsonError)
+        let result = json::parse(&output).map_err(Error::JsonError)?;
+        if let JSON::Object(mut obj) = result {
+            if let (Some(mut value), Some(ty)) = (
+                obj.remove("value"),
+                obj.get("type").and_then(|ty| ty.as_str()),
+            ) {
+                match ty {
+                    "Ok" => return Ok(value),
+                    "Err" => {
+                        if let Some(msg) = value.take_string() {
+                            return Err(Error::ParsingError(msg));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Err(Error::JsonError(json::Error::wrong_type(
+            "Result-like JSON object",
+        )))
     }
 }
 
@@ -121,9 +141,9 @@ impl Shift {
 
         self.codegen
             .transform(&ast.dump())
-            .and_then(|res| match res {
-                JSON::String(res) => Ok(res),
-                _ => Err(Error::JsonError(json::Error::wrong_type("string"))),
+            .and_then(|mut res| {
+                res.take_string()
+                    .ok_or_else(|| Error::JsonError(json::Error::wrong_type("string")))
             })
             .map_err(|err| {
                 warn!("Could not pretty-print {}", ast.pretty(2));
