@@ -21,13 +21,9 @@ use which::which;
 #[derive(Debug)]
 pub enum Error {
     CouldNotLaunch(std::io::Error),
-    CouldNotReadFile(std::io::Error),
-    ExecutionError(std::io::Error),
-    CouldNotCreateFile(std::io::Error),
-    ReturnedError(ExitStatus),
+    IOError(std::io::Error),
     JsonError(json::Error),
     InvalidPath(PathBuf),
-    InvalidUTF8(std::string::FromUtf8Error),
     InvalidAST(ASTError),
     NodeNotFound(which::Error),
     ParsingError(String),
@@ -86,12 +82,15 @@ impl Script {
         })))
     }
 
-    pub fn transform(&self, input: &str) -> Result<JSON, Error> {
-        let mut io = self.0.lock().unwrap();
-        let input = JSON::from(input);
-        let input = json::stringify(input);
-        writeln!(io.input, "{}", input).map_err(Error::ExecutionError)?;
-        let output = io.output.next().unwrap().map_err(Error::ExecutionError)?;
+    pub fn transform(&self, input: &JSON) -> Result<JSON, Error> {
+        let output = (move || {
+            let mut io = self.0.lock().unwrap();
+            input.write(&mut io.input)?;
+            writeln!(io.input)?;
+            io.output.next().unwrap()
+        })()
+        .map_err(Error::IOError)?;
+
         let result = json::parse(&output).map_err(Error::JsonError)?;
         if let JSON::Object(mut obj) = result {
             if let (Some(mut value), Some(ty)) = (
@@ -140,7 +139,7 @@ impl Shift {
         debug!(target: "Shift", "Prepared source\n{:#}", ast);
 
         self.codegen
-            .transform(&ast.dump())
+            .transform(&ast)
             .and_then(|mut res| {
                 res.take_string()
                     .ok_or_else(|| Error::JsonError(json::Error::wrong_type("string")))
@@ -156,7 +155,7 @@ impl SourceParser for Shift {
     type Error = Error;
 
     fn parse_str(&self, data: &str) -> Result<JSON, Error> {
-        let mut ast = self.parse_str.transform(data)?;
+        let mut ast = self.parse_str.transform(&data.into())?;
         FromShift.convert(&mut ast);
         Ok(ast)
     }
@@ -169,7 +168,7 @@ impl SourceParser for Shift {
             .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?;
 
         // A script to parse a source file, write it to stdout as JSON.
-        let mut ast = self.parse_file.transform(path)?;
+        let mut ast = self.parse_file.transform(&path.into())?;
         FromShift.convert(&mut ast);
         Ok(ast)
     }
