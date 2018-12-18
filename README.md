@@ -1,4 +1,4 @@
-![Travis status](https://travis-ci.org/binjs/binjs-ref.svg?branch=master)
+[![Travis Status](https://travis-ci.org/binast/binjs-ref.svg?branch=master)](https://travis-ci.org/binast/binjs-ref)
 
 # About the JavaScript Binary AST
 
