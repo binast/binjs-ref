@@ -1,24 +1,60 @@
-use entropy::predict::{ PathPredict, WindowPredict };
-use entropy::probabilities::{ InstancesToProbabilities, SymbolIndex, SymbolInfo };
+use entropy::predict::{PathPredict, WindowPredict};
+use entropy::probabilities::{InstancesToProbabilities, SymbolIndex, SymbolInfo};
 
 use io::TokenWriter;
-use ::TokenWriterError;
+use TokenWriterError;
 
-use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString };
+use binjs_shared::{
+    FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString, F64,
+};
 
 use std;
 use std::collections::HashMap;
 
-pub type IOPath = binjs_shared::ast::Path<InterfaceName, (/* child index */ usize, /* field name */ FieldName)>;
+pub type IOPath = binjs_shared::ast::Path<
+    InterfaceName,
+    (
+        /* child index */ usize,
+        /* field name */ FieldName,
+    ),
+>;
 
 pub use entropy::predict::Instances;
 
 /// A newtype for `usize` used to count the number of some item in a given file.
-#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(
+    Default,
+    Serialize,
+    Deserialize,
+    From,
+    Into,
+    AddAssign,
+    Clone,
+    Copy,
+    Debug,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+)]
 pub struct InstancesInFile(pub usize);
 
 /// A newtype for `usize` used to count the number of files containing some item.
-#[derive(Default, Serialize, Deserialize, From, Into, AddAssign, Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(
+    Default,
+    Serialize,
+    Deserialize,
+    From,
+    Into,
+    AddAssign,
+    Clone,
+    Copy,
+    Debug,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+)]
 pub struct FilesContaining(pub usize);
 
 /// Add a single symbol to the table.
@@ -28,18 +64,14 @@ pub struct FilesContaining(pub usize);
 /// Usage:
 /// `symbol!(self, name_of_the_probability_table, "Description, used for debugging", value_to_encode, path_in_the_ast)`
 macro_rules! symbol {
-    ( $me: ident, $table: ident, $description: expr, $path:expr, $value: expr ) => {
-        {
-            use std::borrow::Borrow;
+    ( $me: ident, $table: ident, $description: expr, $path:expr, $value: expr ) => {{
+        use std::borrow::Borrow;
 
-            let path = $path.borrow();
-            $me.dictionary
-                .$table
-                .add(path, $value);
+        let path = $path.borrow();
+        $me.dictionary.$table.add(path, $value);
 
-            Ok(())
-        }
-    }
+        Ok(())
+    }};
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -79,7 +111,6 @@ pub struct Dictionary<T> {
 
     /// All list lengths, predicted by path.
     pub list_length_by_path: PathPredict<Option<u32>, T>,
-
     // Missing:
     // - offsets (cannot be predicted?)
     // - directives?
@@ -121,15 +152,15 @@ impl<T> Dictionary<T> {
         } = *self;
 
         bool_by_path.len()
-        + float_by_path.len()
-        + unsigned_long_by_path.len()
-        + string_enum_by_path.len()
-        + property_key_by_path.len()
-        + identifier_name_by_path.len()
-        + interface_name_by_path.len()
-        + string_literal_by_path.len()
-        + list_length_by_path.len()
-        + interface_name_by_path.len()
+            + float_by_path.len()
+            + unsigned_long_by_path.len()
+            + string_enum_by_path.len()
+            + property_key_by_path.len()
+            + identifier_name_by_path.len()
+            + interface_name_by_path.len()
+            + string_literal_by_path.len()
+            + list_length_by_path.len()
+            + interface_name_by_path.len()
     }
 }
 impl InstancesToProbabilities for Dictionary<Instances> {
@@ -140,17 +171,39 @@ impl InstancesToProbabilities for Dictionary<Instances> {
     fn instances_to_probabilities(self, _description: &str) -> Dictionary<SymbolInfo> {
         Dictionary {
             bool_by_path: self.bool_by_path.instances_to_probabilities("bool_by_path"),
-            float_by_path: self.float_by_path.instances_to_probabilities("float_by_path"),
-            unsigned_long_by_path: self.unsigned_long_by_path.instances_to_probabilities("unsigned_long_by_path"),
-            string_enum_by_path: self.string_enum_by_path.instances_to_probabilities("string_enum_by_path"),
-            property_key_by_path: self.property_key_by_path.instances_to_probabilities("property_key_by_path"),
-            property_key_by_window: self.property_key_by_window.instances_to_probabilities("property_key_by_window"),
-            identifier_name_by_path: self.identifier_name_by_path.instances_to_probabilities("identifier_name_by_path"),
-            identifier_name_by_window: self.identifier_name_by_window.instances_to_probabilities("identifier_name_by_window"),
-            interface_name_by_path: self.interface_name_by_path.instances_to_probabilities("interface_name_by_path"),
-            string_literal_by_path: self.string_literal_by_path.instances_to_probabilities("string_literal_by_path"),
-            string_literal_by_window: self.string_literal_by_window.instances_to_probabilities("string_literal_by_window"),
-            list_length_by_path: self.list_length_by_path.instances_to_probabilities("list_length_by_path"),
+            float_by_path: self
+                .float_by_path
+                .instances_to_probabilities("float_by_path"),
+            unsigned_long_by_path: self
+                .unsigned_long_by_path
+                .instances_to_probabilities("unsigned_long_by_path"),
+            string_enum_by_path: self
+                .string_enum_by_path
+                .instances_to_probabilities("string_enum_by_path"),
+            property_key_by_path: self
+                .property_key_by_path
+                .instances_to_probabilities("property_key_by_path"),
+            property_key_by_window: self
+                .property_key_by_window
+                .instances_to_probabilities("property_key_by_window"),
+            identifier_name_by_path: self
+                .identifier_name_by_path
+                .instances_to_probabilities("identifier_name_by_path"),
+            identifier_name_by_window: self
+                .identifier_name_by_window
+                .instances_to_probabilities("identifier_name_by_window"),
+            interface_name_by_path: self
+                .interface_name_by_path
+                .instances_to_probabilities("interface_name_by_path"),
+            string_literal_by_path: self
+                .string_literal_by_path
+                .instances_to_probabilities("string_literal_by_path"),
+            string_literal_by_window: self
+                .string_literal_by_window
+                .instances_to_probabilities("string_literal_by_window"),
+            list_length_by_path: self
+                .list_length_by_path
+                .instances_to_probabilities("list_length_by_path"),
         }
     }
 }
@@ -188,10 +241,10 @@ impl<T> KindedStringMap<T> {
             ref string_enum_instances,
         } = *self;
         identifier_name_instances.len()
-        + property_key_instances.len()
-        + string_literal_instances.len()
-        + string_enum_instances.len()
-        + interface_name_instances.len()
+            + property_key_instances.len()
+            + string_literal_instances.len()
+            + string_enum_instances.len()
+            + interface_name_instances.len()
     }
 }
 
@@ -200,19 +253,30 @@ impl InstancesToProbabilities for KindedStringMap<FilesContaining> {
 
     /// Convert a dictionary counting instances into a dictionary
     /// counting probabilities.
-    fn instances_to_probabilities(self, _description:&str) -> KindedStringMap<SymbolInfo> {
+    fn instances_to_probabilities(self, _description: &str) -> KindedStringMap<SymbolInfo> {
         KindedStringMap {
-            identifier_name_instances: self.identifier_name_instances.instances_to_probabilities("identifier_name_instances"),
-            property_key_instances: self.property_key_instances.instances_to_probabilities("property_key_instances"),
-            interface_name_instances: self.interface_name_instances.instances_to_probabilities("interface_name_instances"),
-            string_literal_instances: self.string_literal_instances.instances_to_probabilities("string_literal_instances"),
-            string_enum_instances: self.string_enum_instances.instances_to_probabilities("string_enum_instances"),
+            identifier_name_instances: self
+                .identifier_name_instances
+                .instances_to_probabilities("identifier_name_instances"),
+            property_key_instances: self
+                .property_key_instances
+                .instances_to_probabilities("property_key_instances"),
+            interface_name_instances: self
+                .interface_name_instances
+                .instances_to_probabilities("interface_name_instances"),
+            string_literal_instances: self
+                .string_literal_instances
+                .instances_to_probabilities("string_literal_instances"),
+            string_enum_instances: self
+                .string_enum_instances
+                .instances_to_probabilities("string_enum_instances"),
         }
     }
 }
 
 impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
-    where K: Eq + std::hash::Hash
+where
+    K: Eq + std::hash::Hash,
 {
     type AsProbabilities = HashMap<K, SymbolInfo>;
 
@@ -220,21 +284,27 @@ impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
         use std::cell::RefCell;
         use std::rc::Rc;
 
-        let instances = self.values()
+        let instances = self
+            .values()
             .map(|x| {
                 let x: usize = x.clone().into();
                 x as u32
             })
             .collect();
-        let distribution = Rc::new(RefCell::new(range_encoding::CumulativeDistributionFrequency::new(instances)));
+        let distribution = Rc::new(RefCell::new(
+            range_encoding::CumulativeDistributionFrequency::new(instances),
+        ));
 
         self.into_iter()
             .enumerate()
             .map(|(index, (key, _))| {
-                (key, SymbolInfo {
-                    index: SymbolIndex::from(index),
-                    distribution: distribution.clone()
-                })
+                (
+                    key,
+                    SymbolInfo {
+                        index: SymbolIndex::from(index),
+                        distribution: distribution.clone(),
+                    },
+                )
             })
             .collect()
     }
@@ -260,23 +330,28 @@ pub struct DictionaryBuilder<'a> {
 }
 
 impl<'a> DictionaryBuilder<'a> {
-    pub fn new(dictionary: &'a mut Dictionary<Instances>, files_containing_string: &'a mut KindedStringMap<FilesContaining>) -> Self {
+    pub fn new(
+        dictionary: &'a mut Dictionary<Instances>,
+        files_containing_string: &'a mut KindedStringMap<FilesContaining>,
+    ) -> Self {
         DictionaryBuilder {
             dictionary,
             instances_of_strings_in_current_file: KindedStringMap::default(),
-            files_containing_string
+            files_containing_string,
         }
     }
 
     /// Count the string `value` as used in the current file.
     fn add_instance_to_strings<V>(value: V, bucket: &mut HashMap<V, InstancesInFile>)
-        where
-            V: std::hash::Hash + Eq + Clone + std::fmt::Debug
+    where
+        V: std::hash::Hash + Eq + Clone + std::fmt::Debug,
     {
-        bucket.entry(value)
+        bucket
+            .entry(value)
             .and_modify(|instances| {
                 *instances += InstancesInFile(1) // We have already seen this string in this file, increment.
-            }).or_insert(InstancesInFile(1));    // First time we see this string in this file, store 1.
+            })
+            .or_insert(InstancesInFile(1)); // First time we see this string in this file, store 1.
     }
 
     /// Take all strings of a given nature present in a file (as stored
@@ -290,47 +365,59 @@ impl<'a> DictionaryBuilder<'a> {
     /// Note: This is a function rather than a method because making it a method
     /// would require us to borrow mutably `source` *and* while calling into `self`.
     /// Not very borrow-checker-compatible.
-    fn transfer_instances_of_strings<V>(source: &mut HashMap<V, InstancesInFile>, destination: &mut HashMap<V, FilesContaining>)
-        where
-            V: std::hash::Hash + Eq + Clone + std::fmt::Debug
+    fn transfer_instances_of_strings<V>(
+        source: &mut HashMap<V, InstancesInFile>,
+        destination: &mut HashMap<V, FilesContaining>,
+    ) where
+        V: std::hash::Hash + Eq + Clone + std::fmt::Debug,
     {
         for (k, _) in source.drain() {
             // Increase the number of files in `destination` that contain `k` by 1,
             // ignoring the number of instances of `k` in `source`.
-            destination.entry(k)
-                .and_modify(|instances| {
-                    *instances += FilesContaining(1)
-                }).or_insert(FilesContaining(1));
+            destination
+                .entry(k)
+                .and_modify(|instances| *instances += FilesContaining(1))
+                .or_insert(FilesContaining(1));
         }
     }
 
     fn done_with_file(&mut self) {
         // Count the number of files in which string instances appear.
         Self::transfer_instances_of_strings(
-                &mut self.instances_of_strings_in_current_file.identifier_name_instances,
-                &mut self.files_containing_string.identifier_name_instances
+            &mut self
+                .instances_of_strings_in_current_file
+                .identifier_name_instances,
+            &mut self.files_containing_string.identifier_name_instances,
         );
         Self::transfer_instances_of_strings(
-                &mut self.instances_of_strings_in_current_file.property_key_instances,
-                &mut self.files_containing_string.property_key_instances
+            &mut self
+                .instances_of_strings_in_current_file
+                .property_key_instances,
+            &mut self.files_containing_string.property_key_instances,
         );
         Self::transfer_instances_of_strings(
-                &mut self.instances_of_strings_in_current_file.interface_name_instances,
-                &mut self.files_containing_string.interface_name_instances
+            &mut self
+                .instances_of_strings_in_current_file
+                .interface_name_instances,
+            &mut self.files_containing_string.interface_name_instances,
         );
         Self::transfer_instances_of_strings(
-                &mut self.instances_of_strings_in_current_file.string_literal_instances,
-                &mut self.files_containing_string.string_literal_instances
+            &mut self
+                .instances_of_strings_in_current_file
+                .string_literal_instances,
+            &mut self.files_containing_string.string_literal_instances,
         );
         Self::transfer_instances_of_strings(
-                &mut self.instances_of_strings_in_current_file.string_enum_instances,
-                &mut self.files_containing_string.string_enum_instances
+            &mut self
+                .instances_of_strings_in_current_file
+                .string_enum_instances,
+            &mut self.files_containing_string.string_enum_instances,
         );
     }
 }
 
 impl<'a> TokenWriter for DictionaryBuilder<'a> {
-    type Data = [u8;0]; // Placeholder
+    type Data = [u8; 0]; // Placeholder
 
     fn done(mut self) -> Result<Self::Data, TokenWriterError> {
         self.done_with_file();
@@ -350,42 +437,131 @@ impl<'a> TokenWriter for DictionaryBuilder<'a> {
     }
 
     fn unsigned_long_at(&mut self, value: u32, path: &IOPath) -> Result<(), TokenWriterError> {
-        symbol!(self, unsigned_long_by_path, "unsigned_long_by_path", path, value)?;
+        symbol!(
+            self,
+            unsigned_long_by_path,
+            "unsigned_long_by_path",
+            path,
+            value
+        )?;
         Ok(())
     }
 
-    fn string_enum_at(&mut self, value: &SharedString, path: &IOPath) -> Result<(), TokenWriterError> {
-        symbol!(self, string_enum_by_path, "string_enum_by_path", path, value.clone())?;
-        Self::add_instance_to_strings(value.clone(), &mut self.instances_of_strings_in_current_file.string_enum_instances);
+    fn string_enum_at(
+        &mut self,
+        value: &SharedString,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            string_enum_by_path,
+            "string_enum_by_path",
+            path,
+            value.clone()
+        )?;
+        Self::add_instance_to_strings(
+            value.clone(),
+            &mut self
+                .instances_of_strings_in_current_file
+                .string_enum_instances,
+        );
         Ok(())
     }
 
-    fn string_at(&mut self, value: Option<&SharedString>, path: &IOPath) -> Result<(), TokenWriterError> {
-        symbol!(self, string_literal_by_path, "string_literal_by_path", path, value.cloned())?;
-        Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.string_literal_instances);
+    fn string_at(
+        &mut self,
+        value: Option<&SharedString>,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            string_literal_by_path,
+            "string_literal_by_path",
+            path,
+            value.cloned()
+        )?;
+        Self::add_instance_to_strings(
+            value.cloned(),
+            &mut self
+                .instances_of_strings_in_current_file
+                .string_literal_instances,
+        );
         Ok(())
     }
 
-    fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &IOPath) -> Result<(), TokenWriterError> {
-        symbol!(self, property_key_by_path, "property_key_by_path", path, value.cloned())?;
-        Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.property_key_instances);
+    fn property_key_at(
+        &mut self,
+        value: Option<&PropertyKey>,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            property_key_by_path,
+            "property_key_by_path",
+            path,
+            value.cloned()
+        )?;
+        Self::add_instance_to_strings(
+            value.cloned(),
+            &mut self
+                .instances_of_strings_in_current_file
+                .property_key_instances,
+        );
         Ok(())
     }
 
-    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &IOPath) -> Result<(), TokenWriterError> {
-        symbol!(self, identifier_name_by_path, "identifier_name_by_path", path, value.cloned())?;
-        Self::add_instance_to_strings(value.cloned(), &mut self.instances_of_strings_in_current_file.identifier_name_instances);
+    fn identifier_name_at(
+        &mut self,
+        value: Option<&IdentifierName>,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            identifier_name_by_path,
+            "identifier_name_by_path",
+            path,
+            value.cloned()
+        )?;
+        Self::add_instance_to_strings(
+            value.cloned(),
+            &mut self
+                .instances_of_strings_in_current_file
+                .identifier_name_instances,
+        );
         Ok(())
     }
 
     fn enter_list_at(&mut self, len: usize, path: &IOPath) -> Result<(), TokenWriterError> {
-        symbol!(self, list_length_by_path, "list_length_by_path", path, Some(len as u32))?;
+        symbol!(
+            self,
+            list_length_by_path,
+            "list_length_by_path",
+            path,
+            Some(len as u32)
+        )?;
         Ok(())
     }
 
-    fn enter_tagged_tuple_at(&mut self, _node: &Node, tag: &InterfaceName, _children: &[&FieldName], path: &IOPath)  -> Result<(), TokenWriterError> {
-        symbol!(self, interface_name_by_path, "interface_name_by_path", path, tag.clone())?;
-        Self::add_instance_to_strings(tag.clone(), &mut self.instances_of_strings_in_current_file.interface_name_instances);
+    fn enter_tagged_tuple_at(
+        &mut self,
+        _node: &Node,
+        tag: &InterfaceName,
+        _children: &[&FieldName],
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            interface_name_by_path,
+            "interface_name_by_path",
+            path,
+            tag.clone()
+        )?;
+        Self::add_instance_to_strings(
+            tag.clone(),
+            &mut self
+                .instances_of_strings_in_current_file
+                .interface_name_instances,
+        );
         Ok(())
     }
 

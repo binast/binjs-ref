@@ -7,8 +7,8 @@ extern crate glob;
 extern crate itertools;
 extern crate rand;
 
-use binjs::io::{ Format, Path as IOPath, TokenSerializer };
 use binjs::generic::FromJSON;
+use binjs::io::{Format, Path as IOPath, TokenSerializer};
 use binjs::source::*;
 
 use clap::*;
@@ -98,20 +98,18 @@ fn main() {
 
     let matches = App::new("Compare BinJS compression and brotli/gzip compression")
         .author("David Teller <dteller@mozilla.com>")
-        .args(&[
-            Arg::with_name("in")
-                .long("in")
-                .short("i")
-                .multiple(true)
-                .required(true)
-                .takes_value(true)
-                .help("Glob path towards source files"),
-        ])
+        .args(&[Arg::with_name("in")
+            .long("in")
+            .short("i")
+            .multiple(true)
+            .required(true)
+            .takes_value(true)
+            .help("Glob path towards source files")])
         .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
-    let mut format = binjs::io::Format::from_matches(&matches)
-        .expect("Could not determine encoding format");
+    let mut format =
+        binjs::io::Format::from_matches(&matches).expect("Could not determine encoding format");
 
     let parser = Shift::new();
 
@@ -120,36 +118,44 @@ fn main() {
     for path in matches.values_of("in").expect("Missing `in`") {
         for source_path in glob::glob(&path).expect("Invalid pattern") {
             let source_path = source_path.expect("I/O error");
-            eprintln!("Source: {}", source_path.to_str().expect("Could not display path"));
+            eprintln!(
+                "Source: {}",
+                source_path.to_str().expect("Could not display path")
+            );
 
             let from_text = get_compressed_sizes(&source_path);
 
             eprintln!("Compressing with binjs");
-            let json = parser.parse_file(source_path.clone())
+            let json = parser
+                .parse_file(source_path.clone())
                 .expect("Could not parse source");
-            let mut ast = binjs::specialized::es6::ast::Script::import(&json)
-                .expect("Could not import AST");
-            binjs::specialized::es6::scopes::AnnotationVisitor::new()
-                .annotate_script(&mut ast);
+            let mut ast =
+                binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
+            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
-            let data: Box<AsRef<[u8]>>  = match format {
-                Format::Multipart { ref mut targets, .. } => {
+            let data: Box<AsRef<[u8]>> = match format {
+                Format::Multipart {
+                    ref mut targets, ..
+                } => {
                     targets.reset();
-                    let writer = binjs::io::TokenWriterTreeAdapter::new(binjs::io::multipart::TreeTokenWriter::new(targets.clone()));
+                    let writer = binjs::io::TokenWriterTreeAdapter::new(
+                        binjs::io::multipart::TreeTokenWriter::new(targets.clone()),
+                    );
                     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                    serializer.serialize(&ast, &mut IOPath::new())
+                    serializer
+                        .serialize(&ast, &mut IOPath::new())
                         .expect("Could not encode AST");
-                    let data = serializer.done()
-                        .expect("Could not finalize AST encoding");
+                    let data = serializer.done().expect("Could not finalize AST encoding");
                     Box::new(data)
                 }
-                _ => unimplemented!()
+                _ => unimplemented!(),
             };
 
             {
                 let mut binjs_encoded = std::fs::File::create(&dest_path_binjs)
                     .expect("Could not create binjs-encoded file");
-                binjs_encoded.write_all((*data).as_ref())
+                binjs_encoded
+                    .write_all((*data).as_ref())
                     .expect("Could not write binjs-encoded file");
             }
 
@@ -178,8 +184,7 @@ fn main() {
 
     eprintln!("*** Done");
 
-    let all_stats = all_stats.into_iter()
-        .sorted_by(|a, b| Ord::cmp(&a.0, &b.0));
+    let all_stats = all_stats.into_iter().sorted_by(|a, b| Ord::cmp(&a.0, &b.0));
     println!("File, Source (b), Source+Gzip (b), Source+Brotli (b), Source+BZip2 (b), BinAST (b), BinAST/Source, BinAST+GZip (b), BinAST+GZip/Source+GZip, BinAST+GZip/BinAST, BinAST+Brotli (b), BinAST+Brotli/Source+Brotli, BinAST+Brotli/BinAST, BinAST+BZip2 (b), BinAST+BZip2/Source+BZip2, BinAST+BZip2/BinAST");
     for (path, file_stats) in all_stats {
         println!("{path:?}, {source}, {source_gzip}, {source_brotli}, {source_bzip2}, {binjs}, {uncompressed_to_uncompressed:2}, {binjs_gzip}, {gzip_to_gzip:2}, {gzip_to_uncompressed:2}, {binjs_brotli}, {brotli_to_brotli:2}, {brotli_to_uncompressed:2}, {binjs_bzip2}, {bzip2_to_bzip2:2}, {bzip2_to_uncompressed:2}",
@@ -205,4 +210,3 @@ fn main() {
             path = path);
     }
 }
-

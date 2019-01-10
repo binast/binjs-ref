@@ -64,7 +64,7 @@ pub mod probabilities;
 use self::dictionary::Dictionary;
 use self::probabilities::SymbolInfo;
 
-use ::io::statistics::{ Bytes, BytesAndInstances, Instances, ContentInfo };
+use io::statistics::{Bytes, BytesAndInstances, ContentInfo, Instances};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -87,7 +87,7 @@ pub struct Options {
     content_instances: Rc<RefCell<ContentInfo<Instances>>>,
 }
 impl Options {
-    pub fn new(probability_tables:Dictionary<SymbolInfo>) -> Self {
+    pub fn new(probability_tables: Dictionary<SymbolInfo>) -> Self {
         Options {
             probability_tables,
             content_lengths: Rc::new(RefCell::new(ContentInfo::default())),
@@ -102,13 +102,34 @@ impl Options {
         ContentInfo {
             bools: BytesAndInstances::new(borrow_lengths.bools, borrow_instances.bools),
             floats: BytesAndInstances::new(borrow_lengths.floats, borrow_instances.floats),
-            unsigned_longs: BytesAndInstances::new(borrow_lengths.unsigned_longs, borrow_instances.unsigned_longs),
-            string_enums: BytesAndInstances::new(borrow_lengths.string_enums, borrow_instances.string_enums),
-            property_keys: BytesAndInstances::new(borrow_lengths.property_keys, borrow_instances.property_keys),
-            identifier_names: BytesAndInstances::new(borrow_lengths.identifier_names, borrow_instances.identifier_names),
-            interface_names: BytesAndInstances::new(borrow_lengths.interface_names, borrow_instances.interface_names),
-            string_literals: BytesAndInstances::new(borrow_lengths.string_literals, borrow_instances.string_literals),
-            list_lengths: BytesAndInstances::new(borrow_lengths.list_lengths, borrow_instances.list_lengths),
+            unsigned_longs: BytesAndInstances::new(
+                borrow_lengths.unsigned_longs,
+                borrow_instances.unsigned_longs,
+            ),
+            string_enums: BytesAndInstances::new(
+                borrow_lengths.string_enums,
+                borrow_instances.string_enums,
+            ),
+            property_keys: BytesAndInstances::new(
+                borrow_lengths.property_keys,
+                borrow_instances.property_keys,
+            ),
+            identifier_names: BytesAndInstances::new(
+                borrow_lengths.identifier_names,
+                borrow_instances.identifier_names,
+            ),
+            interface_names: BytesAndInstances::new(
+                borrow_lengths.interface_names,
+                borrow_instances.interface_names,
+            ),
+            string_literals: BytesAndInstances::new(
+                borrow_lengths.string_literals,
+                borrow_instances.string_literals,
+            ),
+            list_lengths: BytesAndInstances::new(
+                borrow_lengths.list_lengths,
+                borrow_instances.list_lengths,
+            ),
         }
     }
 }
@@ -135,25 +156,29 @@ impl ::FormatProvider for FormatProvider {
             )
     }
 
-    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
-        use bincode;
+    fn handle_subcommand(
+        &self,
+        matches: Option<&clap::ArgMatches>,
+    ) -> Result<::Format, ::std::io::Error> {
         use self::probabilities::InstancesToProbabilities;
+        use bincode;
 
         let matches = matches.unwrap();
 
-        let probability_tables_path = matches.value_of("dictionary")
-            .unwrap(); // Guaranteed by `clap`.
-        let probability_tables_source = std::fs::File::open(&probability_tables_path)
-            .expect("Could not open dictionary");
-        let probability_tables : Dictionary<Instances> = bincode::deserialize_from(probability_tables_source)
-            .expect("Could not decode dictionary");
+        let probability_tables_path = matches.value_of("dictionary").unwrap(); // Guaranteed by `clap`.
+        let probability_tables_source =
+            std::fs::File::open(&probability_tables_path).expect("Could not open dictionary");
+        let probability_tables: Dictionary<Instances> =
+            bincode::deserialize_from(probability_tables_source)
+                .expect("Could not decode dictionary");
 
         Ok(::Format::Entropy {
             options: Options {
-                probability_tables: probability_tables.instances_to_probabilities("probability_tables"),
+                probability_tables: probability_tables
+                    .instances_to_probabilities("probability_tables"),
                 content_lengths: Rc::new(RefCell::new(ContentInfo::default())),
                 content_instances: Rc::new(RefCell::new(ContentInfo::default())),
-            }
+            },
         })
     }
 }

@@ -18,8 +18,8 @@
 //! JavaScript format designed to optimize parsing speed and, when possible,
 //! loading speed.
 
-extern crate binjs_generic;
 extern crate binjs_es6;
+extern crate binjs_generic;
 extern crate binjs_io;
 extern crate binjs_meta;
 extern crate binjs_shared;
@@ -34,8 +34,8 @@ extern crate itertools;
 extern crate json;
 #[macro_use]
 extern crate log;
-extern crate rand;
 extern crate lzw;
+extern crate rand;
 extern crate vec_map;
 
 /// Working with a generic (i.e. JSON-based) representation

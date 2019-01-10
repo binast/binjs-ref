@@ -3,11 +3,11 @@ extern crate env_logger;
 extern crate itertools;
 extern crate log;
 
-use binjs_meta::export::{ TypeDeanonymizer, TypeName };
+use binjs_meta::export::{TypeDeanonymizer, TypeName};
 use binjs_meta::spec::*;
 use binjs_meta::util::*;
 
-use std::collections::{ HashMap, HashSet };
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use itertools::Itertools;
@@ -27,97 +27,88 @@ pub struct RustExporter {
     ///
     /// Used to generate code that will create dynamically
     /// an instance of `Spec`.
-    spec: Spec
+    spec: Spec,
 }
 impl RustExporter {
     /// Create a Rust exporter from the original specifications.
     pub fn new(spec: Spec) -> Self {
-        RustExporter {
-            spec
-        }
+        RustExporter { spec }
     }
 
     /// Generate the dynamic version of a `Type`.
     fn type_(type_: &Type, prefix: &str) -> String {
         let spec = Self::type_spec(type_.spec(), prefix);
         let ref spec = spec.trim_start();
-        format!("{prefix}{type_}{close}",
+        format!(
+            "{prefix}{type_}{close}",
             type_ = spec,
             prefix = prefix,
-            close =
-                if type_.is_optional() {
-                    ".optional().unwrap()"
-                } else {
-                    ".required()"
-                }
-            )
+            close = if type_.is_optional() {
+                ".optional().unwrap()"
+            } else {
+                ".required()"
+            }
+        )
     }
 
     /// Generate the dynamic version of a `TypeSpec`.
     fn type_spec(spec: &TypeSpec, prefix: &str) -> String {
         match *spec {
-            TypeSpec::Array { ref contents, supports_empty: false } => {
-                format!("{prefix}{contents}.non_empty_array()",
-                    contents = Self::type_(contents, prefix),
-                    prefix = prefix)
-            }
-            TypeSpec::Array { ref contents, supports_empty: true } => {
-                format!("{prefix}{contents}.array()",
-                    contents = Self::type_(contents, prefix),
-                    prefix = prefix)
-            }
-            TypeSpec::Boolean =>
-                format!("{prefix}Type::bool()",
-                    prefix = prefix),
-            TypeSpec::Offset =>
-                format!("{prefix}Type::offset()",
-                    prefix = prefix),
-            TypeSpec::String =>
-                format!("{prefix}Type::string()",
-                    prefix = prefix),
-            TypeSpec::Number =>
-                format!("{prefix}Type::number()",
-                    prefix = prefix),
-            TypeSpec::UnsignedLong =>
-                format!("{prefix}Type::unsigned_long()",
-                    prefix = prefix),
-            TypeSpec::IdentifierName =>
-                format!("{prefix}Type::identifier_name()",
-                    prefix = prefix),
-            TypeSpec::PropertyKey =>
-                format!("{prefix}Type::property_key()",
-                    prefix = prefix),
-            TypeSpec::NamedType(ref name) =>
-                format!("{prefix}Type::named(&names.{name})",
-                    name = name.to_rust_identifier_case(),
-                    prefix = prefix),
+            TypeSpec::Array {
+                ref contents,
+                supports_empty: false,
+            } => format!(
+                "{prefix}{contents}.non_empty_array()",
+                contents = Self::type_(contents, prefix),
+                prefix = prefix
+            ),
+            TypeSpec::Array {
+                ref contents,
+                supports_empty: true,
+            } => format!(
+                "{prefix}{contents}.array()",
+                contents = Self::type_(contents, prefix),
+                prefix = prefix
+            ),
+            TypeSpec::Boolean => format!("{prefix}Type::bool()", prefix = prefix),
+            TypeSpec::Offset => format!("{prefix}Type::offset()", prefix = prefix),
+            TypeSpec::String => format!("{prefix}Type::string()", prefix = prefix),
+            TypeSpec::Number => format!("{prefix}Type::number()", prefix = prefix),
+            TypeSpec::UnsignedLong => format!("{prefix}Type::unsigned_long()", prefix = prefix),
+            TypeSpec::IdentifierName => format!("{prefix}Type::identifier_name()", prefix = prefix),
+            TypeSpec::PropertyKey => format!("{prefix}Type::property_key()", prefix = prefix),
+            TypeSpec::NamedType(ref name) => format!(
+                "{prefix}Type::named(&names.{name})",
+                name = name.to_rust_identifier_case(),
+                prefix = prefix
+            ),
             TypeSpec::TypeSum(ref types) => {
-                let indent = format!("{prefix}    ",
-                    prefix = prefix);
-                format!("{prefix}Type::sum(&[\n{sum}\n{prefix}])",
+                let indent = format!("{prefix}    ", prefix = prefix);
+                format!(
+                    "{prefix}Type::sum(&[\n{sum}\n{prefix}])",
                     prefix = prefix,
-                    sum = types.types()
+                    sum = types
+                        .types()
                         .iter()
                         .map(|t| Self::type_spec(t, &indent))
                         .format(",\n")
                 )
             }
-            TypeSpec::Void => "void".to_string()
+            TypeSpec::Void => "void".to_string(),
         }
     }
 
-
     pub fn to_rust_source(&self) -> ExportedSource {
         let deanonymizer = TypeDeanonymizer::new(&self.spec);
-        let supersums_of : HashMap<_, _> = deanonymizer.supersums()
+        let supersums_of: HashMap<_, _> = deanonymizer
+            .supersums()
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        let deanonymized = deanonymizer
-            .into_spec(SpecOptions {
-                root: self.spec.get_root_name(),
-                null: self.spec.get_null_name(),
-            });
+        let deanonymized = deanonymizer.into_spec(SpecOptions {
+            root: self.spec.get_root_name(),
+            null: self.spec.get_null_name(),
+        });
 
         // Buffer used to generate the strongly-typed data structure.
         let mut ast_buffer = String::new();
@@ -144,49 +135,60 @@ use json::JsonValue as JSON;
         let mut impl_buffer = String::new();
         impl_buffer.push_str("impl Library {\n    pub fn new(builder: &mut SpecBuilder) -> Self {\n        let names = Library {\n");
 
-
         // Export the name definitions.
-        fn print_struct_names<'a, T>(buffer: &mut String, source: T) where T: Iterator<Item = &'a NodeName> {
-            let mut names : Vec<_> = source.map(|x| x.to_string())
-                .collect();
+        fn print_struct_names<'a, T>(buffer: &mut String, source: T)
+        where
+            T: Iterator<Item = &'a NodeName>,
+        {
+            let mut names: Vec<_> = source.map(|x| x.to_string()).collect();
             names.sort();
             for name in names {
-                let source = format!("    pub {snake}: NodeName,\n",
-                    snake = name.to_rust_identifier_case());
+                let source = format!(
+                    "    pub {snake}: NodeName,\n",
+                    snake = name.to_rust_identifier_case()
+                );
                 buffer.push_str(&source);
             }
         }
-        fn print_impl_names<'a, T>(buffer: &mut String, source: T) where T: Iterator<Item = &'a NodeName> {
-            let mut names : Vec<_> = source.map(|x| x.to_string())
-                .collect();
+        fn print_impl_names<'a, T>(buffer: &mut String, source: T)
+        where
+            T: Iterator<Item = &'a NodeName>,
+        {
+            let mut names: Vec<_> = source.map(|x| x.to_string()).collect();
             names.sort();
             for name in names {
-                let source = format!("            {snake}: builder.node_name(\"{original}\"),\n",
+                let source = format!(
+                    "            {snake}: builder.node_name(\"{original}\"),\n",
                     snake = name.to_rust_identifier_case(),
-                    original = name);
+                    original = name
+                );
                 buffer.push_str(&source);
             }
         }
         fn print_ast_string_enums(buffer: &mut String, source: &HashMap<NodeName, Rc<StringEnum>>) {
-            let names = source.keys()
-                .sorted();
+            let names = source.keys().sorted();
             for name in names {
                 let string_enum = source.get(&name).unwrap();
                 let rust_name = name.to_class_cases();
-                let definition = format!("
+                let definition = format!(
+                    "
 /// Implementation of string enum {name}
 #[derive(PartialEq, Debug, Clone)]\npub enum {rust_name} {{\n{values}\n    }}\n",
                     name = name,
                     rust_name = rust_name,
-                    values = string_enum.strings()
+                    values = string_enum
+                        .strings()
                         .iter()
                         .map(|s| format!(
-"/// Implementation of variant \"{spec_variant_name}\"
+                            "/// Implementation of variant \"{spec_variant_name}\"
      {rust_variant_name}",
                             spec_variant_name = s,
-                            rust_variant_name = ToCases::to_cpp_enum_case(s)))
-                        .format(",\n"));
-                let default = format!("
+                            rust_variant_name = ToCases::to_cpp_enum_case(s)
+                        ))
+                        .format(",\n")
+                );
+                let default = format!(
+                    "
 type ViewMut{name}<'a> = ViewMutNothing<{name}>;
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(_: &'a mut {name}) -> Self {{
@@ -200,10 +202,11 @@ impl Default for {name} {{
 }}
 ",
                     name = name,
-                    default = string_enum.strings()[0]
-                        .to_cpp_enum_case());
+                    default = string_enum.strings()[0].to_cpp_enum_case()
+                );
 
-                let to_json = format!("
+                let to_json = format!(
+                    "
 impl ToJSON for {name} {{
     fn export(&self) -> JSON {{
         json::from(match *self {{
@@ -211,15 +214,18 @@ impl ToJSON for {name} {{
         }})
     }}
 }}\n\n",
-                    cases = string_enum.strings()
+                    cases = string_enum
+                        .strings()
                         .iter()
-                        .map(|s| format!("           {name}::{typed} => \"{string}\"",
+                        .map(|s| format!(
+                            "           {name}::{typed} => \"{string}\"",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s,
                         ))
                         .format(",\n"),
-                    name = name);
+                    name = name
+                );
 
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
@@ -257,7 +263,8 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
                         .format("\n")
                     );
 
-                let from_json = format!("
+                let from_json = format!(
+                    "
 impl FromJSON for {name} {{
     fn import(source: &JSON) -> Result<Self, FromJSONError > {{
         match source.as_str() {{
@@ -269,17 +276,21 @@ impl FromJSON for {name} {{
         }}
     }}
 }}\n\n",
-                    cases = string_enum.strings()
+                    cases = string_enum
+                        .strings()
                         .iter()
-                        .map(|s| format!("           Some(\"{string}\") => Ok({name}::{typed})",
+                        .map(|s| format!(
+                            "           Some(\"{string}\") => Ok({name}::{typed})",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s,
                         ))
                         .format(",\n"),
-                    name = name);
+                    name = name
+                );
 
-                let to_writer = format!("
+                let to_writer = format!(
+                    "
 impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &'a {name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing string enum {name}\");
@@ -291,9 +302,11 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
 }}
 ",
                     name = name,
-                    variants = string_enum.strings()
+                    variants = string_enum
+                        .strings()
                         .iter()
-                        .map(|s| format!("            {name}::{typed} => \"{string}\"",
+                        .map(|s| format!(
+                            "            {name}::{typed} => \"{string}\"",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s,
@@ -320,25 +333,27 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                 buffer.push_str("\n\n\n");
             }
         }
-        fn print_ast_typedefs(buffer: &mut String, source: &HashMap<NodeName, Rc<Type>>, supersums: &HashMap<NodeName, HashSet<NodeName>>, null_name: &str) {
+        fn print_ast_typedefs(
+            buffer: &mut String,
+            source: &HashMap<NodeName, Rc<Type>>,
+            supersums: &HashMap<NodeName, HashSet<NodeName>>,
+            null_name: &str,
+        ) {
             // Compute reverse supersums.
             let mut rev_supersums = HashMap::new();
             for (k, set) in supersums {
                 for v in set {
-                    let entry = rev_supersums.entry(v)
-                        .or_insert_with(|| HashSet::new());
+                    let entry = rev_supersums.entry(v).or_insert_with(|| HashSet::new());
                     entry.insert(k.clone());
                 }
             }
             let rev_supersums = rev_supersums;
 
-
             let mut enums = vec![];
             let mut options = vec![];
             let mut lists = vec![];
             let mut primitives = vec![];
-            let names : Vec<_> = source.keys()
-                .sorted();
+            let names: Vec<_> = source.keys().sorted();
 
             for name in names.into_iter() {
                 // Since the source is deanonymized, all type definitions are just one layer deep.
@@ -347,19 +362,33 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                     options.push(name);
                 } else {
                     match *typedef.spec() {
-                        TypeSpec::TypeSum(_) => { enums.push(name); }
-                        TypeSpec::Array{ .. } => { lists.push(name); }
-                        TypeSpec::Boolean | TypeSpec::Number | TypeSpec::UnsignedLong | TypeSpec::String | TypeSpec::Void => { primitives.push(name); }
-                        _ => { buffer.push_str(&format!("// UNIMPLEMENTED: {}\n", name)); }
+                        TypeSpec::TypeSum(_) => {
+                            enums.push(name);
+                        }
+                        TypeSpec::Array { .. } => {
+                            lists.push(name);
+                        }
+                        TypeSpec::Boolean
+                        | TypeSpec::Number
+                        | TypeSpec::UnsignedLong
+                        | TypeSpec::String
+                        | TypeSpec::Void => {
+                            primitives.push(name);
+                        }
+                        _ => {
+                            buffer.push_str(&format!("// UNIMPLEMENTED: {}\n", name));
+                        }
                     }
                 }
             }
             buffer.push_str("\n\n// Type sums (by lexicographical order)\n");
-            let typesums : HashMap<_, _> = enums.iter()
+            let typesums: HashMap<_, _> = enums
+                .iter()
                 .filter_map(|name| {
                     let typedef = source.get(name).unwrap();
                     if let TypeSpec::TypeSum(ref sum) = *typedef.spec() {
-                        let types : Vec<_> = sum.types()
+                        let types: Vec<_> = sum
+                            .types()
                             .iter()
                             .map(|t| {
                                 if let TypeSpec::NamedType(ref case) = *t {
@@ -382,7 +411,8 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                 if let TypeSpec::TypeSum(_) = *typedef.spec() {
                     let types = typesums.get(&node_name).unwrap(); // Just built above.
 
-                    let definition = format!("
+                    let definition = format!(
+                        "
 /// Implementation of interface sum {node_name}
 #[derive(PartialEq, Debug, Clone)]
 pub enum {name} {{\n{contents}\n}}\n
@@ -395,30 +425,38 @@ pub enum ViewMut{name}<'a> {{\n{ref_mut_contents}\n}}\n",
                         node_name = node_name,
                         contents = types
                             .iter()
-                            .map(|case| format!("    {name}(Box<{name}>)",
-                                name = case.to_class_cases()))
+                            .map(|case| format!(
+                                "    {name}(Box<{name}>)",
+                                name = case.to_class_cases()
+                            ))
                             .format(",\n"),
                         ref_mut_contents = types
                             .iter()
-                            .map(|case| format!("    {name}(&'a mut {name})",
-                                name = case.to_class_cases()))
+                            .map(|case| format!(
+                                "    {name}(&'a mut {name})",
+                                name = case.to_class_cases()
+                            ))
                             .format(",\n"),
-                        );
+                    );
 
-                    let single_variant_from = format!("
+                    let single_variant_from = format!(
+                        "
 {}
 ",
-                        types.iter()
-                            .map(|case| format!("
+                        types
+                            .iter()
+                            .map(|case| format!(
+                                "
 impl From<{variant_name}> for {name} {{
     fn from(value: {variant_name}) -> Self {{
         {name}::{variant_name}(Box::new(value))
     }}
 }}
 ",
-                            name = name,
-                            variant_name = case.to_class_cases()))
-                        .format("\n")
+                                name = name,
+                                variant_name = case.to_class_cases()
+                            ))
+                            .format("\n")
                     );
                     let subsum_from = match rev_supersums.get(&node_name) {
                         None => "".to_string(),
@@ -451,7 +489,8 @@ impl From<{subsum_name}> for {name} {{
                         }
                     };
 
-                    let default = format!("
+                    let default = format!(
+                        "
 impl Default for {name} {{
     fn default() -> Self {{
         {name}::{default}
@@ -459,10 +498,12 @@ impl Default for {name} {{
 }}
 
 ",
-                            name = name,
-                            default = format!("{variant}(Box::new(Default::default()))",
-                                variant = types[0].to_class_cases()),
-                        );
+                        name = name,
+                        default = format!(
+                            "{variant}(Box::new(Default::default()))",
+                            variant = types[0].to_class_cases()
+                        ),
+                    );
 
                     let from_reader = format!("
 impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
@@ -540,7 +581,7 @@ impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenRea
                                     null = null_name,
                                 );
 
-                            let from_json = format!("
+                    let from_json = format!("
 impl FromJSON for {name} {{
     fn import(value: &JSON) -> Result<Self, FromJSONError> {{
         match value[\"type\"].as_str() {{
@@ -564,9 +605,8 @@ impl FromJSON for {name} {{
                                     .format(",\n")
                                 );
 
-
-
-                            let to_json = format!("
+                    let to_json = format!(
+                        "
 impl ToJSON for {name} {{
     fn export(&self) -> JSON {{
         match *self {{
@@ -574,16 +614,16 @@ impl ToJSON for {name} {{
         }}
     }}
 }}\n\n",
+                        name = name,
+                        cases = types
+                            .iter()
+                            .map(|case| format!(
+                                "           {name}::{constructor}(ref value) => value.export()",
                                 name = name,
-                                cases = types
-                                    .iter()
-                                    .map(|case| {
-                                        format!("           {name}::{constructor}(ref value) => value.export()",
-                                            name = name,
-                                            constructor = case.to_class_cases())
-                                    })
-                                    .format(",\n")
-                                );
+                                constructor = case.to_class_cases()
+                            ))
+                            .format(",\n")
+                    );
 
                     let to_writer = format!("
 impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
@@ -625,7 +665,6 @@ impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWr
                             })
                             .format(",\n")
                         );
-
 
                     let walk = format!("
 impl<'a> Walker<'a> for {name} {{
@@ -808,19 +847,29 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
             // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in lists.drain(..) {
                 let typedef = source.get(name).unwrap();
-                if let TypeSpec::Array { ref contents, ref supports_empty } = *typedef.spec() {
+                if let TypeSpec::Array {
+                    ref contents,
+                    ref supports_empty,
+                } = *typedef.spec()
+                {
                     if let TypeSpec::NamedType(ref contents) = *contents.spec() {
                         // FunctionBody's implementation is already
                         // emitted as ListOfStatement.
                         // Emit only ViewMut* to avoid duplicate definitions.
                         // FIXMEarai: Use more generic way to detect such case.
                         if name.to_string() == "FunctionBody" {
-                            let source = format!("{empty_check}pub type {name} = Vec<{contents}>;
+                            let source = format!(
+                                "{empty_check}pub type {name} = Vec<{contents}>;
 pub type ViewMut{name}<'a> = ViewMutListOfStatement<'a>;
 ",
-                                                 empty_check = if *supports_empty { "" } else { "// FIXME: Should discard empty vectors.\n" },
-                                                 name = name.to_class_cases(),
-                                                 contents = contents.to_class_cases());
+                                empty_check = if *supports_empty {
+                                    ""
+                                } else {
+                                    "// FIXME: Should discard empty vectors.\n"
+                                },
+                                name = name.to_class_cases(),
+                                contents = contents.to_class_cases()
+                            );
                             buffer.push_str(&source);
                             continue;
                         }
@@ -881,9 +930,11 @@ impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter 
                         continue;
                     }
                 }
-                panic!("Could not implement alias to list type {name}: {contents:?}",
+                panic!(
+                    "Could not implement alias to list type {name}: {contents:?}",
                     contents = typedef.spec(),
-                    name = name);
+                    name = name
+                );
             }
             buffer.push_str("\n\n// Aliases to optional types (by lexicographical order)\n");
             // FromJSON/ToJSON are already implemented in `binjs::utils`
@@ -928,13 +979,18 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                 }
             }
         }
-        fn print_ast_interfaces(buffer: &mut String, source: &HashMap<NodeName, Rc<Interface>>, null_name: &str) {
-            let names : Vec<_> = source.keys()
-                .sorted();
+        fn print_ast_interfaces(
+            buffer: &mut String,
+            source: &HashMap<NodeName, Rc<Interface>>,
+            null_name: &str,
+        ) {
+            let names: Vec<_> = source.keys().sorted();
             for name in &names {
                 let interface = source.get(name).unwrap();
                 let rust_name = name.to_class_cases();
-                let field_specs : Vec<_> = interface.contents().fields()
+                let field_specs: Vec<_> = interface
+                    .contents()
+                    .fields()
                     .iter()
                     .map(|field| {
                         let spec = if field.type_().is_optional() {
@@ -948,19 +1004,16 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                                 TypeSpec::String => "String".to_string(),
                                 TypeSpec::Void => "()".to_string(),
                                 TypeSpec::Offset => "Offset".to_string(),
-                                _ => TypeName::type_(field.type_())
+                                _ => TypeName::type_(field.type_()),
                             }
                         };
                         (field.name(), spec)
                     })
                     .collect();
-                let field_specs_map : HashMap<_, _> = field_specs
-                    .iter()
-                    .map(|(a, b)| {
-                        (a.clone(), b)
-                    })
-                    .collect();
-                let definition = format!("
+                let field_specs_map: HashMap<_, _> =
+                    field_specs.iter().map(|(a, b)| (a.clone(), b)).collect();
+                let definition = format!(
+                    "
 /// Implementation of interface {spec_name}.
 #[derive(Default, PartialEq, Debug, Clone)]
 pub struct {rust_name} {{
@@ -976,18 +1029,19 @@ impl binjs_shared::Node for {rust_name} {{
     }}
 }}
 ",
-                    fields = field_specs.iter()
-                        .map(|(field_name, spec)| {
-                            format!(
-"    /// Implementation of field {spec_name}
+                    fields = field_specs
+                        .iter()
+                        .map(|(field_name, spec)| format!(
+                            "    /// Implementation of field {spec_name}
     pub {rust_name}: {contents}",
-                                rust_name = field_name.to_rust_identifier_case(),
-                                spec_name = field_name.to_str(),
-                                contents = spec)
-                        })
+                            rust_name = field_name.to_rust_identifier_case(),
+                            spec_name = field_name.to_str(),
+                            contents = spec
+                        ))
                         .format(",\n"),
                     rust_name = rust_name,
-                    spec_name = name);
+                    spec_name = name
+                );
 
                 let from_reader = format!("
 impl<R> Deserializer<R> where R: TokenReader {{
@@ -1093,7 +1147,7 @@ impl<R> Deserialization<R, Option<{rust_name}>> for Deserializer<R> where R: Tok
                             name = field.name().to_rust_identifier_case()))
                         .format("\n")
                     );
-                    let to_writer = format!("
+                let to_writer = format!("
 impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &'a Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional tagged tuple {name}\");
@@ -1158,7 +1212,8 @@ impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWr
                             .format("\n")
                     );
 
-                let from_json = format!("
+                let from_json = format!(
+                    "
 impl FromJSON for {rust_name} {{
     fn import(value: &JSON) -> Result<Self, FromJSONError> {{
         match value[\"type\"].as_str() {{
@@ -1175,16 +1230,20 @@ impl FromJSON for {rust_name} {{
 }}\n\n",
                     kind = name,
                     rust_name = rust_name,
-                    fields = interface.contents()
+                    fields = interface
+                        .contents()
                         .fields()
                         .iter()
-                        .map(|field| format!("            {name}: FromJSON::import(&value[\"{key}\"])?,\n",
+                        .map(|field| format!(
+                            "            {name}: FromJSON::import(&value[\"{key}\"])?,\n",
                             key = field.name().to_str(),
-                            name = field.name().to_rust_identifier_case()))
+                            name = field.name().to_rust_identifier_case()
+                        ))
                         .format("")
-                    );
+                );
 
-                let to_json = format!("
+                let to_json = format!(
+                    "
 impl ToJSON for {rust_name} {{
     fn export(&self) -> JSON {{
         object!{{
@@ -1195,14 +1254,17 @@ impl ToJSON for {rust_name} {{
 }}\n\n",
                     kind = name,
                     rust_name = rust_name,
-                    fields = interface.contents()
+                    fields = interface
+                        .contents()
                         .fields()
                         .iter()
-                        .map(|field| format!("             \"{key}\" => self.{name}.export()",
+                        .map(|field| format!(
+                            "             \"{key}\" => self.{name}.export()",
                             key = field.name().to_str(),
-                            name = field.name().to_rust_identifier_case()))
+                            name = field.name().to_rust_identifier_case()
+                        ))
                         .format(",\n")
-                    );
+                );
 
                 let walk = format!("
 /// Shallow casting mechanism.
@@ -1268,24 +1330,31 @@ impl<'a> Walker<'a> for ViewMut{rust_name}<'a> where Self: 'a {{
                 buffer.push_str("\n\n\n");
             }
 
-            let interfaces_enum = format!("
+            let interfaces_enum = format!(
+                "
 /// All the interfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]\npub enum ASTNode {{
 {interfaces}
 }}\n\n\n",
-                interfaces = names.iter()
+                interfaces = names
+                    .iter()
                     .map(|name| format!(
-"    /// {name}
+                        "    /// {name}
     {rust_name}",
                         name = name,
-                        rust_name = name.to_class_cases()))
+                        rust_name = name.to_class_cases()
+                    ))
                     .format(",\n")
             );
 
             buffer.push_str(&interfaces_enum);
         }
 
-        fn print_visitor(buffer: &mut String, interfaces: &HashMap<NodeName, Rc<Interface>>, typedefs: &HashMap<NodeName, Rc<Type>>) {
+        fn print_visitor(
+            buffer: &mut String,
+            interfaces: &HashMap<NodeName, Rc<Interface>>,
+            typedefs: &HashMap<NodeName, Rc<Type>>,
+        ) {
             let path = "
 /// A PathItem, used when walking the tree with the strongly-typed `Walker` API.
 pub type WalkPathItem = binjs_shared::ast::PathItem<ASTNode, ASTField>;
@@ -1295,20 +1364,19 @@ pub type WalkPath = binjs_shared::ast::Path<ASTNode, ASTField>;
 /// A Path, used when walking the tree with more weakly-typed APIs, e.g. TokenReader/TokenWriter.
 pub type IOPath = binjs_shared::ast::Path<binjs_shared::InterfaceName, ( /* child index */ usize, /* field name */ binjs_shared::FieldName)>;
 ";
-            let mut interface_names = interfaces.keys()
-                    .sorted();
+            let mut interface_names = interfaces.keys().sorted();
             let mut sum_names = typedefs
-                    .iter()
-                    .filter_map(|(name, typedef)| {
-                        if typedef.is_optional() {
-                            return None;
-                        }
-                        if let TypeSpec::TypeSum(_) = typedef.spec() {
-                            return Some(name);
-                        }
+                .iter()
+                .filter_map(|(name, typedef)| {
+                    if typedef.is_optional() {
                         return None;
-                    })
-                    .sorted();
+                    }
+                    if let TypeSpec::TypeSum(_) = typedef.spec() {
+                        return Some(name);
+                    }
+                    return None;
+                })
+                .sorted();
 
             let visitor = format!("
 /// A set of callbacks used to inspect the contents of an AST in a strongly-typed
@@ -1463,21 +1531,36 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
         impl_buffer.push_str("\n\n            // Typedef names (by lexicographical order)\n");
         print_struct_names(&mut struct_buffer, self.spec.typedefs_by_name().keys());
         print_impl_names(&mut impl_buffer, self.spec.typedefs_by_name().keys());
-        print_ast_typedefs(&mut ast_buffer, deanonymized.typedefs_by_name(), &supersums_of, self.spec.get_null_name().to_str());
+        print_ast_typedefs(
+            &mut ast_buffer,
+            deanonymized.typedefs_by_name(),
+            &supersums_of,
+            self.spec.get_null_name().to_str(),
+        );
 
         struct_buffer.push_str("\n\n    // Interface names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n            // Interface names (by lexicographical order)\n");
         ast_buffer.push_str("\n\n// Interfaces and interface names (by lexicographical order)\n");
         print_struct_names(&mut struct_buffer, self.spec.interfaces_by_name().keys());
         print_impl_names(&mut impl_buffer, self.spec.interfaces_by_name().keys());
-        print_ast_interfaces(&mut ast_buffer, deanonymized.interfaces_by_name(), self.spec.get_null_name().to_str());
-        print_visitor(&mut ast_buffer, deanonymized.interfaces_by_name(), deanonymized.typedefs_by_name());
+        print_ast_interfaces(
+            &mut ast_buffer,
+            deanonymized.interfaces_by_name(),
+            self.spec.get_null_name().to_str(),
+        );
+        print_visitor(
+            &mut ast_buffer,
+            deanonymized.interfaces_by_name(),
+            deanonymized.typedefs_by_name(),
+        );
 
         struct_buffer.push_str("\n\n\n    // Field names (by lexicographical order)\n");
         impl_buffer.push_str("\n\n\n            // Field names (by lexicographical order)\n");
-        ast_buffer.push_str("\n\n\n// Field names (by lexicographical order)
+        ast_buffer.push_str(
+            "\n\n\n// Field names (by lexicographical order)
 /// All the fields.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]\npub enum ASTField {\n");
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]\npub enum ASTField {\n",
+        );
         let mut fields = HashSet::new();
         for interface in self.spec.interfaces_by_name().values() {
             for field in interface.contents().fields() {
@@ -1487,47 +1570,52 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
                 }
             }
         }
-        let fields : Vec<_> = fields.drain().sorted();
+        let fields: Vec<_> = fields.drain().sorted();
         for name in fields {
             let snake = name.to_rust_identifier_case();
-            let struct_source = format!("    pub field_{snake}: FieldName,\n",
-                snake = snake);
+            let struct_source = format!("    pub field_{snake}: FieldName,\n", snake = snake);
             struct_buffer.push_str(&struct_source);
 
-            let impl_source = format!("            field_{snake}: builder.field_name(\"{original}\"),\n",
+            let impl_source = format!(
+                "            field_{snake}: builder.field_name(\"{original}\"),\n",
                 snake = snake,
-                original = name);
+                original = name
+            );
             impl_buffer.push_str(&impl_source);
 
-            let ast_source = format!("    {variant},\n",
-                variant = name.to_class_cases());
+            let ast_source = format!("    {variant},\n", variant = name.to_class_cases());
             ast_buffer.push_str(&ast_source);
         }
-
 
         impl_buffer.push_str("        };\n");
         struct_buffer.push_str("}");
         ast_buffer.push_str("}\n");
 
-
         impl_buffer.push_str("\n\n\n        // Enumerations\n");
         for (name, def) in self.spec.string_enums_by_name() {
-            let strings = format!("{strings}",
-                strings = def.strings()
+            let strings = format!(
+                "{strings}",
+                strings = def
+                    .strings()
                     .iter()
-                    .map(|s| format!("                \"{s}\"", s=s))
-                    .format(",\n"));
-            let impl_source = format!("        builder.add_string_enum(&names.{name}).unwrap()
+                    .map(|s| format!("                \"{s}\"", s = s))
+                    .format(",\n")
+            );
+            let impl_source = format!(
+                "        builder.add_string_enum(&names.{name}).unwrap()
             .with_strings(&[\n{strings}\n           ]);\n\n",
                 name = name.to_rust_identifier_case(),
-                strings = strings);
+                strings = strings
+            );
             impl_buffer.push_str(&impl_source);
         }
         for (name, def) in self.spec.typedefs_by_name() {
-            let impl_source = format!("        builder.add_typedef(&names.{name}).unwrap()
+            let impl_source = format!(
+                "        builder.add_typedef(&names.{name}).unwrap()
             .with_type(\n{spec});\n\n",
                 name = name.to_rust_identifier_case(),
-                spec = Self::type_(def, "                    "));
+                spec = Self::type_(def, "                    ")
+            );
             impl_buffer.push_str(&impl_source);
         }
         for (name, def) in self.spec.interfaces_by_name() {
@@ -1545,14 +1633,17 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
                         type_= Self::type_(field.type_(), "                 "),
                     ))
                     .format("\n"));
-            let impl_source = format!("        builder.add_interface(&names.{name}).unwrap()\n{fields};\n\n",
+            let impl_source = format!(
+                "        builder.add_interface(&names.{name}).unwrap()\n{fields};\n\n",
                 name = name.to_rust_identifier_case(),
-                fields = fields);
+                fields = fields
+            );
             impl_buffer.push_str(&impl_source);
         }
 
         impl_buffer.push_str("        names\n    }\n");
-        impl_buffer.push_str("
+        impl_buffer.push_str(
+            "
 }
 
 impl Library {
@@ -1574,7 +1665,8 @@ impl Annotator for Library {
         Library::annotate(self, ast)
     }
 }
-");
+",
+        );
         ExportedSource {
             typed: format!("// This file was generated by binjs_meta generate_library.\n{ast_}\n",
                 ast_ = ast_buffer),
@@ -1584,4 +1676,3 @@ impl Annotator for Library {
         }
     }
 }
-

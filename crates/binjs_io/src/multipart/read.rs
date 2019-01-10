@@ -1,21 +1,21 @@
 use std;
 use std::cell::RefCell;
-use std::io::{ Cursor, Read, Seek, SeekFrom };
+use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::rc::Rc;
 
 use vec_map::VecMap;
 
 use bytes;
 use bytes::compress::*;
-use bytes::varnum::*;
 use bytes::serialize::*;
-use ::TokenReaderError;
-use io::*;
+use bytes::varnum::*;
 use escaped_wtf8;
-use multipart::{ FormatInTable, HEADER_GRAMMAR_TABLE, HEADER_STRINGS_TABLE, HEADER_TREE };
-use util::{ PoisonLock, Pos, ReadConst };
+use io::*;
+use multipart::{FormatInTable, HEADER_GRAMMAR_TABLE, HEADER_STRINGS_TABLE, HEADER_TREE};
+use util::{PoisonLock, Pos, ReadConst};
+use TokenReaderError;
 
-use binjs_shared::{ FieldName, InterfaceName, SharedString };
+use binjs_shared::{FieldName, InterfaceName, SharedString};
 
 impl Into<std::io::Error> for TokenReaderError {
     fn into(self) -> std::io::Error {
@@ -30,7 +30,9 @@ impl Deserializer for BufDeserializer {
     fn read<R: Read + Seek>(&self, reader: &mut R) -> Result<Self::Target, std::io::Error> {
         let size = reader.size();
         let mut buf = Vec::with_capacity(size);
-        unsafe { buf.set_len(size); }
+        unsafe {
+            buf.set_len(size);
+        }
         reader.read_exact(&mut buf)?;
         Ok(buf)
     }
@@ -42,7 +44,9 @@ impl Deserializer for Option<SharedString> {
     fn read<R: Read>(&self, inp: &mut R) -> Result<Self, std::io::Error> {
         let byte_len = inp.read_varnum()?;
         let mut bytes = Vec::with_capacity(byte_len as usize);
-        unsafe { bytes.set_len(byte_len as usize); }
+        unsafe {
+            bytes.set_len(byte_len as usize);
+        }
         inp.read_exact(&mut bytes)?;
         if &bytes == &[255, 0] {
             Ok(None)
@@ -67,12 +71,19 @@ impl<Value> Table<Value> {
 }
 
 /// Deserialize a `Table`.
-struct TableDeserializer<D> where D: Deserializer {
+struct TableDeserializer<D>
+where
+    D: Deserializer,
+{
     /// The deserializer used for entries in the table.
     deserializer: D,
 }
 
-impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Target: FormatInTable {
+impl<'a, D> Deserializer for TableDeserializer<D>
+where
+    D: Deserializer,
+    D::Target: FormatInTable,
+{
     type Target = Table<D::Target>;
     fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
         // Get number of entries.
@@ -97,8 +108,9 @@ impl<'a, D> Deserializer for TableDeserializer<D> where D: Deserializer, D::Targ
                 if stop - start != expected_byte_length {
                     return Err(TokenReaderError::BadLength {
                         expected: expected_byte_length,
-                        got: stop - start
-                    }.into());
+                        got: stop - start,
+                    }
+                    .into());
                 }
                 map.insert(i, value);
             }
@@ -120,7 +132,7 @@ pub struct NodeDescription {
 }
 
 impl<'a> FormatInTable for NodeDescription {
-    const HAS_LENGTH_INDEX : bool = false;
+    const HAS_LENGTH_INDEX: bool = false;
 }
 
 struct NodeDescriptionDeserializer;
@@ -132,15 +144,13 @@ impl Deserializer for NodeDescriptionDeserializer {
     type Target = NodeDescription;
     fn read<R: Read + Seek>(&self, inp: &mut R) -> Result<Self::Target, std::io::Error> {
         // Extract kind
-        let strings_deserializer : Option<SharedString> = None;
+        let strings_deserializer: Option<SharedString> = None;
         let name = match strings_deserializer.read(inp)? {
             None => return Err(TokenReaderError::EmptyNodeName.into()),
-            Some(x) => x
+            Some(x) => x,
         };
 
-        Ok(NodeDescription {
-            kind: name,
-        })
+        Ok(NodeDescription { kind: name })
     }
 }
 
@@ -198,13 +208,14 @@ impl std::io::Read for DumpCursor {
         let x = self.reader.read(buf);
         if self.is_file_structure_print_enabled() {
             self.newline_for_file_structure_print_if_necessary();
-            print!("{:5} : {:<24}#",
-                   offset,
-                   buf
-                   .iter()
-                   .map(|b| format!("{:02x}", b))
-                   .collect::<Vec<String>>()
-                   .join(" "));
+            print!(
+                "{:5} : {:<24}#",
+                offset,
+                buf.iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            );
             self.newline = false;
         }
         x
@@ -230,30 +241,30 @@ pub struct TreeTokenReader {
     owner: Rc<RefCell<PoisonLock<ReaderState>>>,
 }
 
-
 impl TreeTokenReader {
     pub fn new<R: Read + Seek>(mut reader: R) -> Result<Self, TokenReaderError> {
         // Check magic headers.
         const MAGIC_HEADER: &'static [u8; 5] = b"BINJS";
         const FORMAT_VERSION: u32 = 1;
 
-        reader.read_const(MAGIC_HEADER)
+        reader
+            .read_const(MAGIC_HEADER)
             .map_err(TokenReaderError::ReadError)?;
 
-        let version = reader.read_varnum()
-            .map_err(TokenReaderError::ReadError)?;
+        let version = reader.read_varnum().map_err(TokenReaderError::ReadError)?;
 
         if version != FORMAT_VERSION {
-            return Err(TokenReaderError::BadHeader)
+            return Err(TokenReaderError::BadHeader);
         }
 
         // At this stage, we could start parallelizing reads between grammar table and strings table, possibly even the tree.
-        reader.read_const(HEADER_GRAMMAR_TABLE.as_bytes())
+        reader
+            .read_const(HEADER_GRAMMAR_TABLE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
 
         // Read grammar table
         let grammar_deserializer = TableDeserializer {
-            deserializer: NodeDescriptionDeserializer
+            deserializer: NodeDescriptionDeserializer,
         };
         let grammar_table = Compression::decompress(&mut reader, &grammar_deserializer)
             .map_err(TokenReaderError::BadCompression)?;
@@ -261,27 +272,29 @@ impl TreeTokenReader {
             grammar_table.map);
 
         // Read strings table
-        reader.read_const(HEADER_STRINGS_TABLE.as_bytes())
+        reader
+            .read_const(HEADER_STRINGS_TABLE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
         let strings_deserializer = TableDeserializer {
-            deserializer: None /* Option<SharedString> */
+            deserializer: None, /* Option<SharedString> */
         };
         let strings_table = Compression::decompress(&mut reader, &strings_deserializer)
             .map_err(TokenReaderError::BadCompression)?;
 
         // Decompress tree section to memory (we could as well stream it)
-        reader.read_const(HEADER_TREE.as_bytes())
+        reader
+            .read_const(HEADER_TREE.as_bytes())
             .map_err(TokenReaderError::ReadError)?;
         let decompressed_tree = Compression::decompress(&mut reader, &BufDeserializer)
             .map_err(TokenReaderError::BadCompression)?;
         let implem = ReaderState {
             strings_table,
             grammar_table,
-            reader: DumpCursor::new(decompressed_tree)
+            reader: DumpCursor::new(decompressed_tree),
         };
 
         Ok(TreeTokenReader {
-            owner: Rc::new(RefCell::new(PoisonLock::new(implem)))
+            owner: Rc::new(RefCell::new(PoisonLock::new(implem))),
         })
     }
 }
@@ -293,40 +306,47 @@ impl TokenReader for TreeTokenReader {
 
     fn string_at(&mut self, _path: &Path) -> Result<Option<SharedString>, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
-            let index = state.reader.read_varnum()
+            let index = state
+                .reader
+                .read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             match state.strings_table.get(index) {
                 Some(result) => {
                     debug!(target: "multipart", "Reading string {:?} => {:?}", index, result);
                     match result {
                         Some(s) => {
-                            print_file_structure!(state.reader, "string=\"{}\"", escaped_wtf8::for_print(s));
+                            print_file_structure!(
+                                state.reader,
+                                "string=\"{}\"",
+                                escaped_wtf8::for_print(s)
+                            );
                             Ok(Some(s.clone()))
-                        },
+                        }
                         None => {
                             print_file_structure!(state.reader, "string=None");
                             Ok(None)
                         }
                     }
                 }
-                None => Err(TokenReaderError::BadStringIndex(index))
+                None => Err(TokenReaderError::BadStringIndex(index)),
             }
         })
     }
 
-
     /// Read a single `f64`. Note that all numbers are `f64`.
     fn float_at(&mut self, _path: &Path) -> Result<Option<f64>, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
-            let mut buf : [u8; 8] = unsafe { std::mem::uninitialized() };
-            state.reader.read(&mut buf)
+            let mut buf: [u8; 8] = unsafe { std::mem::uninitialized() };
+            state
+                .reader
+                .read(&mut buf)
                 .map_err(TokenReaderError::ReadError)?;
             let result = bytes::float::float_of_bytes(&buf);
             debug!(target: "multipart", "Reading float {:?} => {:?}", buf, result);
             match result {
                 Some(f) => {
                     print_file_structure!(state.reader, "float={}", f);
-                },
+                }
                 None => {
                     print_file_structure!(state.reader, "float=None");
                 }
@@ -338,10 +358,11 @@ impl TokenReader for TreeTokenReader {
     /// Read a single `u32`.
     fn unsigned_long_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
-            let result = state.reader.read_varnum()
+            let result = state
+                .reader
+                .read_varnum()
                 .map_err(TokenReaderError::ReadError)? as u32;
-            print_file_structure!(state.reader, "unsigned_long={}",
-                                  result);
+            print_file_structure!(state.reader, "unsigned_long={}", result);
             Ok(result)
         })
     }
@@ -349,21 +370,21 @@ impl TokenReader for TreeTokenReader {
     /// Read a single `bool`.
     fn bool_at(&mut self, _path: &Path) -> Result<Option<bool>, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
-            let mut buf : [u8; 1] = unsafe { std::mem::uninitialized() };
-            state.reader.read(&mut buf)
+            let mut buf: [u8; 1] = unsafe { std::mem::uninitialized() };
+            state
+                .reader
+                .read(&mut buf)
                 .map_err(TokenReaderError::ReadError)?;
-            let result = bytes::bool::bool_of_bytes(&buf)
-                .map_err(|e| {
-                    TokenReaderError::invalid_value(&e)
-                });
+            let result =
+                bytes::bool::bool_of_bytes(&buf).map_err(|e| TokenReaderError::invalid_value(&e));
             debug!(target: "multipart", "Reading bool {:?} => {:?}", buf, result);
             match result {
                 Ok(Some(b)) => {
                     print_file_structure!(state.reader, "bool={}", b);
-                },
+                }
                 Ok(None) => {
                     print_file_structure!(state.reader, "bool=None");
-                },
+                }
                 Err(_) => {}
             };
             result
@@ -373,12 +394,20 @@ impl TokenReader for TreeTokenReader {
     /// Read a single `u32`.
     fn offset_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
-            let byte_len = state.reader.read_varnum()
+            let byte_len = state
+                .reader
+                .read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
-            let offset = state.reader.seek(SeekFrom::Current(0))
+            let offset = state
+                .reader
+                .seek(SeekFrom::Current(0))
                 .map_err(TokenReaderError::ReadError)?;
-            print_file_structure!(state.reader, "offset=+{} ({})",
-                                  byte_len, offset + byte_len as u64);
+            print_file_structure!(
+                state.reader,
+                "offset=+{} ({})",
+                byte_len,
+                offset + byte_len as u64
+            );
             Ok(byte_len)
         })
     }
@@ -390,7 +419,9 @@ impl TokenReader for TreeTokenReader {
     /// either reach the end of the list or call `skip()`.
     fn enter_list_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         self.owner.borrow_mut().try(move |state| {
-            let list_len = state.reader.read_varnum()
+            let list_len = state
+                .reader
+                .read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
             debug!(target: "multipart", "Reading list with {} items", list_len);
             Ok(list_len)
@@ -402,11 +433,18 @@ impl TokenReader for TreeTokenReader {
     /// Returns the tag name, `None` for fields and a
     /// sub-extractor dedicated
     /// to that tuple. The sub-extractor MUST be consumed entirely.
-    fn enter_tagged_tuple_at(&mut self, _path: &Path) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>), TokenReaderError> {
+    fn enter_tagged_tuple_at(
+        &mut self,
+        _path: &Path,
+    ) -> Result<(InterfaceName, Option<Rc<Box<[FieldName]>>>), TokenReaderError> {
         self.owner.borrow_mut().try(|state| {
-            let index = state.reader.read_varnum()
+            let index = state
+                .reader
+                .read_varnum()
                 .map_err(TokenReaderError::ReadError)?;
-            let description = state.grammar_table.get(index)
+            let description = state
+                .grammar_table
+                .get(index)
                 .ok_or(TokenReaderError::BadKindIndex(index))?;
 
             let tag = InterfaceName(description.kind.clone());
@@ -426,35 +464,36 @@ impl TokenReader for TreeTokenReader {
 
 impl FileStructurePrinter for TreeTokenReader {
     fn enable_file_structure_print(&mut self) {
-        let _: Result<(),()> = self.owner.borrow_mut().try(|state| {
+        let _: Result<(), ()> = self.owner.borrow_mut().try(|state| {
             state.reader.enable_file_structure_print();
             Ok(())
         });
     }
     fn disable_file_structure_print(&mut self) {
-        let _: Result<(),()> = self.owner.borrow_mut().try(|state| {
+        let _: Result<(), ()> = self.owner.borrow_mut().try(|state| {
             state.reader.disable_file_structure_print();
             Ok(())
         });
     }
 
     fn is_file_structure_print_enabled(&mut self) -> bool {
-        let result: Result<bool,()> = self.owner.borrow_mut().try(|state| {
-            Ok(state.reader.is_file_structure_print_enabled())
-        });
+        let result: Result<bool, ()> = self
+            .owner
+            .borrow_mut()
+            .try(|state| Ok(state.reader.is_file_structure_print_enabled()));
         match result {
             Ok(b) => b,
-            Err(_) => false
+            Err(_) => false,
         }
     }
     fn prepare_file_structure_column(&mut self) {
-        let _: Result<(),()> = self.owner.borrow_mut().try(|state| {
+        let _: Result<(), ()> = self.owner.borrow_mut().try(|state| {
             state.reader.prepare_file_structure_column();
             Ok(())
         });
     }
     fn newline_for_file_structure_print(&mut self) {
-        let _: Result<(),()> = self.owner.borrow_mut().try(|state| {
+        let _: Result<(), ()> = self.owner.borrow_mut().try(|state| {
             state.reader.newline_for_file_structure_print();
             Ok(())
         });

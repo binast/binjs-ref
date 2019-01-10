@@ -1,7 +1,6 @@
 pub use io::statistics::Bytes;
 
-use std::io::{ Error, Write };
-
+use std::io::{Error, Write};
 
 /// An implementation of `Write` that discards its data but remembers
 /// how many bytes were written.
@@ -12,9 +11,7 @@ pub struct LengthWriter {
 impl LengthWriter {
     /// Create an empty LengthWriter.
     pub fn new() -> Self {
-        LengthWriter {
-            bytes_written: 0
-        }
+        LengthWriter { bytes_written: 0 }
     }
 
     /// Return the number of bytes written since creation.

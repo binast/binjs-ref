@@ -3,12 +3,12 @@ use rand;
 
 /// Return a string describing a JSON value
 /// without dumping the entire AST.
-/// 
+///
 /// ```
 /// # #[macro_use] extern crate json;
 /// extern crate binjs_generic;
 /// # fn main() {
-/// 
+///
 /// // Objects
 /// assert_eq!(&binjs_generic::util::type_of(&object!{}), "Object");
 /// assert_eq!(&binjs_generic::util::type_of(&object!{"foo" => 1}), "Object");
@@ -55,14 +55,15 @@ pub fn type_of(tree: &JSON) -> String {
         Object(_) => "Object",
         String(_) | Short(_) => "String",
         Number(_) => "Number",
-        Null      => "Null",
+        Null => "Null",
         Boolean(_) => "Bool",
-        Array(_)  => "Array"
-    }.to_owned()
+        Array(_) => "Array",
+    }
+    .to_owned()
 }
 
 /// Return a random item from a slice.
-pub fn pick<'a, T: rand::Rng, U,>(rng: &mut T, slice: &'a [U]) -> &'a U {
+pub fn pick<'a, T: rand::Rng, U>(rng: &mut T, slice: &'a [U]) -> &'a U {
     let index = rng.gen_range(0, slice.len());
     &slice[index]
 }

@@ -3,17 +3,17 @@
 use bytes::serialize::*;
 use bytes::varnum::*;
 
-use rand::Rng;
 use rand::distributions::Distribution;
 use rand::distributions::Standard;
-use rand::thread_rng;
 use rand::seq::SliceRandom;
+use rand::thread_rng;
+use rand::Rng;
 
 use std;
 use std::collections::HashSet;
-use std::io::{ Cursor, Read, Write };
+use std::io::{Cursor, Read, Write};
 
-const BROTLI_BUFFER_SIZE : usize = 4096;
+const BROTLI_BUFFER_SIZE: usize = 4096;
 const BROTLI_QUALITY: u32 = 8;
 const BROTLI_LG_WINDOW_SIZE: u32 = 20;
 const LZW_MIN_CODE_SIZE: u8 = 8;
@@ -38,13 +38,14 @@ pub enum Compression {
 impl Distribution<Compression> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Compression {
         use self::Compression::*;
-        let choices = [Identity, Gzip, /* Deflate is apprently broken https://github.com/alexcrichton/flate2-rs/issues/151 , */ Brotli /*, Lzw doesn't work yet */];
-        choices.choose(rng)
-            .unwrap()
-            .clone()
+        let choices = [
+            Identity, Gzip,
+            /* Deflate is apprently broken https://github.com/alexcrichton/flate2-rs/issues/151 , */
+            Brotli, /*, Lzw doesn't work yet */
+        ];
+        choices.choose(rng).unwrap().clone()
     }
 }
-
 
 #[derive(Clone, Debug)]
 pub struct CompressionResult {
@@ -93,7 +94,9 @@ impl Compression {
 
     pub fn values() -> Box<[Self]> {
         use self::Compression::*;
-        Box::new([Identity, Gzip, Deflate, Brotli /*, Lzw doesn't work yet*/])
+        Box::new([
+            Identity, Gzip, Deflate, Brotli, /*, Lzw doesn't work yet*/
+        ])
     }
 
     pub fn is_compressed(&self) -> bool {
@@ -108,7 +111,11 @@ impl Compression {
     // - compression type (string);
     // - compressed byte length (varnum);
     // - data.
-    pub fn compress<W: Write>(&self, data: &[u8], out: &mut W) -> Result<CompressionResult, std::io::Error> {
+    pub fn compress<W: Write>(
+        &self,
+        data: &[u8],
+        out: &mut W,
+    ) -> Result<CompressionResult, std::io::Error> {
         let before_bytes = data.len();
         let after_bytes = match *self {
             Compression::Identity => {
@@ -122,7 +129,8 @@ impl Compression {
                 out.write_all(b"gzip;")?;
                 // Compress
                 let buffer = Vec::with_capacity(data.len());
-                let mut encoder = flate2::write::GzEncoder::new(buffer, flate2::Compression::best());
+                let mut encoder =
+                    flate2::write::GzEncoder::new(buffer, flate2::Compression::best());
                 encoder.write_all(data)?;
                 let buffer = encoder.finish()?;
                 // Write
@@ -135,7 +143,8 @@ impl Compression {
                 out.write_all(b"deflate;")?;
                 // Compress
                 let buffer = Vec::with_capacity(data.len());
-                let mut encoder = flate2::write::ZlibEncoder::new(buffer, flate2::Compression::best());
+                let mut encoder =
+                    flate2::write::ZlibEncoder::new(buffer, flate2::Compression::best());
                 encoder.write(data)?;
                 let buffer = encoder.finish()?;
                 // Write
@@ -149,7 +158,12 @@ impl Compression {
                 // Compress
                 let mut buffer = Vec::with_capacity(data.len());
                 {
-                    let mut encoder = brotli::CompressorWriter::new(&mut buffer, BROTLI_BUFFER_SIZE, BROTLI_QUALITY, BROTLI_LG_WINDOW_SIZE);
+                    let mut encoder = brotli::CompressorWriter::new(
+                        &mut buffer,
+                        BROTLI_BUFFER_SIZE,
+                        BROTLI_QUALITY,
+                        BROTLI_LG_WINDOW_SIZE,
+                    );
                     encoder.write(data)?;
                 }
                 // Write
@@ -176,11 +190,17 @@ impl Compression {
         Ok(CompressionResult {
             before_bytes,
             after_bytes,
-            algorithms: [self.clone()].iter().cloned().collect()
+            algorithms: [self.clone()].iter().cloned().collect(),
         })
     }
 
-    pub fn decompress<R: Read, T>(inp: &mut R, deserializer: &T) -> Result<T::Target, std::io::Error> where T: Deserializer {
+    pub fn decompress<R: Read, T>(
+        inp: &mut R,
+        deserializer: &T,
+    ) -> Result<T::Target, std::io::Error>
+    where
+        T: Deserializer,
+    {
         const MAX_LENGTH: usize = 32;
         let mut header = Vec::with_capacity(MAX_LENGTH);
         let mut found = false;
@@ -198,29 +218,34 @@ impl Compression {
         }
 
         if !found {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid compression header"))
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid compression header",
+            ));
         }
 
-        let compression =
-            if &header == b"identity" {
-                Compression::Identity
-            } else if &header == b"gzip" {
-                Compression::Gzip
-            } else if &header == b"deflate" {
-                Compression::Deflate
-            } else if &header == b"br" {
-                Compression::Brotli
-            } else if &header == b"compress" {
-                Compression::Lzw
-            } else {
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid compression header"))
-            };
+        let compression = if &header == b"identity" {
+            Compression::Identity
+        } else if &header == b"gzip" {
+            Compression::Gzip
+        } else if &header == b"deflate" {
+            Compression::Deflate
+        } else if &header == b"br" {
+            Compression::Brotli
+        } else if &header == b"compress" {
+            Compression::Lzw
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid compression header",
+            ));
+        };
 
         let mut byte_len = 0;
         inp.read_varnum_to(&mut byte_len)?;
 
         let mut compressed_bytes = Vec::with_capacity(byte_len as usize);
-        unsafe { compressed_bytes.set_len(byte_len as usize )};
+        unsafe { compressed_bytes.set_len(byte_len as usize) };
         inp.read_exact(&mut compressed_bytes)?;
 
         let decompressed_bytes = match compression {
@@ -241,7 +266,8 @@ impl Compression {
             }
             Compression::Brotli => {
                 use brotli;
-                let mut decoder = brotli::Decompressor::new(Cursor::new(&compressed_bytes), BROTLI_BUFFER_SIZE);
+                let mut decoder =
+                    brotli::Decompressor::new(Cursor::new(&compressed_bytes), BROTLI_BUFFER_SIZE);
                 let mut buf = Vec::with_capacity(1024);
                 decoder.read_to_end(&mut buf)?;
                 buf

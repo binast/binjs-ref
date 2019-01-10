@@ -18,7 +18,6 @@ pub mod mru;
 mod shared_string;
 pub use shared_string::SharedString;
 
-
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Offset(pub u32);
 
@@ -46,9 +45,6 @@ shared_string!(pub InterfaceName);
 /// A field name *of* the grammar.
 shared_string!(pub FieldName);
 
-
-
-
 /// A container for f64 values that implements an *arbitrary*
 /// total order, equality relation, hash.
 #[derive(Clone, Debug, Copy, Deserialize, Serialize)]
@@ -65,12 +61,11 @@ impl Into<f64> for F64 {
 }
 impl PartialOrd for F64 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.0
-            .to_bits()
-            .cmp(&other.0.to_bits()))
+        Some(self.0.to_bits().cmp(&other.0.to_bits()))
     }
 }
-impl Ord for F64 { // An arbitrary total order on F64.
+impl Ord for F64 {
+    // An arbitrary total order on F64.
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other).unwrap()
     }
@@ -80,9 +75,12 @@ impl PartialEq for F64 {
         self.0.to_bits() == other.0.to_bits()
     }
 }
-impl Eq for F64 { } // Bitwise equality on F64.
+impl Eq for F64 {} // Bitwise equality on F64.
 impl std::hash::Hash for F64 {
-    fn hash<H>(&self, state: &mut H) where H: std::hash::Hasher {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: std::hash::Hasher,
+    {
         self.0.to_bits().hash(state)
     }
 }

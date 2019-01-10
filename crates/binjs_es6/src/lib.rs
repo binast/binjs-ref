@@ -1,6 +1,6 @@
 //! Strongly-typed implementation of the ES6 AST.
 
-#![recursion_limit="128"] // We have deeply nested data structures...
+#![recursion_limit = "128"] // We have deeply nested data structures...
 
 #[macro_use]
 extern crate binjs_io;

@@ -6,12 +6,12 @@ use json::JsonValue as JSON;
 
 use std;
 use std::env;
-use std::io::{ Write };
+use std::io::Write;
 use std::path::*;
 use std::process::*;
 
-use binjs_meta::spec::{ Interface, NodeName, Spec };
-use binjs_generic::syntax::{ASTError, MutASTVisitor, MutASTWalker, WalkPath };
+use binjs_generic::syntax::{ASTError, MutASTVisitor, MutASTWalker, WalkPath};
+use binjs_meta::spec::{Interface, NodeName, Spec};
 
 use source::parser::SourceParser;
 
@@ -30,7 +30,7 @@ pub enum Error {
 
 /// Using a Node + Shift binary to parse an AST.
 pub struct Shift {
-    bin_path: PathBuf
+    bin_path: PathBuf,
 }
 
 impl Shift {
@@ -40,14 +40,15 @@ impl Shift {
 
     pub fn with_path<P: AsRef<Path>>(bin_path: P) -> Self {
         Shift {
-            bin_path: bin_path.as_ref().to_path_buf()
+            bin_path: bin_path.as_ref().to_path_buf(),
         }
     }
 
     fn parse_script_output(&self, script: &str) -> Result<String, Error> {
         debug!(target: "Shift", "Preparing script {}", script);
 
-        let script = format!(r##"
+        let script = format!(
+            r##"
         var result;
         try {{
             result = (function() {{
@@ -69,13 +70,14 @@ impl Shift {
         process.stdout.write(result);
         console.warn(result);
         "##,
-        script);
+            script
+        );
 
         debug!(target: "Shift", "Launching script {}", script);
 
         let node_memory = match env::var("NODE_MAX_OLD_SPACE_SIZE") {
             Err(_) => String::from("--max_old_space_size=2048"),
-            Ok(v) => format!("--max_old_space_size={}", v)
+            Ok(v) => format!("--max_old_space_size={}", v),
         };
 
         let mut child = Command::new(&*self.bin_path)
@@ -88,12 +90,12 @@ impl Shift {
             .map_err(Error::CouldNotLaunch)?;
 
         if let Some(ref mut stdin) = child.stdin {
-            stdin.write(script.as_bytes())
+            stdin
+                .write(script.as_bytes())
                 .map_err(Error::ExecutionError)?;
         }
 
-        let output = child.wait_with_output()
-            .map_err(Error::ExecutionError)?;
+        let output = child.wait_with_output().map_err(Error::ExecutionError)?;
 
         debug!(target: "Shift", "Output {:?}", output);
         if !output.status.success() {
@@ -101,8 +103,7 @@ impl Shift {
             return Err(Error::ReturnedError(output.status));
         }
 
-        let result = String::from_utf8(output.stdout)
-            .map_err(Error::InvalidUTF8)?;
+        let result = String::from_utf8(output.stdout).map_err(Error::InvalidUTF8)?;
         Ok(result)
     }
 
@@ -110,8 +111,7 @@ impl Shift {
         let stdout = self.parse_script_output(script)?;
 
         // Now attempt to parse JSON
-        json::parse(&stdout)
-            .map_err(Error::JsonError)
+        json::parse(&stdout).map_err(Error::JsonError)
     }
 
     pub fn to_source(&self, syntax: &Spec, ast: &JSON) -> Result<String, Error> {
@@ -119,16 +119,11 @@ impl Shift {
 
         debug!(target: "Shift", "Preparing source\n{:#}", ast);
         let mut walker = MutASTWalker::new(syntax, ToShift);
-        walker.walk(&mut ast)
-            .map_err(Error::InvalidAST)?;
+        walker.walk(&mut ast).map_err(Error::InvalidAST)?;
         debug!(target: "Shift", "Prepared source\n{:#}", ast);
 
-
         // Escape `"`.
-        let data = ast.dump()
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"");
-
+        let data = ast.dump().replace("\\", "\\\\").replace("\"", "\\\"");
 
         // A script to parse a string, write it to stdout as JSON.
         let script = format!(
@@ -137,12 +132,12 @@ impl Shift {
             var ast     = JSON.parse("{}");
             return codegen(ast);
             "##,
-            data);
-        self.parse_script_output(&script)
-            .map_err(|err| {
-                warn!("Could not pretty-print {}", ast.pretty(2));
-                err
-            })
+            data
+        );
+        self.parse_script_output(&script).map_err(|err| {
+            warn!("Could not pretty-print {}", ast.pretty(2));
+            err
+        })
     }
 }
 
@@ -166,7 +161,8 @@ impl SourceParser for Shift {
 
             return JSON.stringify(parsed);
             "##,
-            data);
+            data
+        );
 
         let mut ast = self.parse_script_json_output(&script)?;
         FromShift.convert(&mut ast);
@@ -175,8 +171,10 @@ impl SourceParser for Shift {
 
     /// Parse a text source file, using Shift.
     fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<JSON, Error> {
-        let path = path.as_ref().to_str()
-            .ok_or_else(||Error::InvalidPath(path.as_ref().to_path_buf()))?;
+        let path = path
+            .as_ref()
+            .to_str()
+            .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?;
 
         // A script to parse a source file, write it to stdout as JSON.
         let script = format!(
@@ -187,7 +185,8 @@ impl SourceParser for Shift {
             var source  = fs.readFileSync({:?}, {{encoding: "utf-8"}});
             return JSON.stringify(parseScript(source));
             "##,
-            path);
+            path
+        );
         let mut ast = self.parse_script_json_output(&script)?;
         FromShift.convert(&mut ast);
         Ok(ast)
@@ -208,7 +207,7 @@ enum FunctionKind {
 
 struct ParameterScopeAndFunctionLength {
     scope: json::JsonValue,
-    length: usize
+    length: usize,
 }
 
 /// A data structure designed to convert from Shift AST to BinJS AST.
@@ -246,7 +245,9 @@ impl FromShift {
     }
 
     fn parameter_scope_and_length<'a, I>(&self, params: I) -> ParameterScopeAndFunctionLength
-    where I: IntoIterator<Item=&'a json::JsonValue> {
+    where
+        I: IntoIterator<Item = &'a json::JsonValue>,
+    {
         let mut scope = Object::new();
         let mut length = 0;
         scope["type"] = json::from("AssertedParameterScope");
@@ -259,8 +260,7 @@ impl FromShift {
                 Some("BindingIdentifier") => {
                     length += 1;
                 }
-                Some("ObjectBinding") |
-                Some("ArrayBinding") => {
+                Some("ObjectBinding") | Some("ArrayBinding") => {
                     is_simple_parameter_list = false;
                     length += 1;
                 }
@@ -275,7 +275,7 @@ impl FromShift {
 
         ParameterScopeAndFunctionLength {
             scope: JSON::Object(scope),
-            length
+            length,
         }
     }
 
@@ -356,7 +356,8 @@ impl FromShift {
             } else {
                 contents["params"] = object.remove("params").unwrap();
                 assert!(contents["params"]["items"].is_array());
-                let scope_and_length = self.parameter_scope_and_length(contents["params"]["items"].members());
+                let scope_and_length =
+                    self.parameter_scope_and_length(contents["params"]["items"].members());
                 contents["parameterScope"] = scope_and_length.scope;
                 object["length"] = json::from(scope_and_length.length);
             }
@@ -390,7 +391,7 @@ impl FromShift {
                 // }
                 let mut remove = match object.remove("block") {
                     Some(JSON::Object(remove)) => remove,
-                    _ => panic!("No field `block` in a `BlockStatement`")
+                    _ => panic!("No field `block` in a `BlockStatement`"),
                 };
                 std::mem::swap(object, &mut remove);
                 // At this stage
@@ -449,7 +450,10 @@ impl FromShift {
                 object.insert("flags", json::from(flags));
             }
             Some("Script") => {
-                object.insert("scope", self.dummy_declared_scope("AssertedScriptGlobalScope"));
+                object.insert(
+                    "scope",
+                    self.dummy_declared_scope("AssertedScriptGlobalScope"),
+                );
             }
             Some("CatchClause") => {
                 object.insert("bindingScope", self.dummy_bound_names_scope());
@@ -474,7 +478,7 @@ impl FromShift {
                 // }
                 let mut remove = match object.remove("declaration") {
                     Some(JSON::Object(remove)) => remove,
-                    _ => panic!("No field `declaration` in a `VariableDeclarationStatement`")
+                    _ => panic!("No field `declaration` in a `VariableDeclarationStatement`"),
                 };
                 std::mem::swap(object, &mut remove);
                 // At this stage
@@ -494,9 +498,9 @@ impl FromShift {
 struct ToShift;
 impl ToShift {
     fn remove_eager_or_lazy(&self, obj: &mut json::object::Object) {
-        let kind = { obj["type"].as_str().unwrap().to_string()  };
-        const EAGER : &'static str = "Eager";
-        const LAZY : &'static str = "Lazy";
+        let kind = { obj["type"].as_str().unwrap().to_string() };
+        const EAGER: &'static str = "Eager";
+        const LAZY: &'static str = "Lazy";
 
         if kind.starts_with(EAGER) {
             obj["type"] = json::from(&kind[EAGER.len()..])
@@ -507,9 +511,9 @@ impl ToShift {
         }
     }
     fn remove_with_suffix(&self, obj: &mut json::object::Object) {
-        let kind = { obj["type"].as_str().unwrap().to_string()  };
-        const WITHFUNCTIONBODY : &'static str = "WithFunctionBody";
-        const WITHEXPRESSION : &'static str = "WithExpression";
+        let kind = { obj["type"].as_str().unwrap().to_string() };
+        const WITHFUNCTIONBODY: &'static str = "WithFunctionBody";
+        const WITHEXPRESSION: &'static str = "WithExpression";
 
         if kind.ends_with(WITHFUNCTIONBODY) {
             obj["type"] = json::from(&kind[..(kind.len() - WITHFUNCTIONBODY.len())])
@@ -543,7 +547,13 @@ impl ToShift {
     }
 }
 impl MutASTVisitor for ToShift {
-    fn exit_interface(&mut self, _path: &WalkPath, value: &mut JSON, interface: &Interface, name: &NodeName) -> Result<(), ASTError> {
+    fn exit_interface(
+        &mut self,
+        _path: &WalkPath,
+        value: &mut JSON,
+        interface: &Interface,
+        name: &NodeName,
+    ) -> Result<(), ASTError> {
         debug!(target: "Shift", "Should I rewrite {:?} at {:?}", interface.name(), name);
         match (name.to_str(), interface.name().to_str(), value) {
             ("Statement", "Block", &mut JSON::Object(ref mut object)) => {
@@ -617,11 +627,21 @@ impl MutASTVisitor for ToShift {
                 if let Some(flags) = object["flags"].as_str() {
                     for c in flags.chars() {
                         match c {
-                            'g' => { global = true; }
-                            'i' => { ignore_case = true; }
-                            'm' => { multi_line = true; }
-                            'y' => { sticky = true; }
-                            'u' => { unicode = true; }
+                            'g' => {
+                                global = true;
+                            }
+                            'i' => {
+                                ignore_case = true;
+                            }
+                            'm' => {
+                                multi_line = true;
+                            }
+                            'y' => {
+                                sticky = true;
+                            }
+                            'u' => {
+                                unicode = true;
+                            }
                             _ => { /* ignore */ }
                         }
                     }
@@ -653,16 +673,14 @@ impl MutASTVisitor for ToShift {
                 // }
                 object["type"] = json::from("VariableDeclaration");
                 let binding = object.remove("binding");
-                object["declarators"] = array![
-                    object!{
-                        "type" => "VariableDeclarator",
-                        "init" => json::Null,
-                        "binding" => binding
-                    }
-                ];
+                object["declarators"] = array![object! {
+                    "type" => "VariableDeclarator",
+                    "init" => json::Null,
+                    "binding" => binding
+                }];
             }
             (_, "EagerFunctionExpression", &mut JSON::Object(ref mut object))
-            | (_, "LazyFunctionExpression", &mut JSON::Object(ref mut object))=> {
+            | (_, "LazyFunctionExpression", &mut JSON::Object(ref mut object)) => {
                 self.remove_function_contents(object, FunctionKind::FunctionExpression);
             }
             (_, "EagerFunctionDeclaration", &mut JSON::Object(ref mut object))
@@ -683,13 +701,16 @@ impl MutASTVisitor for ToShift {
             }
             (_, "EagerArrowExpressionWithFunctionBody", &mut JSON::Object(ref mut object))
             | (_, "LazyArrowExpressionWithFunctionBody", &mut JSON::Object(ref mut object)) => {
-                self.remove_function_contents(object, FunctionKind::ArrowExpressionWithFunctionBody);
+                self.remove_function_contents(
+                    object,
+                    FunctionKind::ArrowExpressionWithFunctionBody,
+                );
             }
             (_, "EagerArrowExpressionWithExpression", &mut JSON::Object(ref mut object))
             | (_, "LazyArrowExpressionWithExpression", &mut JSON::Object(ref mut object)) => {
                 self.remove_function_contents(object, FunctionKind::ArrowExpressionWithExpression);
             }
-            | (_, "IdentifierExpression", &mut JSON::Object(ref mut object)) => {
+            (_, "IdentifierExpression", &mut JSON::Object(ref mut object)) => {
                 debug!(target: "Shift", "IdentifierExpression {:?}", object);
                 // FIXME: We probably need to rewrite the IdentifierDefinition.
             }
@@ -707,9 +728,10 @@ fn test_shift_basic() {
     env_logger::init();
 
     let shift = Shift::new();
-    let parsed = shift.parse_str("function foo() {}")
+    let parsed = shift
+        .parse_str("function foo() {}")
         .expect("Error in parse_str");
-    let expected = object!{
+    let expected = object! {
         "type" => "Script",
         "directives" => array![],
         "scope" => object!{
@@ -753,11 +775,7 @@ fn test_shift_basic() {
         ]
     };
 
-
-    println!("Comparing\n{}\n{}",
-        parsed.pretty(2),
-        expected.pretty(2)
-    );
+    println!("Comparing\n{}\n{}", parsed.pretty(2), expected.pretty(2));
 
     assert_eq!(parsed, expected);
 }

@@ -7,15 +7,17 @@ extern crate clap;
 extern crate env_logger;
 extern crate log;
 
-use binjs::source::{ Shift, SourceParser };
 use binjs::generic::FromJSON;
+use binjs::io::entropy::dictionary::{
+    Dictionary, DictionaryBuilder, FilesContaining, Instances, KindedStringMap,
+};
+use binjs::io::{Path as IOPath, TokenSerializer};
+use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::Walker;
-use binjs::io::{ Path as IOPath, TokenSerializer };
-use binjs::io::entropy::dictionary::{ Dictionary, DictionaryBuilder, KindedStringMap, FilesContaining, Instances };
 
 use std::fs::*;
+use std::path::Path;
 use std::thread;
-use std::path::{ Path };
 
 use clap::*;
 
@@ -33,29 +35,33 @@ macro_rules! progress {
     }
 }
 
-
-
-fn handle_path<'a>(options: &mut Options<'a>,
+fn handle_path<'a>(
+    options: &mut Options<'a>,
     shared_dictionary: &mut Dictionary<Instances>,
     shared_files_containing_string: &mut KindedStringMap<FilesContaining>,
     shared_number_of_files: &mut usize,
     source_path: &Path,
-    sub_dir: &Path)
-{
+    sub_dir: &Path,
+) {
     progress!(options.quiet, "Treating {:?} ({:?})", source_path, sub_dir);
-    let is_dir = std::fs::metadata(source_path)
-        .unwrap()
-        .is_dir();
+    let is_dir = std::fs::metadata(source_path).unwrap().is_dir();
     if is_dir {
-        let file_name = source_path.file_name()
+        let file_name = source_path
+            .file_name()
             .unwrap_or_else(|| panic!("Invalid source path {:?}", source_path));
         let sub_dir = sub_dir.join(file_name);
         for entry in std::fs::read_dir(source_path)
             .expect("Could not open directory")
             .map(|dir| dir.unwrap())
         {
-            handle_path(options, shared_dictionary, shared_files_containing_string, shared_number_of_files,
-                &entry.path().as_path(), &sub_dir);
+            handle_path(
+                options,
+                shared_dictionary,
+                shared_files_containing_string,
+                shared_number_of_files,
+                &entry.path().as_path(),
+                &sub_dir,
+            );
         }
         return;
     }
@@ -68,22 +74,30 @@ fn handle_path<'a>(options: &mut Options<'a>,
 
     progress!(options.quiet, "Parsing.");
 
-    handle_path_or_text(options, shared_dictionary, shared_files_containing_string, shared_number_of_files, source_path);
+    handle_path_or_text(
+        options,
+        shared_dictionary,
+        shared_files_containing_string,
+        shared_number_of_files,
+        source_path,
+    );
 }
 
-fn handle_path_or_text<'a>(options: &mut Options<'a>,
+fn handle_path_or_text<'a>(
+    options: &mut Options<'a>,
     shared_dictionary: &mut Dictionary<Instances>,
     shared_files_containing_string: &mut KindedStringMap<FilesContaining>,
     shared_number_of_files: &mut usize,
-    source: &Path)
-{
-    let json = options.parser.parse_file(source)
+    source: &Path,
+) {
+    let json = options
+        .parser
+        .parse_file(source)
         .expect("Could not parse source");
 
-    let mut ast = binjs::specialized::es6::ast::Script::import(&json)
-        .expect("Could not import AST");
-    binjs::specialized::es6::scopes::AnnotationVisitor::new()
-        .annotate_script(&mut ast);
+    let mut ast =
+        binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
+    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
     if options.lazification > 0 {
         progress!(options.quiet, "Introducing laziness.");
@@ -100,10 +114,10 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>,
     {
         let builder = DictionaryBuilder::new(shared_dictionary, shared_files_containing_string);
         let mut serializer = binjs::specialized::es6::io::Serializer::new(builder);
-        serializer.serialize(&ast, &mut IOPath::new())
+        serializer
+            .serialize(&ast, &mut IOPath::new())
             .expect("Could not generate dictionary");
-        serializer.done()
-            .expect("Could not finalize dictionary");
+        serializer.done().expect("Could not finalize dictionary");
     }
 
     progress!(options.quiet, "Successfully built dictionary with {old_state_len} => {new_state_len} states, {old_string_len} => {new_string_len} strings",
@@ -179,30 +193,28 @@ fn main_aux() {
         .get_matches();
 
     // Common options.
-    let sources : Vec<_> = matches.values_of("in")
-        .map_or_else(|| Vec::new(),
-                     |input| input
-                     .map(Path::new)
-                     .collect());
+    let sources: Vec<_> = matches
+        .values_of("in")
+        .map_or_else(|| Vec::new(), |input| input.map(Path::new).collect());
 
-    let dest = Path::new(matches.value_of("out")
-        .unwrap());
+    let dest = Path::new(matches.value_of("out").unwrap());
 
     let quiet = matches.is_present("quiet");
 
-    let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
-        .expect("Invalid number");
+    let lazification =
+        str::parse(matches.value_of("lazify").expect("Missing lazify")).expect("Invalid number");
 
-    let depth = str::parse(matches.value_of("depth").unwrap())
-        .expect("Invalid number");
+    let depth = str::parse(matches.value_of("depth").unwrap()).expect("Invalid number");
 
-    let width = str::parse(matches.value_of("window-width").unwrap())
-        .expect("Invalid number");
+    let width = str::parse(matches.value_of("window-width").unwrap()).expect("Invalid number");
 
-    progress!(quiet, "Generating dictionary with lazification {lazification}, depth {depth}, width {width}",
+    progress!(
+        quiet,
+        "Generating dictionary with lazification {lazification}, depth {depth}, width {width}",
         lazification = lazification,
         depth = depth,
-        width = width);
+        width = width
+    );
 
     // Setup.
     let parser = Shift::new();
@@ -218,11 +230,21 @@ fn main_aux() {
 
     // Process files.
     for source_path in sources {
-        handle_path(&mut options, &mut dictionary, &mut files_containing_string, &mut number_of_files,
-            source_path, /* local root */ Path::new(""));
+        handle_path(
+            &mut options,
+            &mut dictionary,
+            &mut files_containing_string,
+            &mut number_of_files,
+            source_path,
+            /* local root */ Path::new(""),
+        );
     }
 
-    progress!(quiet, "Successfully generated dictionary from {} files", number_of_files);
+    progress!(
+        quiet,
+        "Successfully generated dictionary from {} files",
+        number_of_files
+    );
 
     // FIXME: Remove strings that appear in a single file.
 
@@ -241,10 +263,8 @@ fn main_aux() {
     // To be improved, iteratively.
     let dest_dictionary = dest.join("dict.entropy");
     progress!(quiet, "Writing probabilities to {:?}", dest_dictionary);
-    let file_dictionary = File::create(dest_dictionary)
-        .unwrap_or_else(|e| panic!("Could not create file: {:?}", e));
+    let file_dictionary =
+        File::create(dest_dictionary).unwrap_or_else(|e| panic!("Could not create file: {:?}", e));
     bincode::serialize_into(file_dictionary, &dictionary)
         .expect("Could not serialize entropy dictionary");
 }
-
-

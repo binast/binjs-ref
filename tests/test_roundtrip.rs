@@ -13,7 +13,7 @@ use binjs::io::bytes::compress::*;
 use binjs::io::multipart::*;
 use binjs::io::*;
 use binjs::source::*;
-use binjs::specialized::es6::ast::{ IOPath, Script, Visitor, Walker, WalkPath };
+use binjs::specialized::es6::ast::{IOPath, Script, Visitor, WalkPath, Walker};
 
 use std::io::Cursor;
 use std::thread;
@@ -21,9 +21,12 @@ use std::thread;
 /// This test takes 1h+ on Travis, which is too long, so we need to
 /// reduce it. So each individual file + options combination has
 /// a `CHANCES_TO_SKIP` probability of being skipped.
-const CHANCES_TO_SKIP : f64 = 0.9;
+const CHANCES_TO_SKIP: f64 = 0.9;
 
-const PATHS : [&'static str; 2] = ["tests/data/facebook/single/**/*.js", "tests/data/frameworks/*.js"];
+const PATHS: [&'static str; 2] = [
+    "tests/data/facebook/single/**/*.js",
+    "tests/data/frameworks/*.js",
+];
 
 fn progress() {
     // Make sure that we see progress in the logs, without spamming these logs.
@@ -74,10 +77,13 @@ fn main() {
     let mut all_options = {
         use self::Compression::*;
         let mut vec = vec![];
-        let compressions = [Identity, Gzip, /*Deflate seems broken upstream,*/ Brotli, /*Lzw doesn't work yet*/]
-            .into_iter()
-            .cloned()
-            .collect::<Vec<_>>();
+        let compressions = [
+            Identity, Gzip,
+            /*Deflate seems broken upstream,*/ Brotli, /*Lzw doesn't work yet*/
+        ]
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {
@@ -97,14 +103,11 @@ fn main() {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting laziness test_roundtrip from {}", path);
 
-        'laziness_per_entry: for entry in glob::glob(&path)
-            .expect("Invalid glob pattern")
-        {
+        'laziness_per_entry: for entry in glob::glob(&path).expect("Invalid glob pattern") {
             // Randomly skip instances.
             if may_skip && should_skip(&mut rng) {
                 continue 'laziness_per_entry;
             }
-
 
             let mut path = binjs::specialized::es6::ast::WalkPath::new();
             let entry = entry.expect("Invalid entry");
@@ -112,17 +115,16 @@ fn main() {
 
             // Parse and preprocess file.
 
-            let json = parser.parse_file(entry.clone())
+            let json = parser
+                .parse_file(entry.clone())
                 .expect("Could not parse source");
-            let mut ast = binjs::specialized::es6::ast::Script::import(&json)
-                .expect("Could not import AST");
-            binjs::specialized::es6::scopes::AnnotationVisitor::new()
-                .annotate_script(&mut ast);
+            let mut ast =
+                binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
+            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
             // Immutable copy.
             let reference_ast = ast;
             'per_level: for level in &[0, 1, 2, 3, 4, 5] {
-
                 let mut ast = reference_ast.clone();
                 let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(*level);
                 ast.walk(&mut path, &mut visitor)
@@ -135,12 +137,14 @@ fn main() {
                     tree: CompressionTarget::new(Compression::Identity),
                 };
                 debug!(target: "test_roundtrip", "Encoding.");
-                let writer  = binjs::io::TokenWriterTreeAdapter::new(binjs::io::multipart::TreeTokenWriter::new(options.clone()));
+                let writer = binjs::io::TokenWriterTreeAdapter::new(
+                    binjs::io::multipart::TreeTokenWriter::new(options.clone()),
+                );
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                serializer.serialize(&ast, &mut IOPath::new())
+                serializer
+                    .serialize(&ast, &mut IOPath::new())
                     .expect("Could not encode AST");
-                let data = serializer.done()
-                    .expect("Could not finalize AST encoding");
+                let data = serializer.done().expect("Could not finalize AST encoding");
                 progress();
 
                 debug!(target: "test_roundtrip", "Decoding.");
@@ -149,14 +153,16 @@ fn main() {
                     .expect("Could not decode AST container");
                 let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-                let mut decoded : Script = deserializer.deserialize(&mut IOPath::new())
+                let mut decoded: Script = deserializer
+                    .deserialize(&mut IOPath::new())
                     .expect("Could not decode");
                 progress();
 
                 debug!(target: "test_roundtrip", "Checking.");
                 // At this stage, we have a problem: offsets are 0 in `ast`, but not 0
                 // in `decoded`.
-                decoded.walk(&mut path, &mut OffsetCleanerVisitor)
+                decoded
+                    .walk(&mut path, &mut OffsetCleanerVisitor)
                     .expect("Could not cleanup offsets");
                 progress();
                 assert_eq!(ast, decoded);
@@ -169,9 +175,7 @@ fn main() {
         let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix);
         debug!(target: "test_roundtrip", "Starting test_roundtrip from {}", path);
 
-        'compression_per_entry: for entry in glob::glob(&path)
-            .expect("Invalid glob pattern")
-        {
+        'compression_per_entry: for entry in glob::glob(&path).expect("Invalid glob pattern") {
             // Randomly skip instances.
             if may_skip && should_skip(&mut rng) {
                 continue 'compression_per_entry;
@@ -181,12 +185,12 @@ fn main() {
             // Parse and preprocess file.
 
             eprint!("\n{:?}.", entry);
-            let json    = parser.parse_file(entry.clone())
+            let json = parser
+                .parse_file(entry.clone())
                 .expect("Could not parse source");
-            let mut ast = binjs::specialized::es6::ast::Script::import(&json)
-                .expect("Could not import AST");
-            binjs::specialized::es6::scopes::AnnotationVisitor::new()
-                .annotate_script(&mut ast);
+            let mut ast =
+                binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
+            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
             {
                 progress();
@@ -194,12 +198,14 @@ fn main() {
 
                 // Roundtrip `simple`
                 debug!(target: "test_roundtrip", "Encoding");
-                let mut writer = binjs::io::TokenWriterTreeAdapter::new(binjs::io::simple::TreeTokenWriter::new());
+                let mut writer = binjs::io::TokenWriterTreeAdapter::new(
+                    binjs::io::simple::TreeTokenWriter::new(),
+                );
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                serializer.serialize(&ast, &mut IOPath::new())
+                serializer
+                    .serialize(&ast, &mut IOPath::new())
                     .expect("Could not encode AST");
-                let data = serializer.done()
-                    .expect("Could not finalize AST encoding");
+                let data = serializer.done().expect("Could not finalize AST encoding");
 
                 progress();
                 debug!(target: "test_roundtrip", "Decoding.");
@@ -207,7 +213,8 @@ fn main() {
                 let reader = binjs::io::simple::TreeTokenReader::new(source);
                 let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-                let decoded = deserializer.deserialize(&mut IOPath::new())
+                let decoded = deserializer
+                    .deserialize(&mut IOPath::new())
                     .expect("Could not decode");
                 progress();
 
@@ -228,12 +235,14 @@ fn main() {
                 debug!(target: "test_roundtrip", "Starting multipart round trip for {:?} with options {:?}", entry, options);
                 debug!(target: "test_roundtrip", "Encoding.");
                 options.reset();
-                let writer  = binjs::io::TokenWriterTreeAdapter::new(binjs::io::multipart::TreeTokenWriter::new(options.clone()));
+                let writer = binjs::io::TokenWriterTreeAdapter::new(
+                    binjs::io::multipart::TreeTokenWriter::new(options.clone()),
+                );
                 let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                serializer.serialize(&ast, &mut IOPath::new())
+                serializer
+                    .serialize(&ast, &mut IOPath::new())
                     .expect("Could not encode AST");
-                let data = serializer.done()
-                    .expect("Could not finalize AST encoding");
+                let data = serializer.done().expect("Could not finalize AST encoding");
 
                 progress();
 
@@ -243,7 +252,8 @@ fn main() {
                     .expect("Could not decode AST container");
                 let mut deserializer = binjs::specialized::es6::io::Deserializer::new(reader);
 
-                let decoded = deserializer.deserialize(&mut IOPath::new())
+                let decoded = deserializer
+                    .deserialize(&mut IOPath::new())
                     .expect("Could not decode");
                 progress();
 
@@ -256,4 +266,3 @@ fn main() {
         }
     }
 }
-

@@ -9,16 +9,20 @@ pub trait Pos {
     /// The total number of bytes available in the stream.
     fn size(&mut self) -> usize;
 }
-impl<T> Pos for T where T: Seek {
+impl<T> Pos for T
+where
+    T: Seek,
+{
     fn pos(&mut self) -> usize {
         self.seek(std::io::SeekFrom::Current(0))
-            .expect("Could not check position")
-        as usize
+            .expect("Could not check position") as usize
     }
     fn size(&mut self) -> usize {
-        let old = self.seek(std::io::SeekFrom::Current(0))
+        let old = self
+            .seek(std::io::SeekFrom::Current(0))
             .expect("Could not check position");
-        let size = self.seek(std::io::SeekFrom::End(0))
+        let size = self
+            .seek(std::io::SeekFrom::End(0))
             .expect("Could not look for end of stream");
         self.seek(std::io::SeekFrom::Start(old))
             .expect("Could not rewind");
@@ -32,10 +36,15 @@ pub trait ReadConst {
     /// Succeed if the next few bytes match `bytes`, otherwise fail.
     fn read_const(&mut self, bytes: &[u8]) -> Result<(), std::io::Error>;
 }
-impl<T> ReadConst for T where T: std::io::Read {
+impl<T> ReadConst for T
+where
+    T: std::io::Read,
+{
     fn read_const(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
         let mut buf = Vec::with_capacity(data.len());
-        unsafe { buf.set_len(data.len()); }
+        unsafe {
+            buf.set_len(data.len());
+        }
         let bytes = self.read(&mut buf)?;
         if bytes != data.len() || &buf as &[u8] != data {
             debug!(target: "read_const", "Invalid data {:?}, expected {:?}",
@@ -44,7 +53,10 @@ impl<T> ReadConst for T where T: std::io::Read {
             );
             let details = String::from_utf8(data.to_vec())
                 .unwrap_or_else(|_| "<invalid read_const string>".to_string());
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, details));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                details,
+            ));
         }
         Ok(())
     }
@@ -54,14 +66,14 @@ impl<T> ReadConst for T where T: std::io::Read {
 /// goes through `try` and that any error poisons the state.
 pub struct PoisonLock<S> {
     state: S,
-    poisoned: bool
+    poisoned: bool,
 }
 
 impl<S> PoisonLock<S> {
     pub fn new(state: S) -> Self {
         PoisonLock {
             state,
-            poisoned: false
+            poisoned: false,
         }
     }
 
@@ -72,13 +84,15 @@ impl<S> PoisonLock<S> {
     /// # Panics
     ///
     /// If the `ReaderState` is poisoned.
-    pub fn try<T, E, F>(&mut self, f: F) -> Result<T, E> where F: FnOnce(&mut S) -> Result<T, E> {
+    pub fn try<T, E, F>(&mut self, f: F) -> Result<T, E>
+    where
+        F: FnOnce(&mut S) -> Result<T, E>,
+    {
         assert!(!self.poisoned, "State is poisoned");
-        f(&mut self.state)
-            .map_err(|err| {
-                self.poisoned = true;
-                err
-            })
+        f(&mut self.state).map_err(|err| {
+            self.poisoned = true;
+            err
+        })
     }
 
     pub fn poison(&mut self) {
