@@ -1,6 +1,3 @@
-#![feature(box_patterns)]
-#![feature(vec_resize_default)]
-
 extern crate bincode; // Used to store dictionaries. This is a temporary format.
 extern crate binjs_shared;
 

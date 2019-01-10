@@ -1,6 +1,5 @@
 //! Strongly-typed implementation of the ES6 AST.
 
-#![feature(box_patterns)]
 #![recursion_limit="128"] // We have deeply nested data structures...
 
 #[macro_use]

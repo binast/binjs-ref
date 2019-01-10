@@ -1,8 +1,12 @@
 language: rust
+cache:
+  - npm
+  - yarn
+  - cargo
 script:
   - cargo build --verbose
   - cargo test --all -- --nocapture
 rust:
-  - nightly
+  - stable
 node_js:
-  - "8"
+  - node
