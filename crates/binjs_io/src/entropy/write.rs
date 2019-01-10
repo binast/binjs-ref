@@ -7,19 +7,21 @@
 // FIXME: Split into packets
 // FIXME: Implement lazy functions
 
-use ::TokenWriterError;
-use ::io::{ Path, TokenWriter };
-use ::io::statistics::{ ContentInfo, Instances };
 use bytes::lengthwriter::LengthWriter;
+use io::statistics::{ContentInfo, Instances};
+use io::{Path, TokenWriter};
+use TokenWriterError;
 
-use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString };
+use binjs_shared::{
+    FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString, F64,
+};
 
 use std::ops::DerefMut;
 
 use itertools::Itertools;
 use range_encoding::opus;
 
-const INITIAL_BUFFER_SIZE_BYTES : usize = 32768;
+const INITIAL_BUFFER_SIZE_BYTES: usize = 32768;
 
 /// An entropy encoder, based on the Opus bit-level entropy coding.
 pub struct Encoder {
@@ -30,7 +32,6 @@ pub struct Encoder {
     options: ::entropy::Options,
 
     // --- Statistics.
-
     /// Measure the number of bytes written.
     content_lengths: ContentInfo<opus::Writer<LengthWriter>>,
 
@@ -40,7 +41,8 @@ pub struct Encoder {
 
 impl Encoder {
     /// Create a new Encoder.
-    pub fn new(options: ::entropy::Options) -> Self { // FIXME: We shouldn't need to clone the entire `options`. A shared immutable reference would do nicely.
+    pub fn new(options: ::entropy::Options) -> Self {
+        // FIXME: We shouldn't need to clone the entire `options`. A shared immutable reference would do nicely.
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
             options,
@@ -49,7 +51,6 @@ impl Encoder {
         }
     }
 }
-
 
 /// Emit a single symbol.
 ///
@@ -107,63 +108,130 @@ impl TokenWriter for Encoder {
     type Data = Vec<u8>;
 
     fn done(self) -> Result<Self::Data, TokenWriterError> {
-        let data = self.writer.done()
-            .map_err(TokenWriterError::WriteError)?;
-        *self.options
+        let data = self.writer.done().map_err(TokenWriterError::WriteError)?;
+        *self.options.content_lengths.borrow_mut() += self
             .content_lengths
-            .borrow_mut()
-            +=
-        self.content_lengths
-            .into_with(|_, field| field.done()
-                .unwrap()
-                .len());
-        *self.options
-            .content_instances
-            .borrow_mut()
-            +=
-        self.content_instances;
+            .into_with(|_, field| field.done().unwrap().len());
+        *self.options.content_instances.borrow_mut() += self.content_instances;
         Ok(data)
     }
 
     // --- Primitive values
 
     fn bool_at(&mut self, value: Option<bool>, path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, bool_by_path, bools, "bool_by_path",  path,  value)
+        symbol!(self, bool_by_path, bools, "bool_by_path", path, value)
     }
 
     fn float_at(&mut self, value: Option<f64>, path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, float_by_path, floats, "float_by_path",  path,  value.map(F64::from))
+        symbol!(
+            self,
+            float_by_path,
+            floats,
+            "float_by_path",
+            path,
+            value.map(F64::from)
+        )
     }
 
     fn unsigned_long_at(&mut self, value: u32, path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, unsigned_long_by_path, unsigned_longs, "unsigned_long_by_path",  path,  value)
+        symbol!(
+            self,
+            unsigned_long_by_path,
+            unsigned_longs,
+            "unsigned_long_by_path",
+            path,
+            value
+        )
     }
 
-    fn string_at(&mut self, value: Option<&SharedString>, path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, string_literal_by_path, string_literals, "string_literal_by_path",  path,  value.cloned())
+    fn string_at(
+        &mut self,
+        value: Option<&SharedString>,
+        path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            string_literal_by_path,
+            string_literals,
+            "string_literal_by_path",
+            path,
+            value.cloned()
+        )
     }
 
-    fn string_enum_at(&mut self, value: &SharedString, path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, string_enum_by_path, string_enums, "string_enum_by_path",  path,  value)
+    fn string_enum_at(
+        &mut self,
+        value: &SharedString,
+        path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            string_enum_by_path,
+            string_enums,
+            "string_enum_by_path",
+            path,
+            value
+        )
     }
 
-    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, identifier_name_by_path, identifier_names, "identifier_name_by_path",  path,  value.cloned())
+    fn identifier_name_at(
+        &mut self,
+        value: Option<&IdentifierName>,
+        path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            identifier_name_by_path,
+            identifier_names,
+            "identifier_name_by_path",
+            path,
+            value.cloned()
+        )
     }
 
-    fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, property_key_by_path, property_keys, "property_key_by_path",  path,  value.cloned())
+    fn property_key_at(
+        &mut self,
+        value: Option<&PropertyKey>,
+        path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            property_key_by_path,
+            property_keys,
+            "property_key_by_path",
+            path,
+            value.cloned()
+        )
     }
-
 
     // --- Composite stuff
 
-    fn enter_tagged_tuple_at(&mut self, _node: &Node, tag: &InterfaceName, _children: &[&FieldName], path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, interface_name_by_path, interface_names, "interface_name_by_path",  path,  tag)
+    fn enter_tagged_tuple_at(
+        &mut self,
+        _node: &Node,
+        tag: &InterfaceName,
+        _children: &[&FieldName],
+        path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        symbol!(
+            self,
+            interface_name_by_path,
+            interface_names,
+            "interface_name_by_path",
+            path,
+            tag
+        )
     }
 
     fn enter_list_at(&mut self, len: usize, path: &Path) -> Result<(), TokenWriterError> {
-        symbol!(self, list_length_by_path, list_lengths, "list_length_by_path",  path,  Some(len as u32))
+        symbol!(
+            self,
+            list_length_by_path,
+            list_lengths,
+            "list_length_by_path",
+            path,
+            Some(len as u32)
+        )
     }
 
     fn offset_at(&mut self, _path: &Path) -> Result<(), TokenWriterError> {

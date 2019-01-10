@@ -1,10 +1,10 @@
 //! An entropy decoder
 use super::probabilities::SymbolIndex;
 
-use ::TokenReaderError;
-use ::io::{ FileStructurePrinter, Path, TokenReader };
+use io::{FileStructurePrinter, Path, TokenReader};
+use TokenReaderError;
 
-use binjs_shared::{ F64, FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString };
+use binjs_shared::{FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString, F64};
 
 use std::io::Read;
 
@@ -19,18 +19,12 @@ pub struct Decoder<R: Read> {
     options: ::entropy::Options,
 }
 
-impl<R: Read> FileStructurePrinter for Decoder<R> {
-
-}
+impl<R: Read> FileStructurePrinter for Decoder<R> {}
 
 impl<R: Read> Decoder<R> {
     pub fn new(options: ::entropy::Options, source: R) -> Result<Self, TokenReaderError> {
-        let reader = opus::Reader::new(source)
-            .map_err(TokenReaderError::ReadError)?;
-        Ok(Decoder {
-            reader,
-            options,
-        })
+        let reader = opus::Reader::new(source).map_err(TokenReaderError::ReadError)?;
+        Ok(Decoder { reader, options })
     }
 }
 
@@ -41,35 +35,42 @@ impl<R: Read> Decoder<R> {
 /// Usage:
 /// `symbol!(self, name_of_the_probability_table, "Description, used for debugging", path_in_the_ast)`
 macro_rules! symbol {
-    ( $me: ident, $table:ident, $description: expr, $path:expr ) => {
-        {
-            use std::borrow::Borrow;
-            use std::ops::DerefMut;
-            let path = $path.borrow();
+    ( $me: ident, $table:ident, $description: expr, $path:expr ) => {{
+        use std::borrow::Borrow;
+        use std::ops::DerefMut;
+        let path = $path.borrow();
 
-            let index = {
-                // 1. Get the frequency information for this path.
-                let frequencies = $me.options.probability_tables
-                    .$table
-                    .frequencies_at(path)
-                    .ok_or_else(|| TokenReaderError::NotInDictionary(format!("{} at {:?}", $description, $path)))?;
-                let mut borrow = frequencies
-                    .borrow_mut();
-
-                // 3. Let bit-level I/O determine the symbol index stored.
-                let index = $me.reader.symbol(borrow.deref_mut())
-                    .map_err(TokenReaderError::ReadError)?;
-                index
-            };
-
-            // 4. Deduce the value we have just read.
-            let value = $me.options.probability_tables
+        let index = {
+            // 1. Get the frequency information for this path.
+            let frequencies = $me
+                .options
+                .probability_tables
                 .$table
-                .value_by_symbol_index(path, SymbolIndex::new(index as usize))
-                .ok_or_else(|| TokenReaderError::NotInDictionary(format!("{} [{}]", stringify!($ident), index)))?;
-            Ok(value.clone())
-        }
-    }
+                .frequencies_at(path)
+                .ok_or_else(|| {
+                    TokenReaderError::NotInDictionary(format!("{} at {:?}", $description, $path))
+                })?;
+            let mut borrow = frequencies.borrow_mut();
+
+            // 3. Let bit-level I/O determine the symbol index stored.
+            let index = $me
+                .reader
+                .symbol(borrow.deref_mut())
+                .map_err(TokenReaderError::ReadError)?;
+            index
+        };
+
+        // 4. Deduce the value we have just read.
+        let value = $me
+            .options
+            .probability_tables
+            .$table
+            .value_by_symbol_index(path, SymbolIndex::new(index as usize))
+            .ok_or_else(|| {
+                TokenReaderError::NotInDictionary(format!("{} [{}]", stringify!($ident), index))
+            })?;
+        Ok(value.clone())
+    }};
 }
 
 impl<R: Read> TokenReader for Decoder<R> {
@@ -83,8 +84,16 @@ impl<R: Read> TokenReader for Decoder<R> {
         symbol!(self, string_enum_by_path, "string_enum_by_path", path)
     }
 
-    fn identifier_name_at(&mut self, path: &Path) -> Result<Option<IdentifierName>, TokenReaderError> {
-        symbol!(self, identifier_name_by_path, "identifier_name_by_path", path)
+    fn identifier_name_at(
+        &mut self,
+        path: &Path,
+    ) -> Result<Option<IdentifierName>, TokenReaderError> {
+        symbol!(
+            self,
+            identifier_name_by_path,
+            "identifier_name_by_path",
+            path
+        )
     }
 
     fn property_key_at(&mut self, path: &Path) -> Result<Option<PropertyKey>, TokenReaderError> {
@@ -117,11 +126,14 @@ impl<R: Read> TokenReader for Decoder<R> {
     fn enter_list_at(&mut self, path: &Path) -> Result<u32, TokenReaderError> {
         let length = symbol!(self, list_length_by_path, "list_length_by_path", path)?
             .ok_or_else(|| TokenReaderError::EmptyList)?;
-            // For the moment, we cannot read an optional list.
+        // For the moment, we cannot read an optional list.
         Ok(length)
     }
 
-    fn enter_tagged_tuple_at(&mut self, path: &Path) -> Result<(InterfaceName, Option<std::rc::Rc<Box<[FieldName]>>>), TokenReaderError> {
+    fn enter_tagged_tuple_at(
+        &mut self,
+        path: &Path,
+    ) -> Result<(InterfaceName, Option<std::rc::Rc<Box<[FieldName]>>>), TokenReaderError> {
         let name = symbol!(self, interface_name_by_path, "interface_name_by_path", path)?;
         Ok((name, None))
     }

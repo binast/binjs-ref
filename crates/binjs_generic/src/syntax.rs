@@ -27,21 +27,31 @@ impl Compare for TypeSpec {
     fn compare(&self, syntax: &Spec, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
         use json::JsonValue::*;
         match (self, left, right) {
-            (&TypeSpec::Boolean, &Boolean(ref a), &Boolean(ref b)) =>
-                Ok(a == b),
-            (&TypeSpec::String, _, _) | (&TypeSpec::PropertyKey, _, _) | (&TypeSpec::IdentifierName, _, _) if left.as_str().is_some() && right.as_str().is_some() => // Strings are complicated as they have two different representations in JSON.
-                Ok(left.as_str() == right.as_str()),
-            (&TypeSpec::Number, &Number(ref a), &Number(ref b)) =>
-                Ok(a == b),
-            (&TypeSpec::UnsignedLong, &Number(ref a), &Number(ref b)) =>
-                Ok(a == b),
-            (&TypeSpec::Array { contents: ref type_, .. }, &Array(ref vec_a), &Array(ref vec_b)) => {
+            (&TypeSpec::Boolean, &Boolean(ref a), &Boolean(ref b)) => Ok(a == b),
+            (&TypeSpec::String, _, _)
+            | (&TypeSpec::PropertyKey, _, _)
+            | (&TypeSpec::IdentifierName, _, _)
+                if left.as_str().is_some() && right.as_str().is_some() =>
+            // Strings are complicated as they have two different representations in JSON.
+            {
+                Ok(left.as_str() == right.as_str())
+            }
+            (&TypeSpec::Number, &Number(ref a), &Number(ref b)) => Ok(a == b),
+            (&TypeSpec::UnsignedLong, &Number(ref a), &Number(ref b)) => Ok(a == b),
+            (
+                &TypeSpec::Array {
+                    contents: ref type_,
+                    ..
+                },
+                &Array(ref vec_a),
+                &Array(ref vec_b),
+            ) => {
                 if vec_a.len() != vec_b.len() {
                     Ok(false)
                 } else {
                     for (a, b) in vec_a.iter().zip(vec_b.iter()) {
                         if !type_.compare(syntax, a, b)? {
-                            return Ok(false)
+                            return Ok(false);
                         }
                     }
                     Ok(true)
@@ -49,38 +59,40 @@ impl Compare for TypeSpec {
             }
             (&TypeSpec::NamedType(ref name), _, _) => {
                 match syntax.get_type_by_name(name) {
-                    Some(NamedType::StringEnum(_)) if left.as_str().is_some() && right.as_str().is_some() =>
-                        return Ok(left.as_str().unwrap() == right.as_str().unwrap()),
-                    Some(NamedType::Interface(interface)) =>
-                        return interface.compare(syntax, left, right),
-                    Some(NamedType::Typedef(typedef)) =>
-                        return typedef.compare(syntax, left, right),
-                    None =>
-                        panic!("Could not find a type named {:?}", name),
+                    Some(NamedType::StringEnum(_))
+                        if left.as_str().is_some() && right.as_str().is_some() =>
+                    {
+                        return Ok(left.as_str().unwrap() == right.as_str().unwrap())
+                    }
+                    Some(NamedType::Interface(interface)) => {
+                        return interface.compare(syntax, left, right)
+                    }
+                    Some(NamedType::Typedef(typedef)) => {
+                        return typedef.compare(syntax, left, right)
+                    }
+                    None => panic!("Could not find a type named {:?}", name),
                     _ => {}
                 }
                 return Err(ASTError::InvalidValue {
                     expected: format!("{:?}", self),
-                    got: format!("{:?} =?= {:?}", left, right)
-                })
-            },
+                    got: format!("{:?} =?= {:?}", left, right),
+                });
+            }
             (&TypeSpec::TypeSum(ref types), _, _) => {
                 for type_ in types.types() {
                     if let Ok(result) = type_.compare(syntax, left, right) {
-                        return Ok(result)
+                        return Ok(result);
                     }
                 }
                 Err(ASTError::InvalidValue {
                     expected: format!("{:?}", self),
-                    got: format!("{:?} =?= {:?}", left, right)
+                    got: format!("{:?} =?= {:?}", left, right),
                 })
             }
-            _ => {
-                Err(ASTError::InvalidValue {
-                    expected: format!("{:?}", self),
-                    got: format!("{:?} =?= {:?}", left, right)
-                })
-            }
+            _ => Err(ASTError::InvalidValue {
+                expected: format!("{:?}", self),
+                got: format!("{:?} =?= {:?}", left, right),
+            }),
         }
     }
 }
@@ -93,7 +105,7 @@ impl Compare for Type {
         if self.is_optional() {
             if let (&Null, &Null) = (left, right) {
                 // This is the only case in which we accept `null` as a value.
-                return Ok(true)                
+                return Ok(true);
             }
         }
         self.spec.compare(syntax, left, right)
@@ -104,14 +116,14 @@ impl Compare for Interface {
     fn compare(&self, syntax: &Spec, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
         // Compare types
         if left["type"].as_str() != right["type"].as_str() {
-            return Ok(false)
+            return Ok(false);
         }
         // Compare fields
         for field in self.contents().fields() {
             let index = field.name().to_str();
             let result = field.type_().compare(syntax, &left[index], &right[index])?;
             if !result {
-                return Ok(false)
+                return Ok(false);
             }
         }
         // Everything is fine.
@@ -345,27 +357,25 @@ macro_rules! make_ast_visitor {
 impl Compare for NamedType {
     fn compare(&self, syntax: &Spec, left: &JSON, right: &JSON) -> Result<bool, ASTError> {
         match *self {
-            NamedType::Interface(ref interface) =>
-                return interface.compare(syntax, left, right),
-            NamedType::Typedef(ref type_) =>
-                return type_.compare(syntax, left, right),
+            NamedType::Interface(ref interface) => return interface.compare(syntax, left, right),
+            NamedType::Typedef(ref type_) => return type_.compare(syntax, left, right),
             NamedType::StringEnum(_) if left.as_str().is_some() && right.as_str().is_some() => {
                 if left.as_str() == right.as_str() {
-                    return Ok(true)
+                    return Ok(true);
                 }
-                return Ok(false)
+                return Ok(false);
             }
             _ => {}
         }
         return Err(ASTError::InvalidValue {
             got: format!("{} =?= {}", left.dump(), right.dump()),
-            expected: format!("{:?}", self)
-        })
+            expected: format!("{:?}", self),
+        });
     }
 }
 
 /// Define immutable AST Visitor/walker
-make_ast_visitor!(ASTVisitor,ASTWalker,);
+make_ast_visitor!(ASTVisitor, ASTWalker,);
 
 /// Define mutable AST Visitor/walker
 make_ast_visitor!(MutASTVisitor, MutASTWalker, mut);
@@ -373,7 +383,9 @@ make_ast_visitor!(MutASTVisitor, MutASTWalker, mut);
 /// Ensure that a value is an inhabitant of the grammar.
 pub fn validate(syntax: &Spec, a: &JSON) -> Result<(), ASTError> {
     struct ValidationVisitor;
-    impl ASTVisitor for ValidationVisitor { /* Do nothing */  }
+    impl ASTVisitor for ValidationVisitor {
+        /* Do nothing */
+    }
     let mut walker = ASTWalker::new(syntax, ValidationVisitor);
     walker.walk(a)
 }
@@ -386,33 +398,29 @@ pub fn compare(syntax: &Spec, a: &JSON, b: &JSON) -> Result<bool, ASTError> {
     syntax.get_root().compare(syntax, a, b)
 }
 
-
 #[derive(Debug)]
 pub enum ASTError {
     InvalidField(String),
     Mismatch(Type),
-    InvalidValue {
-        got: String,
-        expected: String,
-    },
+    InvalidValue { got: String, expected: String },
     InvalidType(String),
-    InvalidDescendent {
-        got: String,
-        valid: Vec<String>,
-    },
+    InvalidDescendent { got: String, valid: Vec<String> },
     MissingParent(String),
     MissingField(String),
-    InvalidScope
+    InvalidScope,
 }
 impl ASTError {
     pub fn invalid_field(name: &str) -> Self {
         ASTError::InvalidField(name.to_string())
     }
 
-    pub fn invalid_value<T>(value: T, expected: &str) -> Self where T: std::ops::Deref<Target = JSON> {
+    pub fn invalid_value<T>(value: T, expected: &str) -> Self
+    where
+        T: std::ops::Deref<Target = JSON>,
+    {
         ASTError::InvalidValue {
             got: value.dump(),
-            expected: expected.to_string()
+            expected: expected.to_string(),
         }
     }
 

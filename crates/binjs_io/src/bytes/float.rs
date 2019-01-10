@@ -10,16 +10,15 @@ const VARNUM_NULL: [u8; 3] = VARNUM_INVALID_ZERO_2;
 
 pub fn varbytes_of_float(value: Option<f64>) -> Vec<u8> {
     let mut buf = Vec::with_capacity(4);
-    buf.write_maybe_varfloat(value)
-        .unwrap(); // The write cannot fail on a Vec<>
+    buf.write_maybe_varfloat(value).unwrap(); // The write cannot fail on a Vec<>
     buf
 }
 
 /// Encode a f64 | null, little-endian
 pub fn bytes_of_float(value: Option<f64>) -> [u8; 8] {
-    let mut as_u64 : u64 = match value {
+    let mut as_u64: u64 = match value {
         None => NONE_FLOAT_REPR,
-        Some(value) => unsafe { std::mem::transmute::<f64, u64>(value) }
+        Some(value) => unsafe { std::mem::transmute::<f64, u64>(value) },
     };
     let mut buf: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
     for i in 0..8 {
@@ -44,7 +43,10 @@ pub trait WriteVarFloat {
     fn write_varfloat(&mut self, num: f64) -> Result<usize, std::io::Error>;
 }
 
-impl<T> WriteVarFloat for T where T: Write {
+impl<T> WriteVarFloat for T
+where
+    T: Write,
+{
     fn write_maybe_varfloat(&mut self, value: Option<f64>) -> Result<usize, std::io::Error> {
         match value {
             None => {
@@ -52,9 +54,7 @@ impl<T> WriteVarFloat for T where T: Write {
                 self.write_all(&VARNUM_NULL)?;
                 Ok(VARNUM_NULL.len())
             }
-            Some(v) => {
-                self.write_varfloat(v)
-            }
+            Some(v) => self.write_varfloat(v),
         }
     }
 
@@ -65,7 +65,9 @@ impl<T> WriteVarFloat for T where T: Write {
             // - it has the same value as its projection to i32;
             // - it's not -0.0
             let as_signed_integer = value as i32;
-            if as_signed_integer as f64 == value && (as_signed_integer != 0 || value.is_sign_positive()) {
+            if as_signed_integer as f64 == value
+                && (as_signed_integer != 0 || value.is_sign_positive())
+            {
                 // This is an i32. We can fit it in at most 5 7bit bytes.
                 //
                 // We pick a representation that favors small numbers, both
@@ -79,7 +81,7 @@ impl<T> WriteVarFloat for T where T: Write {
                     // So, numbers in [-127, -1] will fit in a single byte.
                     2 * ((-as_signed_integer + 1) as u32) - 1
                 };
-                return self.write_varnum(as_unsigned)
+                return self.write_varnum(as_unsigned);
             }
         }
         // Encode as a float prefixed by 0b00000001 0b00000000 (which is an invalid integer).
@@ -90,11 +92,9 @@ impl<T> WriteVarFloat for T where T: Write {
     }
 }
 
-
 /// Decode a f64 | null, little-endian
 pub fn float_of_bytes(buf: &[u8; 8]) -> Option<f64> {
-    let as_u64 =
-          ((buf[0] as u64) << 0)
+    let as_u64 = ((buf[0] as u64) << 0)
         | ((buf[1] as u64) << 8)
         | ((buf[2] as u64) << 16)
         | ((buf[3] as u64) << 24)

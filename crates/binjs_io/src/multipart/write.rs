@@ -1,25 +1,24 @@
 use bytes;
 use bytes::compress::*;
 use bytes::varnum::*;
-use io::*;
-use ::{ CompressionTarget, TokenWriterError };
 use escaped_wtf8;
+use io::*;
 use multipart::*;
+use {CompressionTarget, TokenWriterError};
 
-use binjs_shared::{ FieldName, InterfaceName, SharedString };
+use binjs_shared::{FieldName, InterfaceName, SharedString};
 
 use std;
-use std::collections::{ HashMap, HashSet };
 use std::cell::RefCell;
-use std::fmt::{ Debug, Display, Formatter };
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::io::Write;
-use std::ops::{ Add, AddAssign, Deref };
+use std::ops::{Add, AddAssign, Deref};
 use std::rc::Rc;
 
 use vec_map;
 use vec_map::*;
-
 
 #[derive(Clone, Debug)]
 pub struct Targets {
@@ -41,7 +40,11 @@ trait Serializable {
     fn write<W: Write>(&self, &mut W) -> Result<usize, std::io::Error>;
 
     /// Write the data, with compression.
-    fn write_with_compression<W: Write>(&self, out: &mut W, compression: &Compression) -> Result<CompressionResult, std::io::Error> {
+    fn write_with_compression<W: Write>(
+        &self,
+        out: &mut W,
+        compression: &Compression,
+    ) -> Result<CompressionResult, std::io::Error> {
         let mut uncompressed = Vec::with_capacity(2048);
         self.write(&mut uncompressed)?;
         compression.compress(&uncompressed, out)
@@ -88,20 +91,21 @@ impl Serializable for Option<SharedString> {
                 out.write_all(&EMPTY_STRING)?;
                 total += EMPTY_STRING.len();
                 total
-            },
-            Some(ref data) => {
-                data.write(out)?
             }
+            Some(ref data) => data.write(out)?,
         };
         Ok(total)
     }
 }
 
-
 /// An entry in an WriterTable.
 ///
 /// This entry tracks the number of instances of the entry used in the table.
-struct TableEntry<T> where T: Clone + std::fmt::Debug + Ord { // We shouldn't need the `Clone`, sigh.
+struct TableEntry<T>
+where
+    T: Clone + std::fmt::Debug + Ord,
+{
+    // We shouldn't need the `Clone`, sigh.
     /// Number of instances of this entry around.
     instances: RefCell<u32>,
 
@@ -109,9 +113,12 @@ struct TableEntry<T> where T: Clone + std::fmt::Debug + Ord { // We shouldn't ne
     data: T,
 
     /// The index, actually computed in `write()`.
-    index: TableIndex<T>
+    index: TableIndex<T>,
 }
-impl<T> TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
+impl<T> TableEntry<T>
+where
+    T: Clone + std::fmt::Debug + Ord,
+{
     fn new(data: T) -> Self {
         TableEntry {
             instances: RefCell::new(1),
@@ -120,19 +127,27 @@ impl<T> TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
         }
     }
 }
-impl<T> PartialEq for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
+impl<T> PartialEq for TableEntry<T>
+where
+    T: Clone + std::fmt::Debug + Ord,
+{
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == std::cmp::Ordering::Equal
     }
 }
-impl<T> Eq for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
-}
-impl<T> PartialOrd for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
+impl<T> Eq for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {}
+impl<T> PartialOrd for TableEntry<T>
+where
+    T: Clone + std::fmt::Debug + Ord,
+{
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
-impl<T> Ord for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
+impl<T> Ord for TableEntry<T>
+where
+    T: Clone + std::fmt::Debug + Ord,
+{
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         u32::cmp(&*other.instances.borrow(), &*self.instances.borrow())
             .then_with(|| self.data.cmp(&other.data))
@@ -140,31 +155,38 @@ impl<T> Ord for TableEntry<T> where T: Clone + std::fmt::Debug + Ord {
 }
 
 /// A table, used to define a varnum-indexed header
-struct WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord {
-    map: HashMap<Entry, TableEntry<Entry>>
+struct WriterTable<Entry>
+where
+    Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord,
+{
+    map: HashMap<Entry, TableEntry<Entry>>,
 }
 
-impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord {
+impl<Entry> WriterTable<Entry>
+where
+    Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord,
+{
     pub fn new() -> Self {
         WriterTable {
-            map: HashMap::new()
+            map: HashMap::new(),
         }
     }
 }
 
-
-impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord {
+impl<Entry> WriterTable<Entry>
+where
+    Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord,
+{
     /// Get an entry from the header.
     ///
     /// The number of entries is incremented by 1.
     fn get(&self, kind: &Entry) -> Option<&TableEntry<Entry>> {
-        self.map.get(kind)
-            .map(|entry| {
-                // Increment by 1
-                let mut borrow = entry.instances.borrow_mut();
-                *borrow += 1;
-                entry
-            })
+        self.map.get(kind).map(|entry| {
+            // Increment by 1
+            let mut borrow = entry.instances.borrow_mut();
+            *borrow += 1;
+            entry
+        })
     }
 
     /// Insert an entry.
@@ -195,12 +217,15 @@ impl<Entry> WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + F
 ///       -   byte length of entry (varnum);
 /// - for each entry,
 /// -   serialization of entry.
-impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord {
+impl<Entry> Serializable for WriterTable<Entry>
+where
+    Entry: Eq + Hash + Clone + Serializable + FormatInTable + Debug + Ord,
+{
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
         // Sort entries by number of uses and entry data specific ordering
-        let mut contents : Vec<_> = self.map.values().collect();
+        let mut contents: Vec<_> = self.map.values().collect();
         contents.sort_unstable();
 
         // Assign TableIndex
@@ -242,7 +267,6 @@ impl<Entry> Serializable for WriterTable<Entry> where Entry: Eq + Hash + Clone +
     }
 }
 
-
 #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Hash, Debug)] // FIXME: Clone shouldn't be necessary. Sigh.
 pub struct NodeDescription {
     kind: InterfaceName,
@@ -257,14 +281,13 @@ impl Serializable for NodeDescription {
     fn write<W: Write>(&self, out: &mut W) -> Result<usize, std::io::Error> {
         let mut total = 0;
 
-        total += self.kind.as_shared_string()
-            .write(out)?;
+        total += self.kind.as_shared_string().write(out)?;
         Ok(total)
     }
 }
 
 impl FormatInTable for NodeDescription {
-    const HAS_LENGTH_INDEX : bool = false;
+    const HAS_LENGTH_INDEX: bool = false;
 }
 
 /// The tree, as it is being built.
@@ -282,7 +305,7 @@ enum UnresolvedTreeNode {
 }
 struct UnresolvedTree {
     nature: Nature,
-    data: UnresolvedTreeNode
+    data: UnresolvedTreeNode,
 }
 
 enum ResolvedTree {
@@ -313,21 +336,22 @@ impl UnresolvedTree {
         use self::UnresolvedTreeNode::*;
         let (total_bytes, own_bytes, tree) = match self.data {
             UnresolvedStringIndex(index) => {
-                let index = index.index()
+                let index = index
+                    .index()
                     .expect("String index should have been resolved by now.");
                 let mut buf = Vec::with_capacity(4);
-                let byte_len : usize = buf.write_varnum(index).unwrap(); // This operation can't fail.
+                let byte_len: usize = buf.write_varnum(index).unwrap(); // This operation can't fail.
 
                 (byte_len as u32, byte_len as u32, ResolvedTree::Encoded(buf))
             }
             UnresolvedNodeIndex(index) => {
                 debug!(target: "multipart", "Rewriting node '{}'", index.description);
 
-                let index = index.index()
+                let index = index
+                    .index()
                     .expect("Node index should have been resolved by now.");
                 let mut buf = Vec::with_capacity(4);
-                let byte_len : usize = buf.write_varnum(index).unwrap(); // This operation can't fail.
-
+                let byte_len: usize = buf.write_varnum(index).unwrap(); // This operation can't fail.
 
                 (byte_len as u32, byte_len as u32, ResolvedTree::Encoded(buf))
             }
@@ -340,20 +364,35 @@ impl UnresolvedTree {
                 let offset_byte_len = buf.write_varnum(sub_byte_len).unwrap(); // This operation can't fail.
                 let offset_resolved = ResolvedTree::Encoded(buf);
 
-                (sub_byte_len + offset_byte_len as u32, offset_byte_len as u32, ResolvedTree::Tuple(vec![offset_resolved, ResolvedTree::Tuple(vec![sub_resolved])]))
+                (
+                    sub_byte_len + offset_byte_len as u32,
+                    offset_byte_len as u32,
+                    ResolvedTree::Tuple(vec![
+                        offset_resolved,
+                        ResolvedTree::Tuple(vec![sub_resolved]),
+                    ]),
+                )
             }
             Tuple(mut subtrees) => {
                 let mut byte_len = 0;
                 let mut resolved = Vec::with_capacity(subtrees.len());
                 for tree in subtrees.drain(..) {
-                    let tree = std::rc::Rc::try_unwrap(tree)
-                        .unwrap_or_else(|e| panic!("Could not unwrap tree, it still has {} consumers", std::rc::Rc::strong_count(&e)));
+                    let tree = std::rc::Rc::try_unwrap(tree).unwrap_or_else(|e| {
+                        panic!(
+                            "Could not unwrap tree, it still has {} consumers",
+                            std::rc::Rc::strong_count(&e)
+                        )
+                    });
                     let (sub_byte_len, sub_resolved) = tree.resolve(stats);
                     byte_len += sub_byte_len;
                     resolved.push(sub_resolved);
                 }
 
-                (byte_len as u32, byte_len as u32, ResolvedTree::Tuple(resolved))
+                (
+                    byte_len as u32,
+                    byte_len as u32,
+                    ResolvedTree::Tuple(resolved),
+                )
             }
             Encoded(vec) => {
                 let byte_len = vec.len() as u32;
@@ -363,7 +402,7 @@ impl UnresolvedTree {
         };
 
         let total = total_bytes as usize;
-        let own   = own_bytes as usize;
+        let own = own_bytes as usize;
         match self.nature {
             Nature::String(_) => {
                 stats.string.entries += 1;
@@ -377,7 +416,9 @@ impl UnresolvedTree {
                     stat.total_bytes += total;
                 }
 
-                let key = index.index.borrow()
+                let key = index
+                    .index
+                    .borrow()
                     .expect("TableIndex hasn't been resolved");
 
                 debug!(target: "multipart", "Updating table for {}", key);
@@ -405,7 +446,9 @@ impl UnresolvedTree {
                 stats.tagged_header.own_bytes += own;
                 stats.tagged_header.total_bytes += total;
 
-                let key = index.index.borrow()
+                let key = index
+                    .index
+                    .borrow()
                     .expect("TableIndex hasn't been resolved");
                 debug!(target: "multipart", "Updating table for {}", key);
                 match stats.per_kind_index.entry(key as usize) {
@@ -496,7 +539,7 @@ impl<T> Clone for TableIndex<T> {
         TableIndex {
             phantom: std::marker::PhantomData,
             description: self.description.clone(),
-            index: self.index.clone()
+            index: self.index.clone(),
         }
     }
 }
@@ -505,13 +548,13 @@ impl<T> TableIndex<T> {
         TableIndex {
             phantom: std::marker::PhantomData,
             description: SharedString::from_string(description.to_string()),
-            index: Rc::new(RefCell::new(None))
+            index: Rc::new(RefCell::new(None)),
         }
     }
     pub fn index(&self) -> Option<u32> {
         match *self.index.borrow() {
             None => None,
-            Some(ref value) => Some(value.clone())
+            Some(ref value) => Some(value.clone()),
         }
     }
 }
@@ -525,8 +568,6 @@ impl<T> Serializable for TableIndex<T> {
     }
 }
 
-
-
 impl TreeTokenWriter {
     pub fn new(mut targets: Targets) -> Self {
         targets.reset();
@@ -536,7 +577,7 @@ impl TreeTokenWriter {
             root: None,
             data: Vec::with_capacity(1024),
             targets,
-            statistics: Statistics::default()
+            statistics: Statistics::default(),
         }
     }
 
@@ -549,25 +590,33 @@ impl TreeTokenWriter {
     pub fn done(mut self) -> Result<Box<[u8]>, TokenWriterError> {
         const MAGIC_HEADER: &[u8; 5] = b"BINJS";
         // Write header to byte stream
-        self.data.write_all(MAGIC_HEADER)
+        self.data
+            .write_all(MAGIC_HEADER)
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.uncompressed_bytes += MAGIC_HEADER.len();
 
-        const FORMAT_VERSION : u32 = 1;
-        self.data.write_varnum(FORMAT_VERSION)
+        const FORMAT_VERSION: u32 = 1;
+        self.data
+            .write_varnum(FORMAT_VERSION)
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.uncompressed_bytes += std::mem::size_of_val(&FORMAT_VERSION);
 
         // Write grammar table to byte stream.
-        self.data.write_all(HEADER_GRAMMAR_TABLE.as_bytes())
+        self.data
+            .write_all(HEADER_GRAMMAR_TABLE.as_bytes())
             .map_err(TokenWriterError::WriteError)?;
         self.statistics.uncompressed_bytes += HEADER_GRAMMAR_TABLE.len();
         {
-            self.grammar_table.write(&mut self.targets.grammar_table)
+            self.grammar_table
+                .write(&mut self.targets.grammar_table)
                 .map_err(TokenWriterError::WriteError)?;
-            let (data, compression) = self.targets.grammar_table.done()
+            let (data, compression) = self
+                .targets
+                .grammar_table
+                .done()
                 .map_err(TokenWriterError::WriteError)?;
-            self.data.write_all(data.as_ref())
+            self.data
+                .write_all(data.as_ref())
                 .map_err(TokenWriterError::WriteError)?;
             self.statistics.grammar_table.entries = self.grammar_table.map.len();
             self.statistics.grammar_table.max_entries = self.grammar_table.map.len();
@@ -575,14 +624,20 @@ impl TreeTokenWriter {
         }
 
         // Write strings table to byte stream.
-        self.data.write_all(HEADER_STRINGS_TABLE.as_bytes())
+        self.data
+            .write_all(HEADER_STRINGS_TABLE.as_bytes())
             .map_err(TokenWriterError::WriteError)?;
         {
-            self.strings_table.write(&mut self.targets.strings_table)
+            self.strings_table
+                .write(&mut self.targets.strings_table)
                 .map_err(TokenWriterError::WriteError)?;
-            let (data, compression) = self.targets.strings_table.done()
+            let (data, compression) = self
+                .targets
+                .strings_table
+                .done()
                 .map_err(TokenWriterError::WriteError)?;
-            self.data.write_all(data.as_ref())
+            self.data
+                .write_all(data.as_ref())
                 .map_err(TokenWriterError::WriteError)?;
             self.statistics.strings_table.entries = self.strings_table.map.len();
             self.statistics.strings_table.max_entries = self.strings_table.map.len();
@@ -593,7 +648,7 @@ impl TreeTokenWriter {
         for (key, value) in &self.strings_table.map {
             let len = match *key {
                 None => 0,
-                Some(ref s) => s.len()
+                Some(ref s) => s.len(),
             };
             match self.statistics.string_lengths.entry(len) {
                 vec_map::Entry::Occupied(mut entry) => {
@@ -605,7 +660,11 @@ impl TreeTokenWriter {
                 }
             }
 
-            match self.statistics.string_usage.entry(value.instances.borrow().clone() as usize) {
+            match self
+                .statistics
+                .string_usage
+                .entry(value.instances.borrow().clone() as usize)
+            {
                 vec_map::Entry::Occupied(mut entry) => {
                     let borrow = entry.get_mut();
                     *borrow += 1;
@@ -616,24 +675,34 @@ impl TreeTokenWriter {
             }
         }
 
-
         // Write tree itself to byte stream.
         if let Some(root) = self.root {
             let mut tree_buf = Vec::with_capacity(2048);
-            let root = std::rc::Rc::try_unwrap(root.0)
-                .unwrap_or_else(|e| panic!("Could not unwrap tree, it still has {} consumers", std::rc::Rc::strong_count(&e)));
+            let root = std::rc::Rc::try_unwrap(root.0).unwrap_or_else(|e| {
+                panic!(
+                    "Could not unwrap tree, it still has {} consumers",
+                    std::rc::Rc::strong_count(&e)
+                )
+            });
             let (_, resolved) = root.resolve(&mut self.statistics);
-            resolved.write(&mut tree_buf)
+            resolved
+                .write(&mut tree_buf)
                 .map_err(TokenWriterError::WriteError)?;
 
-            self.data.write_all(HEADER_TREE.as_bytes())
+            self.data
+                .write_all(HEADER_TREE.as_bytes())
                 .map_err(TokenWriterError::WriteError)?;
             {
-                tree_buf.write(&mut self.targets.tree)
+                tree_buf
+                    .write(&mut self.targets.tree)
                     .map_err(TokenWriterError::WriteError)?;
-                let (data, compression) = self.targets.tree.done()
+                let (data, compression) = self
+                    .targets
+                    .tree
+                    .done()
                     .map_err(TokenWriterError::WriteError)?;
-                self.data.write_all(data.as_ref())
+                self.data
+                    .write_all(data.as_ref())
                     .map_err(TokenWriterError::WriteError)?;
                 self.statistics.tree.entries = 1;
                 self.statistics.tree.max_entries = 1;
@@ -643,7 +712,10 @@ impl TreeTokenWriter {
 
         // Compute more statistics on nodes.
         for (key, value) in self.grammar_table.map {
-            let index = value.index.index.borrow()
+            let index = value
+                .index
+                .index
+                .borrow()
                 .expect("Table index hasn't been resolved yet");
             match self.statistics.per_kind_index.get(index as usize) {
                 None => continue,
@@ -663,9 +735,10 @@ impl TreeTokenWriter {
         }
         self.statistics.number_of_files = 1;
         self.statistics.compressed_bytes = self.data.len();
-        self.statistics.uncompressed_bytes += self.statistics.grammar_table.compression.before_bytes
-            + self.statistics.strings_table.compression.before_bytes
-            + self.statistics.tree.compression.before_bytes;
+        self.statistics.uncompressed_bytes +=
+            self.statistics.grammar_table.compression.before_bytes
+                + self.statistics.strings_table.compression.before_bytes
+                + self.statistics.tree.compression.before_bytes;
         Ok(self.data.clone().into_boxed_slice())
     }
 }
@@ -679,7 +752,10 @@ impl TokenWriterWithTree for TreeTokenWriter {
     }
 
     fn float(&mut self, value: Option<f64>) -> Result<Self::Tree, TokenWriterError> {
-        let bytes : Vec<_> = bytes::float::bytes_of_float(value).iter().cloned().collect();
+        let bytes: Vec<_> = bytes::float::bytes_of_float(value)
+            .iter()
+            .cloned()
+            .collect();
         debug!(target: "multipart", "writing float {:?} => {:?}", value, bytes);
         Ok(self.register(UnresolvedTree {
             nature: Nature::Float,
@@ -689,7 +765,8 @@ impl TokenWriterWithTree for TreeTokenWriter {
 
     fn unsigned_long(&mut self, value: u32) -> Result<Self::Tree, TokenWriterError> {
         let mut bytes = Vec::with_capacity(4);
-        bytes.write_varnum(value as u32)
+        bytes
+            .write_varnum(value as u32)
             .map_err(TokenWriterError::WriteError)?;
         debug!(target: "multipart", "writing unsigned_long {:?} => {:?}", value, bytes);
         Ok(self.register(UnresolvedTree {
@@ -698,7 +775,7 @@ impl TokenWriterWithTree for TreeTokenWriter {
         }))
     }
 
-    fn bool(&mut self, data: Option<bool>)  -> Result<Self::Tree, TokenWriterError> {
+    fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, TokenWriterError> {
         let bytes = bytes::bool::bytes_of_bool(data).iter().cloned().collect();
         debug!(target: "multipart", "writing bool {:?} => {:?}", data, bytes);
         Ok(self.register(UnresolvedTree {
@@ -710,34 +787,36 @@ impl TokenWriterWithTree for TreeTokenWriter {
     fn offset(&mut self) -> Result<Self::Tree, TokenWriterError> {
         Ok(self.register(UnresolvedTree {
             data: UnresolvedTreeNode::UnresolvedOffset(None), // This will be replaced later.
-            nature: Nature::Offset
+            nature: Nature::Offset,
         }))
     }
 
     fn string(&mut self, data: Option<&SharedString>) -> Result<Self::Tree, TokenWriterError> {
         let key = data.map(Clone::clone);
-        let index = self.strings_table
+        let index = self
+            .strings_table
             .get(&key)
             .map(|entry| entry.index.clone());
 
         if let Some(index) = index {
             return Ok(self.register(UnresolvedTree {
                 data: UnresolvedTreeNode::UnresolvedStringIndex(index.clone()),
-                nature: Nature::String(index)
+                nature: Nature::String(index),
             }));
         }
         let index = self.strings_table.insert(key);
         debug!(target: "multipart", "writing string {:?} => {:?}", data, index);
         Ok(self.register(UnresolvedTree {
             data: UnresolvedTreeNode::UnresolvedStringIndex(index.clone()),
-            nature: Nature::String(index)
+            nature: Nature::String(index),
         }))
     }
     fn list(&mut self, mut children: Vec<Self::Tree>) -> Result<Self::Tree, TokenWriterError> {
         let mut items = Vec::with_capacity(children.len() + 1);
         // First child is the number of children.
         let mut encoded_number_of_items = Vec::with_capacity(4);
-        encoded_number_of_items.write_varnum(children.len() as u32)
+        encoded_number_of_items
+            .write_varnum(children.len() as u32)
             .map_err(TokenWriterError::WriteError)?;
         items.push(Rc::new(UnresolvedTree {
             data: UnresolvedTreeNode::Encoded(encoded_number_of_items),
@@ -746,9 +825,7 @@ impl TokenWriterWithTree for TreeTokenWriter {
 
         let len = children.len();
         // Next, move in the children.
-        let children : Vec<_> = children.drain(..)
-            .map(|tree| tree.0.clone())
-            .collect();
+        let children: Vec<_> = children.drain(..).map(|tree| tree.0.clone()).collect();
         items.extend(children);
         debug!(target: "multipart", "writing list with {} => {} items", len, items.len());
         Ok(self.register(UnresolvedTree {
@@ -764,17 +841,19 @@ impl TokenWriterWithTree for TreeTokenWriter {
     // - index in the grammar table (varnum);
     // - for each item, in the order specified
     //    - the item (see item)
-    fn tagged_tuple(&mut self, name: &InterfaceName, children: &[(&FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError> {
+    fn tagged_tuple(
+        &mut self,
+        name: &InterfaceName,
+        children: &[(&FieldName, Self::Tree)],
+    ) -> Result<Self::Tree, TokenWriterError> {
         let data;
-        let description = NodeDescription {
-            kind: name.clone()
-        };
+        let description = NodeDescription { kind: name.clone() };
         debug!(target: "multipart", "writing tagged tuple {:?} with {} children as {:?}",
             name,
             children.len(),
             description,
         );
-        let index : TableIndex<_> = self.grammar_table.insert(description);
+        let index: TableIndex<_> = self.grammar_table.insert(description);
         {
             debug!(target: "multipart", "tagged tuple index: {index:?}",
                 index = index);
@@ -817,7 +896,9 @@ impl TokenWriterWithTree for TreeTokenWriter {
                             };
 
                             children_data.push(Rc::new(UnresolvedTree {
-                                data: UnresolvedTreeNode::UnresolvedOffset(Some(Box::new(offset_child))),
+                                data: UnresolvedTreeNode::UnresolvedOffset(Some(Box::new(
+                                    offset_child,
+                                ))),
                                 nature: Nature::Offset,
                             }));
                             is_lazy_field = false;
@@ -848,7 +929,6 @@ impl TokenWriterWithTree for TreeTokenWriter {
     }
 }
 
-
 pub struct TreeTokenWriter {
     /// The table defining the accepted TaggedTuple
     /// and how they are laid out in the binary.
@@ -865,7 +945,6 @@ pub struct TreeTokenWriter {
 
     statistics: Statistics,
 }
-
 
 #[derive(Clone, Debug)]
 pub struct SectionStatistics {
@@ -888,7 +967,7 @@ impl Default for SectionStatistics {
                 before_bytes: 0,
                 after_bytes: 0,
                 algorithms: HashSet::new(),
-            }
+            },
         }
     }
 }
@@ -1072,7 +1151,7 @@ impl Add for Statistics {
         self.uncompressed_bytes += rhs.uncompressed_bytes;
         self.source_bytes = match (self.source_bytes, rhs.source_bytes) {
             (Some(x), Some(y)) => Some(x + y),
-            _ => None
+            _ => None,
         };
 
         self
@@ -1097,7 +1176,11 @@ impl<'a> Display for SectionAndStatistics<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "\t\t\tEntries: {}\n", self.section.entries)?;
         if self.section.max_entries != self.section.entries {
-            write!(f, "\t\t\tMax entries per file: {}\n", self.section.max_entries)?;
+            write!(
+                f,
+                "\t\t\tMax entries per file: {}\n",
+                self.section.max_entries
+            )?;
         }
         write!(f, "\t\t\tCompression: [")?;
         let mut first = true;
@@ -1109,8 +1192,20 @@ impl<'a> Display for SectionAndStatistics<'a> {
             write!(f, "{}", item.name())?;
         }
         write!(f, "]\n")?;
-        write!(f, "\t\t\tUncompressed bytes: {} ({:.2}%)\n", self.section.compression.before_bytes, 100. * (self.section.compression.before_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
-        write!(f, "\t\t\tCompressed bytes: {} ({:.2}%)\n", self.section.compression.after_bytes, 100. * (self.section.compression.after_bytes as f64) / (self.total_compressed_bytes as f64))?;
+        write!(
+            f,
+            "\t\t\tUncompressed bytes: {} ({:.2}%)\n",
+            self.section.compression.before_bytes,
+            100. * (self.section.compression.before_bytes as f64)
+                / (self.total_uncompressed_bytes as f64)
+        )?;
+        write!(
+            f,
+            "\t\t\tCompressed bytes: {} ({:.2}%)\n",
+            self.section.compression.after_bytes,
+            100. * (self.section.compression.after_bytes as f64)
+                / (self.total_compressed_bytes as f64)
+        )?;
         Ok(())
     }
 }
@@ -1125,19 +1220,48 @@ struct NodeAndStatistics<'a> {
 impl<'a> Display for NodeAndStatistics<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "\t\t{}:\n", self.name)?;
-        write!(f, "\t\t\tEntries: {} ({:.2}%)\n", self.stats.entries, 100. * (self.stats.entries as f64) / (self.total_number_of_entries as f64))?;
+        write!(
+            f,
+            "\t\t\tEntries: {} ({:.2}%)\n",
+            self.stats.entries,
+            100. * (self.stats.entries as f64) / (self.total_number_of_entries as f64)
+        )?;
         if self.stats.max_entries != self.stats.entries {
-            write!(f, "\t\t\tMax entries per file: {}\n", self.stats.max_entries)?;
+            write!(
+                f,
+                "\t\t\tMax entries per file: {}\n",
+                self.stats.max_entries
+            )?;
         }
-        write!(f, "\t\t\tOwn bytes: {} ({:.2}%)\n", self.stats.own_bytes, 100. * (self.stats.own_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+        write!(
+            f,
+            "\t\t\tOwn bytes: {} ({:.2}%)\n",
+            self.stats.own_bytes,
+            100. * (self.stats.own_bytes as f64) / (self.total_uncompressed_bytes as f64)
+        )?;
         if self.header_bytes != 0 {
-            write!(f, "\t\t\tHeader bytes: {} ({:.2}%)\n", self.header_bytes, 100. * (self.header_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+            write!(
+                f,
+                "\t\t\tHeader bytes: {} ({:.2}%)\n",
+                self.header_bytes,
+                100. * (self.header_bytes as f64) / (self.total_uncompressed_bytes as f64)
+            )?;
         }
         if self.stats.shallow_bytes != self.stats.own_bytes && self.stats.shallow_bytes != 0 {
-            write!(f, "\t\t\tShallow bytes: {} ({:.2}%)\n", self.stats.shallow_bytes, 100. * (self.stats.shallow_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+            write!(
+                f,
+                "\t\t\tShallow bytes: {} ({:.2}%)\n",
+                self.stats.shallow_bytes,
+                100. * (self.stats.shallow_bytes as f64) / (self.total_uncompressed_bytes as f64)
+            )?;
         }
         if self.stats.total_bytes != self.stats.own_bytes {
-            write!(f, "\t\t\tTotal bytes: {} ({:.2}%)\n", self.stats.total_bytes, 100. * (self.stats.total_bytes as f64) / (self.total_uncompressed_bytes as f64))?;
+            write!(
+                f,
+                "\t\t\tTotal bytes: {} ({:.2}%)\n",
+                self.stats.total_bytes,
+                100. * (self.stats.total_bytes as f64) / (self.total_uncompressed_bytes as f64)
+            )?;
         }
         Ok(())
     }
@@ -1145,15 +1269,12 @@ impl<'a> Display for NodeAndStatistics<'a> {
 
 struct NodeNameAndStatistics {
     total_uncompressed_bytes: usize,
-    nodes: Vec<(InterfaceName, NodeStatistics)>
+    nodes: Vec<(InterfaceName, NodeStatistics)>,
 }
 
 impl Display for NodeNameAndStatistics {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        let total_number_of_entries : usize = self.nodes
-            .iter()
-            .map(|node| node.1.entries)
-            .sum();
+        let total_number_of_entries: usize = self.nodes.iter().map(|node| node.1.entries).sum();
         // FIXME: Ugly. Find a better way to handle indentation.
         for &(ref name, ref stats) in &self.nodes {
             let for_display = NodeAndStatistics {
@@ -1161,7 +1282,7 @@ impl Display for NodeNameAndStatistics {
                 total_uncompressed_bytes: self.total_uncompressed_bytes,
                 total_number_of_entries,
                 name: name.as_str(),
-                stats
+                stats,
             };
             write!(f, "{}", for_display)?;
         }
@@ -1174,12 +1295,16 @@ struct ListLengthsAndNumber(Vec<(usize, usize)>, String);
 impl Display for ListLengthsAndNumber {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         // FIXME: Ugly. Find a better way to handle indentation.
-        let total_number_of_entries : usize = self.0
-            .iter()
-            .map(|&(_, number)| number)
-            .sum();
+        let total_number_of_entries: usize = self.0.iter().map(|&(_, number)| number).sum();
         for &(ref length, ref number) in &self.0 {
-            write!(f, "\t\t{} {} x {} ({:.2}%)\n", self.1, length, number, 100. * (*number as f64) / (total_number_of_entries as f64))?;
+            write!(
+                f,
+                "\t\t{} {} x {} ({:.2}%)\n",
+                self.1,
+                length,
+                number,
+                100. * (*number as f64) / (total_number_of_entries as f64)
+            )?;
         }
         Ok(())
     }
@@ -1188,28 +1313,38 @@ impl Display for ListLengthsAndNumber {
 impl Display for Statistics {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         // Sort entries by number of uses.
-        let mut per_kind : Vec<_> = self.per_kind_name.iter()
+        let mut per_kind: Vec<_> = self
+            .per_kind_name
+            .iter()
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect();
         per_kind.sort_unstable_by(|a, b| usize::cmp(&b.1.entries, &a.1.entries));
 
         // Per kind expanded.
-        let mut per_description : Vec<_> = self.per_description.iter()
+        let mut per_description: Vec<_> = self
+            .per_description
+            .iter()
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect();
         per_description.sort_unstable_by(|a, b| usize::cmp(&b.1.entries, &a.1.entries));
 
-        let mut list_per_size : Vec<_> = self.list_lengths.iter()
+        let mut list_per_size: Vec<_> = self
+            .list_lengths
+            .iter()
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect();
         list_per_size.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
 
-        let mut strings_per_size : Vec<_> = self.string_lengths.iter()
+        let mut strings_per_size: Vec<_> = self
+            .string_lengths
+            .iter()
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect();
         strings_per_size.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
 
-        let mut strings_per_usage : Vec<_> = self.string_usage.iter()
+        let mut strings_per_usage: Vec<_> = self
+            .string_usage
+            .iter()
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect();
         strings_per_usage.sort_unstable_by(|a, b| usize::cmp(&b.1, &a.1));
@@ -1220,7 +1355,9 @@ impl Display for Statistics {
             + self.string.entries
             + self.list.entries
             + self.tagged_tuple.entries;
-        write!(f, "
+        write!(
+            f,
+            "
 Statistics
 \tFiles:
 \t\tNumber: {number_of_files}
@@ -1252,88 +1389,90 @@ Statistics
 \tStrings per usage:
 {strings_per_usage}
 ",
-        number_of_files = self.number_of_files,
-        total_source_bytes = match self.source_bytes {
-            None => "<not available>".to_string(),
-            Some(ref bytes) => format!("{}", bytes)
-        },
-        total_uncompressed_bytes = self.uncompressed_bytes,
-        total_compressed_bytes = self.compressed_bytes,
-        compression_ratio = match self.source_bytes {
-            None => "<not available>".to_string(),
-            Some(ref bytes) => format!("{:.2}", (self.compressed_bytes as f64) / (*bytes as f64))
-        },
-        lists_per_size = ListLengthsAndNumber(list_per_size, "length".to_string()),
-        strings_per_size = ListLengthsAndNumber(strings_per_size, "length".to_string()),
-        strings_per_usage = ListLengthsAndNumber(strings_per_usage, "occurrences".to_string()),
-        section_grammar = SectionAndStatistics {
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            total_compressed_bytes: self.compressed_bytes,
-            section: &self.grammar_table,
-        },
-        section_strings = SectionAndStatistics {
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            total_compressed_bytes: self.compressed_bytes,
-            section: &self.strings_table,
-        },
-        section_tree = SectionAndStatistics {
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            total_compressed_bytes: self.compressed_bytes,
-            section: &self.tree,
-        },
-        collapsed_nodes = NodeNameAndStatistics {
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            nodes: per_kind
-        },
-        token_bool = NodeAndStatistics {
-            name: "Bool",
-            stats: &self.bool,
-            total_number_of_entries: total_number_of_tokens,
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            header_bytes: 0,
-        },
-        token_float = NodeAndStatistics {
-            name: "Float",
-            stats: &self.float,
-            total_number_of_entries: total_number_of_tokens,
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            header_bytes: 0,
-        },
-        token_unsigned_long = NodeAndStatistics {
-            name: "UnsignedLong",
-            stats: &self.unsigned_long,
-            total_number_of_entries: total_number_of_tokens,
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            header_bytes: 0,
-        },
-        token_offset = NodeAndStatistics {
-            name: "Offset",
-            stats: &self.offset,
-            total_number_of_entries: total_number_of_tokens,
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            header_bytes: 0,
-        },
-        token_string = NodeAndStatistics {
-            name: "String indices",
-            stats: &self.string,
-            total_number_of_entries: total_number_of_tokens,
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            header_bytes: 0,
-        },
-        token_list = NodeAndStatistics {
-            name: "List",
-            stats: &self.list,
-            total_number_of_entries: total_number_of_tokens,
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            header_bytes: self.list_header.own_bytes,
-        },
-        token_tagged_tuple = NodeAndStatistics {
-            name: "Tagged Tuple",
-            stats: &self.tagged_tuple,
-            total_number_of_entries: total_number_of_tokens,
-            total_uncompressed_bytes: self.uncompressed_bytes,
-            header_bytes: self.tagged_header.own_bytes,
-        },
+            number_of_files = self.number_of_files,
+            total_source_bytes = match self.source_bytes {
+                None => "<not available>".to_string(),
+                Some(ref bytes) => format!("{}", bytes),
+            },
+            total_uncompressed_bytes = self.uncompressed_bytes,
+            total_compressed_bytes = self.compressed_bytes,
+            compression_ratio = match self.source_bytes {
+                None => "<not available>".to_string(),
+                Some(ref bytes) => {
+                    format!("{:.2}", (self.compressed_bytes as f64) / (*bytes as f64))
+                }
+            },
+            lists_per_size = ListLengthsAndNumber(list_per_size, "length".to_string()),
+            strings_per_size = ListLengthsAndNumber(strings_per_size, "length".to_string()),
+            strings_per_usage = ListLengthsAndNumber(strings_per_usage, "occurrences".to_string()),
+            section_grammar = SectionAndStatistics {
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                total_compressed_bytes: self.compressed_bytes,
+                section: &self.grammar_table,
+            },
+            section_strings = SectionAndStatistics {
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                total_compressed_bytes: self.compressed_bytes,
+                section: &self.strings_table,
+            },
+            section_tree = SectionAndStatistics {
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                total_compressed_bytes: self.compressed_bytes,
+                section: &self.tree,
+            },
+            collapsed_nodes = NodeNameAndStatistics {
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                nodes: per_kind
+            },
+            token_bool = NodeAndStatistics {
+                name: "Bool",
+                stats: &self.bool,
+                total_number_of_entries: total_number_of_tokens,
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                header_bytes: 0,
+            },
+            token_float = NodeAndStatistics {
+                name: "Float",
+                stats: &self.float,
+                total_number_of_entries: total_number_of_tokens,
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                header_bytes: 0,
+            },
+            token_unsigned_long = NodeAndStatistics {
+                name: "UnsignedLong",
+                stats: &self.unsigned_long,
+                total_number_of_entries: total_number_of_tokens,
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                header_bytes: 0,
+            },
+            token_offset = NodeAndStatistics {
+                name: "Offset",
+                stats: &self.offset,
+                total_number_of_entries: total_number_of_tokens,
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                header_bytes: 0,
+            },
+            token_string = NodeAndStatistics {
+                name: "String indices",
+                stats: &self.string,
+                total_number_of_entries: total_number_of_tokens,
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                header_bytes: 0,
+            },
+            token_list = NodeAndStatistics {
+                name: "List",
+                stats: &self.list,
+                total_number_of_entries: total_number_of_tokens,
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                header_bytes: self.list_header.own_bytes,
+            },
+            token_tagged_tuple = NodeAndStatistics {
+                name: "Tagged Tuple",
+                stats: &self.tagged_tuple,
+                total_number_of_entries: total_number_of_tokens,
+                total_uncompressed_bytes: self.uncompressed_bytes,
+                header_bytes: self.tagged_header.own_bytes,
+            },
         )
     }
 }

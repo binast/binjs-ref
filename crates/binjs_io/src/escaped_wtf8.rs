@@ -16,10 +16,9 @@
 ///
 /// \x7F is chosen because it's representable in single byte without escape
 /// in JSON, and most likely unused in actual JS code.
-
 use std::borrow::Cow;
 
-use binjs_shared::{ SharedString };
+use binjs_shared::SharedString;
 
 const LONE_SURROGATE_ESCAPE_CHAR: u8 = 0x7F;
 
@@ -53,14 +52,12 @@ fn decode_hex_char(n: u8) -> u16 {
 
 /// True if the given byte is the 2nd code unit of lone surrogate in WTF-8.
 fn is_unit_2(c: u8) -> bool {
-    c >= LONE_SURROGATE_UNIT_2_MIN &&
-        c <= LONE_SURROGATE_UNIT_2_MAX
+    c >= LONE_SURROGATE_UNIT_2_MIN && c <= LONE_SURROGATE_UNIT_2_MAX
 }
 
 /// True if the given byte is the 3rd code unit of lone surrogate in WTF-8.
 fn is_unit_3(c: u8) -> bool {
-    c >= LONE_SURROGATE_UNIT_3_MIN &&
-        c <= LONE_SURROGATE_UNIT_3_MAX
+    c >= LONE_SURROGATE_UNIT_3_MIN && c <= LONE_SURROGATE_UNIT_3_MAX
 }
 
 /// If the given `bytes` is WTF-8 which contains lone surrogate, escape the
@@ -72,9 +69,7 @@ pub fn escape(bytes: Vec<u8>) -> Vec<u8> {
     let pos = bytes
         .as_slice()
         .iter()
-        .position(|&c|
-                  c == LONE_SURROGATE_ESCAPE_CHAR ||
-                  c == LONE_SURROGATE_UNIT_1);
+        .position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR || c == LONE_SURROGATE_UNIT_1);
 
     //   ...... \x7F XXXX ......
     //   ^      ^
@@ -104,9 +99,9 @@ pub fn escape(bytes: Vec<u8>) -> Vec<u8> {
             end + 1
         } else {
             if is_unit_2(input[end + 1]) && is_unit_3(input[end + 2]) {
-                let codepoint = (((input[end] as u16) & 0x0F) << 12) |
-                    (((input[end + 1] & 0x3F) as u16) << 6) |
-                    ((input[end + 2] & 0x3F) as u16);
+                let codepoint = (((input[end] as u16) & 0x0F) << 12)
+                    | (((input[end + 1] & 0x3F) as u16) << 6)
+                    | ((input[end + 2] & 0x3F) as u16);
 
                 buf.push(LONE_SURROGATE_ESCAPE_CHAR);
                 buf.push(encode_hex_char(((codepoint >> 12) & 0xf) as u8));
@@ -128,9 +123,7 @@ pub fn escape(bytes: Vec<u8>) -> Vec<u8> {
         //                     input
         input = &input[tail..];
 
-        let pos = input
-            .iter()
-            .position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR);
+        let pos = input.iter().position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR);
 
         // ...... \xED \xA0 \x80 ...... \xED \xA0 \x80 ......
         //                       ^      ^
@@ -142,7 +135,7 @@ pub fn escape(bytes: Vec<u8>) -> Vec<u8> {
             buf.extend_from_slice(&input);
             break;
         };
-    };
+    }
 
     buf
 }
@@ -154,9 +147,7 @@ pub fn escape(bytes: Vec<u8>) -> Vec<u8> {
 /// This assumes the input is well-formed escaped WTF-8, which is the result of
 /// escape function, and panics otherwise.
 pub fn unescape(bytes: &[u8]) -> Cow<[u8]> {
-    let pos = bytes
-        .iter()
-        .position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR);
+    let pos = bytes.iter().position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR);
 
     //   ...... \x7F XXXX ......
     //   ^      ^
@@ -175,11 +166,10 @@ pub fn unescape(bytes: &[u8]) -> Cow<[u8]> {
         let head = &input[..end];
         buf.extend_from_slice(head);
 
-        let codepoint: u16 =
-            (decode_hex_char(input[end + 1]) << 12) |
-            (decode_hex_char(input[end + 2]) << 8) |
-            (decode_hex_char(input[end + 3]) << 4) |
-            decode_hex_char(input[end + 4]);
+        let codepoint: u16 = (decode_hex_char(input[end + 1]) << 12)
+            | (decode_hex_char(input[end + 2]) << 8)
+            | (decode_hex_char(input[end + 3]) << 4)
+            | decode_hex_char(input[end + 4]);
         if codepoint == LONE_SURROGATE_ESCAPE_CHAR as u16 {
             buf.push(LONE_SURROGATE_ESCAPE_CHAR);
         } else {
@@ -201,9 +191,7 @@ pub fn unescape(bytes: &[u8]) -> Cow<[u8]> {
         //                input
         input = &input[end + 5..];
 
-        let pos = input
-            .iter()
-            .position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR);
+        let pos = input.iter().position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR);
 
         // ...... \x7F XXXX ...... \x7F XXXX ......
         //                  ^      ^
@@ -215,7 +203,7 @@ pub fn unescape(bytes: &[u8]) -> Cow<[u8]> {
             buf.extend_from_slice(&input);
             break;
         };
-    };
+    }
 
     Cow::from(buf)
 }
@@ -228,8 +216,7 @@ pub fn unescape(bytes: &[u8]) -> Cow<[u8]> {
 /// This assumes the input is well-formed escaped WTF-8, which is the result of
 /// escape function, and panics otherwise.
 pub fn for_print(s: &SharedString) -> SharedString {
-    let pos = s
-        .find(char::from(LONE_SURROGATE_ESCAPE_CHAR));
+    let pos = s.find(char::from(LONE_SURROGATE_ESCAPE_CHAR));
 
     //   ...... \x7F XXXX ......
     //   ^      ^
@@ -248,20 +235,20 @@ pub fn for_print(s: &SharedString) -> SharedString {
         let head = &input[..end];
         buf.extend_from_slice(head);
 
-        let codepoint: u16 =
-            (decode_hex_char(input[end + 1]) << 12) |
-            (decode_hex_char(input[end + 2]) << 8) |
-            (decode_hex_char(input[end + 3]) << 4) |
-            decode_hex_char(input[end + 4]);
+        let codepoint: u16 = (decode_hex_char(input[end + 1]) << 12)
+            | (decode_hex_char(input[end + 2]) << 8)
+            | (decode_hex_char(input[end + 3]) << 4)
+            | decode_hex_char(input[end + 4]);
         if codepoint == LONE_SURROGATE_ESCAPE_CHAR as u16 {
             buf.push(LONE_SURROGATE_ESCAPE_CHAR);
         } else {
-            assert!(codepoint >= LEAD_SURROGATE_MIN &&
-                    codepoint <= TRAIL_SURROGATE_MAX,
-                    "escaped codepoint should be either {:04x} or lone surrogate ({:04x}...{:04x})",
-                    LONE_SURROGATE_ESCAPE_CHAR,
-                    LEAD_SURROGATE_MIN,
-                    TRAIL_SURROGATE_MAX);
+            assert!(
+                codepoint >= LEAD_SURROGATE_MIN && codepoint <= TRAIL_SURROGATE_MAX,
+                "escaped codepoint should be either {:04x} or lone surrogate ({:04x}...{:04x})",
+                LONE_SURROGATE_ESCAPE_CHAR,
+                LEAD_SURROGATE_MIN,
+                TRAIL_SURROGATE_MAX
+            );
 
             buf.extend_from_slice(b"\\u");
             buf.push(input[end + 1]);
@@ -276,9 +263,7 @@ pub fn for_print(s: &SharedString) -> SharedString {
         //                input
         input = &input[end + 5..];
 
-        let pos = input
-            .iter()
-            .position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR);
+        let pos = input.iter().position(|&c| c == LONE_SURROGATE_ESCAPE_CHAR);
 
         // ...... \x7F XXXX ...... \x7F XXXX ......
         //                  ^      ^
@@ -290,8 +275,7 @@ pub fn for_print(s: &SharedString) -> SharedString {
             buf.extend_from_slice(&input);
             break;
         };
-    };
+    }
 
-    SharedString::from_string(String::from_utf8(buf)
-                              .expect("Escaped string should be valid UTF-8"))
+    SharedString::from_string(String::from_utf8(buf).expect("Escaped string should be valid UTF-8"))
 }

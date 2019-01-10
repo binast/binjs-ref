@@ -19,13 +19,13 @@ extern crate serde;
 extern crate vec_map;
 extern crate xml as xml_rs;
 
-use std::fmt::{ Debug, Formatter };
 use std::cell::RefCell;
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-use rand::Rng;
-use rand::distributions::{ Distribution, Standard };
+use rand::distributions::{Distribution, Standard};
 use rand::seq::SliceRandom;
+use rand::Rng;
 
 pub use bytes::compress::Compression;
 
@@ -40,7 +40,10 @@ pub enum TokenWriterError {
 pub enum TokenReaderError {
     NotInDictionary(String),
     ReadError(std::io::Error),
-    BadLength { expected: usize, got: usize },
+    BadLength {
+        expected: usize,
+        got: usize,
+    },
     BadHeader,
     BadCompression(std::io::Error),
     EndOffsetError {
@@ -67,7 +70,6 @@ impl TokenReaderError {
         TokenReaderError::InvalidValue
     }
 }
-
 
 /// Byte-level utilities for writing token readers/writers.
 pub mod bytes;
@@ -105,7 +107,7 @@ pub enum DictionaryPlacement {
 
     /// Inline the dictionary. The first instance of a node is followed
     /// immediately by its definition.
-    Inline
+    Inline,
 }
 
 #[derive(Clone, Debug)]
@@ -134,9 +136,15 @@ impl CompressionTarget {
             format,
         }
     }
-    pub fn done(&mut self) -> std::result::Result<(Rc<Vec<u8>>, bytes::compress::CompressionResult), std::io::Error> {
+    pub fn done(
+        &mut self,
+    ) -> std::result::Result<(Rc<Vec<u8>>, bytes::compress::CompressionResult), std::io::Error>
+    {
         let (data, result) = match self.data {
-            Compressing::Compressed { ref result, ref data } => return Ok((data.clone(), result.clone())),
+            Compressing::Compressed {
+                ref result,
+                ref data,
+            } => return Ok((data.clone(), result.clone())),
             Compressing::Uncompressed(ref data) => {
                 let mut buf = vec![];
                 let result = self.format.compress(&data.borrow().as_ref(), &mut buf)?;
@@ -174,8 +182,8 @@ impl std::io::Write for CompressionTarget {
                 let mut borrow = buf.borrow_mut();
                 borrow.extend_from_slice(data);
                 Ok(data.len())
-            },
-            _ => panic!("Attempting to add data to a CompressionTarget that is already closed")
+            }
+            _ => panic!("Attempting to add data to a CompressionTarget that is already closed"),
         }
     }
     fn flush(&mut self) -> std::result::Result<(), std::io::Error> {
@@ -194,7 +202,10 @@ pub trait FormatProvider {
     fn subcommand<'a, 'b>(&self) -> clap::App<'a, 'b>;
 
     /// Produce a format given command-line argument matches.
-    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error>;
+    fn handle_subcommand(
+        &self,
+        matches: Option<&clap::ArgMatches>,
+    ) -> Result<::Format, ::std::io::Error>;
 }
 
 /// All the formats available for encoding/decoding.
@@ -202,12 +213,12 @@ pub enum Format {
     Simple,
     Multipart {
         targets: multipart::Targets,
-        stats: Rc<RefCell<multipart::Statistics>>
+        stats: Rc<RefCell<multipart::Statistics>>,
     },
     XML,
     Entropy {
         options: entropy::Options,
-    }
+    },
 }
 
 /// Support picking a random format.
@@ -217,9 +228,8 @@ impl Distribution<Format> for Standard {
         let generators = [
             Rc::new(|_| Format::simple()) as Rc<Fn(&'a mut R) -> Format>,
             Rc::new(|rng| {
-                use multipart::{ Statistics, Targets };
-                let stats = Rc::new(RefCell::new(Statistics::default()
-                    .with_source_bytes(0)));
+                use multipart::{Statistics, Targets};
+                let stats = Rc::new(RefCell::new(Statistics::default().with_source_bytes(0)));
 
                 Format::Multipart {
                     targets: Targets {
@@ -227,14 +237,12 @@ impl Distribution<Format> for Standard {
                         grammar_table: rng.gen(),
                         tree: rng.gen(),
                     },
-                    stats
+                    stats,
                 }
             }),
             Rc::new(|_| Format::XML),
         ];
-        let pick : Rc<Fn(&'a mut R) -> Format> = generators.choose(rng)
-            .map(Rc::clone)
-            .unwrap(); // Never empty
+        let pick: Rc<Fn(&'a mut R) -> Format> = generators.choose(rng).map(Rc::clone).unwrap(); // Never empty
         pick(rng)
     }
 }
@@ -250,17 +258,15 @@ impl Format {
         match self {
             Format::Simple => Format::Simple,
             Format::XML => Format::XML,
-            Format::Multipart { stats, .. } =>
-                Format::Multipart {
-                    targets: multipart::Targets {
-                        strings_table: rng.gen(),
-                        grammar_table: rng.gen(),
-                        tree: rng.gen(),
-                    },
-                    stats
-                }
-            ,
-            Format::Entropy { .. } => unimplemented!()
+            Format::Multipart { stats, .. } => Format::Multipart {
+                targets: multipart::Targets {
+                    strings_table: rng.gen(),
+                    grammar_table: rng.gen(),
+                    tree: rng.gen(),
+                },
+                stats,
+            },
+            Format::Entropy { .. } => unimplemented!(),
         }
     }
 
@@ -274,23 +280,26 @@ impl Format {
         }
     }
 
-    pub fn with_sections<F, E>(&mut self, mut f: F) -> Result<(), E> where F: FnMut(&mut CompressionTarget, &str) -> Result<(), E> {
+    pub fn with_sections<F, E>(&mut self, mut f: F) -> Result<(), E>
+    where
+        F: FnMut(&mut CompressionTarget, &str) -> Result<(), E>,
+    {
         match *self {
-            Format::Simple { .. } |
-            Format::XML => {
+            Format::Simple { .. } | Format::XML => {
                 // Nothing to do
                 Ok(())
             }
-            Format::Entropy { ..} => {
+            Format::Entropy { .. } => {
                 // Nothing to do
                 Ok(())
             }
             Format::Multipart {
-                targets: multipart::Targets {
-                    ref mut grammar_table,
-                    ref mut strings_table,
-                    ref mut tree
-                },
+                targets:
+                    multipart::Targets {
+                        ref mut grammar_table,
+                        ref mut strings_table,
+                        ref mut tree,
+                    },
                 ..
             } => {
                 f(grammar_table, "grammar")?;
@@ -303,7 +312,7 @@ impl Format {
 
     /// Return all existing format providers, to manage
     /// command-line arguments.
-   fn providers() -> [&'static FormatProvider; 4] {
+    fn providers() -> [&'static FormatProvider; 4] {
         [
             &multipart::FormatProvider,
             &simple::FormatProvider,
@@ -322,9 +331,7 @@ impl Format {
     /// FormatProvider's subcommands are hidden behind "advanced" command.
     pub fn subcommand<'a, 'b>() -> clap::App<'a, 'b> {
         clap::SubCommand::with_name(ADVANCED_COMMAND)
-            .subcommands(Format::providers().iter()
-                .map(|x| x.subcommand())
-            )
+            .subcommands(Format::providers().iter().map(|x| x.subcommand()))
     }
 
     /// Create a Format based on command-line arguments.
@@ -342,7 +349,6 @@ impl Format {
                 }
             }
         }
-        Self::default_provider()
-            .handle_subcommand(None)
+        Self::default_provider().handle_subcommand(None)
     }
 }

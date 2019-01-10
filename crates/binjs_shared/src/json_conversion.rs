@@ -1,4 +1,4 @@
-use ::{ IdentifierName, PropertyKey, SharedString };
+use {IdentifierName, PropertyKey, SharedString};
 
 use json;
 use json::JsonValue as JSON;
@@ -18,9 +18,9 @@ impl FromJSON for bool {
         match value.as_bool() {
             None => Err(FromJSONError {
                 expected: "Boolean".to_string(),
-                got: value.dump()
+                got: value.dump(),
             }),
-            Some(ref s) => Ok(*s)
+            Some(ref s) => Ok(*s),
         }
     }
 }
@@ -43,8 +43,8 @@ impl FromJSON for f64 {
             }
             _ => Err(FromJSONError {
                 expected: "Number".to_string(),
-                got: value.dump()
-            })
+                got: value.dump(),
+            }),
         }
     }
 }
@@ -53,9 +53,9 @@ impl FromJSON for u32 {
         match value.as_u32() {
             None => Err(FromJSONError {
                 expected: "Number".to_string(),
-                got: value.dump()
+                got: value.dump(),
             }),
-            Some(ref s) => Ok(*s as u32)
+            Some(ref s) => Ok(*s as u32),
         }
     }
 }
@@ -64,9 +64,9 @@ impl FromJSON for String {
         match value.as_str() {
             None => Err(FromJSONError {
                 expected: "String".to_string(),
-                got: value.dump()
+                got: value.dump(),
             }),
-            Some(ref s) => Ok(s.to_string())
+            Some(ref s) => Ok(s.to_string()),
         }
     }
 }
@@ -75,9 +75,9 @@ impl FromJSON for SharedString {
         match value.as_str() {
             None => Err(FromJSONError {
                 expected: "String".to_string(),
-                got: value.dump()
+                got: value.dump(),
             }),
-            Some(ref s) => Ok(SharedString::from_string(s.to_string()))
+            Some(ref s) => Ok(SharedString::from_string(s.to_string())),
         }
     }
 }
@@ -86,9 +86,9 @@ impl FromJSON for IdentifierName {
         match value.as_str() {
             None => Err(FromJSONError {
                 expected: "Identifier or IdentifierName".to_string(),
-                got: value.dump()
+                got: value.dump(),
             }),
-            Some(ref s) => Ok(IdentifierName::from_string(s.to_string()))
+            Some(ref s) => Ok(IdentifierName::from_string(s.to_string())),
         }
     }
 }
@@ -97,13 +97,16 @@ impl FromJSON for PropertyKey {
         match value.as_str() {
             None => Err(FromJSONError {
                 expected: "PropertyKey".to_string(),
-                got: value.dump()
+                got: value.dump(),
             }),
-            Some(ref s) => Ok(PropertyKey::from_string(s.to_string()))
+            Some(ref s) => Ok(PropertyKey::from_string(s.to_string())),
         }
     }
 }
-impl<T> FromJSON for Vec<T> where T: FromJSON {
+impl<T> FromJSON for Vec<T>
+where
+    T: FromJSON,
+{
     fn import(value: &JSON) -> Result<Self, FromJSONError> {
         match *value {
             JSON::Array(ref array) => {
@@ -113,27 +116,31 @@ impl<T> FromJSON for Vec<T> where T: FromJSON {
                     result.push(imported);
                 }
                 Ok(result)
-            },
+            }
             _ => Err(FromJSONError {
                 expected: "Array".to_string(),
                 got: value.dump(),
-            })
+            }),
         }
     }
 }
-impl<T> FromJSON for Option<T> where T: FromJSON {
+impl<T> FromJSON for Option<T>
+where
+    T: FromJSON,
+{
     fn import(value: &JSON) -> Result<Self, FromJSONError> {
         if value.is_null() {
-            return Ok(None)
+            return Ok(None);
         }
-        T::import(value)
-            .map(Some)
+        T::import(value).map(Some)
     }
 }
-impl<T> FromJSON for Box<T> where T: FromJSON {
+impl<T> FromJSON for Box<T>
+where
+    T: FromJSON,
+{
     fn import(value: &JSON) -> Result<Self, FromJSONError> {
-        T::import(value)
-            .map(Box::new)
+        T::import(value).map(Box::new)
     }
 }
 
@@ -160,23 +167,30 @@ impl ToJSON for u32 {
         json::from(self.clone())
     }
 }
-impl<T> ToJSON for Vec<T> where T: ToJSON {
+impl<T> ToJSON for Vec<T>
+where
+    T: ToJSON,
+{
     fn export(&self) -> JSON {
-        let vec = self.iter()
-            .map(ToJSON::export)
-            .collect();
+        let vec = self.iter().map(ToJSON::export).collect();
         JSON::Array(vec)
     }
 }
-impl<T> ToJSON for Option<T> where T: ToJSON {
+impl<T> ToJSON for Option<T>
+where
+    T: ToJSON,
+{
     fn export(&self) -> JSON {
         match *self {
             None => JSON::Null,
-            Some(ref x) => x.export()
+            Some(ref x) => x.export(),
         }
     }
 }
-impl<T> ToJSON for Box<T> where T: ToJSON {
+impl<T> ToJSON for Box<T>
+where
+    T: ToJSON,
+{
     fn export(&self) -> JSON {
         (**self).export()
     }
@@ -184,8 +198,7 @@ impl<T> ToJSON for Box<T> where T: ToJSON {
 
 impl FromJSON for ::Offset {
     fn import(value: &JSON) -> Result<Self, FromJSONError> {
-        u32::import(value)
-            .map(::Offset)
+        u32::import(value).map(::Offset)
     }
 }
 impl ToJSON for ::Offset {

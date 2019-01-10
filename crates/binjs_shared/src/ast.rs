@@ -45,46 +45,72 @@ use std::fmt::*;
 /// ```
 
 #[derive(Clone, Default, Deserialize, Serialize)]
-pub struct Path<I, F> where I: Debug, F: Debug {
+pub struct Path<I, F>
+where
+    I: Debug,
+    F: Debug,
+{
     /// Some(foo) if we have entered interface foo but no field yet.
     /// Otherwise, None.
     interface: Option<I>,
     items: Vec<PathItem<I, F>>,
 }
-impl<I, F> From<Vec<PathItem<I, F>>> for Path<I, F> where I: Debug, F: Debug {
+impl<I, F> From<Vec<PathItem<I, F>>> for Path<I, F>
+where
+    I: Debug,
+    F: Debug,
+{
     fn from(items: Vec<PathItem<I, F>>) -> Self {
         Path {
             interface: None,
-            items
+            items,
         }
     }
 }
-impl<I, F> std::hash::Hash for Path<I, F> where I: Debug + std::hash::Hash, F: Debug + std::hash::Hash {
+impl<I, F> std::hash::Hash for Path<I, F>
+where
+    I: Debug + std::hash::Hash,
+    F: Debug + std::hash::Hash,
+{
     /// As we implement Borrow<[PathItem<...>] for Path, we must ensure that `Hash`
     /// gives the same result for a `Path` and its `[PathItem]` representation.
     fn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {
-        self.items.as_slice()
-            .hash(hasher)
+        self.items.as_slice().hash(hasher)
     }
 }
-impl<I, F> std::cmp::PartialEq for Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+impl<I, F> std::cmp::PartialEq for Path<I, F>
+where
+    I: Debug + PartialEq,
+    F: Debug + PartialEq,
+{
     /// As we implement Borrow<[PathItem<...>] for Path, we must ensure that `Eq`
     /// gives the same result for a `Eq` and its `[PathItem]` representation.
     fn eq(&self, other: &Self) -> bool {
         self.items == other.items
     }
 }
-impl<I, F> std::cmp::Eq for Path<I, F> where I: Debug + Eq, F: Debug + Eq {
+impl<I, F> std::cmp::Eq for Path<I, F>
+where
+    I: Debug + Eq,
+    F: Debug + Eq,
+{
     // Nothing to do.
 }
 
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Deserialize, Serialize)]
-pub struct PathItem<I, F> where I: Debug, F: Debug {
+pub struct PathItem<I, F>
+where
+    I: Debug,
+    F: Debug,
+{
     pub interface: I,
     pub field: F,
 }
-impl<I, F> PathItem<I, F> where I: Debug, F: Debug {
+impl<I, F> PathItem<I, F>
+where
+    I: Debug,
+    F: Debug,
+{
     pub fn interface(&self) -> &I {
         &self.interface
     }
@@ -93,12 +119,19 @@ impl<I, F> PathItem<I, F> where I: Debug, F: Debug {
     }
 }
 
-
-impl<I, F> Debug for Path<I, F> where I: Debug, F: Debug {
+impl<I, F> Debug for Path<I, F>
+where
+    I: Debug,
+    F: Debug,
+{
     fn fmt(&self, f: &mut Formatter) -> Result {
         use itertools::Itertools;
-        write!(f, "[{items}{more}]",
-            items = self.items.iter()
+        write!(
+            f,
+            "[{items}{more}]",
+            items = self
+                .items
+                .iter()
                 .map(|item| format!("{:?}.{:?}", item.interface, item.field))
                 .format(" > "),
             more = if let Some(ref interface) = self.interface {
@@ -109,7 +142,11 @@ impl<I, F> Debug for Path<I, F> where I: Debug, F: Debug {
         )
     }
 }
-impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+impl<I, F> Path<I, F>
+where
+    I: Debug + PartialEq,
+    F: Debug + PartialEq,
+{
     /// Create an empty `Path`.
     pub fn new() -> Self {
         Self {
@@ -118,9 +155,12 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
         }
     }
 
-    pub fn extend_from_slice(&mut self, slice: &[PathItem<I, F>]) where I: Clone, F: Clone {
-        self.items
-            .extend_from_slice(slice)
+    pub fn extend_from_slice(&mut self, slice: &[PathItem<I, F>])
+    where
+        I: Clone,
+        F: Clone,
+    {
+        self.items.extend_from_slice(slice)
     }
 
     /// Create an empty `Path`, initialized to hold up
@@ -128,7 +168,7 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             interface: None,
-            items: Vec::with_capacity(capacity)
+            items: Vec::with_capacity(capacity),
         }
     }
 
@@ -143,26 +183,26 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     }
     pub fn exit_interface(&mut self, node: I) {
         debug!(target: "path", "exit_interface: {:?}", node);
-        let interface = self.interface.take()
+        let interface = self
+            .interface
+            .take()
             .expect("Could not exit_interface if we're not in an interface");
         debug_assert!(node == interface);
     }
     pub fn enter_field(&mut self, field: F) {
         debug!(target: "path", "enter_field: {:?} at {:?}", field, self.interface);
-        let interface = self.interface.take()
-            .unwrap();
-        self.items.push(PathItem {
-            interface,
-            field,
-        });
+        let interface = self.interface.take().unwrap();
+        self.items.push(PathItem { interface, field });
     }
     pub fn exit_field(&mut self, field: F) {
         debug!(target: "path", "exit_field: {:?}", field);
         debug_assert!(self.interface.is_none());
         let PathItem {
             interface,
-            field: prev
-        } = self.items.pop()
+            field: prev,
+        } = self
+            .items
+            .pop()
             .expect("Could not exit_field from an empty ASTath");
         debug_assert!(prev == field);
         self.interface = Some(interface);
@@ -198,7 +238,11 @@ impl<I, F> Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
     }
 }
 
-impl<I, F> std::borrow::Borrow<[PathItem<I, F>]> for Path<I, F> where I: Debug + PartialEq, F: Debug + PartialEq {
+impl<I, F> std::borrow::Borrow<[PathItem<I, F>]> for Path<I, F>
+where
+    I: Debug + PartialEq,
+    F: Debug + PartialEq,
+{
     fn borrow(&self) -> &[PathItem<I, F>] {
         &self.items
     }

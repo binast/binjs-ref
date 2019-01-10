@@ -1,14 +1,12 @@
-
-
 #[derive(Default, Display, Add, AddAssign, Into, From, Clone, Copy)]
 pub struct Bytes(usize);
 
 impl std::iter::Sum for Bytes {
     fn sum<I>(iter: I) -> Self
     where
-        I: Iterator<Item = Bytes>
+        I: Iterator<Item = Bytes>,
     {
-         iter.fold(Default::default(), std::ops::Add::add)
+        iter.fold(Default::default(), std::ops::Add::add)
     }
 }
 
@@ -19,12 +17,11 @@ pub struct Instances(usize);
 impl std::iter::Sum for Instances {
     fn sum<I>(iter: I) -> Self
     where
-        I: Iterator<Item = Instances>
+        I: Iterator<Item = Instances>,
     {
-         iter.fold(Default::default(), std::ops::Add::add)
+        iter.fold(Default::default(), std::ops::Add::add)
     }
 }
-
 
 pub struct BytesAndInstances {
     bytes: Bytes,
@@ -32,10 +29,7 @@ pub struct BytesAndInstances {
 }
 impl BytesAndInstances {
     pub fn new(bytes: Bytes, instances: Instances) -> Self {
-        BytesAndInstances {
-            bytes,
-            instances
-        }
+        BytesAndInstances { bytes, instances }
     }
 }
 /// A container for information associated with a type of data we write to the stream
@@ -57,7 +51,8 @@ pub struct ContentInfo<T> {
 impl<T> ContentInfo<T> {
     /// Initialize a new `ContentInfo`.
     pub fn with<F>(f: F) -> Self
-        where F: Fn(&str) -> T
+    where
+        F: Fn(&str) -> T,
     {
         ContentInfo {
             bools: f("bools"),
@@ -74,7 +69,8 @@ impl<T> ContentInfo<T> {
 
     /// Convert a `ContentInfo` into another one.
     pub fn into_with<F, U>(self, f: F) -> ContentInfo<U>
-        where F: Fn(&str, T) -> U
+    where
+        F: Fn(&str, T) -> U,
     {
         ContentInfo {
             bools: f("bools", self.bools),
@@ -100,7 +96,8 @@ impl<T> ContentInfo<T> {
             ("interface_names", &self.interface_names),
             ("string_literals", &self.string_literals),
             ("list_lengths", &self.list_lengths),
-        ].into_iter()
+        ]
+        .into_iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&'static str, &mut T)> {
@@ -114,7 +111,8 @@ impl<T> ContentInfo<T> {
             ("interface_names", &mut self.interface_names),
             ("string_literals", &mut self.string_literals),
             ("list_lengths", &mut self.list_lengths),
-        ].into_iter()
+        ]
+        .into_iter()
     }
 
     pub fn into_iter(self) -> impl Iterator<Item = (&'static str, T)> {
@@ -128,7 +126,8 @@ impl<T> ContentInfo<T> {
             ("interface_names", self.interface_names),
             ("string_literals", self.string_literals),
             ("list_lengths", self.list_lengths),
-        ].into_iter()
+        ]
+        .into_iter()
     }
 }
 
@@ -136,8 +135,12 @@ pub trait DisplayWith<T> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter, data: &T) -> Result<(), std::fmt::Error>;
 }
 
-impl DisplayWith</* Total */BytesAndInstances> for BytesAndInstances {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter, total: &BytesAndInstances) -> Result<(), std::fmt::Error> {
+impl DisplayWith</* Total */ BytesAndInstances> for BytesAndInstances {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter,
+        total: &BytesAndInstances,
+    ) -> Result<(), std::fmt::Error> {
         let bytes = Into::<usize>::into(self.bytes);
         let symbols = Into::<usize>::into(self.instances);
         let total_bytes = Into::<usize>::into(total.bytes);
@@ -155,18 +158,17 @@ impl DisplayWith</* Total */BytesAndInstances> for BytesAndInstances {
 impl std::fmt::Display for ContentInfo<BytesAndInstances> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         let total = BytesAndInstances {
-            bytes: self.iter()
-                .map(|(_, data)| data.bytes.clone())
-                .sum(),
-            instances:self.iter()
-                .map(|(_, data)| data.instances.clone())
-                .sum()
+            bytes: self.iter().map(|(_, data)| data.bytes.clone()).sum(),
+            instances: self.iter().map(|(_, data)| data.instances.clone()).sum(),
         };
 
         write!(formatter, "Content:\n  Fixed:\n")?;
-        for (field, name) in &[(&self.bools, "bools"), (&self.string_enums, "string enums"), (&self.interface_names, "interface names")] {
-            write!(formatter, "    {name}: ",
-                name = name)?;
+        for (field, name) in &[
+            (&self.bools, "bools"),
+            (&self.string_enums, "string enums"),
+            (&self.interface_names, "interface names"),
+        ] {
+            write!(formatter, "    {name}: ", name = name)?;
             field.fmt(formatter, &total)?;
             write!(formatter, "\n")?;
         }
@@ -177,14 +179,17 @@ impl std::fmt::Display for ContentInfo<BytesAndInstances> {
             (&self.string_literals, "string literals"),
             (&self.floats, "floats"),
             (&self.unsigned_longs, "unsigned longs"),
-            (&self.list_lengths, "list lengths")
+            (&self.list_lengths, "list lengths"),
         ] {
-            write!(formatter, "    {name}: ",
-                name = name)?;
+            write!(formatter, "    {name}: ", name = name)?;
             field.fmt(formatter, &total)?;
             write!(formatter, "\n")?;
         }
-        write!(formatter, "Total: {} bytes, {} symbols", total.bytes, total.instances)?;
+        write!(
+            formatter,
+            "Total: {} bytes, {} symbols",
+            total.bytes, total.instances
+        )?;
         Ok(())
     }
 }

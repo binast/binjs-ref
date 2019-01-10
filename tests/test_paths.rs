@@ -7,13 +7,15 @@
 
 extern crate binjs;
 
-use binjs::generic::{ FieldName, FromJSON, IdentifierName, InterfaceName, Node, PropertyKey, SharedString };
-use binjs::source::{ Shift, SourceParser };
-use binjs::io::{ TokenWriter, TokenWriterError };
+use binjs::generic::{
+    FieldName, FromJSON, IdentifierName, InterfaceName, Node, PropertyKey, SharedString,
+};
+use binjs::io::{TokenWriter, TokenWriterError};
+use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::io::IOPath;
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 #[macro_use]
 extern crate test_logger;
@@ -23,11 +25,11 @@ extern crate test_logger;
 enum Event {
     IdentifierNameAt {
         value: Option<IdentifierName>,
-        path: IOPath
+        path: IOPath,
     },
     PropertyKeyAt {
         value: Option<PropertyKey>,
-        path: IOPath
+        path: IOPath,
     },
     StringAt {
         value: Option<SharedString>,
@@ -65,43 +67,61 @@ struct PathTraceWriter {
 }
 
 impl TokenWriter for PathTraceWriter {
-    type Data = [u8;0];
-    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &IOPath) -> Result<(), TokenWriterError> {
+    type Data = [u8; 0];
+    fn identifier_name_at(
+        &mut self,
+        value: Option<&IdentifierName>,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::IdentifierNameAt {
             value: value.cloned(),
-            path: path.clone()
+            path: path.clone(),
         });
         Ok(())
     }
-    fn string_at(&mut self, value: Option<&SharedString>, path: &IOPath) -> Result<(), TokenWriterError> {
+    fn string_at(
+        &mut self,
+        value: Option<&SharedString>,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::StringAt {
             value: value.cloned(),
-            path: path.clone()
+            path: path.clone(),
         });
         Ok(())
     }
-    fn string_enum_at(&mut self, value: &SharedString, path: &IOPath) -> Result<(), TokenWriterError> {
+    fn string_enum_at(
+        &mut self,
+        value: &SharedString,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::StringEnumAt {
             value: value.clone(),
-            path: path.clone()
+            path: path.clone(),
         });
         Ok(())
     }
     fn bool_at(&mut self, value: Option<bool>, path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::BoolAt {
             value: value.clone(),
-            path: path.clone()
+            path: path.clone(),
         });
         Ok(())
     }
     fn unsigned_long_at(&mut self, value: u32, path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::UnsignedLongAt {
             value: value.clone(),
-            path: path.clone()
+            path: path.clone(),
         });
         Ok(())
     }
-    fn enter_tagged_tuple_at(&mut self, _node: &Node, tag: &InterfaceName, children: &[&FieldName], path: &IOPath) -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(
+        &mut self,
+        _node: &Node,
+        tag: &InterfaceName,
+        children: &[&FieldName],
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::TaggedTupleAt {
             interface: tag.clone(),
             path: path.clone(),
@@ -112,21 +132,25 @@ impl TokenWriter for PathTraceWriter {
     fn enter_list_at(&mut self, len: usize, path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::ListAt {
             len,
-            path: path.clone()
+            path: path.clone(),
         });
         Ok(())
     }
     fn float_at(&mut self, value: Option<f64>, path: &IOPath) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::FloatAt {
             value: value.clone(),
-            path: path.clone()
+            path: path.clone(),
         });
         Ok(())
     }
-    fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &IOPath) -> Result<(), TokenWriterError> {
+    fn property_key_at(
+        &mut self,
+        value: Option<&PropertyKey>,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
         self.trace.borrow_mut().push(Event::PropertyKeyAt {
             value: value.cloned(),
-            path: path.clone()
+            path: path.clone(),
         });
         Ok(())
     }
@@ -134,7 +158,7 @@ impl TokenWriter for PathTraceWriter {
         // Nothing to do.
         Ok(())
     }
-    fn done(self) ->  Result<Self::Data, TokenWriterError> {
+    fn done(self) -> Result<Self::Data, TokenWriterError> {
         unimplemented!()
     }
 }
@@ -144,31 +168,36 @@ test!(test_es6_paths, {
 
     let trace = Rc::new(RefCell::new(vec![]));
     let parser = Shift::new();
-    let writer = PathTraceWriter { trace: trace.clone() };
+    let writer = PathTraceWriter {
+        trace: trace.clone(),
+    };
 
     let source = "function foo(x, y) { var i; for (i = 0; i < 100; ++i) { console.log(x, y + i, x + y + i, x + y + i + 1); } }";
 
     println!("Parsing");
-    let ast  = parser.parse_str(source)
-        .expect("Could not parse source");
-    let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
-        .expect("Could not import AST");
+    let ast = parser.parse_str(source).expect("Could not parse source");
+    let mut ast = binjs::specialized::es6::ast::Script::import(&ast).expect("Could not import AST");
 
     println!("Annotating");
-    binjs::specialized::es6::scopes::AnnotationVisitor::new()
-        .annotate_script(&mut ast);
+    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
     println!("Walking paths");
     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
     let mut path = IOPath::new();
-    serializer.serialize(&ast, &mut path)
+    serializer
+        .serialize(&ast, &mut path)
         .expect("Could not walk");
 
     // Extract properties, as a sample.
-    let mut properties : Vec<_> = trace.borrow()
+    let mut properties: Vec<_> = trace
+        .borrow()
         .iter()
         .filter_map(|step| {
-            if let Event::PropertyKeyAt { ref value, ref path } = *step {
+            if let Event::PropertyKeyAt {
+                ref value,
+                ref path,
+            } = *step
+            {
                 Some((value.clone(), path.clone()))
             } else {
                 None
@@ -183,8 +212,7 @@ test!(test_es6_paths, {
     println!("{:?}", log);
 
     println!("Checking property value");
-    let name = log.0
-        .expect("PropertyKey `log` should be Some(...)");
+    let name = log.0.expect("PropertyKey `log` should be Some(...)");
     assert_eq!(name.as_str(), "log");
 
     println!("Checking path");
@@ -235,7 +263,6 @@ test!(test_es6_paths, {
     assert_eq!(path_item.interface().as_str(), "CallExpression");
     assert_eq!(path_item.field().1.as_str(), "callee");
     assert_eq!(path_item.field().0, 0);
-
 
     // Script.statements > EagerFunctionDeclaration.contents > FunctionOrMethodContents.body > ForStatement.body > Block.statements
     //  > ExpressionStatement.expression > CalExpression.callee

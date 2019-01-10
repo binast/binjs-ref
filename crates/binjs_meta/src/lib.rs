@@ -8,7 +8,6 @@ extern crate itertools;
 extern crate log;
 extern crate webidl;
 
-
 /// Generic tools for generating implementations of the Syntax.
 pub mod export;
 

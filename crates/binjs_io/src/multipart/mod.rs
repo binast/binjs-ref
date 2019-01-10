@@ -121,7 +121,7 @@ mod read;
 mod write;
 
 /// The header of the strings table section.
-const HEADER_STRINGS_TABLE : &str = "[STRINGS]";
+const HEADER_STRINGS_TABLE: &str = "[STRINGS]";
 
 /// The header of the grammars table section.
 const HEADER_GRAMMAR_TABLE: &str = "[GRAMMAR]";
@@ -131,16 +131,15 @@ const HEADER_TREE: &str = "[TREE]";
 
 /// A trait specifying whether a piece of data needs the addition of a length index.
 trait FormatInTable {
-    const HAS_LENGTH_INDEX : bool;
+    const HAS_LENGTH_INDEX: bool;
 }
 
-
 impl FormatInTable for Option<SharedString> {
-    const HAS_LENGTH_INDEX : bool = false;
+    const HAS_LENGTH_INDEX: bool = false;
 }
 
 pub use self::read::TreeTokenReader;
-pub use self::write::{ Statistics, TreeTokenWriter, Targets };
+pub use self::write::{Statistics, Targets, TreeTokenWriter};
 
 /// Command-line management.
 pub struct FormatProvider;
@@ -161,29 +160,32 @@ impl ::FormatProvider for FormatProvider {
             )
     }
 
-    fn handle_subcommand(&self, matches: Option<&clap::ArgMatches>) -> Result<::Format, ::std::io::Error> {
+    fn handle_subcommand(
+        &self,
+        matches: Option<&clap::ArgMatches>,
+    ) -> Result<::Format, ::std::io::Error> {
         use bytes::compress::Compression;
-        use multipart::{ Statistics, Targets };
+        use multipart::{Statistics, Targets};
 
         use std::cell::RefCell;
         use std::rc::Rc;
-        let stats = Rc::new(RefCell::new(Statistics::default()
-            .with_source_bytes(0)));
-        let compression = matches.map(|matches| {
-            Compression::parse(matches.value_of("x-inner-compression"))
-                .expect("Could not parse x-inner-compression")
-        }).unwrap_or(Compression::Identity);
+        let stats = Rc::new(RefCell::new(Statistics::default().with_source_bytes(0)));
+        let compression = matches
+            .map(|matches| {
+                Compression::parse(matches.value_of("x-inner-compression"))
+                    .expect("Could not parse x-inner-compression")
+            })
+            .unwrap_or(Compression::Identity);
         Ok(::Format::Multipart {
             targets: Targets {
                 strings_table: ::CompressionTarget::new(compression.clone()),
                 grammar_table: ::CompressionTarget::new(compression.clone()),
                 tree: ::CompressionTarget::new(compression.clone()),
             },
-            stats
+            stats,
         })
     }
 }
-
 
 #[test]
 fn test_multipart_io() {
@@ -191,21 +193,21 @@ fn test_multipart_io() {
     extern crate env_logger;
     env_logger::init();
 
-    use binjs_shared::{ FieldName, InterfaceName, SharedString };
     use binjs_shared::ast::Path;
+    use binjs_shared::{FieldName, InterfaceName, SharedString};
 
-    use ::CompressionTarget;
-    use io::{ TokenReader, TokenWriterWithTree };
+    use io::{TokenReader, TokenWriterWithTree};
     use multipart::*;
+    use CompressionTarget;
 
     use std::fs::*;
-    use std::io::{ Cursor, Write };
+    use std::io::{Cursor, Write};
 
     // All combinations of options for compression.
     let all_options = {
         use bytes::compress::Compression::*;
         let mut vec = vec![];
-        let compressions = [Identity, Gzip, Deflate, /*Lzw, Brotli don't work yet*/];
+        let compressions = [Identity, Gzip, Deflate /*Lzw, Brotli don't work yet*/];
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {
@@ -222,49 +224,54 @@ fn test_multipart_io() {
 
     for mut options in all_options {
         println!("Options {:?}", options);
-        let suffix = format!("{:?}-{:?}-{:?}", options.grammar_table, options.strings_table, options.tree);
+        let suffix = format!(
+            "{:?}-{:?}-{:?}",
+            options.grammar_table, options.strings_table, options.tree
+        );
         let mut path = Path::new();
 
         {
             options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
-            writer.string(Some(&SharedString::from_str("simple string")))
+            writer
+                .string(Some(&SharedString::from_str("simple string")))
                 .expect("Writing simple string");
 
-            let output = writer.done()
-                .expect("Finalizing data");
+            let output = writer.done().expect("Finalizing data");
             File::create(format!("/tmp/test-simple-string-{}.binjs", suffix))
                 .expect("Could not create file")
-                .write_all(&output).unwrap();
+                .write_all(&output)
+                .unwrap();
 
-            let mut reader = TreeTokenReader::new(Cursor::new(&output))
-                .expect("Creating reader");
-            let simple_string = reader.string_at(&path)
+            let mut reader = TreeTokenReader::new(Cursor::new(&output)).expect("Creating reader");
+            let simple_string = reader
+                .string_at(&path)
                 .expect("Reading simple string")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "simple string");
         }
 
-
         {
             options.reset();
             let data = SharedString::from_str("string with escapes \u{0}\u{1}\u{0}");
             let mut writer = TreeTokenWriter::new(options.clone());
-            writer.string(Some(&data))
+            writer
+                .string(Some(&data))
                 .expect("Writing string with escapes");
 
-            let output = writer.done()
-                .expect("Finalizing data");
-            File::create(format!("/tmp/test-string-with-escapes-{}.binjs", suffix)).unwrap()
-                .write_all(&output).unwrap();
+            let output = writer.done().expect("Finalizing data");
+            File::create(format!("/tmp/test-string-with-escapes-{}.binjs", suffix))
+                .unwrap()
+                .write_all(&output)
+                .unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let escapes_string = reader.string_at(&path)
+            let escapes_string = reader
+                .string_at(&path)
                 .expect("Reading string with escapes")
                 .expect("Non-null string");
             assert_eq!(escapes_string, data);
         }
-
 
         println!("Testing tagged tuple I/O");
 
@@ -274,41 +281,50 @@ fn test_multipart_io() {
             let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
             let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
             let item_2 = writer.float(Some(3.1415)).unwrap();
-            writer.tagged_tuple(&InterfaceName::from_str("some tuple"), &[
-                (&FieldName::from_str("abc"), item_0),
-                (&FieldName::from_str("def"), item_1),
-                (&FieldName::from_str("value"), item_2)
-            ])
+            writer
+                .tagged_tuple(
+                    &InterfaceName::from_str("some tuple"),
+                    &[
+                        (&FieldName::from_str("abc"), item_0),
+                        (&FieldName::from_str("def"), item_1),
+                        (&FieldName::from_str("value"), item_2),
+                    ],
+                )
                 .expect("Writing trivial tagged tuple");
 
-            let output = writer.done()
-                .expect("Finalizing data");
-            File::create(format!("/tmp/test-simple-tagged-tuple-{}.binjs", suffix)).unwrap()
-                .write_all(&output).unwrap();
+            let output = writer.done().expect("Finalizing data");
+            File::create(format!("/tmp/test-simple-tagged-tuple-{}.binjs", suffix))
+                .unwrap()
+                .write_all(&output)
+                .unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let (name, fields) = reader.enter_tagged_tuple_at(&path)
+            let (name, fields) = reader
+                .enter_tagged_tuple_at(&path)
                 .expect("Reading trivial tagged tuple");
             assert_eq!(name, "some tuple");
 
             assert_eq!(fields, None);
-            let simple_string_1 = reader.string_at(&path)
+            let simple_string_1 = reader
+                .string_at(&path)
                 .expect("Reading trivial tagged tuple[0]")
                 .expect("Reading a non-null string");
-            let simple_string_2 = reader.string_at(&path)
+            let simple_string_2 = reader
+                .string_at(&path)
                 .expect("Reading trivial tagged tuple[1]")
                 .expect("Reading a non-null string");
-            let simple_float = reader.float_at(&path)
+            let simple_float = reader
+                .float_at(&path)
                 .expect("Reading trivial tagged tuple[2]")
                 .expect("Reading a non-null float");
 
-            reader.exit_tagged_tuple_at(&path)
+            reader
+                .exit_tagged_tuple_at(&path)
                 .expect("Trivial tagged tuple read properly");
 
             assert_eq!(&simple_string_1, "foo");
             assert_eq!(&simple_string_2, "bar");
             assert_eq!(simple_float, 3.1415);
-
         }
 
         println!("Testing list I/O");
@@ -316,20 +332,20 @@ fn test_multipart_io() {
         {
             options.reset();
             let mut writer = TreeTokenWriter::new(options.clone());
-            writer.list(vec![])
-                .expect("Writing empty list");
+            writer.list(vec![]).expect("Writing empty list");
 
-            let output = writer.done()
-                .expect("Finalizing data");
-            File::create(format!("/tmp/test-empty-list-{}.binjs", suffix)).unwrap()
-                    .write_all(&output).unwrap();
+            let output = writer.done().expect("Finalizing data");
+            File::create(format!("/tmp/test-empty-list-{}.binjs", suffix))
+                .unwrap()
+                .write_all(&output)
+                .unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let len = reader.enter_list_at(&path)
-                .expect("Reading empty list");
+            let len = reader.enter_list_at(&path).expect("Reading empty list");
             assert_eq!(len, 0);
 
-            reader.exit_list_at(&path)
+            reader
+                .exit_list_at(&path)
                 .expect("Empty list read properly");
         }
 
@@ -338,29 +354,33 @@ fn test_multipart_io() {
             let mut writer = TreeTokenWriter::new(options.clone());
             let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
             let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
-            writer.list(vec![item_0, item_1])
+            writer
+                .list(vec![item_0, item_1])
                 .expect("Writing trivial list");
 
-            let output = writer.done()
-                .expect("Finalizing data");
-            File::create(format!("/tmp/test-trivial-list-{}.binjs", suffix)).unwrap()
-                .write_all(&output).unwrap();
+            let output = writer.done().expect("Finalizing data");
+            File::create(format!("/tmp/test-trivial-list-{}.binjs", suffix))
+                .unwrap()
+                .write_all(&output)
+                .unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let len = reader.enter_list_at(&path)
-                .expect("Reading trivial list");
+            let len = reader.enter_list_at(&path).expect("Reading trivial list");
             assert_eq!(len, 2);
 
-            let simple_string = reader.string_at(&path)
+            let simple_string = reader
+                .string_at(&path)
                 .expect("Reading trivial list[0]")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "foo");
-            let simple_string = reader.string_at(&path)
+            let simple_string = reader
+                .string_at(&path)
                 .expect("Reading trivial list[1]")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "bar");
 
-            reader.exit_list_at(&path)
+            reader
+                .exit_list_at(&path)
                 .expect("Trivial list read properly");
         }
 
@@ -369,40 +389,41 @@ fn test_multipart_io() {
             let mut writer = TreeTokenWriter::new(options.clone());
             let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
             let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
-            let list = writer.list(vec![item_0, item_1])
+            let list = writer
+                .list(vec![item_0, item_1])
                 .expect("Writing inner list");
-            writer.list(vec![list])
-                .expect("Writing outer list");
+            writer.list(vec![list]).expect("Writing outer list");
 
-            let output = writer.done()
-                .expect("Finalizing data");
-            File::create(format!("/tmp/test-nested-lists-{}.binjs", suffix)).unwrap()
-                .write_all(&output).unwrap();
+            let output = writer.done().expect("Finalizing data");
+            File::create(format!("/tmp/test-nested-lists-{}.binjs", suffix))
+                .unwrap()
+                .write_all(&output)
+                .unwrap();
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
-            let len = reader.enter_list_at(&path)
-                .expect("Reading outer list");
+            let len = reader.enter_list_at(&path).expect("Reading outer list");
             assert_eq!(len, 1);
 
-            let len = reader.enter_list_at(&path)
-                .expect("Reading inner list");
+            let len = reader.enter_list_at(&path).expect("Reading inner list");
             assert_eq!(len, 2);
 
-            let simple_string = reader.string_at(&path)
+            let simple_string = reader
+                .string_at(&path)
                 .expect("Reading trivial list[0]")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "foo");
-            let simple_string = reader.string_at(&path)
+            let simple_string = reader
+                .string_at(&path)
                 .expect("Reading trivial list[1]")
                 .expect("Non-null string");
             assert_eq!(&simple_string, "bar");
 
-            reader.exit_list_at(&path)
+            reader
+                .exit_list_at(&path)
                 .expect("Inner list read properly");
-            reader.exit_list_at(&path)
+            reader
+                .exit_list_at(&path)
                 .expect("Inner list read properly");
-
         }
     }
 }
-

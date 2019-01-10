@@ -1,4 +1,4 @@
-use spec::{ self, Laziness, SpecBuilder, TypeSum };
+use spec::{self, Laziness, SpecBuilder, TypeSum};
 
 use webidl::ast::*;
 
@@ -65,7 +65,7 @@ impl Importer {
     pub fn import(ast: &AST) -> SpecBuilder {
         let mut importer = Importer {
             path: Vec::with_capacity(256),
-            builder: SpecBuilder::new()
+            builder: SpecBuilder::new(),
         };
         importer.import_ast(ast);
         importer.builder
@@ -80,12 +80,14 @@ impl Importer {
             Definition::Enum(ref enum_) => self.import_enum(enum_),
             Definition::Typedef(ref typedef) => self.import_typedef(typedef),
             Definition::Interface(ref interface) => self.import_interface(interface),
-            _ => panic!("Not implemented: importing {:?}", def)
+            _ => panic!("Not implemented: importing {:?}", def),
         }
     }
     fn import_enum(&mut self, enum_: &Enum) {
         let name = self.builder.node_name(&enum_.name);
-        let mut node = self.builder.add_string_enum(&name)
+        let mut node = self
+            .builder
+            .add_string_enum(&name)
             .expect("Name already present");
         for variant in &enum_.variants {
             node.with_string(variant);
@@ -96,19 +98,20 @@ impl Importer {
         // The following are, unfortunately, not true typedefs.
         // Ignore their definition.
         let type_ = match typedef.name.as_ref() {
-            "Identifier"  => spec::TypeSpec::IdentifierName
-                .required(),
-            "IdentifierName" => spec::TypeSpec::IdentifierName
-                .required(),
-            "PropertyKey" => spec::TypeSpec::PropertyKey
-                .required(),
-            _ => self.convert_type(&*typedef.type_)
+            "Identifier" => spec::TypeSpec::IdentifierName.required(),
+            "IdentifierName" => spec::TypeSpec::IdentifierName.required(),
+            "PropertyKey" => spec::TypeSpec::PropertyKey.required(),
+            _ => self.convert_type(&*typedef.type_),
         };
         debug!(target: "meta::import", "Importing typedef {type_:?} {name:?}",
             type_ = type_,
             name = name);
-        let mut node = self.builder.add_typedef(&name)
-            .unwrap_or_else(|| panic!("Error: Name {} is defined more than once in the spec.", name));
+        let mut node = self.builder.add_typedef(&name).unwrap_or_else(|| {
+            panic!(
+                "Error: Name {} is defined more than once in the spec.",
+                name
+            )
+        });
         assert!(!type_.is_optional());
         node.with_spec(type_.spec);
     }
@@ -125,12 +128,8 @@ impl Importer {
                 // We're not interested in the root interface.
                 return;
             }
-            "IdentifierName" => {
-                unimplemented!()
-            }
-            _ => {
-
-            }
+            "IdentifierName" => unimplemented!(),
+            _ => {}
         }
         if let Some(ref parent) = interface.inherits {
             assert_eq!(parent, "Node");
@@ -148,7 +147,9 @@ impl Importer {
                 let name = self.builder.field_name(&attribute.name);
                 let type_ = self.convert_type(&*attribute.type_);
 
-                let is_lazy = attribute.extended_attributes.iter()
+                let is_lazy = attribute
+                    .extended_attributes
+                    .iter()
                     .find(|attribute| {
                         if let &NoArguments(Identifier(ref id)) = attribute.as_ref() {
                             if &*id == "Lazy" {
@@ -158,13 +159,23 @@ impl Importer {
                         false
                     })
                     .is_some();
-                fields.push((name, type_, if is_lazy { Laziness::Lazy } else { Laziness:: Eager }));
+                fields.push((
+                    name,
+                    type_,
+                    if is_lazy {
+                        Laziness::Lazy
+                    } else {
+                        Laziness::Eager
+                    },
+                ));
             } else {
                 panic!("Expected an attribute, got {:?}", member);
             }
         }
         let name = self.builder.node_name(&interface.name);
-        let mut node = self.builder.add_interface(&name)
+        let mut node = self
+            .builder
+            .add_interface(&name)
             .expect("Name already present");
         for (field_name, field_type, laziness) in fields.drain(..) {
             node.with_field_laziness(&field_name, field_type, laziness);
@@ -191,17 +202,29 @@ impl Importer {
                 let name = self.builder.node_name(id);
                 // Sadly, some identifiers are not truly `typedef`s.
                 match name.to_str() {
-                    "IdentifierName" if self.is_at_interface("StaticMemberAssignmentTarget") => spec::TypeSpec::PropertyKey,
-                    "IdentifierName" if self.is_at_interface("StaticMemberExpression") => spec::TypeSpec::PropertyKey,
-                    "IdentifierName" if self.is_at_interface("ImportSpecifier") => spec::TypeSpec::PropertyKey,
-                    "IdentifierName" if self.is_at_interface("ExportSpecifier") => spec::TypeSpec::PropertyKey,
-                    "IdentifierName" if self.is_at_interface("ExportLocalSpecifier") => spec::TypeSpec::PropertyKey,
+                    "IdentifierName" if self.is_at_interface("StaticMemberAssignmentTarget") => {
+                        spec::TypeSpec::PropertyKey
+                    }
+                    "IdentifierName" if self.is_at_interface("StaticMemberExpression") => {
+                        spec::TypeSpec::PropertyKey
+                    }
+                    "IdentifierName" if self.is_at_interface("ImportSpecifier") => {
+                        spec::TypeSpec::PropertyKey
+                    }
+                    "IdentifierName" if self.is_at_interface("ExportSpecifier") => {
+                        spec::TypeSpec::PropertyKey
+                    }
+                    "IdentifierName" if self.is_at_interface("ExportLocalSpecifier") => {
+                        spec::TypeSpec::PropertyKey
+                    }
                     "IdentifierName" => spec::TypeSpec::IdentifierName,
                     "Identifier" => spec::TypeSpec::IdentifierName,
-                    _ => spec::TypeSpec::NamedType(name.clone())
+                    _ => spec::TypeSpec::NamedType(name.clone()),
                 }
             }
-            TypeKind::DOMString if self.is_at_interface("LiteralPropertyName") => spec::TypeSpec::PropertyKey,
+            TypeKind::DOMString if self.is_at_interface("LiteralPropertyName") => {
+                spec::TypeSpec::PropertyKey
+            }
             TypeKind::DOMString => spec::TypeSpec::String,
             TypeKind::Union(ref types) => {
                 let mut dest = Vec::with_capacity(types.len());
@@ -210,16 +233,12 @@ impl Importer {
                 }
                 spec::TypeSpec::TypeSum(TypeSum::new(dest))
             }
-            TypeKind::FrozenArray(ref type_) => {
-                spec::TypeSpec::Array {
-                    contents: Box::new(self.convert_type(&*type_)),
-                    supports_empty: true
-                }
-            }
-            TypeKind::RestrictedDouble =>
-                spec::TypeSpec::Number,
-            TypeKind::UnsignedLong =>
-                spec::TypeSpec::UnsignedLong,
+            TypeKind::FrozenArray(ref type_) => spec::TypeSpec::Array {
+                contents: Box::new(self.convert_type(&*type_)),
+                supports_empty: true,
+            },
+            TypeKind::RestrictedDouble => spec::TypeSpec::Number,
+            TypeKind::UnsignedLong => spec::TypeSpec::UnsignedLong,
             _ => {
                 panic!("I don't know how to import {:?} yet", t);
             }

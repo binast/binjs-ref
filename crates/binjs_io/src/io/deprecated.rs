@@ -3,9 +3,9 @@
 //! copy of the old `io::TokenWriter` along with a `TokenWriterTreeAdapter` which wraps a `TokenWriterWithTree`
 //! as a new `io::TokenWriter`.
 
-use binjs_shared::{ IdentifierName, InterfaceName, FieldName, Node, PropertyKey, SharedString };
+use binjs_shared::{FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString};
 
-use ::{ Path, TokenWriter, TokenWriterError };
+use {Path, TokenWriter, TokenWriterError};
 
 // Deprecated trait. Any new implementation should use TokenWriter.
 pub trait TokenWriterWithTree {
@@ -25,7 +25,11 @@ pub trait TokenWriterWithTree {
     ///
     /// By convention, a null tagged tuple is the special tagged tuple "null",
     /// with no children.
-    fn tagged_tuple(&mut self, _tag: &InterfaceName, _children: &[(&FieldName, Self::Tree)]) -> Result<Self::Tree, TokenWriterError>;
+    fn tagged_tuple(
+        &mut self,
+        _tag: &InterfaceName,
+        _children: &[(&FieldName, Self::Tree)],
+    ) -> Result<Self::Tree, TokenWriterError>;
 
     /// Write a list.
     ///
@@ -70,24 +74,36 @@ pub trait TokenWriterWithTree {
         unimplemented!()
     }
 
-    fn property_key(&mut self, value: Option<&PropertyKey>) -> Result<Self::Tree, TokenWriterError> {
+    fn property_key(
+        &mut self,
+        value: Option<&PropertyKey>,
+    ) -> Result<Self::Tree, TokenWriterError> {
         let string = value.map(PropertyKey::as_shared_string);
         self.string(string)
     }
 
-    fn identifier_name(&mut self, value: Option<&IdentifierName>) -> Result<Self::Tree, TokenWriterError> {
+    fn identifier_name(
+        &mut self,
+        value: Option<&IdentifierName>,
+    ) -> Result<Self::Tree, TokenWriterError> {
         let string = value.map(IdentifierName::as_shared_string);
         self.string(string)
     }
 }
 
-pub struct TokenWriterTreeAdapter<T> where T: TokenWriterWithTree {
+pub struct TokenWriterTreeAdapter<T>
+where
+    T: TokenWriterWithTree,
+{
     writer: T,
 
     /// Invariant: This stack is never empty.
     stack: Vec<Vec<T::Tree>>,
 }
-impl<T> TokenWriterTreeAdapter<T>  where T: TokenWriterWithTree {
+impl<T> TokenWriterTreeAdapter<T>
+where
+    T: TokenWriterWithTree,
+{
     pub fn new(writer: T) -> Self {
         TokenWriterTreeAdapter {
             writer,
@@ -96,35 +112,53 @@ impl<T> TokenWriterTreeAdapter<T>  where T: TokenWriterWithTree {
     }
 
     pub fn top_mut(&mut self) -> &mut Vec<T::Tree> {
-        self.stack.last_mut()
+        self.stack
+            .last_mut()
             .expect("Empty stack while replacing last child")
     }
 }
 
-impl<T> TokenWriter for TokenWriterTreeAdapter<T> where T: TokenWriterWithTree {
+impl<T> TokenWriter for TokenWriterTreeAdapter<T>
+where
+    T: TokenWriterWithTree,
+{
     type Data = T::Data;
 
     fn done(mut self) -> Result<Self::Data, TokenWriterError> {
-        assert_eq!(self.stack.len(), 1, "The stack started with 1 item (the toplevel), it must end with 1 item.");
+        assert_eq!(
+            self.stack.len(),
+            1,
+            "The stack started with 1 item (the toplevel), it must end with 1 item."
+        );
         self.stack.pop();
         self.writer.done()
     }
 
-    fn enter_tagged_tuple_at(&mut self, _node: &Node, _tag: &InterfaceName, _children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
+    fn enter_tagged_tuple_at(
+        &mut self,
+        _node: &Node,
+        _tag: &InterfaceName,
+        _children: &[&FieldName],
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
         self.stack.push(vec![]);
         Ok(())
     }
 
-    fn exit_tagged_tuple_at(&mut self, _node: &Node, tag: &InterfaceName, children: &[&FieldName], _path: &Path) -> Result<(), TokenWriterError> {
-        let values = self.stack.pop() // We pushed this `vec` in the call to `enter_tagged_tuple_at`.
+    fn exit_tagged_tuple_at(
+        &mut self,
+        _node: &Node,
+        tag: &InterfaceName,
+        children: &[&FieldName],
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        let values = self
+            .stack
+            .pop() // We pushed this `vec` in the call to `enter_tagged_tuple_at`.
             .expect("Empty stack while popping");
-        let children : Vec<_> = children.iter()
-            .cloned()
-            .zip(values.into_iter())
-            .collect();
+        let children: Vec<_> = children.iter().cloned().zip(values.into_iter()).collect();
         let child = self.writer.tagged_tuple(tag, children.as_ref())?;
-        self.top_mut()
-            .push(child);
+        self.top_mut().push(child);
         Ok(())
     }
 
@@ -133,57 +167,68 @@ impl<T> TokenWriter for TokenWriterTreeAdapter<T> where T: TokenWriterWithTree {
         Ok(())
     }
     fn exit_list_at(&mut self, _path: &Path) -> Result<(), TokenWriterError> {
-        let values = self.stack.pop() // We pushed this `vec` in the call to `enter_list_at`.
+        let values = self
+            .stack
+            .pop() // We pushed this `vec` in the call to `enter_list_at`.
             .expect("Empty stack while popping");
         let child = self.writer.list(values)?;
-        self.top_mut()
-            .push(child);
+        self.top_mut().push(child);
         Ok(())
     }
 
-    fn string_at(&mut self, value: Option<&SharedString>, _path: &Path) -> Result<(), TokenWriterError> {
+    fn string_at(
+        &mut self,
+        value: Option<&SharedString>,
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
         let child = self.writer.string(value)?;
-        self.top_mut()
-            .push(child);
+        self.top_mut().push(child);
         Ok(())
     }
 
-    fn string_enum_at(&mut self, value: &SharedString, _path: &Path) -> Result<(), TokenWriterError> {
+    fn string_enum_at(
+        &mut self,
+        value: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
         let child = self.writer.string_enum(value)?;
-        self.top_mut()
-            .push(child);
+        self.top_mut().push(child);
         Ok(())
     }
 
     fn float_at(&mut self, value: Option<f64>, _path: &Path) -> Result<(), TokenWriterError> {
         let child = self.writer.float(value)?;
-        self.top_mut()
-            .push(child);
+        self.top_mut().push(child);
         Ok(())
     }
     fn unsigned_long_at(&mut self, value: u32, _path: &Path) -> Result<(), TokenWriterError> {
         let child = self.writer.unsigned_long(value)?;
-        self.top_mut()
-            .push(child);
+        self.top_mut().push(child);
         Ok(())
     }
     fn bool_at(&mut self, value: Option<bool>, _path: &Path) -> Result<(), TokenWriterError> {
         let child = self.writer.bool(value)?;
-        self.top_mut()
-            .push(child);
+        self.top_mut().push(child);
         Ok(())
     }
     fn offset_at(&mut self, _path: &Path) -> Result<(), TokenWriterError> {
         let child = self.writer.offset()?;
-        self.top_mut()
-            .push(child);
+        self.top_mut().push(child);
         Ok(())
     }
-    fn property_key_at(&mut self, value: Option<&PropertyKey>, path: &Path) -> Result<(), TokenWriterError> {
+    fn property_key_at(
+        &mut self,
+        value: Option<&PropertyKey>,
+        path: &Path,
+    ) -> Result<(), TokenWriterError> {
         let string = value.map(PropertyKey::as_shared_string);
         self.string_at(string, path)
     }
-    fn identifier_name_at(&mut self, value: Option<&IdentifierName>, path: &Path) -> Result<(), TokenWriterError> {
+    fn identifier_name_at(
+        &mut self,
+        value: Option<&IdentifierName>,
+        path: &Path,
+    ) -> Result<(), TokenWriterError> {
         let string = value.map(IdentifierName::as_shared_string);
         self.string_at(string, path)
     }

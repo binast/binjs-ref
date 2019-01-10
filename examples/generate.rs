@@ -2,7 +2,6 @@
 //!
 //! Note that the JS file is only correct insofar as the AST matches the grammar.
 
-
 extern crate binjs;
 
 extern crate clap;
@@ -11,11 +10,11 @@ extern crate rand;
 
 const DEFAULT_TREE_SIZE: isize = 5;
 
-use binjs::source::Shift;
+use binjs::generic::pick::{Pick, Picker};
 use binjs::generic::FromJSON;
-use binjs::generic::pick::{ Pick, Picker };
-use binjs::specialized::es6::io::Encoder;
+use binjs::source::Shift;
 use binjs::specialized::es6::ast::Walker;
+use binjs::specialized::es6::io::Encoder;
 
 use clap::*;
 use std::io::Write;
@@ -63,28 +62,28 @@ Note that this tool does not attempt to make sure that the files are entirely co
         .expect("Could not determine encoding format")
         .randomize_options(&mut rng);
 
-    let prefix = matches.value_of("PREFIX")
+    let prefix = matches
+        .value_of("PREFIX")
         .expect("Missing argument `PREFIX`");
 
-    let number = matches.value_of("number")
+    let number = matches
+        .value_of("number")
         .expect("Missing argument `number`");
-    let number : usize = number.parse()
-        .expect("Invalid number");
+    let number: usize = number.parse().expect("Invalid number");
 
-    let lazification = str::parse(matches.value_of("lazify").expect("Missing lazify"))
-        .expect("Invalid number");
+    let lazification =
+        str::parse(matches.value_of("lazify").expect("Missing lazify")).expect("Invalid number");
 
-    let size : isize = match matches.value_of("size") {
+    let size: isize = match matches.value_of("size") {
         None => DEFAULT_TREE_SIZE,
-        Some(size) => size.parse()
-            .expect("Invalid size")
+        Some(size) => size.parse().expect("Invalid size"),
     };
 
     let mut builder = binjs::meta::spec::SpecBuilder::new();
     let library = binjs::generic::es6::Library::new(&mut builder);
     let spec = builder.into_spec(binjs::meta::spec::SpecOptions {
         root: &library.program,
-        null: &library.null
+        null: &library.null,
     });
 
     let random_metadata = matches.is_present("random-metadata");
@@ -98,8 +97,8 @@ Note that this tool does not attempt to make sure that the files are entirely co
         }
         let json = Picker.random(&spec, &mut rng, size);
 
-        let mut ast = binjs::specialized::es6::ast::Script::import(&json)
-            .expect("Could not import AST");
+        let mut ast =
+            binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
 
         if lazification > 0 {
             let mut path = binjs::specialized::es6::ast::WalkPath::new();
@@ -110,8 +109,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
 
         if !random_metadata {
             // Overwrite random annotations.
-            binjs::specialized::es6::scopes::AnnotationVisitor::new()
-                .annotate_script(&mut ast);
+            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
         }
 
         if let Ok(source) = parser.to_source(&spec, &json) {
@@ -121,18 +119,19 @@ Note that this tool does not attempt to make sure that the files are entirely co
             {
                 let mut source_file = std::fs::File::create(format!("{}-{}.js", prefix, i))
                     .expect("Could not create js file");
-                source_file.write_all(source.as_bytes())
+                source_file
+                    .write_all(source.as_bytes())
                     .expect("Could not write js file");
             }
 
             let encoder = Encoder::new();
-            let encoded = encoder.encode(&mut format, &ast)
-                .expect("Could not encode");
+            let encoded = encoder.encode(&mut format, &ast).expect("Could not encode");
 
             {
                 let mut encoded_file = std::fs::File::create(format!("{}-{}.binjs", prefix, i))
                     .expect("Could not create binjs file");
-                encoded_file.write_all(encoded.as_ref().as_ref())
+                encoded_file
+                    .write_all(encoded.as_ref().as_ref())
                     .expect("Could not write binjs file");
             }
         } else {

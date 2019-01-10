@@ -9,16 +9,11 @@ fn main() {
     // Install Node packages if necessary.
     println!("cargo:rerun-if-changed={}", PATH_PACKAGES);
 
-    let tool =
-        which("yarn")
+    let tool = which("yarn")
         .or_else(|_| which("npm"))
         .expect("Could not find neither `yarn` nor `npm`");
 
-    let status =
-        Command::new(tool)
-        .arg("install")
-        .status()
-        .unwrap();
+    let status = Command::new(tool).arg("install").status().unwrap();
 
     assert!(status.success());
 }

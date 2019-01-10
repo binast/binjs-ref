@@ -1,13 +1,15 @@
 extern crate binjs;
 extern crate itertools;
 
-use binjs::generic::{ FromJSON, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString };
-use binjs::source::{ Shift, SourceParser };
-use binjs::io::{ Deserialization, TokenSerializer };
+use binjs::generic::{FromJSON, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString};
 use binjs::io::entropy;
-use binjs::io::entropy::dictionary::{ Dictionary, DictionaryBuilder, FilesContaining, KindedStringMap };
+use binjs::io::entropy::dictionary::{
+    Dictionary, DictionaryBuilder, FilesContaining, KindedStringMap,
+};
 use binjs::io::entropy::probabilities::InstancesToProbabilities;
-use binjs::specialized::es6::ast::{ Script, Visitor, Walker, WalkPath };
+use binjs::io::{Deserialization, TokenSerializer};
+use binjs::source::{Shift, SourceParser};
+use binjs::specialized::es6::ast::{Script, Visitor, WalkPath, Walker};
 use binjs::specialized::es6::io::IOPath;
 
 use std::collections::HashMap;
@@ -41,41 +43,41 @@ test!(test_entropy_roundtrip, {
         let builder = DictionaryBuilder::new(&mut dictionary, &mut files_containing_string);
 
         println!("Parsing");
-        let ast  = parser.parse_str(source)
-            .expect("Could not parse source");
-        let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
-            .expect("Could not import AST");
+        let ast = parser.parse_str(source).expect("Could not parse source");
+        let mut ast =
+            binjs::specialized::es6::ast::Script::import(&ast).expect("Could not import AST");
 
         println!("Annotating");
-        binjs::specialized::es6::scopes::AnnotationVisitor::new()
-            .annotate_script(&mut ast);
+        binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
         println!("Extracting dictionary");
         let mut serializer = binjs::specialized::es6::io::Serializer::new(builder);
         let mut path = IOPath::new();
-        serializer.serialize(&ast, &mut path)
+        serializer
+            .serialize(&ast, &mut path)
             .expect("Could not walk");
-        let _ = serializer.done()
-            .expect("Could not walk");
+        let _ = serializer.done().expect("Could not walk");
     }
 
     // We may now access data.
-    println!("Built a dictionary with {} states, {} strings",
+    println!(
+        "Built a dictionary with {} states, {} strings",
         dictionary.len(),
-        files_containing_string.len());
+        files_containing_string.len()
+    );
 
     println!("Checking identifiers per file");
     check_strings(
         &files_containing_string.identifier_name_instances,
         vec![("console", 1), ("foo", 1), ("i", 1), ("x", 3), ("y", 3)],
-        |name| Some(IdentifierName::from_string(name.to_string()))
+        |name| Some(IdentifierName::from_string(name.to_string())),
     );
 
     println!("Checking property keys per file");
     check_strings(
         &files_containing_string.property_key_instances,
         vec![("log", 1)],
-        |name| Some(PropertyKey::from_string(name.to_string()))
+        |name| Some(PropertyKey::from_string(name.to_string())),
     );
 
     println!("Checking interface names per file");
@@ -110,17 +112,14 @@ test!(test_entropy_roundtrip, {
             ("VariableDeclaration", 3),
             ("VariableDeclarator", 3),
         ],
-        |name| InterfaceName::from_string(name.to_string())
+        |name| InterfaceName::from_string(name.to_string()),
     );
 
     println!("String literals per file");
     check_strings(
         &files_containing_string.string_literal_instances,
-        vec![
-            ("Some text", 1),
-            ("use strict", 1),
-        ],
-        |value| Some(SharedString::from_string(value.to_string()))
+        vec![("Some text", 1), ("use strict", 1)],
+        |value| Some(SharedString::from_string(value.to_string())),
     );
 
     println!("String enum instances");
@@ -134,56 +133,54 @@ test!(test_entropy_roundtrip, {
             ("++", 1),
             ("non-const lexical", 1),
         ],
-        |value| SharedString::from_string(value.to_string())
+        |value| SharedString::from_string(value.to_string()),
     );
 
-    let options = entropy::Options::new(
-        dictionary.instances_to_probabilities("dictionary")
-    );
+    let options = entropy::Options::new(dictionary.instances_to_probabilities("dictionary"));
 
     println!("Starting roundtrip with dictionary");
     for source in &sources {
         println!("Reparsing");
-        let ast  = parser.parse_str(source)
-            .expect("Could not parse source");
-        let mut ast = binjs::specialized::es6::ast::Script::import(&ast)
-            .expect("Could not import AST");
+        let ast = parser.parse_str(source).expect("Could not parse source");
+        let mut ast =
+            binjs::specialized::es6::ast::Script::import(&ast).expect("Could not import AST");
 
         println!("Reannotating");
-        binjs::specialized::es6::scopes::AnnotationVisitor::new()
-            .annotate_script(&mut ast);
+        binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
         let mut path = IOPath::new();
 
         println!("Serializing with entropy");
         let encoder = entropy::write::Encoder::new(options.clone());
         let mut serializer = binjs::specialized::es6::io::Serializer::new(encoder);
-        serializer.serialize(&ast, &mut path)
+        serializer
+            .serialize(&ast, &mut path)
             .expect("Could not walk");
-        let data = serializer.done()
-            .expect("Could not walk");
+        let data = serializer.done().expect("Could not walk");
         assert_eq!(path.len(), 0);
 
         println!("Deserializing with entropy");
         let decoder = entropy::read::Decoder::new(options.clone(), std::io::Cursor::new(data))
             .expect("Could not create decoder");
         let mut deserializer = binjs::specialized::es6::io::Deserializer::new(decoder);
-        let mut script : Script = deserializer.deserialize(&mut path)
+        let mut script: Script = deserializer
+            .deserialize(&mut path)
             .expect("Could not deserialize");
 
         println!("Checking equality between ASTs");
         // At this stage, we have a problem: offsets are 0 in `ast`, but not necessarily
         // in `decoded`.
-        script.walk(&mut WalkPath::new(), &mut OffsetCleanerVisitor)
+        script
+            .walk(&mut WalkPath::new(), &mut OffsetCleanerVisitor)
             .expect("Could not cleanup offsets");
         assert_eq!(ast, script);
     }
 });
 
 fn check_strings<T, F>(found: &HashMap<T, FilesContaining>, expected: Vec<(&str, usize)>, f: F)
-    where
-        F: Fn(&str) -> T,
-        T: Eq + std::hash::Hash + Ord + Clone + std::fmt::Debug,
+where
+    F: Fn(&str) -> T,
+    T: Eq + std::hash::Hash + Ord + Clone + std::fmt::Debug,
 {
     let found = found
         .iter()
@@ -191,10 +188,7 @@ fn check_strings<T, F>(found: &HashMap<T, FilesContaining>, expected: Vec<(&str,
         .sorted();
     let expected = expected
         .into_iter()
-        .map(|(name, instances)| {
-            (f(name), FilesContaining(instances))
-        })
+        .map(|(name, instances)| (f(name), FilesContaining(instances)))
         .sorted();
     assert_eq!(found, expected);
-
 }

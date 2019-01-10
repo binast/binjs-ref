@@ -14,8 +14,8 @@ use itertools::Itertools;
 
 use std::thread;
 
-const PATHS : [&'static str; 1] = ["tests/data/facebook/single/**/*.js"];
-const NUMBER_OF_SAMPLES : usize = 3;
+const PATHS: [&'static str; 1] = ["tests/data/facebook/single/**/*.js"];
+const NUMBER_OF_SAMPLES: usize = 3;
 
 fn bench_parsing_one_parser_per_run(bencher: &mut bencher::Bencher) {
     let bencher = bencher.clone();
@@ -47,35 +47,35 @@ fn bench_parsing_reuse_parser(bencher: &mut bencher::Bencher) {
 }
 
 fn bench_parsing_aux(parser: Option<&mut Shift>, mut bencher: bencher::Bencher) {
-    let entries =
-        PATHS.iter()
-            .map(|path_suffix| format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix))
-            .flat_map(|path| glob::glob(&path).expect("Invalid path"))
-            .map(|entry| entry.expect("Invalid entry"))
-            .sorted();
-    let paths : Vec<_> = entries.into_iter()
-            .take(NUMBER_OF_SAMPLES)
-            .collect();
+    let entries = PATHS
+        .iter()
+        .map(|path_suffix| format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix))
+        .flat_map(|path| glob::glob(&path).expect("Invalid path"))
+        .map(|entry| entry.expect("Invalid entry"))
+        .sorted();
+    let paths: Vec<_> = entries.into_iter().take(NUMBER_OF_SAMPLES).collect();
     for path in &paths {
         print!("\n{:?}.", path);
         bencher.iter(|| {
             print!(".");
             let json = match parser {
-                None =>
-                    Shift::new().parse_file(path.clone())
-                        .expect("Could not parse source"),
-                Some(ref parser) =>
-                    parser.parse_file(path.clone())
-                        .expect("Could not parse source")
+                None => Shift::new()
+                    .parse_file(path.clone())
+                    .expect("Could not parse source"),
+                Some(ref parser) => parser
+                    .parse_file(path.clone())
+                    .expect("Could not parse source"),
             };
 
-            let _ = binjs::specialized::es6::ast::Script::import(&json)
-                .expect("Could not import AST");
+            let _ =
+                binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
         });
     }
 }
 
-
-
-benchmark_group!(bench, bench_parsing_one_parser_per_run, bench_parsing_reuse_parser);
+benchmark_group!(
+    bench,
+    bench_parsing_one_parser_per_run,
+    bench_parsing_reuse_parser
+);
 benchmark_main!(bench);

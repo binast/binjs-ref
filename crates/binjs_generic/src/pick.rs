@@ -15,18 +15,15 @@ pub trait Pick {
 pub struct Picker;
 impl Pick for Picker {
     fn random<T: rand::Rng>(&self, syntax: &Spec, rng: &mut T, depth_limit: isize) -> JSON {
-        syntax.get_root()
-            .random(syntax, rng, depth_limit)
+        syntax.get_root().random(syntax, rng, depth_limit)
     }
 }
 
 impl Pick for NamedType {
     fn random<T: rand::Rng>(&self, syntax: &Spec, rng: &mut T, depth_limit: isize) -> JSON {
         match *self {
-            NamedType::Interface(ref interface) =>
-                interface.random(syntax, rng, depth_limit),
-            NamedType::Typedef(ref typedef) =>
-                typedef.random(syntax, rng, depth_limit),
+            NamedType::Interface(ref interface) => interface.random(syntax, rng, depth_limit),
+            NamedType::Typedef(ref typedef) => typedef.random(syntax, rng, depth_limit),
             NamedType::StringEnum(ref string_enum) => {
                 let string = pick(rng, &string_enum.strings());
                 JSON::from(string.clone())
@@ -39,9 +36,12 @@ impl Pick for TypeSpec {
     fn random<T: rand::Rng>(&self, syntax: &Spec, rng: &mut T, depth_limit: isize) -> JSON {
         const MAX_ARRAY_LEN: usize = 16;
         match *self {
-            TypeSpec::Array { supports_empty, contents: ref type_ } => {
+            TypeSpec::Array {
+                supports_empty,
+                contents: ref type_,
+            } => {
                 if supports_empty && depth_limit <= 0 {
-                    return array![]
+                    return array![];
                 }
                 let min = if supports_empty { 0 } else { 1 };
                 let len = rng.gen_range(min, MAX_ARRAY_LEN);
@@ -62,25 +62,19 @@ impl Pick for TypeSpec {
                 let type_ = pick(rng, types.types());
                 type_.random(syntax, rng, depth_limit)
             }
-            TypeSpec::Boolean => {
-                JSON::Boolean(rng.gen())
-            }
-            TypeSpec::String
-            | TypeSpec::PropertyKey
-            | TypeSpec::IdentifierName =>
-            {
-                const MAX_STRING_LEN : usize = 10;
+            TypeSpec::Boolean => JSON::Boolean(rng.gen()),
+            TypeSpec::String | TypeSpec::PropertyKey | TypeSpec::IdentifierName => {
+                const MAX_STRING_LEN: usize = 10;
                 let len = rng.gen_range(0, MAX_STRING_LEN);
-                let string : String = iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(len).collect();
+                let string: String = iter::repeat(())
+                    .map(|()| rng.sample(Alphanumeric))
+                    .take(len)
+                    .collect();
                 json::from(string)
             }
-            TypeSpec::Number => {
-                json::from(rng.gen::<f64>())
-            }
-            TypeSpec::Void =>
-                JSON::Null,
-            TypeSpec::Offset |
-            TypeSpec::UnsignedLong => {
+            TypeSpec::Number => json::from(rng.gen::<f64>()),
+            TypeSpec::Void => JSON::Null,
+            TypeSpec::Offset | TypeSpec::UnsignedLong => {
                 json::from(rng.gen_range(0, u32::max_value()))
             }
         }
@@ -92,7 +86,7 @@ impl Pick for Type {
         if self.is_optional() {
             // 10% chance of returning the default value
             if depth_limit <= 0 || rng.gen_range(0, 10) > 0 {
-                return JSON::Null
+                return JSON::Null;
             }
         }
         self.spec.random(syntax, rng, depth_limit)
@@ -116,7 +110,9 @@ impl Pick for Spec {
     ///
     /// `depth_limit` is used as *hint* to control the depth of the tree
     fn random<T: rand::Rng>(&self, _: &Spec, rng: &mut T, depth_limit: isize) -> JSON {
-        let root = self.interfaces_by_name().get(&self.get_root_name())
+        let root = self
+            .interfaces_by_name()
+            .get(&self.get_root_name())
             .expect("Root interface doesn't exist");
         root.random(self, rng, depth_limit)
     }

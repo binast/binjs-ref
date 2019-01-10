@@ -18,7 +18,10 @@ pub trait ReadVarNum {
     fn read_varnum_to(&mut self, num: &mut u32) -> Result<usize, std::io::Error>;
 }
 
-impl<T> WriteVarNum for T where T: Write {
+impl<T> WriteVarNum for T
+where
+    T: Write,
+{
     fn write_maybe_varnum(&mut self, value: Option<u32>) -> Result<usize, std::io::Error> {
         match value {
             Some(v) => self.write_varnum(v),
@@ -38,7 +41,7 @@ impl<T> WriteVarNum for T where T: Write {
             bytes.push(byte);
             value >>= 7;
             if value == 0 {
-                break
+                break;
             }
         }
         self.write_all(&bytes)?;
@@ -46,7 +49,10 @@ impl<T> WriteVarNum for T where T: Write {
     }
 }
 
-impl<T> ReadVarNum for T where T: Read {
+impl<T> ReadVarNum for T
+where
+    T: Read,
+{
     /// ```
     /// use binjs_io::bytes::varnum::*;
     /// use std::io::Cursor;
@@ -75,12 +81,15 @@ impl<T> ReadVarNum for T where T: Read {
 
     fn read_varnum_to(&mut self, num: &mut u32) -> Result<usize, std::io::Error> {
         let mut bytes = 0;
-        let mut result : u32 = 0;
-        let mut shift : u32 = 0;
-        let mut buf : [u8;1] = [0];
+        let mut result: u32 = 0;
+        let mut shift: u32 = 0;
+        let mut buf: [u8; 1] = [0];
         loop {
             if shift >= 32 {
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid varnum (doesn't fit in 32 bits)"))
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Invalid varnum (doesn't fit in 32 bits)",
+                ));
             }
             bytes += self.read(&mut buf)?;
 
@@ -88,7 +97,10 @@ impl<T> ReadVarNum for T where T: Read {
             result |= (byte as u32 >> 1) << shift;
             if byte & 1 == 0 {
                 if result == 0 && shift != 0 {
-                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid varnum (invalid 0)"))
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid varnum (invalid 0)",
+                    ));
                 } else {
                     *num = result;
                     return Ok(bytes);
@@ -114,7 +126,7 @@ fn test_varnum() {
             assert_eq!(encoded_bytes, encoded.len());
             println!("test_varnum, encoded as {:?}", encoded);
 
-            let mut decoded : u32 = 0;
+            let mut decoded: u32 = 0;
             let decoded_bytes = Cursor::new(encoded).read_varnum_to(&mut decoded).unwrap();
 
             assert_eq!(start, decoded);
