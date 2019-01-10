@@ -184,7 +184,7 @@ impl SourceParser for Shift {
             var parseScript = require('shift-parser').parseScript;
             var fs      = require('fs');
 
-            var source  = fs.readFileSync('{}', {{encoding: "utf-8"}});
+            var source  = fs.readFileSync({:?}, {{encoding: "utf-8"}});
             return JSON.stringify(parseScript(source));
             "##,
             path);
