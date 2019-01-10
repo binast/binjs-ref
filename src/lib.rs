@@ -18,8 +18,6 @@
 //! JavaScript format designed to optimize parsing speed and, when possible,
 //! loading speed.
 
-#![feature(box_patterns)]
-
 extern crate binjs_generic;
 extern crate binjs_es6;
 extern crate binjs_io;

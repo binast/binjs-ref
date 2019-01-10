@@ -541,7 +541,7 @@ impl Visitor<()> for AnnotationVisitor {
     // Identifiers
 
     fn exit_call_expression(&mut self, _path: &WalkPath, node: &mut CallExpression) -> Result<Option<CallExpression>, ()> {
-        if let ExpressionOrSuper::IdentifierExpression(box ref id) = node.callee {
+        if let ExpressionOrSuper::IdentifierExpression(ref id) = node.callee {
             if id.name == "eval" {
                 *self.apparent_direct_eval_stack.last_mut()
                     .unwrap() = true;

@@ -578,7 +578,7 @@ impl ToJSON for {name} {{
                                 cases = types
                                     .iter()
                                     .map(|case| {
-                                        format!("           {name}::{constructor}(box ref value) => value.export()",
+                                        format!("           {name}::{constructor}(ref value) => value.export()",
                                             name = name,
                                             constructor = case.to_class_cases())
                                     })
@@ -616,7 +616,7 @@ impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWr
                             .iter()
                             .map(|case| {
                                 format!(
-"           {name}::{constructor}(box ref value) => {{
+"           {name}::{constructor}(ref value) => {{
                 // Path will be updated by the serializer for this tagged tuple.
                 (self as &mut Serialization<W, &'a {constructor}>).serialize(value, path)
             }}",
@@ -717,7 +717,7 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
                         name = name.to_class_cases(),
                         variants = types.iter()
                             .map(|variant| {
-                                format!("            {name}::{variant}(box ref mut x) => ViewMut{name}::{variant}(x),",
+                                format!("            {name}::{variant}(ref mut x) => ViewMut{name}::{variant}(x),",
                                     name = name.to_class_cases(),
                                     variant = variant.to_class_cases(),
                                 )
