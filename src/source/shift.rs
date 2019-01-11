@@ -143,6 +143,11 @@ impl Shift {
         })
     }
 
+    // We need to mutate the AST to adjust it to the Shift format, so we take
+    // it by ownership rather than by reference.
+    //
+    // If the caller needs the original AST after this call, it's their
+    // responsibility to clone it and pass to this function.
     pub fn to_source(&self, syntax: &Spec, mut ast: JSON) -> Result<String, Error> {
         debug!(target: "Shift", "Preparing source\n{:#}", ast);
         let mut walker = MutASTWalker::new(syntax, ToShift);
