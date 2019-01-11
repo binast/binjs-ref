@@ -85,6 +85,14 @@ impl Script {
         })))
     }
 
+    /// This function is responsible for piping JSON inputs to the script
+    /// in a newline-delimited format and parsing JSON outputs back.
+    ///
+    /// Each output can be either `{"type":"Ok","value":...}` if operation was
+    /// successful or `{"type":"Err","value":...}` if corresponding JS callback
+    /// has failed with an error, and these are converted into Rust `Result`.
+    ///
+    /// See start-json-stream.js for some more details.
     pub fn transform(&self, input: &JSON) -> Result<JSON, Error> {
         let output = (move || {
             let mut io = self.0.lock().unwrap();
