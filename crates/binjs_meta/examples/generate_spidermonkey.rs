@@ -12,7 +12,7 @@ extern crate env_logger;
 extern crate itertools;
 #[macro_use]
 extern crate log;
-extern crate webidl;
+extern crate weedle;
 extern crate yaml_rust;
 
 use binjs_meta::export::{ToWebidl, TypeDeanonymizer, TypeName};
@@ -1611,7 +1611,7 @@ fn main() {
         .expect("Could not read source");
 
     println!("...parsing webidl");
-    let ast = webidl::parse_string(&source).expect("Could not parse source");
+    let ast = weedle::parse(&source).expect("Could not parse source");
 
     println!("...verifying grammar");
     let mut builder = Importer::import(&ast);

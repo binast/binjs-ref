@@ -1,6 +1,6 @@
 extern crate binjs_generate_library;
 extern crate binjs_meta;
-extern crate webidl;
+extern crate weedle;
 
 use binjs_generate_library::*;
 use binjs_meta::import::Importer;
@@ -22,7 +22,7 @@ fn main() {
     file.read_to_string(&mut source)
         .expect("Could not read source");
 
-    let ast = webidl::parse_string(&source).expect("Could not parse source");
+    let ast = weedle::parse(&source).expect("Could not parse source");
 
     // Check spec. We don't really need fake_root
     // for this operation. It may change in the future,
