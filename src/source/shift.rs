@@ -30,8 +30,11 @@ pub enum Error {
 }
 
 pub struct NodeConfig {
+    /// Paths to the Node executable.
     bin_path: PathBuf,
+    /// Path to a directory with our Node.js scripts (same as this Rust file).
     scripts_path: &'static Path,
+    /// Node.js flag to configure memory usage.
     memory: OsString,
 }
 
