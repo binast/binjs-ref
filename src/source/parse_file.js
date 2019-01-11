@@ -1,4 +1,10 @@
-'use strict';
+/**
+ * This CLI "daemon" expects file paths to JavaScript files as JSON strings
+ * on the stdin and will parse them and produce Shift AST objects as JSON
+ * on stdout.
+ */
+
+ 'use strict';
 
 const { readFileSync } = require('fs');
 const { parseScript } = require('shift-parser');
