@@ -19,15 +19,13 @@ pub struct Importer {
 }
 
 impl Importer {
-    /// Import an AST into a SpecBuilder.
+    /// Import a WebIDL spec into a SpecBuilder.
     ///
     /// ```
     /// extern crate binjs_meta;
-    /// extern crate weedle;
-    /// use weedle;
     /// use binjs_meta::spec::SpecOptions;
     ///
-    /// let ast = weedle::parse("
+    /// let mut builder = binjs_meta::import::Importer::import("
     ///    interface FooContents {
     ///      attribute boolean value;
     ///    };
@@ -38,8 +36,6 @@ impl Importer {
     ///       attribute FooContents contents;
     ///    };
     /// ").expect("Could not parse");
-    ///
-    /// let mut builder = binjs_meta::import::Importer::import(&ast);
     ///
     /// let fake_root = builder.node_name("@@ROOT@@"); // Unused
     /// let null = builder.node_name(""); // Used
@@ -73,13 +69,14 @@ impl Importer {
     ///     assert_eq!(contents_field.is_lazy(), true);
     /// }
     /// ```
-    pub fn import(ast: &Definitions) -> SpecBuilder {
+    pub fn import(s: &str) -> Result<SpecBuilder, weedle::Err<CompleteStr>> {
         let mut importer = Importer {
             path: Vec::with_capacity(256),
             builder: SpecBuilder::new(),
         };
-        importer.import_all_definitions(ast);
-        importer.builder
+        let ast = weedle::parse(s)?;
+        importer.import_all_definitions(&ast);
+        Ok(importer.builder)
     }
 
     fn import_all_definitions(&mut self, ast: &Definitions) {

@@ -31,7 +31,6 @@ lzw = "^0.10"
 rand = "^0.6"
 test-logger = "^0.1"
 vec_map = "^0.8"
-weedle = "^0.8"
 yaml-rust = "^0.4"
 
 [[bin]]

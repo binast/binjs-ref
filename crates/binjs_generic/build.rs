@@ -1,6 +1,5 @@
 extern crate binjs_generate_library;
 extern crate binjs_meta;
-extern crate weedle;
 
 use binjs_generate_library::*;
 use binjs_meta::import::Importer;
@@ -22,13 +21,11 @@ fn main() {
     file.read_to_string(&mut source)
         .expect("Could not read source");
 
-    let ast = weedle::parse(&source).expect("Could not parse source");
-
     // Check spec. We don't really need null/fake_root
     // for this operation. It may change in the future,
     // we'll see then.
 
-    let mut builder = Importer::import(&ast);
+    let mut builder = Importer::import(&source).expect("Could not parse source");
     let fake_root = builder.node_name(""); // Ignored.
     let null = builder.node_name("_Null"); // Ignored.
     builder.add_interface(&null).unwrap();
