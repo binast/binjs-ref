@@ -217,7 +217,7 @@ fn main_aux() {
     );
 
     // Setup.
-    let parser = Shift::new();
+    let parser = Shift::try_new().expect("Could not launch Shift");
     let mut dictionary = Dictionary::new(depth, width);
     let mut files_containing_string = KindedStringMap::default();
     let mut number_of_files = 0;

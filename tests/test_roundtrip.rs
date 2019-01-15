@@ -71,7 +71,7 @@ fn main() {
 
     let mut rng = rand::thread_rng();
 
-    let parser = Shift::new();
+    let parser = Shift::try_new().expect("Could not launch Shift");
 
     // All combinations of options for compression.
     let mut all_options = {

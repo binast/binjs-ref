@@ -4,167 +4,174 @@ use json;
 use json::object::Object;
 use json::JsonValue as JSON;
 
-use std;
 use std::env;
-use std::io::Write;
+use std::ffi::OsString;
+use std::io::{BufRead, BufReader, LineWriter, Lines, Write};
 use std::path::*;
 use std::process::*;
+use std::sync::Mutex;
 
 use binjs_generic::syntax::{ASTError, MutASTVisitor, MutASTWalker, WalkPath};
 use binjs_meta::spec::{Interface, NodeName, Spec};
 
 use source::parser::SourceParser;
 
+use which::which;
+
 #[derive(Debug)]
 pub enum Error {
     CouldNotLaunch(std::io::Error),
-    CouldNotReadFile(std::io::Error),
-    ExecutionError(std::io::Error),
-    CouldNotCreateFile(std::io::Error),
-    ReturnedError(ExitStatus),
-    JsonError(json::JsonError),
+    IOError(std::io::Error),
+    JsonError(json::Error),
     InvalidPath(PathBuf),
-    InvalidUTF8(std::string::FromUtf8Error),
     InvalidAST(ASTError),
+    NodeNotFound(which::Error),
+    ParsingError(String),
+}
+
+pub struct NodeConfig {
+    /// Paths to the Node executable.
+    bin_path: PathBuf,
+    /// Path to a directory with our Node.js scripts (same as this Rust file).
+    scripts_path: &'static Path,
+    /// Node.js flag to configure memory usage.
+    memory: OsString,
+}
+
+impl NodeConfig {
+    pub fn try_new() -> Result<Self, Error> {
+        Ok(Self {
+            bin_path: which("node").map_err(Error::NodeNotFound)?,
+
+            scripts_path: Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/source")),
+
+            memory: match env::var("NODE_MAX_OLD_SPACE_SIZE") {
+                Err(_) => String::from("--max_old_space_size=2048"),
+                Ok(v) => format!("--max_old_space_size={}", v),
+            }
+            .into(),
+        })
+    }
+
+    pub fn create_cmd(&self, name: &str) -> Command {
+        let mut cmd = Command::new(&self.bin_path);
+        cmd.env("NODE_PATH", "node_modules");
+        cmd.arg(&self.memory);
+        cmd.arg(self.scripts_path.join(name));
+        cmd
+    }
+}
+
+struct ScriptIO {
+    input: LineWriter<ChildStdin>,
+    output: Lines<BufReader<ChildStdout>>,
+}
+
+pub struct Script(Mutex<ScriptIO>);
+
+impl Script {
+    pub fn try_new(node_config: &NodeConfig, name: &str) -> Result<Self, Error> {
+        let child = node_config
+            .create_cmd(name)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .map_err(Error::CouldNotLaunch)?;
+
+        Ok(Script(Mutex::new(ScriptIO {
+            input: LineWriter::new(child.stdin.unwrap()),
+            output: BufReader::new(child.stdout.unwrap()).lines(),
+        })))
+    }
+
+    /// This function is responsible for piping JSON inputs to the script
+    /// in a newline-delimited format and parsing JSON outputs back.
+    ///
+    /// Each output can be either `{"type":"Ok","value":...}` if operation was
+    /// successful or `{"type":"Err","value":...}` if corresponding JS callback
+    /// has failed with an error, and these are converted into Rust `Result`.
+    ///
+    /// See start-json-stream.js for some more details.
+    pub fn transform(&self, input: &JSON) -> Result<JSON, Error> {
+        let output = (move || {
+            let mut io = self.0.lock().unwrap();
+            input.write(&mut io.input)?;
+            writeln!(io.input)?;
+            io.output.next().unwrap()
+        })()
+        .map_err(Error::IOError)?;
+
+        let result = json::parse(&output).map_err(Error::JsonError)?;
+        if let JSON::Object(mut obj) = result {
+            if let (Some(mut value), Some(ty)) = (
+                obj.remove("value"),
+                obj.get("type").and_then(|ty| ty.as_str()),
+            ) {
+                match ty {
+                    "Ok" => return Ok(value),
+                    "Err" => {
+                        if let Some(msg) = value.take_string() {
+                            return Err(Error::ParsingError(msg));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Err(Error::JsonError(json::Error::wrong_type(
+            "Result-like JSON object",
+        )))
+    }
 }
 
 /// Using a Node + Shift binary to parse an AST.
 pub struct Shift {
-    bin_path: PathBuf,
+    parse_str: Script,
+    parse_file: Script,
+    codegen: Script,
 }
 
 impl Shift {
-    pub fn new() -> Self {
-        Shift::with_path("node")
+    pub fn try_new() -> Result<Self, Error> {
+        let node = NodeConfig::try_new()?;
+
+        Ok(Self {
+            parse_str: Script::try_new(&node, "parse_str.js")?,
+            parse_file: Script::try_new(&node, "parse_file.js")?,
+            codegen: Script::try_new(&node, "codegen.js")?,
+        })
     }
 
-    pub fn with_path<P: AsRef<Path>>(bin_path: P) -> Self {
-        Shift {
-            bin_path: bin_path.as_ref().to_path_buf(),
-        }
-    }
-
-    fn parse_script_output(&self, script: &str) -> Result<String, Error> {
-        debug!(target: "Shift", "Preparing script {}", script);
-
-        let script = format!(
-            r##"
-        var result;
-        try {{
-            result = (function() {{
-                {}
-            }})();
-        }} catch (ex) {{
-            console.warn(ex);
-            /* rethrow */ throw ex;
-        }};
-        var process = require('process');
-        /* See crates/binjs_io/src/escaped_wtf8.rs */
-        result = result
-            .replace(/[\u007F\uD800-\uDFFF]/ug, function(m) {{
-                if (m == "\u007F") {{
-                    return "\u007F007F";
-                }}
-                return "\u007F" + m.charCodeAt(0).toString(16);
-            }});
-        process.stdout.write(result);
-        console.warn(result);
-        "##,
-            script
-        );
-
-        debug!(target: "Shift", "Launching script {}", script);
-
-        let node_memory = match env::var("NODE_MAX_OLD_SPACE_SIZE") {
-            Err(_) => String::from("--max_old_space_size=2048"),
-            Ok(v) => format!("--max_old_space_size={}", v),
-        };
-
-        let mut child = Command::new(&*self.bin_path)
-            .arg(node_memory)
-            .env("NODE_PATH", "node_modules")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(Error::CouldNotLaunch)?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            stdin
-                .write(script.as_bytes())
-                .map_err(Error::ExecutionError)?;
-        }
-
-        let output = child.wait_with_output().map_err(Error::ExecutionError)?;
-
-        debug!(target: "Shift", "Output {:?}", output);
-        if !output.status.success() {
-            error!(target: "Shift", "Script error {}", String::from_utf8(output.stderr).unwrap());
-            return Err(Error::ReturnedError(output.status));
-        }
-
-        let result = String::from_utf8(output.stdout).map_err(Error::InvalidUTF8)?;
-        Ok(result)
-    }
-
-    fn parse_script_json_output(&self, script: &str) -> Result<JSON, Error> {
-        let stdout = self.parse_script_output(script)?;
-
-        // Now attempt to parse JSON
-        json::parse(&stdout).map_err(Error::JsonError)
-    }
-
-    pub fn to_source(&self, syntax: &Spec, ast: &JSON) -> Result<String, Error> {
-        let mut ast = ast.clone();
-
+    // We need to mutate the AST to adjust it to the Shift format, so we take
+    // it by ownership rather than by reference.
+    //
+    // If the caller needs the original AST after this call, it's their
+    // responsibility to clone it and pass to this function.
+    pub fn to_source(&self, syntax: &Spec, mut ast: JSON) -> Result<String, Error> {
         debug!(target: "Shift", "Preparing source\n{:#}", ast);
         let mut walker = MutASTWalker::new(syntax, ToShift);
         walker.walk(&mut ast).map_err(Error::InvalidAST)?;
         debug!(target: "Shift", "Prepared source\n{:#}", ast);
 
-        // Escape `"`.
-        let data = ast.dump().replace("\\", "\\\\").replace("\"", "\\\"");
-
-        // A script to parse a string, write it to stdout as JSON.
-        let script = format!(
-            r##"
-            var codegen = require('shift-codegen').default;
-            var ast     = JSON.parse("{}");
-            return codegen(ast);
-            "##,
-            data
-        );
-        self.parse_script_output(&script).map_err(|err| {
-            warn!("Could not pretty-print {}", ast.pretty(2));
-            err
-        })
+        self.codegen
+            .transform(&ast)
+            .and_then(|mut res| {
+                res.take_string()
+                    .ok_or_else(|| Error::JsonError(json::Error::wrong_type("string")))
+            })
+            .map_err(|err| {
+                warn!("Could not pretty-print {}", ast.pretty(2));
+                err
+            })
     }
 }
 
 impl SourceParser for Shift {
     type Error = Error;
+
     fn parse_str(&self, data: &str) -> Result<JSON, Error> {
-        // Escape `"`.
-        let data = data
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\r", "\\r")
-            .replace("\n", "\\n");
-
-        // A script to parse a string, write it to stdout as JSON.
-        let script = format!(
-            r##"
-            var parseScript = require('shift-parser').parseScript;
-            var data = "{}";
-
-            var parsed = parseScript(data, {{ earlyErrors: false }});
-
-            return JSON.stringify(parsed);
-            "##,
-            data
-        );
-
-        let mut ast = self.parse_script_json_output(&script)?;
+        let mut ast = self.parse_str.transform(&data.into())?;
         FromShift.convert(&mut ast);
         Ok(ast)
     }
@@ -177,17 +184,7 @@ impl SourceParser for Shift {
             .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?;
 
         // A script to parse a source file, write it to stdout as JSON.
-        let script = format!(
-            r##"
-            var parseScript = require('shift-parser').parseScript;
-            var fs      = require('fs');
-
-            var source  = fs.readFileSync({:?}, {{encoding: "utf-8"}});
-            return JSON.stringify(parseScript(source));
-            "##,
-            path
-        );
-        let mut ast = self.parse_script_json_output(&script)?;
+        let mut ast = self.parse_file.transform(&path.into())?;
         FromShift.convert(&mut ast);
         Ok(ast)
     }
@@ -727,7 +724,7 @@ fn test_shift_basic() {
     use env_logger;
     env_logger::init();
 
-    let shift = Shift::new();
+    let shift = Shift::try_new().expect("Could not launch Shift");
     let parsed = shift
         .parse_str("function foo() {}")
         .expect("Error in parse_str");

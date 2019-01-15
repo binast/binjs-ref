@@ -12,41 +12,22 @@ use binjs::source::*;
 
 use itertools::Itertools;
 
-use std::thread;
-
-const PATHS: [&'static str; 1] = ["tests/data/facebook/single/**/*.js"];
+const PATHS: [&'static str; 1] = ["benches/test.js"];
 const NUMBER_OF_SAMPLES: usize = 3;
 
+fn launch_shift() -> Shift {
+    Shift::try_new().expect("Could not launch Shift")
+}
+
 fn bench_parsing_one_parser_per_run(bencher: &mut bencher::Bencher) {
-    let bencher = bencher.clone();
-    thread::Builder::new()
-        .name("Large stack dedicated thread".to_string())
-        .stack_size(20 * 1024 * 1024)
-        .spawn(move || {
-            println!("Benchmark: one parser per run");
-            bench_parsing_aux(None, bencher);
-        })
-        .expect("Could not launch dedicated thread")
-        .join()
-        .expect("Error in dedicated thread");
+    bench_parsing_aux(None, bencher);
 }
 
 fn bench_parsing_reuse_parser(bencher: &mut bencher::Bencher) {
-    let bencher = bencher.clone();
-    thread::Builder::new()
-        .name("Large stack dedicated thread".to_string())
-        .stack_size(20 * 1024 * 1024)
-        .spawn(move || {
-            println!("Benchmark: reuse parser");
-            let mut parser = Shift::new();
-            bench_parsing_aux(Some(&mut parser), bencher);
-        })
-        .expect("Could not launch dedicated thread")
-        .join()
-        .expect("Error in dedicated thread");
+    bench_parsing_aux(Some(&launch_shift()), bencher);
 }
 
-fn bench_parsing_aux(parser: Option<&mut Shift>, mut bencher: bencher::Bencher) {
+fn bench_parsing_aux(parser: Option<&Shift>, bencher: &mut bencher::Bencher) {
     let entries = PATHS
         .iter()
         .map(|path_suffix| format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix))
@@ -55,20 +36,20 @@ fn bench_parsing_aux(parser: Option<&mut Shift>, mut bencher: bencher::Bencher) 
         .sorted();
     let paths: Vec<_> = entries.into_iter().take(NUMBER_OF_SAMPLES).collect();
     for path in &paths {
-        print!("\n{:?}.", path);
-        bencher.iter(|| {
-            print!(".");
-            let json = match parser {
-                None => Shift::new()
-                    .parse_file(path.clone())
-                    .expect("Could not parse source"),
-                Some(ref parser) => parser
-                    .parse_file(path.clone())
-                    .expect("Could not parse source"),
-            };
+        bencher.iter(move || {
+            let shift;
 
-            let _ =
-                binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
+            let json = match parser {
+                Some(parser) => parser,
+                None => {
+                    shift = launch_shift();
+                    &shift
+                }
+            }
+            .parse_file(path)
+            .expect("Could not parse source");
+
+            binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST")
         });
     }
 }

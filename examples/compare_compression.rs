@@ -111,7 +111,7 @@ fn main() {
     let mut format =
         binjs::io::Format::from_matches(&matches).expect("Could not determine encoding format");
 
-    let parser = Shift::new();
+    let parser = Shift::try_new().expect("Could not launch Shift");
 
     let mut all_stats = HashMap::new();
 

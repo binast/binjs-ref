@@ -88,7 +88,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
 
     let random_metadata = matches.is_present("random-metadata");
 
-    let parser = Shift::new();
+    let parser = Shift::try_new().expect("Could not launch Shift");
 
     let mut i = 0;
     loop {
@@ -112,7 +112,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
             binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
         }
 
-        if let Ok(source) = parser.to_source(&spec, &json) {
+        if let Ok(source) = parser.to_source(&spec, json) {
             i += 1;
 
             println!("Generated sample {}/{}", i, number);
