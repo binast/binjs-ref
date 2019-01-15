@@ -2,7 +2,6 @@ extern crate binjs_generate_library;
 extern crate binjs_meta;
 extern crate clap;
 extern crate env_logger;
-extern crate weedle;
 
 use binjs_generate_library::*;
 use binjs_meta::import::Importer;
@@ -39,11 +38,8 @@ fn main() {
     file.read_to_string(&mut source)
         .expect("Could not read source");
 
-    println!("...parsing webidl");
-    let ast = weedle::parse(&source).expect("Could not parse source");
-
-    println!("...verifying grammar");
-    let mut builder = Importer::import(&ast);
+    println!("...importing webidl");
+    let mut builder = Importer::import(&source).expect("Could not parse source");
     let fake_root = builder.node_name("@@ROOT@@"); // Ignored.
     let null = builder.node_name(""); // Used.
     builder.add_interface(&null).unwrap();
