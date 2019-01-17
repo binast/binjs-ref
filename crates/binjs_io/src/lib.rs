@@ -15,9 +15,12 @@ extern crate range_encoding;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
+extern crate smallvec;
 
 extern crate vec_map;
 extern crate xml as xml_rs;
+
+use binjs_shared::SharedString;
 
 use std::cell::RefCell;
 use std::fmt::{Debug, Formatter};
@@ -38,6 +41,7 @@ pub enum TokenWriterError {
 
 #[derive(Debug)]
 pub enum TokenReaderError {
+    UnexpectedEndOfStream(String),
     NotInDictionary(String),
     ReadError(std::io::Error),
     BadLength {
@@ -45,6 +49,7 @@ pub enum TokenReaderError {
         got: usize,
     },
     BadHeader,
+    BadHeaderName(Vec<u8>),
     BadCompression(std::io::Error),
     EndOffsetError {
         start: u64,
@@ -53,6 +58,10 @@ pub enum TokenReaderError {
         description: String,
     },
     BadStringIndex(u32),
+    BadDictionaryIndex {
+        index: u32,
+        dictionary: SharedString,
+    },
     InvalidValue,
     BadKindIndex(u32),
     Encoding(std::string::FromUtf8Error),

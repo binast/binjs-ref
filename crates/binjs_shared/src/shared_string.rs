@@ -115,6 +115,11 @@ macro_rules! shared_string {
                 &self.0
             }
         }
+        impl<'a> Into<&'a [u8]> for &'a $name {
+            fn into(self) -> &'a [u8] {
+                self.as_str().as_bytes()
+            }
+        }
         impl PartialEq for $name {
             fn eq(&self, other: &$name) -> bool {
                 self.0.eq(&other.0)

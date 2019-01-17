@@ -1,5 +1,7 @@
 use bytes::varnum::*;
 
+use binjs_shared::F64;
+
 use std;
 use std::io::Write;
 
@@ -35,12 +37,23 @@ pub fn bytes_of_float(value: Option<f64>) -> [u8; 8] {
 ///
 /// Instead of always fitting in 64 bits, varfloats are represented as follows:
 /// - null is represented as VARNUM_NULL (24 bits);
-/// - floats with an i32 value are transmuted to u32s and represented as varnums (8 to 40 bits);
-/// - other float values are prefixed with VARNUM_PREFIX_FLOAT (8 bits), then represented
+/// - floats with an i32 value are transmuted to u32s and represented as signed varnums
+///    (8 to 40 bits, where numbers in [-63, 63] fit in 8 bits);
+/// - other float values are prefixed with VARNUM_PREFIX_FLOAT (16 bits), then represented
 ///     with the usual 64 bits.
 pub trait WriteVarFloat {
     fn write_maybe_varfloat(&mut self, value: Option<f64>) -> Result<usize, std::io::Error>;
     fn write_varfloat(&mut self, num: f64) -> Result<usize, std::io::Error>;
+
+    /// Utility: as `write_maybe_varfloat` but with a `F64` instead of a `f64`.
+    fn write_maybe_varfloat2(&mut self, value: Option<F64>) -> Result<usize, std::io::Error> {
+        self.write_maybe_varfloat(value.map(Into::<f64>::into))
+    }
+
+    /// Utility: as `write_varfloat` but with a `F64` instead of a `f64`.
+    fn write_varfloat2(&mut self, num: F64) -> Result<usize, std::io::Error> {
+        self.write_varfloat(num.into())
+    }
 }
 
 impl<T> WriteVarFloat for T
@@ -68,20 +81,7 @@ where
             if as_signed_integer as f64 == value
                 && (as_signed_integer != 0 || value.is_sign_positive())
             {
-                // This is an i32. We can fit it in at most 5 7bit bytes.
-                //
-                // We pick a representation that favors small numbers, both
-                // positive and negative.
-                let as_unsigned = if as_signed_integer >= 0 {
-                    // Map non-negative to even numbers.
-                    // So, numbers in [0, 128) will fit in a single byte.
-                    2 * (as_signed_integer as u32)
-                } else {
-                    // Map negatives to odd numbers.
-                    // So, numbers in [-127, -1] will fit in a single byte.
-                    2 * ((-as_signed_integer + 1) as u32) - 1
-                };
-                return self.write_varnum(as_unsigned);
+                return self.write_signed_varnum(as_signed_integer);
             }
         }
         // Encode as a float prefixed by 0b00000001 0b00000000 (which is an invalid integer).
@@ -89,6 +89,58 @@ where
         self.write_all(&VARNUM_PREFIX_FLOAT)?;
         self.write_all(&bytes)?;
         Ok(bytes.len() + VARNUM_PREFIX_FLOAT.len())
+    }
+}
+
+/// Utility for manipulating of `varfloats`, a somewhat optimized representation of floats.
+///
+/// This format is designed to help the most common floating point numbers (fairly short
+/// integers) take fewer bytes.
+///
+/// Instead of always fitting in 64 bits, varfloats are represented as follows:
+/// - null is represented as VARNUM_NULL (24 bits);
+/// - floats with an i32 value are transmuted to u32s and represented as signed varnums
+///    (8 to 40 bits, where numbers in [-63, 63] fit in 8 bits);
+/// - other float values are prefixed with VARNUM_PREFIX_FLOAT (16 bits), then represented
+///     with the usual 64 bits.
+pub trait ReadVarFloat {
+    fn read_maybe_varfloat(&mut self) -> Result<Option<f64>, std::io::Error>;
+}
+impl<T> ReadVarFloat for T
+where
+    T: std::io::Read,
+{
+    fn read_maybe_varfloat(&mut self) -> Result<Option<f64>, std::io::Error> {
+        let mut as_i32 = 0;
+        let bytes_read = self.read_extended_signed_varnum_to(&mut as_i32)?;
+        if as_i32 == 0 {
+            match bytes_read {
+                1 => {
+                    // 0 as one byte, that's the regular 0.
+                    return Ok(Some(0.));
+                }
+                2 => {
+                    // 0 as two bytes, that's VARNUM_PREFIX_FLOAT.
+                    // The next 8 bytes are a IEEE f64.
+                    let mut buf: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+                    self.read_exact(&mut buf)?;
+                    return Ok(float_of_bytes(&buf));
+                }
+                3 => {
+                    // 0 as three bytes, that's VARNUM_NULL
+                    return Ok(None);
+                }
+                _ => {
+                    // That's an error.
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid varfloat",
+                    ));
+                }
+            }
+        }
+        // Otherwise, it's an i32.
+        Ok(Some(as_i32 as f64))
     }
 }
 
@@ -122,4 +174,50 @@ fn test_floats() {
     }
 
     assert_eq!(float_of_bytes(&bytes_of_float(None)), None);
+}
+
+#[test]
+fn test_var_floats() {
+    fn single_value(value: Option<f64>) -> usize {
+        let mut buf = Vec::new();
+        buf.write_maybe_varfloat(value).unwrap();
+
+        let size = buf.len();
+
+        let mut input = std::io::Cursor::new(buf);
+        let decoded = input.read_maybe_varfloat().unwrap();
+        assert_eq!(decoded, value);
+
+        size
+    }
+    use std::f64::*;
+
+    // Testing values that should fit in one byte.
+    for i in -63..63 {
+        let bytes = single_value(Some(i as f64));
+        assert_eq!(
+            bytes, 1,
+            "Integer values between -63 and 63 should fit in one byte: {}",
+            i
+        );
+    }
+
+    // Testing a sampling of other values.
+    for x in &[
+        -256.,
+        1000.,
+        0.5,
+        1.7,
+        3.8,
+        11.1,
+        INFINITY,
+        MIN,
+        MAX,
+        NEG_INFINITY,
+    ] {
+        single_value(Some(*x));
+    }
+
+    // Finally, `None`.
+    single_value(None);
 }

@@ -178,7 +178,11 @@ where
     /// to `exit_interface`.
     pub fn enter_interface(&mut self, node: I) {
         debug!(target: "path", "enter_interface: {:?}", node);
-        debug_assert!(self.interface.is_none());
+        debug_assert!(
+            self.interface.is_none(),
+            "We shouldn't have a pending interface, got {:?}",
+            self.interface
+        );
         self.interface = Some(node);
     }
     pub fn exit_interface(&mut self, node: I) {
@@ -196,7 +200,11 @@ where
     }
     pub fn exit_field(&mut self, field: F) {
         debug!(target: "path", "exit_field: {:?}", field);
-        debug_assert!(self.interface.is_none());
+        debug_assert!(
+            self.interface.is_none(),
+            "We shouldn't have a pending interface, got {:?}",
+            self.interface
+        );
         let PathItem {
             interface,
             field: prev,

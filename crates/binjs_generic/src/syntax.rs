@@ -62,13 +62,13 @@ impl Compare for TypeSpec {
                     Some(NamedType::StringEnum(_))
                         if left.as_str().is_some() && right.as_str().is_some() =>
                     {
-                        return Ok(left.as_str().unwrap() == right.as_str().unwrap())
+                        return Ok(left.as_str().unwrap() == right.as_str().unwrap());
                     }
                     Some(NamedType::Interface(interface)) => {
-                        return interface.compare(syntax, left, right)
+                        return interface.compare(syntax, left, right);
                     }
                     Some(NamedType::Typedef(typedef)) => {
-                        return typedef.compare(syntax, left, right)
+                        return typedef.compare(syntax, left, right);
                     }
                     None => panic!("Could not find a type named {:?}", name),
                     _ => {}
