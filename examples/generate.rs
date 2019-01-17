@@ -125,7 +125,9 @@ Note that this tool does not attempt to make sure that the files are entirely co
             }
 
             let encoder = Encoder::new();
-            let encoded = encoder.encode(&mut format, &ast).expect("Could not encode");
+            let encoded = encoder
+                .encode(None, &mut format, &ast)
+                .expect("Could not encode AST");
 
             {
                 let mut encoded_file = std::fs::File::create(format!("{}-{}.binjs", prefix, i))
