@@ -1,7 +1,5 @@
 //! Miscellaneous utilities.
 
-extern crate inflector;
-
 pub trait ToStr {
     /// Return the value as a `str`.
     fn to_str(&self) -> &str;

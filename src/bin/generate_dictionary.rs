@@ -5,7 +5,6 @@ extern crate binjs;
 extern crate bincode;
 extern crate clap;
 extern crate env_logger;
-extern crate log;
 
 use binjs::generic::FromJSON;
 use binjs::io::entropy::dictionary::DictionaryBuilder;

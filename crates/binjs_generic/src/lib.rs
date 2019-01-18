@@ -2,7 +2,6 @@
 //! format.
 
 extern crate binjs_es6;
-extern crate binjs_io;
 extern crate binjs_meta;
 extern crate binjs_shared;
 
