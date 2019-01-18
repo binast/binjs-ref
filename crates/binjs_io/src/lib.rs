@@ -15,7 +15,6 @@ extern crate log;
 extern crate rand;
 extern crate range_encoding;
 #[macro_use]
-extern crate serde_derive;
 extern crate serde;
 extern crate smallvec;
 

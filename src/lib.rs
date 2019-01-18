@@ -24,20 +24,15 @@ extern crate binjs_io;
 extern crate binjs_meta;
 extern crate binjs_shared;
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate assert_matches;
-#[cfg(test)]
-extern crate env_logger;
-extern crate itertools;
 #[macro_use]
 extern crate json;
 #[macro_use]
 extern crate log;
-extern crate lzw;
 extern crate rand;
-extern crate vec_map;
 extern crate which;
+
+#[cfg(test)]
+extern crate env_logger;
 
 /// Working with a generic (i.e. JSON-based) representation
 /// of the JavaScript AST.

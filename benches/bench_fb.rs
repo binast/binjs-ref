@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate bencher;
 extern crate binjs;
-extern crate env_logger;
+
 extern crate glob;
 extern crate itertools;
 

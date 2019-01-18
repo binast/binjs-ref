@@ -3,7 +3,6 @@
 extern crate binjs;
 extern crate clap;
 extern crate env_logger;
-extern crate log;
 
 use binjs::generic::FromJSON;
 use binjs::io::{CompressionTarget, Format};

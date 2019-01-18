@@ -1,7 +1,5 @@
 extern crate binjs_meta;
-extern crate env_logger;
 extern crate itertools;
-extern crate log;
 
 use binjs_meta::export::{TypeDeanonymizer, TypeName};
 use binjs_meta::spec::*;
