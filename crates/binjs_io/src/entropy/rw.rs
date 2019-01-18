@@ -23,11 +23,9 @@ pub const SECTION_PRELUDE: &'static [u8] = b"[[prelude]]";
 pub const SECTION_CONTENT: &'static [u8] = b"[[content]]";
 pub const SECTION_CONTENT_WITHOUT_BRACKETS: &'static [u8] = b"content";
 
-
 /// Indicating that the stream is compressed with format "entropy 0.2".
 pub const FORMAT_ENTROPY_0: &'static [u8] = b"entropy0.2;";
 // pub const FORMAT_IDENTITY: &'static [u8] = b"identity;";
-
 
 /// Indicating that the stream is compressed with format "brotli".
 pub const FORMAT_BROTLI: &'static [u8] = b"br;";
@@ -88,7 +86,7 @@ impl<T> PreludeStreams<T> {
     /// Create a new PreludeStreams.
     pub fn with<F>(f: F) -> Self
     where
-        F: Fn(&str) -> T
+        F: Fn(&str) -> T,
     {
         PreludeStreams {
             identifier_names: f("identifier_names"),
@@ -119,7 +117,8 @@ impl<T> PreludeStreams<T> {
             ("list_lengths", &mut self.list_lengths),
             ("floats", &mut self.floats),
             ("unsigned_longs", &mut self.unsigned_longs),
-        ].into_iter()
+        ]
+        .into_iter()
     }
 
     /// Access a field by its name, specified as a sequence of bytes.
