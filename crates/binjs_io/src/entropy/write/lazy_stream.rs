@@ -1,4 +1,4 @@
-use super::probabilities::IntoStatistics;
+use entropy::probabilities::IntoStatistics;
 use io::statistics::Bytes;
 
 use std::io::Write;
@@ -106,7 +106,7 @@ impl LazyStream {
 }
 impl std::io::Write for LazyStream {
     /// Compress the data to the Brotli stream, initializing it if necessary.
-    /// Also dump th edata to `dump_path` if `dump_path` was specified.
+    /// Also dump the data to `dump_path` if `dump_path` was specified.
     fn write(&mut self, data: &[u8]) -> Result<usize, std::io::Error> {
         // 1. Write to Brotli.
         {

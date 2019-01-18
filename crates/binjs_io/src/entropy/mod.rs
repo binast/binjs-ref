@@ -56,9 +56,6 @@
 
 pub mod dictionary;
 
-/// Writing files to compressed format and/or disk.
-mod lazy_stream;
-
 /// Reading a compressed stream.
 pub mod read;
 
