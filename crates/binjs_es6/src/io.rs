@@ -407,6 +407,8 @@ impl Decoder {
             Deserialization<binjs_io::simple::TreeTokenReader<R>, AST>,
         Deserializer<binjs_io::multipart::TreeTokenReader>:
             Deserialization<binjs_io::multipart::TreeTokenReader, AST>,
+        Deserializer<binjs_io::json::read::Decoder<R>>:
+            Deserialization<binjs_io::json::read::Decoder<R>, AST>,
         Deserializer<binjs_io::entropy::read::Decoder<R>>:
             Deserialization<binjs_io::entropy::read::Decoder<R>, AST>,
     {
@@ -420,6 +422,12 @@ impl Decoder {
             }
             binjs_io::Format::Multipart { .. } => {
                 let reader = binjs_io::multipart::TreeTokenReader::new(source)?;
+                let mut deserializer = Deserializer::new(reader);
+                let ast = deserializer.deserialize(&mut path)?;
+                Ok(ast)
+            }
+            binjs_io::Format::JSON { .. } => {
+                let reader = binjs_io::json::read::Decoder::new(source)?;
                 let mut deserializer = Deserializer::new(reader);
                 let ast = deserializer.deserialize(&mut path)?;
                 Ok(ast)
@@ -451,6 +459,8 @@ impl Encoder {
             Serialization<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>, &'a AST>,
         Serializer<TokenWriterTreeAdapter<binjs_io::xml::Encoder>>:
             Serialization<TokenWriterTreeAdapter<binjs_io::xml::Encoder>, &'a AST>,
+        Serializer<binjs_io::json::write::TreeTokenWriter>:
+            Serialization<binjs_io::json::write::TreeTokenWriter, &'a AST>,
         Serializer<binjs_io::entropy::write::Encoder>:
             Serialization<binjs_io::entropy::write::Encoder, &'a AST>,
     {
@@ -476,6 +486,13 @@ impl Encoder {
             binjs_io::Format::XML => {
                 let writer = binjs_io::xml::Encoder::new();
                 let mut serializer = Serializer::new(TokenWriterTreeAdapter::new(writer));
+                serializer.serialize(ast, &mut path)?;
+                let data = serializer.done()?;
+                Ok(Box::new(data))
+            }
+            binjs_io::Format::JSON => {
+                let writer = binjs_io::json::write::TreeTokenWriter::new();
+                let mut serializer = Serializer::new(writer);
                 serializer.serialize(ast, &mut path)?;
                 let data = serializer.done()?;
                 Ok(Box::new(data))

@@ -1,4 +1,4 @@
-/// An utility to convert between WTF-8 and UTF-8 + special; escape sequence.
+/// An utility to convert between WTF-8 and UTF-8 + special escape sequence.
 ///
 /// The escape sequence has the following syntax:
 ///   \x7F (single delete character) + XXXX (4 hex digits in ASCII)
@@ -29,7 +29,17 @@ const LONE_SURROGATE_UNIT_3_MIN: u8 = 0x80;
 const LONE_SURROGATE_UNIT_3_MAX: u8 = 0xBF;
 
 const LEAD_SURROGATE_MIN: u16 = 0xD800;
+const LEAD_SURROGATE_MAX: u16 = 0xDBFF;
+const TRAIL_SURROGATE_MIN: u16 = 0xDC00;
 const TRAIL_SURROGATE_MAX: u16 = 0xDFFF;
+
+fn is_lead_surrogate(n: u16) -> bool {
+    return LEAD_SURROGATE_MIN <= n && n <= LEAD_SURROGATE_MAX;
+}
+
+fn is_trail_surrogate(n: u16) -> bool {
+    return TRAIL_SURROGATE_MIN <= n && n <= TRAIL_SURROGATE_MAX;
+}
 
 /// Convert 0-F number to ASCII char.
 fn encode_hex_char(n: u8) -> u8 {
@@ -37,6 +47,20 @@ fn encode_hex_char(n: u8) -> u8 {
         0...9 => b'0' + n,
         0xa...0xf => b'A' + (n - 10),
         _ => panic!("unexpected input"),
+    }
+}
+
+/// Returns true if the given code is 0-9A-Fa-f chars.
+/// This uses u16 instead of u8 because the callsite uses u16.
+fn is_hex_char(n: u16) -> bool {
+    if b'0' as u16 <= n && n <= b'9' as u16 {
+        true
+    } else if b'A' as u16 <= n && n <= b'F' as u16 {
+        true
+    } else if b'a' as u16 <= n && n <= b'f' as u16 {
+        true
+    } else {
+        false
     }
 }
 
@@ -278,4 +302,223 @@ pub fn for_print(s: &SharedString) -> SharedString {
     }
 
     SharedString::from_string(String::from_utf8(buf).expect("Escaped string should be valid UTF-8"))
+}
+
+/// Convert the given escaped_wtf8 string to JSON.  If the given string contains
+/// any escaped lone surrogate, it's converted to unicode escape sequence.
+///
+/// This is not optimized.
+pub fn to_json(s: &SharedString) -> SharedString {
+    let input = s.as_str().as_bytes();
+
+    let mut i = 0;
+    let mut buf: Vec<u8> = Vec::with_capacity((input.len() + 2).next_power_of_two());
+    buf.push(b'\"');
+    'per_byte: while i < input.len() {
+        let unit = input[i];
+
+        if unit != LONE_SURROGATE_ESCAPE_CHAR {
+            match unit {
+                b'\\' | b'\"' => {
+                    buf.push(b'\\');
+                    buf.push(unit);
+                }
+                0x08 => {
+                    buf.push(b'\\');
+                    buf.push(b'b');
+                }
+                0x0C => {
+                    buf.push(b'\\');
+                    buf.push(b'f');
+                }
+                b'\n' => {
+                    buf.push(b'\\');
+                    buf.push(b'n');
+                }
+                b'\r' => {
+                    buf.push(b'\\');
+                    buf.push(b'r');
+                }
+                b'\t' => {
+                    buf.push(b'\\');
+                    buf.push(b't');
+                }
+                _ => {
+                    buf.push(unit);
+                }
+            }
+            i += 1;
+            continue 'per_byte;
+        }
+
+        let codepoint: u16 = (decode_hex_char(input[i + 1]) << 12)
+            | (decode_hex_char(input[i + 2]) << 8)
+            | (decode_hex_char(input[i + 3]) << 4)
+            | decode_hex_char(input[i + 4]);
+
+        if codepoint == LONE_SURROGATE_ESCAPE_CHAR as u16 {
+            buf.push(LONE_SURROGATE_ESCAPE_CHAR);
+        } else {
+            assert!(
+                codepoint >= LEAD_SURROGATE_MIN && codepoint <= TRAIL_SURROGATE_MAX,
+                "escaped codepoint should be either {:04x} or lone surrogate ({:04x}...{:04x})",
+                LONE_SURROGATE_ESCAPE_CHAR,
+                LEAD_SURROGATE_MIN,
+                TRAIL_SURROGATE_MAX
+            );
+
+            buf.extend_from_slice(b"\\u");
+            buf.push(input[i + 1]);
+            buf.push(input[i + 2]);
+            buf.push(input[i + 3]);
+            buf.push(input[i + 4]);
+        }
+
+        i += 5;
+    }
+    buf.push(b'\"');
+    SharedString::from_string(String::from_utf8(buf).expect("Escaped string should be valid UTF-8"))
+}
+
+/// Parse UTF-16 encoded JSON string and return UTF-16 string,
+/// which can contain raw lone surrogate.
+fn parse_json(input: &[u16]) -> Result<Vec<u16>, ()> {
+    assert!(input.len() >= 2);
+    assert!(input[0] == b'"' as u16);
+    assert!(input[input.len() - 1] == b'"' as u16);
+
+    let mut buf: Vec<u16> = Vec::with_capacity(input.len());
+    let mut i = 1;
+    let end = input.len() - 1;
+    while i < end {
+        let c = input[i];
+        if c == b'\\' as u16 {
+            // Handle escape sequence.
+
+            i += 1;
+            if i >= end {
+                return Err(());
+            }
+
+            let next = input[i];
+            if next == b'"' as u16 || next == b'/' as u16 || next == b'\\' as u16 {
+                buf.push(input[i]);
+                i += 1;
+            } else if next == b'b' as u16 {
+                buf.push(0x08);
+                i += 1;
+            } else if next == b'f' as u16 {
+                buf.push(0x0C);
+                i += 1;
+            } else if next == b'n' as u16 {
+                buf.push(b'\n' as u16);
+                i += 1;
+            } else if next == b'r' as u16 {
+                buf.push(b'\r' as u16);
+                i += 1;
+            } else if next == b't' as u16 {
+                buf.push(b'\t' as u16);
+                i += 1;
+            } else if next == b'u' as u16 {
+                i += 1;
+                if end - i < 4
+                    || !is_hex_char(input[i])
+                    || !is_hex_char(input[i + 1])
+                    || !is_hex_char(input[i + 2])
+                    || !is_hex_char(input[i + 3])
+                {
+                    return Err(());
+                }
+                let code = (decode_hex_char(input[i] as u8) << 12)
+                    | (decode_hex_char(input[i + 1] as u8) << 8)
+                    | (decode_hex_char(input[i + 2] as u8) << 4)
+                    | decode_hex_char(input[i + 3] as u8);
+                i += 4;
+                buf.push(code);
+            } else {
+                return Err(());
+            }
+        } else {
+            buf.push(c);
+            i += 1;
+        }
+    }
+    Ok(buf)
+}
+
+/// Escape lone surrogate in the given UTF-16 string.
+fn escape_utf16(input: &[u16]) -> Vec<u16> {
+    let mut buf: Vec<u16> = Vec::with_capacity(input.len());
+    let mut i = 0;
+    let end = input.len();
+    while i < end {
+        let unit = input[i];
+
+        if is_lead_surrogate(unit) {
+            i += 1;
+
+            if i >= end {
+                // Lead surrogate at the end of string.
+                buf.push(LONE_SURROGATE_ESCAPE_CHAR as u16);
+                buf.push(encode_hex_char(((unit >> 12) & 0xf) as u8) as u16);
+                buf.push(encode_hex_char(((unit >> 8) & 0xf) as u8) as u16);
+                buf.push(encode_hex_char(((unit >> 4) & 0xf) as u8) as u16);
+                buf.push(encode_hex_char((unit & 0xf) as u8) as u16);
+            }
+            let trail = input[i];
+
+            if is_trail_surrogate(trail) {
+                // Surrogate pair.
+                buf.push(unit);
+                buf.push(trail);
+                i += 1;
+            } else {
+                // Lead surrogate without trail surrogate in the next unit.
+                buf.push(LONE_SURROGATE_ESCAPE_CHAR as u16);
+                buf.push(encode_hex_char(((unit >> 12) & 0xf) as u8) as u16);
+                buf.push(encode_hex_char(((unit >> 8) & 0xf) as u8) as u16);
+                buf.push(encode_hex_char(((unit >> 4) & 0xf) as u8) as u16);
+                buf.push(encode_hex_char((unit & 0xf) as u8) as u16);
+            }
+        } else if is_trail_surrogate(unit) {
+            // Trail surrogate without lead surrogate in the previous unit.
+            buf.push(LONE_SURROGATE_ESCAPE_CHAR as u16);
+            buf.push(encode_hex_char(((unit >> 12) & 0xf) as u8) as u16);
+            buf.push(encode_hex_char(((unit >> 8) & 0xf) as u8) as u16);
+            buf.push(encode_hex_char(((unit >> 4) & 0xf) as u8) as u16);
+            buf.push(encode_hex_char((unit & 0xf) as u8) as u16);
+            i += 1;
+        } else if unit == LONE_SURROGATE_ESCAPE_CHAR as u16 {
+            buf.push(LONE_SURROGATE_ESCAPE_CHAR as u16);
+            buf.push(b'0' as u16);
+            buf.push(b'0' as u16);
+            buf.push(b'7' as u16);
+            buf.push(b'F' as u16);
+            i += 1;
+        } else {
+            buf.push(unit);
+            i += 1;
+        }
+    }
+
+    buf
+}
+
+/// Parse the given JSON string.  If the given JSON string contains lone
+/// surrogate, it's escaped with \x7F + XXXX (4 hex digits).
+///
+/// This is not optimized and only for testing.
+pub fn from_json(s: &SharedString) -> Result<SharedString, ()> {
+    // To simplify the surrogate pair handling, do the following:
+    //   1. convert to UTF-16,
+    //   2. unescape JSON string escape sequence
+    //   3. convert lone surrogate to special escape sequence
+    //   3. convert to UTF-8
+
+    let input: Vec<u16> = s.as_str().encode_utf16().collect();
+    let raw_utf16 = parse_json(input.as_slice())?;
+    let escaped_utf16 = escape_utf16(raw_utf16.as_slice());
+    Ok(SharedString::from_string(
+        String::from_utf16(escaped_utf16.as_slice()).expect("Escaped string should be valid UTF-8"),
+    ))
 }
