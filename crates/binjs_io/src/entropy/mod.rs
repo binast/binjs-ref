@@ -32,27 +32,19 @@
 //!  contains a dictionary, in which case we may easily load the headers and
 //!  dictionaries in reading order. I guess we should do that.
 //!
-//! # Encoding
 //!
-//! Pass 1: walk the tree, compute the probabilities for each symbol.
-//! Pass 2: use probabilities to actually encode the symbols.
-//!   - Whenever we encounter a symbol that we have never seen in a given context,
-//!     the symbol is followed by its definition as soon as possible.
+//! # General structure
 //!
-//! FIXME: Some symbols will need to be defined more than once. Need to estimate
-//! how often this appears.
-//!
-//! FIXME: Wait, no, that doesn't work. If we want this to work, we first need
-//! to deliver the probability table for everything. That's not what we want.
-//!
-//! Option: we may initialize the dictionary as follows:
-//! - initial probability of a new symbol is 1.
-//! - whenever we create a symbol, we followup with its actual probability
-//! - the probability of new symbols decreases each time we add a symbol
-//!
-//!
-//! ----- Initially, start with everything equi-likely. We'll add a predefined
-//! and/or custom dictionary later.
+//! ```md
+//! - Magic header
+//! - `[[prelude]]` (this section contains the extension of dictionaries used by this file)
+//! - the following streams may appear in any order and are all optional
+//!    - (TBD)
+//! - `[[content]]` (this section contains the content streams, which represent user-extensible values)
+//!    - (TBD)
+//! - `[[main]]` (this section contains the main stream, encoded with entropy)
+//!    - (TBD)
+//! ```
 
 pub mod dictionary;
 
