@@ -62,6 +62,7 @@ pub enum TokenReaderError {
         index: u32,
         dictionary: SharedString,
     },
+    BadStringDecoder,
     InvalidValue,
     BadKindIndex(u32),
     Encoding(std::string::FromUtf8Error),
@@ -71,6 +72,7 @@ pub enum TokenReaderError {
     EmptyBool,
     EmptyString,
     EmptyList,
+    EmptyNumber,
     BadEnumVariant,
 }
 impl TokenReaderError {
