@@ -54,6 +54,9 @@ pub struct Encoder {
     /// Main stream compressed by entropy coding.
     writer: opus::Writer<Vec<u8>>,
 
+    /// A file at which to dump the contents of the main stream.
+    dump_path: Option<std::path::PathBuf>,
+
     /// Parts of the content that we do not know how to compress correctly
     /// with entropy coding yet, and that we rather compress by Brotli
     /// at the time of this writing.
@@ -83,6 +86,13 @@ impl Encoder {
         // FIXME: We shouldn't need to clone the entire `options`. A shared immutable reference would do nicely.
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
+            dump_path: path.map(|path| {
+                let mut buf = std::path::PathBuf::new();
+                buf.push(path);
+                buf.set_extension("streams");
+                buf.push("main.entropy");
+                buf
+            }),
             options,
             content_opus_lengths: ContentInfo::with(|_| opus::Writer::new(LengthWriter::new())),
             content_streams: ContentInfo::with(|name| {
@@ -93,7 +103,7 @@ impl Encoder {
                         buf.push(path);
                         buf.set_extension("streams");
                         buf.push(name);
-                        buf.set_extension("references");
+                        buf.set_extension("content");
                         Some(buf)
                     }
                 };
@@ -107,7 +117,7 @@ impl Encoder {
                         buf.push(path);
                         buf.set_extension("streams");
                         buf.push(name);
-                        buf.set_extension("definitions");
+                        buf.set_extension("prelude");
                         Some(buf)
                     }
                 };
@@ -360,6 +370,13 @@ impl TokenWriter for Encoder {
             .map_err(TokenWriterError::WriteError)?;
 
         let entropy = self.writer.done().map_err(TokenWriterError::WriteError)?;
+
+        if let Some(path) = self.dump_path {
+            let mut file = std::fs::File::create(path).map_err(TokenWriterError::WriteError)?;
+            file.write_all(&entropy)
+                .map_err(TokenWriterError::WriteError)?;
+            file.flush().map_err(TokenWriterError::WriteError)?;
+        }
 
         data.write_all(&entropy)
             .map_err(TokenWriterError::WriteError)?;
