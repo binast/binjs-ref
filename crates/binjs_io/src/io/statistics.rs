@@ -129,6 +129,28 @@ impl<T> ContentInfo<T> {
         ]
         .into_iter()
     }
+
+    /// Access a field by its name, specified as a sequence of bytes.
+    ///
+    /// This method is typically used to simplify parsing a file that
+    /// contains sections explicitly labelled "bools", "floats", etc.
+    /// In such case, `field_name` is expected to be a user input.
+    ///
+    /// Return `None` if `field_name` is not one of the field names.
+    pub fn get_mut_b(&mut self, field_name: &[u8]) -> Option<&mut T> {
+        match field_name {
+            b"bools" => Some(&mut self.bools),
+            b"floats" => Some(&mut self.floats),
+            b"unsigned_longs" => Some(&mut self.unsigned_longs),
+            b"string_enums" => Some(&mut self.string_enums),
+            b"property_keys" => Some(&mut self.property_keys),
+            b"identifier_names" => Some(&mut self.identifier_names),
+            b"interface_names" => Some(&mut self.interface_names),
+            b"string_literals" => Some(&mut self.string_literals),
+            b"list_lengths" => Some(&mut self.list_lengths),
+            _ => None,
+        }
+    }
 }
 
 pub trait DisplayWith<T> {

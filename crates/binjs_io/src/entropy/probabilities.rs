@@ -24,3 +24,9 @@ pub trait InstancesToProbabilities {
     type AsProbabilities;
     fn instances_to_probabilities(self, description: &str) -> Self::AsProbabilities;
 }
+
+/// A structure that may be converted into statistical information.
+pub trait IntoStatistics {
+    type AsStatistics;
+    fn into_statistics(self, description: &str) -> Self::AsStatistics;
+}

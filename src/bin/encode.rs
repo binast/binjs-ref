@@ -169,8 +169,12 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
 
     progress!(options.quiet, "Encoding.");
     let encoder = Encoder::new();
+    let encoding_path = match dest_bin_path {
+        None => None,
+        Some(ref buf) => Some(buf.as_path()),
+    };
     let data = encoder
-        .encode(&mut options.format, &ast)
+        .encode(encoding_path, &mut options.format, &ast)
         .expect("Could not encode");
     if dest_txt_path.is_some() {
         options
