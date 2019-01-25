@@ -2,13 +2,14 @@
 
 extern crate binjs;
 extern crate clap;
+#[macro_use]
+extern crate derive_more;
 extern crate env_logger;
 extern crate glob;
 extern crate itertools;
 extern crate rand;
 
 use binjs::generic::FromJSON;
-use binjs::io::{Format, Path as IOPath, TokenSerializer};
 use binjs::source::*;
 
 use clap::*;
@@ -19,26 +20,15 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::Command;
 
-#[derive(Clone)]
+#[derive(Add, AddAssign, Clone, Default)]
 struct Sizes {
     uncompressed: usize,
     gzip: usize,
     bzip2: usize,
     brotli: usize,
 }
-/*
-impl std::ops::Add for Sizes {
-    type Output = Self;
-    fn add(self, rhs: Sizes) -> Sizes {
-        self.uncompressed += rhs.uncompressed;
-        self.gzip += rhs.gzip;
-        self.bzip2 += rhs.bzip2;
-        self.brotli += rhs.brotli;
-        self
-    }
-}
-*/
-#[derive(Clone)]
+
+#[derive(Add, AddAssign, Clone, Default)]
 struct FileStats {
     from_text: Sizes,
     from_binjs: Sizes,
@@ -104,16 +94,24 @@ fn main() {
             .multiple(true)
             .required(true)
             .takes_value(true)
+            .number_of_values(1)
             .help("Glob path towards source files")])
         .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
     let mut format =
         binjs::io::Format::from_matches(&matches).expect("Could not determine encoding format");
+    println!("Using format: {}", format.name());
+    println!(
+        "Source files: {}",
+        matches.values_of("in").unwrap().format(", ")
+    );
 
     let parser = Shift::try_new().expect("Could not launch Shift");
 
     let mut all_stats = HashMap::new();
+
+    let encoder = binjs::specialized::es6::io::Encoder::new();
 
     for path in matches.values_of("in").expect("Missing `in`") {
         for source_path in glob::glob(&path).expect("Invalid pattern") {
@@ -133,23 +131,9 @@ fn main() {
                 binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
             binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
-            let data: Box<AsRef<[u8]>> = match format {
-                Format::Multipart {
-                    ref mut targets, ..
-                } => {
-                    targets.reset();
-                    let writer = binjs::io::TokenWriterTreeAdapter::new(
-                        binjs::io::multipart::TreeTokenWriter::new(targets.clone()),
-                    );
-                    let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);
-                    serializer
-                        .serialize(&ast, &mut IOPath::new())
-                        .expect("Could not encode AST");
-                    let data = serializer.done().expect("Could not finalize AST encoding");
-                    Box::new(data)
-                }
-                _ => unimplemented!(),
-            };
+            let data = encoder
+                .encode(None, &mut format, &ast)
+                .expect("Could not encode");
 
             {
                 let mut binjs_encoded = std::fs::File::create(&dest_path_binjs)
@@ -185,28 +169,24 @@ fn main() {
     eprintln!("*** Done");
 
     let all_stats = all_stats.into_iter().sorted_by(|a, b| Ord::cmp(&a.0, &b.0));
-    println!("File, Source (b), Source+Gzip (b), Source+Brotli (b), Source+BZip2 (b), BinAST (b), BinAST/Source, BinAST+GZip (b), BinAST+GZip/Source+GZip, BinAST+GZip/BinAST, BinAST+Brotli (b), BinAST+Brotli/Source+Brotli, BinAST+Brotli/BinAST, BinAST+BZip2 (b), BinAST+BZip2/Source+BZip2, BinAST+BZip2/BinAST");
-    for (path, file_stats) in all_stats {
-        println!("{path:?}, {source}, {source_gzip}, {source_brotli}, {source_bzip2}, {binjs}, {uncompressed_to_uncompressed:2}, {binjs_gzip}, {gzip_to_gzip:2}, {gzip_to_uncompressed:2}, {binjs_brotli}, {brotli_to_brotli:2}, {brotli_to_uncompressed:2}, {binjs_bzip2}, {bzip2_to_bzip2:2}, {bzip2_to_uncompressed:2}",
-            source = file_stats.from_text.uncompressed,
-            source_gzip = file_stats.from_text.gzip,
-            source_brotli = file_stats.from_text.brotli,
-            source_bzip2 = file_stats.from_text.bzip2,
-
-            binjs = file_stats.from_binjs.uncompressed,
-            uncompressed_to_uncompressed = (file_stats.from_binjs.uncompressed as f64) / (file_stats.from_text.uncompressed as f64),
-            binjs_gzip = file_stats.from_binjs.gzip,
-            gzip_to_gzip = (file_stats.from_binjs.gzip as f64) / (file_stats.from_text.gzip as f64),
-            gzip_to_uncompressed = (file_stats.from_binjs.gzip as f64) / (file_stats.from_binjs.uncompressed as f64),
-
-            binjs_brotli = file_stats.from_binjs.brotli,
-            brotli_to_brotli = (file_stats.from_binjs.brotli as f64) / (file_stats.from_text.brotli as f64),
-            brotli_to_uncompressed = (file_stats.from_binjs.brotli as f64) / (file_stats.from_binjs.uncompressed as f64),
-
-            binjs_bzip2 = file_stats.from_binjs.bzip2,
-            bzip2_to_bzip2 = (file_stats.from_binjs.bzip2 as f64) / (file_stats.from_text.bzip2 as f64),
-            bzip2_to_uncompressed = (file_stats.from_binjs.bzip2 as f64) / (file_stats.from_binjs.uncompressed as f64),
-
-            path = path);
+    println!("File, Source (b), BinAST/Source+Brotli");
+    let mut sum_stats = FileStats::default();
+    for (_, file_stats) in &all_stats {
+        sum_stats += file_stats.clone();
     }
+    print_one(&"<<TOTAL>>", &sum_stats);
+
+    for (path, file_stats) in &all_stats {
+        print_one(path, file_stats);
+    }
+}
+
+fn print_one<T: std::fmt::Debug>(name: &T, file_stats: &FileStats) {
+    println!(
+        "{name:?}, {source}, {binjs_to_brotli:.2}",
+        source = file_stats.from_text.uncompressed,
+        binjs_to_brotli =
+            (file_stats.from_binjs.uncompressed as f64) / (file_stats.from_text.brotli as f64),
+        name = name
+    );
 }
