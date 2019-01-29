@@ -205,7 +205,7 @@ where
 pub struct Dictionary<T> {
     // --- Non-extensible sets of symbols, predicted by path.
     // Used for entropy coding.
-    //
+    // ---
     /// All booleans appearing in the AST, predicted by path.
     pub bool_by_path: PathPredict<Option<bool>, T>,
 
@@ -219,7 +219,7 @@ pub struct Dictionary<T> {
     // Used for experiments with entropy coding, but so far, not very
     // good with extensibility. There are good chances that this section
     // will disappear in future versions.
-    //
+    // ---
     /// All floats appearing in the AST.
     pub float_by_path: PathPredict<Option<F64>, T>,
 
@@ -242,7 +242,7 @@ pub struct Dictionary<T> {
     // Used for experiments for extensibility of entropy coding, but so far,
     // not very good at compression, and might cause serious alignment issues.
     // There are good chances that this section will disappear in future versions.
-    //
+    // ---
     /// All property keys, predicted by window.
     pub property_key_by_window: WindowPredict<Option<PropertyKey>, T>,
 
@@ -256,7 +256,7 @@ pub struct Dictionary<T> {
     // Used to represent instances of extensible sets of symbols as indices in
     // a table. Pretty good for extensibility, experiments pending on
     // compression-level and performance.
-    //
+    // ---
     /// All unsigned longs.
     pub unsigned_longs: IndexedTable<u32>,
 
@@ -309,6 +309,16 @@ impl<T> Dictionary<T> {
         }
     }
 
+    /// Return the depth of the current dictionary.
+    pub fn depth(&self) -> usize {
+        assert_eq!(self.bool_by_path.depth(), self.string_enum_by_path.depth());
+        assert_eq!(
+            self.bool_by_path.depth(),
+            self.interface_name_by_path.depth()
+        );
+        self.bool_by_path.depth()
+    }
+
     /// Return the number of states in this dictionary.
     pub fn len(&self) -> usize {
         // Make sure that we don't forget a field.
@@ -343,6 +353,30 @@ impl<T> Dictionary<T> {
             + string_literal_by_path.len()
             + list_length_by_path.len()
             + interface_name_by_path.len()
+    }
+}
+
+impl Dictionary<Instances> {
+    /// Combine a dictionary obtained by sampling (`self`) and a baseline dictionary
+    /// (obtained by `entropy::baseline`) to produce a dictionary able to handle
+    /// values that grammatically correct but have not been witnessed during
+    /// sampling.
+    pub fn with_grammar_fallback(self, fallback: Dictionary<Instances>) -> Self {
+        let mut result = self;
+        let original_len = result.len();
+        result.bool_by_path.add_fallback(fallback.bool_by_path);
+        result
+            .string_enum_by_path
+            .add_fallback(fallback.string_enum_by_path);
+        result
+            .interface_name_by_path
+            .add_fallback(fallback.interface_name_by_path);
+
+        debug!(target: "dictionary", "Added fallback to dictionary {} states => {} states",
+            original_len,
+            result.len());
+
+        result
     }
 }
 
@@ -528,6 +562,7 @@ impl DictionaryBuilder {
     pub fn done(self, threshold: FilesContaining) -> Dictionary<Instances> {
         let mut dictionary = self.dictionary;
 
+        // Generate indexed tables for user-extensible values.
         dictionary.identifier_names = IndexedTable::new(
             self.files_containing_user_extensible_data
                 .identifier_name_instances,

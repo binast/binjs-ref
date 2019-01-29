@@ -3,7 +3,7 @@
 use entropy::probabilities::{InstancesToProbabilities, SymbolIndex, SymbolInfo};
 pub use io::statistics::Instances;
 
-use binjs_shared::{FieldName, InterfaceName};
+use binjs_shared::{FieldName, IOPath, IOPathItem, InterfaceName};
 
 use std;
 use std::borrow::Borrow;
@@ -15,21 +15,6 @@ use std::rc::Rc;
 #[allow(unused_imports)] // We keep enabling/disabling this.
 use itertools::Itertools;
 use range_encoding;
-
-pub type IOPath = binjs_shared::ast::Path<
-    InterfaceName,
-    (
-        /* child index */ usize,
-        /* field name */ FieldName,
-    ),
->;
-pub type IOPathItem = binjs_shared::ast::PathItem<
-    InterfaceName,
-    (
-        /* child index */ usize,
-        /* field name */ FieldName,
-    ),
->;
 
 /// A newtype for `usize` used to represent an index in a dictionary of values.
 #[derive(

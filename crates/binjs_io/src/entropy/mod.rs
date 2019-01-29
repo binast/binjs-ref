@@ -94,9 +94,9 @@ pub struct Options {
     split_streams: bool,
 }
 impl Options {
-    pub fn new(dictionary: Option<Dictionary<Instances>>) -> Self {
+    pub fn new(dictionary: Dictionary<Instances>) -> Self {
         use entropy::probabilities::InstancesToProbabilities;
-        let probability_tables = dictionary.expect("This version of Entropy requires a dictionary"); // This will disappear as part of Entropy 0.3.
+        let probability_tables = dictionary;
         Options {
             probability_tables: probability_tables.instances_to_probabilities("dictionary"),
             content_lengths: Rc::new(RefCell::new(ContentInfo::default())),
@@ -187,7 +187,7 @@ impl ::FormatProvider for FormatProvider {
                 let source = std::fs::File::open(&path).expect("Could not open dictionary");
                 let surface_dictionary: Dictionary<Instances> =
                     bincode::deserialize_from(source).expect("Could not decode dictionary");
-                Some(surface_dictionary)
+                surface_dictionary
             }
         };
 
