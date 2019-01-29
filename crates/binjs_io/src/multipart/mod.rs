@@ -162,6 +162,7 @@ impl ::FormatProvider for FormatProvider {
 
     fn handle_subcommand(
         &self,
+        _spec: &binjs_meta::spec::Spec,
         matches: Option<&clap::ArgMatches>,
     ) -> Result<::Format, ::std::io::Error> {
         use bytes::compress::Compression;
@@ -228,7 +229,7 @@ fn test_multipart_io() {
             "{:?}-{:?}-{:?}",
             options.grammar_table, options.strings_table, options.tree
         );
-        let mut path = Path::new();
+        let path = Path::new();
 
         {
             options.reset();

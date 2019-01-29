@@ -99,8 +99,11 @@ fn main() {
         .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
-    let mut format =
-        binjs::io::Format::from_matches(&matches).expect("Could not determine encoding format");
+    // Prepare grammar (used for entropy).
+    let spec = binjs::generic::es6::Library::spec();
+
+    let mut format = binjs::io::Format::from_matches(&spec, &matches)
+        .expect("Could not determine encoding format");
     println!("Using format: {}", format.name());
     println!(
         "Source files: {}",

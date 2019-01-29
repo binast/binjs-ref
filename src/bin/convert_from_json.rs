@@ -167,8 +167,9 @@ fn main_aux() {
         .get_matches();
 
     // Format options.
+    let spec = binjs::generic::es6::Library::spec();
     let mut format =
-        binjs::io::Format::from_matches(&matches).expect("Could not parse encoding format");
+        binjs::io::Format::from_matches(&spec, &matches).expect("Could not parse encoding format");
 
     let mut reader = binjs::io::binjs_json::read::Decoder::new(stdin()).expect("Failed to parse");
 

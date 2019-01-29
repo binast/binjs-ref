@@ -275,6 +275,9 @@ fn main_aux() {
         .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
+    // Prepare grammar (used for entropy).
+    let spec = binjs::generic::es6::Library::spec();
+
     // Common options.
     let sources: Vec<_> = matches
         .values_of("in")
@@ -295,7 +298,7 @@ fn main_aux() {
 
     // Format options.
     let format =
-        binjs::io::Format::from_matches(&matches).expect("Could not parse encoding format");
+        binjs::io::Format::from_matches(&spec, &matches).expect("Could not parse encoding format");
     progress!(quiet, "Using format: {}", format.name());
 
     let show_stats = matches.is_present("statistics");

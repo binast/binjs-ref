@@ -94,9 +94,13 @@ pub struct Options {
     split_streams: bool,
 }
 impl Options {
-    pub fn new(dictionary: Dictionary<Instances>) -> Self {
+    pub fn new(spec: &binjs_meta::spec::Spec, dictionary: Option<Dictionary<Instances>>) -> Self {
         use entropy::probabilities::InstancesToProbabilities;
-        let probability_tables = dictionary;
+        let baseline = baseline::build(spec);
+        let probability_tables = match dictionary {
+            None => baseline,
+            Some(dictionary) => dictionary.with_grammar_fallback(baseline),
+        };
         Options {
             probability_tables: probability_tables.instances_to_probabilities("dictionary"),
             content_lengths: Rc::new(RefCell::new(ContentInfo::default())),
@@ -172,6 +176,7 @@ impl ::FormatProvider for FormatProvider {
 
     fn handle_subcommand(
         &self,
+        spec: &binjs_meta::spec::Spec,
         matches: Option<&clap::ArgMatches>,
     ) -> Result<::Format, ::std::io::Error> {
         use bincode;
@@ -179,15 +184,13 @@ impl ::FormatProvider for FormatProvider {
         let matches = matches.unwrap();
 
         let dictionary = match matches.value_of("dictionary") {
-            None => {
-                panic!("This version of Entropy requires a dictionary") // This will disappear as part of Entropy 0.3.
-            }
+            None => None,
             Some(path) => {
                 // Load a dictionary from disk.
                 let source = std::fs::File::open(&path).expect("Could not open dictionary");
                 let surface_dictionary: Dictionary<Instances> =
                     bincode::deserialize_from(source).expect("Could not decode dictionary");
-                surface_dictionary
+                Some(surface_dictionary)
             }
         };
 
@@ -198,7 +201,7 @@ impl ::FormatProvider for FormatProvider {
                 content_lengths: Rc::new(RefCell::new(ContentInfo::default())),
                 content_instances: Rc::new(RefCell::new(ContentInfo::default())),
                 split_streams,
-                ..Options::new(dictionary)
+                ..Options::new(spec, dictionary)
             },
         })
     }

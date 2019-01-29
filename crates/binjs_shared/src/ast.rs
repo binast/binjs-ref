@@ -270,4 +270,3 @@ pub trait Node: downcast_rs::Downcast {
     fn name(&self) -> &'static str;
 }
 impl_downcast!(Node);
-
