@@ -82,7 +82,7 @@ impl SharedString {
     pub fn as_str(&self) -> &str {
         self.deref()
     }
-    pub fn from_str(value: &'static str) -> Self {
+    pub const fn from_str(value: &'static str) -> Self {
         SharedString::Static(value)
     }
     pub fn from_rc_string(value: Rc<String>) -> Self {
@@ -99,7 +99,7 @@ macro_rules! shared_string {
         #[derive(Clone, Eq, PartialOrd, Ord, Debug, Hash, Serialize, Deserialize)]
         pub struct $name(pub shared_string::SharedString);
         impl $name {
-            pub fn from_str(value: &'static str) -> Self {
+            pub const fn from_str(value: &'static str) -> Self {
                 $name(shared_string::SharedString::from_str(value))
             }
             pub fn from_string(value: String) -> Self {
@@ -133,6 +133,11 @@ macro_rules! shared_string {
         impl Default for $name {
             fn default() -> Self {
                 Self::from_str("<uninitialized SharedString>")
+            }
+        }
+        impl std::fmt::Display for $name {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+                self.as_str().fmt(formatter)
             }
         }
     };
