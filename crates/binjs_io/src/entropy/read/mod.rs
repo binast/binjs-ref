@@ -63,7 +63,7 @@ impl<'a> Decoder<'a> {
             // Extract data.
             let (name, data) = item?;
             debug!(target: "read", "Decoder::new: Reading prelude section {}", {
-                let mut vec = name.iter().cloned().collect();
+                let vec = name.iter().cloned().collect();
                 let string = String::from_utf8(vec)
                     .expect("Could not convert name to string");
                 string
@@ -160,7 +160,7 @@ impl<'a> Decoder<'a> {
             let (name, data) = item?;
 
             debug!(target: "read", "Decoder::new: Reading content section {}", {
-                let mut vec = name.iter().cloned().collect();
+                let vec = name.iter().cloned().collect();
                 let string = String::from_utf8(vec)
                     .expect("Could not convert name to string");
                 string
