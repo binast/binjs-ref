@@ -133,15 +133,32 @@ use json::JsonValue as JSON;
 
         // Buffer used to generate the generic data structure (impl declaration).
         let mut impl_buffer = String::new();
-        impl_buffer.push_str("impl Library {\n    pub fn new(builder: &mut SpecBuilder) -> Self {\n        let names = Library {\n");
+        impl_buffer.push_str(
+            "impl Library {
+
+    /// Create a new Spec from this library.
+    pub fn spec() -> Spec {
+        let mut builder = SpecBuilder::new();
+        let names = Self::new(&mut builder);
+        builder.into_spec(SpecOptions {
+            null: &names.meta_null_interface,
+            root: &names.meta_entry_point,
+        })
+    }
+
+
+    /// Instantiate this Library using a SpecBuilder to hold the underlying Spec.
+    pub fn new(builder: &mut SpecBuilder) -> Self {
+        let names = Library {
+",
+        );
 
         // Export the name definitions.
         fn print_struct_names<'a, T>(buffer: &mut String, source: T)
         where
             T: Iterator<Item = &'a NodeName>,
         {
-            let mut names: Vec<_> = source.map(|x| x.to_string()).collect();
-            names.sort();
+            let names = source.map(|x| x.to_string()).sorted();
             for name in names {
                 let source = format!(
                     "    pub {snake}: NodeName,\n",
@@ -154,8 +171,7 @@ use json::JsonValue as JSON;
         where
             T: Iterator<Item = &'a NodeName>,
         {
-            let mut names: Vec<_> = source.map(|x| x.to_string()).collect();
-            names.sort();
+            let names = source.map(|x| x.to_string()).sorted();
             for name in names {
                 let source = format!(
                     "            {snake}: builder.node_name(\"{original}\"),\n",
@@ -1519,6 +1535,35 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
             buffer.push_str(&path);
             buffer.push_str(&visitor);
         }
+
+        fn print_meta_names(buffer: &mut String) {
+            buffer.push_str(
+                &"
+    /// The entry point in the grammar.
+    pub meta_entry_point: NodeName,
+
+    /// The name of the null interface.
+    pub meta_null_interface: NodeName,
+
+",
+            );
+        }
+
+        fn print_impl_meta_names(buffer: &mut String, spec: &Spec) {
+            buffer.push_str(&format!(
+                "
+            // Meta names
+            meta_entry_point: builder.node_name(\"{entry}\"),
+            meta_null_interface: builder.node_name(\"{null}\"),
+
+",
+                entry = spec.get_root_name().to_str(),
+                null = spec.get_null_name().to_str(),
+            ));
+        }
+
+        print_meta_names(&mut struct_buffer);
+        print_impl_meta_names(&mut impl_buffer, &self.spec);
 
         struct_buffer.push_str("    // String enum names (by lexicographical order)\n");
         impl_buffer.push_str("            // String enum names (by lexicographical order)\n");
