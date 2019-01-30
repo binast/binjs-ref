@@ -127,7 +127,7 @@ test!(test_entropy_roundtrip, {
     let dictionary = builder.done(0.into() /* Keep all user-extensible data */);
     println!("Built a dictionary with {} states", dictionary.len());
 
-    let options = entropy::Options::new(dictionary.instances_to_probabilities("dictionary"));
+    let options = entropy::Options::new(dictionary);
 
     println!("Starting roundtrip with dictionary");
     for source in &dict_sources {

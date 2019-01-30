@@ -3,9 +3,10 @@
 use entropy::probabilities::{InstancesToProbabilities, SymbolIndex, SymbolInfo};
 pub use io::statistics::Instances;
 
-use binjs_shared::{FieldName, InterfaceName};
+use binjs_shared::{FieldName, IOPath, IOPathItem, InterfaceName};
 
 use std;
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -14,21 +15,6 @@ use std::rc::Rc;
 #[allow(unused_imports)] // We keep enabling/disabling this.
 use itertools::Itertools;
 use range_encoding;
-
-pub type IOPath = binjs_shared::ast::Path<
-    InterfaceName,
-    (
-        /* child index */ usize,
-        /* field name */ FieldName,
-    ),
->;
-pub type IOPathItem = binjs_shared::ast::PathItem<
-    InterfaceName,
-    (
-        /* child index */ usize,
-        /* field name */ FieldName,
-    ),
->;
 
 /// A newtype for `usize` used to represent an index in a dictionary of values.
 #[derive(
@@ -72,8 +58,10 @@ mod context_information {
     use super::Instances;
     use entropy::probabilities::{SymbolIndex, SymbolInfo};
 
+    use std::cell::RefCell;
     use std::collections::HashMap;
     use std::hash::Hash;
+    use std::rc::Rc;
 
     use itertools::Itertools;
 
@@ -119,6 +107,14 @@ mod context_information {
         pub fn len(&self) -> usize {
             self.stats_by_node_value.len()
         }
+
+        pub fn into_iter(self) -> impl Iterator<Item = (NodeValue, Statistics)> {
+            self.stats_by_node_value.into_iter()
+        }
+
+        pub fn iter(&self) -> impl Iterator<Item = (&NodeValue, &Statistics)> {
+            self.stats_by_node_value.iter()
+        }
     }
 
     // Methods that make sense only when we have finished computing frequency information.
@@ -126,10 +122,6 @@ mod context_information {
     where
         NodeValue: Eq + Hash,
     {
-        pub fn stats_by_node_value(&self) -> &HashMap<NodeValue, SymbolInfo> {
-            &self.stats_by_node_value
-        }
-
         pub fn stats_by_node_value_mut(&mut self) -> &mut HashMap<NodeValue, SymbolInfo> {
             &mut self.stats_by_node_value
         }
@@ -150,6 +142,15 @@ mod context_information {
             self.stats_by_node_value
                 .entry(node_value)
                 .and_modify(|instances| *instances += 1.into())
+                .or_insert(1.into());
+        }
+
+        /// Register a value as being used in this context.
+        ///
+        /// If the value is already used, do not increase the number of instances.
+        pub fn add_if_absent(&mut self, node_value: NodeValue) {
+            self.stats_by_node_value
+                .entry(node_value)
                 .or_insert(1.into());
         }
     }
@@ -200,6 +201,20 @@ mod context_information {
             }
         }
     }
+
+    impl<NodeValue> ContextInformation<NodeValue, SymbolInfo>
+    where
+        NodeValue: Clone + Eq + Hash,
+    {
+        pub fn frequencies(
+            &mut self,
+        ) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>> {
+            self.stats_by_node_value_mut()
+                .values_mut()
+                .next()
+                .map(|any| &any.distribution)
+        }
+    }
 }
 use self::context_information::ContextInformation;
 
@@ -216,11 +231,6 @@ use self::context_information::ContextInformation;
 /// 3. Use method `ContextPredict::<_, _, SymbolInfo>::stats_by_node_value` and `stats_by_node_value_mut` to get the statistics
 ///     information in a specific context for a specific node value (used for compression). This information contains
 ///     an index designed to be written to a compressed stream.
-/// 4. Use method `ContextPredict::<_, _, SymbolInfo>::frequencies_at` to get the statistics information in a
-///     specific context for all node values that have shown up in this context (used for decompression). This
-///     information is used to extract an index from a compressed stream.
-/// 5. Use method `ContextPredict::<_, _, SymbolInfo>::index_at` to get a specific node value in a specific
-///     context from the index extracted from the compressed stream.
 ///
 /// As most methods of this struct can only be used if `Statistics = Instances` xor `Statistics = SymbolInfo`,
 /// the implementation of these methods is only available respectively if `Statistics = Instances` or if
@@ -253,9 +263,39 @@ where
         self.by_context.keys()
     }
 
+    /// Iterate through this predictor.
+    pub fn iter_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (&Context, &mut ContextInformation<NodeValue, Statistics>)> {
+        self.by_context.iter_mut()
+    }
+
+    /// Convert this predictor into an interator.
+    pub fn into_iter(self) -> impl Iterator<Item = (Context, NodeValue, Statistics)> {
+        std::iter::Iterator::flatten(self.by_context.into_iter().map(|(context, info)| {
+            let context = context.clone();
+            info.into_iter()
+                .map(move |(node_value, statistics)| (context.clone(), node_value, statistics))
+        }))
+    }
+
     /// The number of states in this predictor.
     pub fn len(&self) -> usize {
         self.by_context.values().map(ContextInformation::len).sum()
+    }
+
+    /// Iter through the information available in a given context.
+    pub fn iter_at<C: ?Sized>(&self, context: &C) -> impl Iterator<Item = (&NodeValue, &Statistics)>
+    where
+        Context: std::borrow::Borrow<C>,
+        C: Hash + Eq,
+    {
+        std::iter::Iterator::flatten(
+            self.by_context
+                .get(context)
+                .into_iter()
+                .map(|info| info.iter()),
+        )
     }
 }
 
@@ -272,6 +312,17 @@ where
             .or_insert_with(|| ContextInformation::new());
         stats_by_node_value.add(value)
     }
+
+    /// Register a value as being used in this context.
+    ///
+    /// If the value is already used, do not increase the number of instances.
+    pub fn add_if_absent(&mut self, context: Context, value: NodeValue) {
+        let stats_by_node_value = self
+            .by_context
+            .entry(context)
+            .or_insert_with(|| ContextInformation::new());
+        stats_by_node_value.add_if_absent(value)
+    }
 }
 
 impl<Context, NodeValue> ContextPredict<Context, NodeValue, SymbolInfo>
@@ -281,49 +332,94 @@ where
 {
     /// Get a value by context and index.
     ///
+    /// `candidates` is a list of contexts which may be known to the
+    /// predictor. This method looks for the first context of `candidates`
+    /// known to the predictor, and uses the index => value mapping for
+    /// that context.
+    ///
+    /// This is typically used to provide fallback dictionaries.
+    ///
     /// This method is only implemented when `Statistics=SymbolInfo` as the index is initialized
     /// by `instances_to_probabilities`. The index corresponds to the one defined in
     /// the `SymbolInfo`.
     pub fn value_by_symbol_index<C2: ?Sized>(
         &mut self,
-        context: &C2,
+        candidates: &[&C2],
         index: SymbolIndex,
     ) -> Option<&NodeValue>
     where
         Context: std::borrow::Borrow<C2>,
         C2: Hash + Eq,
     {
-        self.by_context.get(context)?.value_by_symbol_index(index)
+        for context in candidates {
+            if let Some(table) = self.by_context.get(context) {
+                return table.value_by_symbol_index(index);
+            }
+        }
+        None
     }
 
-    pub fn stats_by_node_value<C2: ?Sized>(
-        &self,
-        context: &C2,
-        value: &NodeValue,
-    ) -> Option<&SymbolInfo>
+    /// Get the frequency information in one of several contexts.
+    ///
+    /// `candidates` is a list of contexts which may be known to the
+    /// predictor. This method looks for the first context of `candidates`
+    /// known to the predictor, and gets the information that context.
+    ///
+    /// This is typically used to provide fallback dictionaries.
+    pub fn frequencies_at<C2: ?Sized>(
+        &mut self,
+        candidates: &[&C2],
+    ) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>>
     where
         Context: std::borrow::Borrow<C2>,
         C2: Hash + Eq,
     {
-        self.by_context
-            .get(context)?
-            .stats_by_node_value()
-            .get(value)
+        let table = self.context_info_at_mut(candidates)?;
+        table.frequencies()
     }
 
+    /// Get the stats for a specific value in one of several contexts.
+    ///
+    /// `candidates` is a list of contexts which may be known to the
+    /// predictor. This method looks for the first context of `candidates`
+    /// known to the predictor, and gets the stats for the value in
+    /// that context.
+    ///
+    /// This is typically used to provide fallback dictionaries.
     pub fn stats_by_node_value_mut<C2: ?Sized>(
         &mut self,
-        context: &C2,
+        candidates: &[&C2],
         value: &NodeValue,
     ) -> Option<&mut SymbolInfo>
     where
         Context: std::borrow::Borrow<C2>,
         C2: Hash + Eq,
     {
-        self.by_context
-            .get_mut(context)?
-            .stats_by_node_value_mut()
-            .get_mut(value)
+        let context_info = self.context_info_at_mut(candidates)?;
+        context_info.stats_by_node_value_mut().get_mut(value)
+    }
+
+    fn context_info_at_mut<C2: ?Sized>(
+        &mut self,
+        candidates: &[&C2],
+    ) -> Option<&mut ContextInformation<NodeValue, SymbolInfo>>
+    where
+        Context: std::borrow::Borrow<C2>,
+        C2: Hash + Eq,
+    {
+        // This is an ugly workaround, as we cannot call `get_mut`
+        // from the loop.
+        let mut found = None;
+        for context in candidates {
+            if self.by_context.get(context).is_some() {
+                found = Some(context);
+                break;
+            }
+        }
+        match found {
+            None => return None,
+            Some(context) => return self.by_context.get_mut(context),
+        }
     }
 }
 
@@ -418,6 +514,15 @@ where
         self.context_predict.len()
     }
 
+    /// The depth of this predictor.
+    ///
+    /// A depth of 1 means that the predictor uses only information on the `(interface, field)`
+    /// to predict values. A depth of 2 means that the predictor also uses the `(interface, field)`
+    /// of the parent interface, etc.
+    pub fn depth(&self) -> usize {
+        self.depth
+    }
+
     /// All the paths known to this predictor.
     ///
     /// Used mainly for debugging.
@@ -425,13 +530,31 @@ where
         self.context_predict.contexts()
     }
 
+    /// Convert this predictor into an interator.
+    pub fn into_iter(self) -> impl Iterator<Item = (IOPath, NodeValue, Statistics)> {
+        self.context_predict.into_iter()
+    }
+
+    /// Return a tail of a path with the depth adapted to this predictor.
     fn tail<'a>(&self, path: &'a [IOPathItem]) -> &'a [IOPathItem] {
-        let path = if path.len() <= self.depth {
+        Self::tail_of(path, self.depth)
+    }
+
+    /// Return a tail of a path with the specified depth.
+    ///
+    /// If the path is already shorter than the specified depth, return the path unchanged.
+    fn tail_of<'a>(path: &'a [IOPathItem], depth: usize) -> &'a [IOPathItem] {
+        let path = if path.len() <= depth {
             path
         } else {
-            &path[path.len() - self.depth..]
+            &path[path.len() - depth..]
         };
         path
+    }
+
+    pub fn iter_at(&self, path: &[IOPathItem]) -> impl Iterator<Item = (&NodeValue, &Statistics)> {
+        let tail = self.tail(path);
+        self.context_predict.iter_at(tail)
     }
 }
 impl<NodeValue> PathPredict<NodeValue, Instances>
@@ -444,6 +567,51 @@ where
         let mut as_path = IOPath::new();
         as_path.extend_from_slice(tail);
         self.context_predict.add(as_path, value);
+    }
+
+    pub fn add_fallback(&mut self, other: Self) {
+        debug_assert!(
+            !other.paths().any(|path| path.len() > 1),
+            "The fallback dictionary should only contain paths of length 0 or 1."
+        );
+
+        debug!(target: "dictionary", "Adding fallback of length {}", other.len());
+        // This dictionary already contains a number of paths, presumably
+        // built from sampling. We need to make sure that each of these paths
+        // maps to a number of instances > 0 to each value that may possibly
+        // appear at this path.
+        //
+        // Therefore, we extend each known path with the values available in `other`.
+        // Note that `other` only contains paths of length 0 or 1. We'll deal
+        // with paths of length 0 in a further step. To deal with paths of length
+        // 1, we must restrict ourselves to the tail of know paths.
+        for (path, stats_by_node_value) in self.context_predict.iter_mut() {
+            if path.len() == 0 {
+                continue;
+            }
+
+            let tail = path.tail(1);
+            for (value, statistics) in other.iter_at(tail) {
+                debug_assert_eq!(Into::<usize>::into(*statistics), 1);
+                stats_by_node_value.add_if_absent(value.clone());
+            }
+        }
+
+        // If the sampling was insufficient, the dictionary may not know *all* possible paths.
+        // We now insert wall the paths of `other` as (shorter) paths. The lookup methods know
+        // that if they fail to find a path of full length, they should look for its length 1 tail.
+        // This copy also handles any length 0 path.
+        for (path, value, statistics) in other.into_iter() {
+            debug_assert_eq!(Into::<usize>::into(statistics), 1);
+            self.add_if_absent(path.borrow(), value);
+        }
+    }
+
+    pub fn add_if_absent(&mut self, path: &[IOPathItem], value: NodeValue) {
+        let tail = self.tail(path);
+        let mut as_path = IOPath::new();
+        as_path.extend_from_slice(tail);
+        self.context_predict.add_if_absent(as_path, value);
     }
 }
 impl<NodeValue> PathPredict<NodeValue, SymbolInfo>
@@ -459,26 +627,47 @@ where
         path: &[IOPathItem],
         index: SymbolIndex,
     ) -> Option<&NodeValue> {
-        let tail = self.tail(path);
-        self.context_predict.value_by_symbol_index(tail, index)
+        if path.len() >= 2 {
+            let candidates = [
+                // Case 1: If the path has been encountered during sampling.
+                self.tail(path),
+                // Case 2: If the path has not been encountered during sampling, fallback to its length 1 suffix.
+                Self::tail_of(path, 1),
+            ];
+            self.context_predict
+                .value_by_symbol_index(&candidates, index)
+        } else {
+            // The path has length 0 or 1, there is only one way to represent it in this PathPredict.
+            let candidates = [path];
+            self.context_predict
+                .value_by_symbol_index(&candidates, index)
+        }
     }
 
-    pub fn stats_by_node_value(
-        &mut self,
-        path: &[IOPathItem],
-        value: &NodeValue,
-    ) -> Option<&SymbolInfo> {
-        let tail = self.tail(path);
-        self.context_predict.stats_by_node_value(tail, value)
-    }
-
+    /// Get the stats for a specific value at a specific path.
     pub fn stats_by_node_value_mut(
         &mut self,
         path: &[IOPathItem],
         value: &NodeValue,
-    ) -> Option<&mut SymbolInfo> {
-        let tail = self.tail(path);
-        self.context_predict.stats_by_node_value_mut(tail, value)
+    ) -> Option<&mut SymbolInfo>
+    where
+        NodeValue: std::fmt::Debug,
+    {
+        if path.len() >= 2 {
+            let candidates = [
+                // Case 1: If the path has been encountered during sampling.
+                self.tail(path),
+                // Case 2: If the path has not been encountered during sampling, fallback to its length 1 suffix.
+                Self::tail_of(path, 1),
+            ];
+            self.context_predict
+                .stats_by_node_value_mut(&candidates, value)
+        } else {
+            // The path has length 0 or 1, there is only one way to represent it in this PathPredict.
+            let candidates = [path];
+            self.context_predict
+                .stats_by_node_value_mut(&candidates, value)
+        }
     }
 
     /// Get frequency information for a given path.
@@ -486,16 +675,19 @@ where
         &mut self,
         path: &[IOPathItem],
     ) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>> {
-        let tail = self.tail(path);
-        let info = if let Some(info) = self.context_predict.by_context.get_mut(tail) {
-            info
+        if path.len() >= 2 {
+            let candidates = [
+                // Case 1: If the path has been encountered during sampling.
+                self.tail(path),
+                // Case 2: If the path has not been encountered during sampling, fallback to its length 1 suffix.
+                Self::tail_of(path, 1),
+            ];
+            self.context_predict.frequencies_at(&candidates)
         } else {
-            return None;
-        };
-        info.stats_by_node_value_mut()
-            .values_mut()
-            .next()
-            .map(|any| &any.distribution)
+            // The path has length 0 or 1, there is only one way to represent it in this PathPredict.
+            let candidates = [path];
+            self.context_predict.frequencies_at(&candidates)
+        }
     }
 }
 
