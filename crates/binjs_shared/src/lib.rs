@@ -84,3 +84,21 @@ impl std::hash::Hash for F64 {
         self.0.to_bits().hash(state)
     }
 }
+
+/// The type of paths used most commonly throughout our code.
+pub type IOPath = ast::Path<
+    InterfaceName,
+    (
+        /* child index */ usize,
+        /* field name */ FieldName,
+    ),
+>;
+
+/// The type of path items used most commonly throughout our code.
+pub type IOPathItem = ast::PathItem<
+    InterfaceName,
+    (
+        /* child index */ usize,
+        /* field name */ FieldName,
+    ),
+>;
