@@ -7,6 +7,7 @@ extern crate clap;
 extern crate derive_more;
 extern crate flate2;
 extern crate itertools;
+extern crate json;
 extern crate lzw;
 #[macro_use]
 extern crate log;
@@ -74,6 +75,7 @@ pub enum TokenReaderError {
     EmptyList,
     EmptyNumber,
     BadEnumVariant,
+    GenericError(String),
 }
 impl TokenReaderError {
     pub fn invalid_value<T: std::fmt::Debug>(value: &T) -> Self {
@@ -103,6 +105,8 @@ pub mod multipart;
 pub mod entropy;
 
 pub mod xml;
+
+pub mod binjs_json;
 
 mod util;
 
@@ -227,6 +231,7 @@ pub enum Format {
         stats: Rc<RefCell<multipart::Statistics>>,
     },
     XML,
+    JSON,
     Entropy {
         options: entropy::Options,
     },
@@ -252,6 +257,7 @@ impl Distribution<Format> for Standard {
                 }
             }),
             Rc::new(|_| Format::XML),
+            Rc::new(|_| Format::JSON),
         ];
         let pick: Rc<Fn(&'a mut R) -> Format> = generators.choose(rng).map(Rc::clone).unwrap(); // Never empty
         pick(rng)
@@ -269,6 +275,7 @@ impl Format {
         match self {
             Format::Simple => Format::Simple,
             Format::XML => Format::XML,
+            Format::JSON => Format::JSON,
             Format::Multipart { stats, .. } => Format::Multipart {
                 targets: multipart::Targets {
                     strings_table: rng.gen(),
@@ -287,6 +294,7 @@ impl Format {
             Format::Simple { .. } => "Simple".to_string(),
             Format::Multipart { .. } => "Multipart".to_string(),
             Format::XML => "XML".to_string(),
+            Format::JSON => "JSON".to_string(),
             Format::Entropy { .. } => "Entropy".to_string(),
         }
     }
@@ -297,6 +305,10 @@ impl Format {
     {
         match *self {
             Format::Simple { .. } | Format::XML => {
+                // Nothing to do
+                Ok(())
+            }
+            Format::JSON => {
                 // Nothing to do
                 Ok(())
             }
@@ -323,11 +335,12 @@ impl Format {
 
     /// Return all existing format providers, to manage
     /// command-line arguments.
-    fn providers() -> [&'static FormatProvider; 4] {
+    fn providers() -> [&'static FormatProvider; 5] {
         [
             &multipart::FormatProvider,
             &simple::FormatProvider,
             &xml::FormatProvider,
+            &binjs_json::FormatProvider,
             &entropy::FormatProvider,
         ]
     }
