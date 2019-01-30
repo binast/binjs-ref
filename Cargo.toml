@@ -51,6 +51,11 @@ name = "binjs_dump"
 path = "src/bin/dump.rs"
 
 [[bin]]
+# Convert a BinAST JSON file to other BinAST file.
+name = "binjs_convert_from_json"
+path = "src/bin/convert_from_json.rs"
+
+[[bin]]
 # From a sample of JS source files, extract the distribution
 # of probabilities for all ASTs, write this distribution to
 # disk. The distribution may then be reused by binjs_encode
