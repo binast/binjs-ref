@@ -96,6 +96,15 @@ where
 {
     // Nothing to do.
 }
+impl<I, F> std::fmt::Display for Path<I, F>
+where
+    I: Debug + Display,
+    F: Debug + Display,
+{
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result {
+        self.items.fmt(formatter)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Deserialize, Serialize)]
 pub struct PathItem<I, F>

@@ -4,7 +4,6 @@ extern crate itertools;
 use binjs::generic::{FromJSON, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString};
 use binjs::io::entropy;
 use binjs::io::entropy::dictionary::{DictionaryBuilder, FilesContaining};
-use binjs::io::entropy::probabilities::InstancesToProbabilities;
 use binjs::io::{Deserialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::{Script, Visitor, WalkPath, Walker};
@@ -59,7 +58,7 @@ test!(test_entropy_roundtrip, {
         let _ = serializer.done().expect("Could not walk");
     }
 
-    println!("Checking identifiers per file");
+    println!("* Checking identifiers per file");
     check_strings(
         &builder.files_containing().identifier_name_instances,
         vec![
@@ -73,14 +72,14 @@ test!(test_entropy_roundtrip, {
         |name| Some(IdentifierName::from_string(name.to_string())),
     );
 
-    println!("Checking property keys per file");
+    println!("* Checking property keys per file");
     check_strings(
         &builder.files_containing().property_key_instances,
         vec![("PI", 1), ("log", 2)],
         |name| Some(PropertyKey::from_string(name.to_string())),
     );
 
-    println!("Checking interface names per file");
+    println!("* Checking interface names per file");
     check_strings(
         &builder.files_containing().interface_name_instances,
         vec![
@@ -116,7 +115,7 @@ test!(test_entropy_roundtrip, {
         |name| InterfaceName::from_string(name.to_string()),
     );
 
-    println!("String literals per file");
+    println!("* String literals per file");
     check_strings(
         &builder.files_containing().string_literal_instances,
         vec![("Some text", 1), ("That\'s alright", 1), ("use strict", 1)],
@@ -127,22 +126,44 @@ test!(test_entropy_roundtrip, {
     let dictionary = builder.done(0.into() /* Keep all user-extensible data */);
     println!("Built a dictionary with {} states", dictionary.len());
 
-    let options = entropy::Options::new(dictionary);
+    // Spec to generate the fallback dictionary.
+    let spec = binjs::generic::es6::Library::spec();
 
-    println!("Starting roundtrip with dictionary");
-    for source in &dict_sources {
-        test_with_options(&parser, source, &options);
-    }
+    for maybe_dictionary in vec![Some(dictionary), None].into_iter() {
+        if maybe_dictionary.is_some() {
+            println!("** Testing with a dictionary");
+        } else {
+            println!("** Testing WITHOUT a dictionary");
+        }
+        let options = entropy::Options::new(&spec, maybe_dictionary);
 
-    println!("Starting roundtrip that exceed dictionary");
-    let out_of_dictionary = [
-        "var z = y",
-        "'use asm';",
-        "function not_in_the_dictionary() {}",
-        "function foo() { if (Math.E != 4) console.log(\"That's also normal.\"); }",
-    ];
-    for source in &out_of_dictionary {
-        test_with_options(&parser, source, &options);
+        println!("Starting roundtrip with the sources that were used to build thhe dictionary");
+        for source in &dict_sources {
+            test_with_options(&parser, source, &options);
+        }
+
+        println!(
+            "Starting roundtrip with user-extensible values that do not show up in the dictionary"
+        );
+        let out_of_dictionary = [
+            "var z = y",
+            "'use asm';",
+            "function not_in_the_dictionary() {}",
+            "function foo() { if (Math.E != 4) console.log(\"That's also normal.\"); }",
+        ];
+        for source in &out_of_dictionary {
+            test_with_options(&parser, source, &options);
+        }
+
+        println!("Starting roundtrip with grammar constructions that have a probability of 0 in the dictionary");
+        let out_of_dictionary = [
+            "let z = y",
+            "let foo = function () { }",
+            "(function() { while (false) { console.log('What am I doing here?')} })",
+        ];
+        for source in &out_of_dictionary {
+            test_with_options(&parser, source, &options);
+        }
     }
 });
 

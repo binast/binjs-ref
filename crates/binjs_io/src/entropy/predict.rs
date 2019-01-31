@@ -3,7 +3,7 @@
 use entropy::probabilities::{InstancesToProbabilities, SymbolIndex, SymbolInfo};
 pub use io::statistics::Instances;
 
-use binjs_shared::{FieldName, IOPath, IOPathItem, InterfaceName};
+use binjs_shared::{IOPath, IOPathItem};
 
 use std;
 use std::borrow::Borrow;
