@@ -9,6 +9,8 @@ use TokenWriterError;
 
 use binjs_shared::{FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString};
 
+use escaped_wtf8;
+
 use json;
 use json::JsonValue as JSON;
 
@@ -78,9 +80,8 @@ impl TokenWriter for TreeTokenWriter {
                 let top_level_item = items
                     .pop()
                     .expect("There should be only one item at the top level");
-                let result = json::stringify_pretty(top_level_item, 2)
-                    .as_bytes()
-                    .to_vec();
+                let source = json::stringify_pretty(top_level_item, 2);
+                let result = escaped_wtf8::to_unicode_escape(source).as_bytes().to_vec();
                 Ok(result)
             }
             _ => {

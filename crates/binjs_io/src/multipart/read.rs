@@ -318,7 +318,7 @@ impl TokenReader for TreeTokenReader {
                             print_file_structure!(
                                 state.reader,
                                 "string=\"{}\"",
-                                escaped_wtf8::for_print(s)
+                                escaped_wtf8::to_unicode_escape(s.to_string())
                             );
                             Ok(Some(s.clone()))
                         }

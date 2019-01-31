@@ -11,6 +11,8 @@ use binjs_shared::{FieldName, FromJSON, IdentifierName, InterfaceName, PropertyK
 
 pub type PathItem = binjs_shared::ast::PathItem<InterfaceName, /* Field */ (usize, FieldName)>;
 
+use escaped_wtf8;
+
 use std::collections::VecDeque;
 
 use json;
@@ -221,9 +223,10 @@ impl JSONReader {
 
     /// Convert the JSON to the list of tokens.
     fn read_all_tokens(&mut self, buffer: String) -> Result<(), TokenReaderError> {
-        let root = json::parse(buffer.as_str()).map_err(|err| {
-            TokenReaderError::GenericError(format!("Failed to parse source: {}", err))
-        })?;
+        let root =
+            json::parse(escaped_wtf8::from_unicode_escape(buffer).as_str()).map_err(|err| {
+                TokenReaderError::GenericError(format!("Failed to parse source: {}", err))
+            })?;
 
         if !root.is_object() {
             return Err(TokenReaderError::GenericError(

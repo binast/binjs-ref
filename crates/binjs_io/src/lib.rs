@@ -111,7 +111,7 @@ pub mod binjs_json;
 
 mod util;
 
-mod escaped_wtf8;
+pub mod escaped_wtf8;
 
 const ADVANCED_COMMAND: &str = "advanced";
 
