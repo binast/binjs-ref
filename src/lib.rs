@@ -75,3 +75,6 @@ pub mod source;
 
 /// Misc utilities.
 pub mod util;
+
+/// Libraries designed to be called directly from the command-line.
+pub mod cli;
