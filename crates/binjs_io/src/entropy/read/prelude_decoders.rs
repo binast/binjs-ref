@@ -176,7 +176,7 @@ where
 
         let mut result = Vec::new();
         {
-            let mut brotli = brotli::DecompressorWriter::new(&mut result, 32);
+            let mut brotli = brotli::DecompressorWriter::new(&mut result, 32768); // FIXME: WTF? This doesnt seem to work with small buffer sizes. How am I supposed to guess the buffer size?
             brotli
                 .write_all(&buf)
                 .map_err(TokenReaderError::ReadError)?;
