@@ -63,13 +63,7 @@ fn main() {
         .get_matches();
 
     // Prepare grammar (used for entropy).
-    let mut builder = binjs::meta::spec::SpecBuilder::new();
-    let _ = binjs::generic::es6::Library::new(&mut builder);
-    let spec_options = binjs::meta::spec::SpecOptions {
-        null: &builder.node_name(""),
-        root: &builder.node_name("Script"),
-    };
-    let spec = builder.into_spec(spec_options);
+    let spec = binjs::generic::es6::Library::spec();
 
     // Common options.
     let source_path = matches.value_of("INPUT");
