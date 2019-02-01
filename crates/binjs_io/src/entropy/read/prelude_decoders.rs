@@ -282,24 +282,29 @@ impl StringDecoder {
     }
 }
 impl Iterator for StringDecoder {
-    type Item = Result<String, TokenReaderError>;
+    type Item = Result<Option<String>, TokenReaderError>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.lengths.position() == self.lengths.get_ref().len() as u64 {
             debug!(target: "read", "StringDecoder::next - end reached");
             return None;
         }
-        fn aux(myself: &mut StringDecoder) -> Result<String, TokenReaderError> {
+        fn aux(myself: &mut StringDecoder) -> Result<Option<String>, TokenReaderError> {
             let byte_len = myself
                 .lengths
-                .read_varnum()
-                .map_err(TokenReaderError::ReadError)? as usize;
-            debug!(target: "read", "StringDecoder::next - byte length: {}", byte_len);
-            let value = myself
-                .data
-                .read_string(byte_len)
+                .read_maybe_varnum()
                 .map_err(TokenReaderError::ReadError)?;
-            debug!(target: "read", "StringDecoder::next - value: {:?}", value);
-            Ok(value)
+            match byte_len {
+                None => Ok(None),
+                Some(byte_len) => {
+                    debug!(target: "read", "StringDecoder::next - byte length: {}", byte_len);
+                    let value = myself
+                        .data
+                        .read_string(byte_len as usize)
+                        .map_err(TokenReaderError::ReadError)?;
+                    debug!(target: "read", "StringDecoder::next - value: {:?}", value);
+                    Ok(Some(value))
+                }
+            }
         }
         Some(aux(self))
     }
