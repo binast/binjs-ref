@@ -91,7 +91,7 @@ impl<'a> Decoder<'a> {
                 prelude_data.identifier_names,
                 prelude_data.identifier_names_len,
             )? {
-                result.push(Some(IdentifierName::from_string(value?)));
+                result.push(value?.map(IdentifierName::from_string));
             }
             result
         };
@@ -102,7 +102,7 @@ impl<'a> Decoder<'a> {
             for value in
                 StringDecoder::try_new(prelude_data.property_keys, prelude_data.property_keys_len)?
             {
-                result.push(Some(PropertyKey::from_string(value?)));
+                result.push(value?.map(PropertyKey::from_string));
             }
             result
         };
@@ -113,7 +113,7 @@ impl<'a> Decoder<'a> {
                 prelude_data.string_literals,
                 prelude_data.string_literals_len,
             )? {
-                result.push(Some(SharedString::from_string(value?)));
+                result.push(value?.map(SharedString::from_string));
             }
             result
         };
