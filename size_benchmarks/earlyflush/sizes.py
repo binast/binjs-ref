@@ -74,12 +74,15 @@ def print_sizes(args):
                   concurrent.futures.as_completed(futures))
     print('filename,size,brotli,binast')
     for filename, size, br_size, binast_size in results:
-      print('{},{},{},{}'.format(
+      print('{},{},{},{},{:.3f}'.format(
         filename,
         size,
         br_size,
-        binast_size))
+        binast_size,
+        binast_size/br_size))
 
+
+      print('{0},{size},{brotli},{binast},{ratio:.3f}'.format(d, **sizes))
 
 def aging_measure(group, filename, dictionary):
   with open(filename, 'rb') as f:
@@ -95,7 +98,7 @@ def aging(args):
       for filename in glob.iglob(d, recursive=True):
         futures.append(executor.submit(aging_measure, d, filename, dictionary))
     dir_sizes = {}
-    print('dir,filename,size,brotli,binast')
+    print('dir,filename,size,brotli,binast,ratio')
     for d, g in itertools.groupby(map(lambda f: f.result(), futures),
                                   key=lambda r: r[0]):
       dir_size = {
@@ -105,14 +108,15 @@ def aging(args):
       }
       dir_sizes[d] = dir_size
       for _, (filename, size, brotli, binast) in g:
-        print('{},{},{},{},{}'.format(d, filename, size, brotli, binast))
+        print('{},{},{},{},{},{:.3f}'.format(d, filename, size, brotli, binast, binast/brotli))
         dir_size['size'] += size
         dir_size['brotli'] += brotli
         dir_size['binast'] += binast
     print(8 * '-', 'Totals', 8 * '-')
-    print('dir,size,brotli,binast')
+    print('dir,size,brotli,binast,ratio')
     for d, sizes in dir_sizes.items():
-      print('{0},{size},{brotli},{binast}'.format(d, **sizes))
+      print('{0},{size},{brotli},{binast},'.format(d, **sizes) +
+        '{:.3f}'.format(sizes['binast']/sizes['brotli']))
 
 
 def main():
