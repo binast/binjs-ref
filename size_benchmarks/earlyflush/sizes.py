@@ -16,7 +16,7 @@ import subprocess
 def dict_path_to_filename(path):
   return os.path.join(path, 'dict.entropy')
 
-
+# Generates dynamic dictionary from input files
 def generate_dictionary(args):
   input_files = args.input_files
   output_dictionary = args.dictionary
@@ -27,7 +27,7 @@ def generate_dictionary(args):
     dict_size = brotli_compressed_size(d)
   print('brotli compressed dictionary size:', dict_size)
 
-
+# Returns a JS file's BinAST-encoded size
 def binjs_compressed_size(input_file, dictionary):
   if not os.path.exists(dictionary):
     raise Exception('dictionary file {} does not exist'.format(dictionary))
@@ -41,7 +41,7 @@ def binjs_compressed_size(input_file, dictionary):
       raise Exception(stderr)
     return len(stdout)
 
-
+# Returns a JS file's Brotli-compressed size
 def brotli_compressed_size(inp):
   br_bin = 'brotli'
   with subprocess.Popen(
@@ -50,7 +50,7 @@ def brotli_compressed_size(inp):
     out, err = proc.communicate(inp.read())
     return len(out)
 
-
+# Returns a JS file's Brotli-compressed + BinAST-encoded size
 def measure(input_file, dictionary):
   input_file.seek(0, 2)
   file_size = input_file.tell()
@@ -64,7 +64,8 @@ def measure(input_file, dictionary):
     br,
     binjs_size)
 
-
+# Reports size bloat or size reduction from encoding input JS files to BinAST
+# format vs compressing with Brotli 
 def print_sizes(args):
   dictionary = dict_path_to_filename(args.dictionary)
   input_files = args.input_files
@@ -72,7 +73,7 @@ def print_sizes(args):
     futures = [executor.submit(measure, f, dictionary) for f in input_files]
     results = map(lambda f: f.result(),
                   concurrent.futures.as_completed(futures))
-    print('filename,size,brotli,binast')
+    print('filename,size,brotli,binast,ratio')
     for filename, size, br_size, binast_size in results:
       print('{},{},{},{},{:.3f}'.format(
         filename,
@@ -88,7 +89,10 @@ def aging_measure(group, filename, dictionary):
   with open(filename, 'rb') as f:
     return (group, measure(f, dictionary))
 
-
+# Report encoded-size ratios from using a single dictionary trained on one 
+# directory but used to encode all directories.
+# When each directory represents a snapshot from a different day, this shows
+# the impact of dictionary aging on BinAST file size
 def aging(args):
   dictionary = dict_path_to_filename(args.dictionary)
   dirs = args.dirs
