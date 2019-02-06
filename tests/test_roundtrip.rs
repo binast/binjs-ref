@@ -1,7 +1,6 @@
 //! Encode a BinJS, then decode it, ensure that we obtain the same AST.
 
 extern crate binjs;
-extern crate clap;
 extern crate env_logger;
 extern crate glob;
 #[macro_use]

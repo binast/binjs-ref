@@ -5,10 +5,10 @@ authors = ["David Teller <D.O.Teller@gmail.com>"]
 
 [dependencies]
 binjs_meta = { path = "../binjs_meta/", version = "*" }
-env_logger = "^0.5"
 itertools = "^0.7"
-log = "^0.4"
 
 [dev-dependencies]
+env_logger = "^0.6"
+log = "^0.4"
 clap = "^2.0"
 yaml-rust = "^0.4"

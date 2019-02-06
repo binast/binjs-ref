@@ -21,5 +21,5 @@ weedle = "^0.8"
 
 [dev-dependencies]
 clap = "^2.0"
-env_logger = "^0.5"
+env_logger = "^0.6"
 yaml-rust = "^0.4"

@@ -4,9 +4,8 @@ extern crate itertools;
 extern crate json;
 #[macro_use]
 extern crate log;
-extern crate serde;
 #[macro_use]
-extern crate serde_derive;
+extern crate serde;
 
 mod json_conversion;
 pub use json_conversion::*;

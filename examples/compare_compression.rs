@@ -7,7 +7,6 @@ extern crate derive_more;
 extern crate env_logger;
 extern crate glob;
 extern crate itertools;
-extern crate rand;
 
 use binjs::generic::FromJSON;
 use binjs::source::*;
