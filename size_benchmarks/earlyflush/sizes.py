@@ -8,6 +8,8 @@ import io
 import os
 import subprocess
 
+def cargo_boilerplate(binary):
+    return ['cargo', 'run', '--bin', binary, '--release', '--']
 
 # binjs_generate_prediction_tables takes a dictionary output path
 # whereas binjs_encode takes an input dictionary file; we just work
@@ -20,8 +22,8 @@ def dict_path_to_filename(path):
 def generate_dictionary(args):
   input_files = args.input_files
   output_dictionary = args.dictionary
-  cmd = ['../../target/release/binjs_generate_prediction_tables',
-         '-o', output_dictionary, '-i'] + [f.name for f in input_files]
+  cmd = cargo_boilerplate('binjs_generate_prediction_tables') + \
+    ['-o', output_dictionary, '-i'] + [f.name for f in input_files]
   subprocess.run(cmd)
   with open(dict_path_to_filename(output_dictionary), 'rb') as d:
     dict_size = brotli_compressed_size(d)
@@ -32,8 +34,8 @@ def binjs_compressed_size(input_file, dictionary):
   if not os.path.exists(dictionary):
     raise Exception('dictionary file {} does not exist'.format(dictionary))
   with subprocess.Popen(
-      ['../../target/release/binjs_encode', 'advanced', 'entropy',
-       '--dictionary', dictionary],
+      cargo_boilerplate('binjs_encode') +
+        ['advanced', 'entropy', '--dictionary', dictionary],
       stdin=subprocess.PIPE,
       stdout=subprocess.PIPE) as proc:
     stdout, stderr = proc.communicate(input_file.read())
@@ -127,9 +129,7 @@ def main():
   parser = argparse.ArgumentParser(
     fromfile_prefix_chars='@',
     description='''Measures binjs_encode sizes and Brotli+JS sizes.
-Has to be run from a binjs-ref repo root. Build a binjs_encode binary
-with `cargo build --bin binjs_encode --bin binjs_generate_prediction_tables
---release`. `brotli` must be available on PATH.
+    `brotli` must be available on PATH.
 ''')
   subs = parser.add_subparsers(title='command', dest='command')
 
