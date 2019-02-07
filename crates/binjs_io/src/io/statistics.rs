@@ -130,6 +130,17 @@ impl<T> ContentInfo<T> {
         .into_iter()
     }
 
+    /// Access a field by its name.
+    ///
+    /// This method is typically used to simplify parsing a file that
+    /// contains sections explicitly labelled "bools", "floats", etc.
+    /// In such case, `field_name` is expected to be a user input.
+    ///
+    /// Return `None` if `field_name` is not one of the field names.
+    pub fn get_mut(&mut self, field_name: &str) -> Option<&mut T> {
+        self.get_mut_b(field_name.as_bytes())
+    }
+
     /// Access a field by its name, specified as a sequence of bytes.
     ///
     /// This method is typically used to simplify parsing a file that
