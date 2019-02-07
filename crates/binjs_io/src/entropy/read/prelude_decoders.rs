@@ -3,6 +3,7 @@
 
 use entropy::rw::*;
 use entropy::util::*;
+use util::PosRead;
 use TokenReaderError;
 
 use bytes::float::ReadVarFloat;
@@ -161,26 +162,17 @@ where
 
         debug!(target: "read", "SectionDecoder::read_stream preparing to decompress {} bytes", byte_len);
 
-        // Extract slice.
-        let mut buf = Vec::with_capacity(byte_len); // FIXME: We may want some maximal size here.
-        unsafe {
-            buf.set_len(byte_len);
-        }
-        self.input
-            .read_exact(buf.as_mut_slice())
-            .map_err(TokenReaderError::ReadError)?;
-
-        // Note: This is the only way I have found to get Brotli to decompress all the
-        // bytes we feed it.
-        use std::io::Write;
-
+        // Decompress slice.
         let mut result = Vec::new();
-        {
-            let mut brotli = brotli::DecompressorWriter::new(&mut result, 32768); // FIXME: WTF? This doesnt seem to work with small buffer sizes. How am I supposed to guess the buffer size?
-            brotli
-                .write_all(&buf)
-                .map_err(TokenReaderError::ReadError)?;
-            brotli.flush().map_err(TokenReaderError::ReadError)?;
+        let mut slice = PosRead::new(self.input.by_ref().take(byte_len as u64));
+        brotli::BrotliDecompress(&mut slice, &mut result).map_err(TokenReaderError::ReadError)?;
+
+        // Ensure that all bytes have been read.
+        if slice.pos() != byte_len {
+            return Err(TokenReaderError::BadLength {
+                expected: byte_len,
+                got: slice.pos(),
+            });
         }
 
         debug!(target: "read", "SectionDecoder::read_stream I have decompressed {} bytes into {} bytes",
