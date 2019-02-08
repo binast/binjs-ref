@@ -18,7 +18,7 @@ def cargo_boilerplate(binary):
 def dict_path_to_filename(path):
   return os.path.join(path, 'dict.entropy')
 
-# Generates dynamic dictionary from input files
+# Generates static dictionary from input files
 def generate_dictionary(args):
   input_files = args.input_files
   output_dictionary = args.dictionary
