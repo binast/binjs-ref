@@ -1,6 +1,6 @@
 This directory contains the reference JS corpuses against which we optimize the BinAST encoder.
 
-Each subdirectory contains a different corpus. Use the sizes.py script in this directory to measure compression quality. The script depends on the brotli commandline encoder, so e.g. ```brew install brotli```` and make sure it's in the PATH
+Each subdirectory contains a different corpus. Use the sizes.py script in this directory to measure compression quality. The script depends on the brotli commandline encoder, so e.g. ```brew install brotli``` and make sure it's in the PATH
 
 Example of measuring compression ratios on a single JS input file:
 
