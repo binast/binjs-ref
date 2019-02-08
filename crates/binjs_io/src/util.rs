@@ -1,5 +1,5 @@
 use std;
-use std::io::Seek;
+use std::io::{Read, Seek};
 
 /// An object (typically a reader) that knows its position and size.
 pub trait Pos {
@@ -27,6 +27,39 @@ where
         self.seek(std::io::SeekFrom::Start(old))
             .expect("Could not rewind");
         size as usize
+    }
+}
+
+/// A reader that counts the number of bytes it reads from a source.
+pub struct PosRead<T>
+where
+    T: Read,
+{
+    inner: T,
+    pos: usize,
+}
+impl<T> PosRead<T>
+where
+    T: Read,
+{
+    /// Create a new PosRead.
+    pub fn new(inner: T) -> Self {
+        PosRead { inner, pos: 0 }
+    }
+
+    /// Return the number of bytes read so far.
+    pub fn pos(&mut self) -> usize {
+        self.pos
+    }
+}
+impl<T> Read for PosRead<T>
+where
+    T: Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let bytes_read = self.inner.read(buf)?;
+        self.pos += bytes_read;
+        Ok(bytes_read)
     }
 }
 
