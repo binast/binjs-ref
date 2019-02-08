@@ -3,7 +3,7 @@
 mod lazy_stream;
 
 use self::lazy_stream::*;
-use super::dictionary::Fetch;
+use super::dictionary::{Fetch, Index};
 use super::probabilities::IntoStatistics;
 use super::rw::*;
 use bytes::lengthwriter::LengthWriter;
@@ -63,11 +63,11 @@ pub struct Encoder {
     ///
     /// We're using an `LazyStream` rather than directly compressing, so
     /// as to simplify dumping of raw data to files, for forensics purposes,
-    /// and also so as to let us entirely skip streams that have 0 bytes written..
+    /// and also so as to let us entirely skip streams that have 0 bytes written.
     ///
     /// This is something of a hack and should be removed once we have a better
     /// idea of *what* we should encode with Brotli and what we shouldn't.
-    content_streams: ContentInfo<LazyStream>,
+    content_streams: ContentInfo<Vec<Index>>,
 
     /// Parts of the header that we compress with Brotli.
     prelude_streams: PreludeStreams<LazyStream>,
@@ -78,6 +78,9 @@ pub struct Encoder {
 
     /// Measure the number of entries written.
     content_instances: ContentInfo<Instances>,
+
+    /// The path of the file being written, if it's a file.
+    path: Option<std::path::PathBuf>,
 }
 
 impl Encoder {
@@ -95,20 +98,7 @@ impl Encoder {
             }),
             options,
             content_opus_lengths: ContentInfo::with(|_| opus::Writer::new(LengthWriter::new())),
-            content_streams: ContentInfo::with(|name| {
-                let maybe_buf = match path {
-                    None => None,
-                    Some(path) => {
-                        let mut buf = std::path::PathBuf::new();
-                        buf.push(path);
-                        buf.set_extension("streams");
-                        buf.push(name);
-                        buf.set_extension("content");
-                        Some(buf)
-                    }
-                };
-                LazyStream::new(maybe_buf)
-            }),
+            content_streams: ContentInfo::with(|_| Vec::new()),
             prelude_streams: PreludeStreams::with(|name| {
                 let maybe_buf = match path {
                     None => None,
@@ -124,6 +114,7 @@ impl Encoder {
                 LazyStream::new(maybe_buf)
             }),
             content_instances: ContentInfo::with(|_| 0.into()),
+            path: path.map(std::path::Path::to_path_buf),
         }
     }
 }
@@ -256,7 +247,6 @@ macro_rules! emit_string_symbol_to_streams {
 macro_rules! emit_symbol_to_content_stream {
     ( $me: ident, $dictionary:ident, $out:ident, $value: expr, $description: expr ) => {
         {
-            use bytes::varnum::WriteVarNum;
             let value = $value;
 
             // 1. Fetch the index in the dictionary.
@@ -274,19 +264,14 @@ macro_rules! emit_symbol_to_content_stream {
             // Note: We must make sure that we don't forget to write the value
             // to the prelude if it's a Miss.
 
-            let as_usize: usize = index.clone();
-            let as_u32: u32 = as_usize as u32;
-
-            // 2. Locate stream
+            // 2. Append index for later compression
             let ref mut stream = $me.content_streams
                 .$out;
 
-            // 3. Write the index to Brotli.
             stream
-                .write_varnum(as_u32)
-                .map_err(TokenWriterError::WriteError)?;
+                .push(index);
 
-            // 4. Also, update statistics
+            // 3. Also, update statistics
             $me.content_instances
                 .$out += Into::<Instances>::into(1);
 
@@ -297,6 +282,46 @@ macro_rules! emit_symbol_to_content_stream {
 }
 
 impl Encoder {
+    /// Flush a stream of indices (a content stream) into a buffer.
+    ///
+    /// If the stream is empty, do nothing. Otherwise, add `[name_of_stream]compression_method;compressed_bytes`.
+    fn flush_indices(
+        maybe_path: &Option<std::path::PathBuf>,
+        name: &str,
+        vec: &mut Vec<Index>,
+        out: &mut Vec<u8>,
+    ) -> std::io::Result<Bytes> {
+        debug!(target: "write", "Encoder::flush_indices {}, {} instances", name, vec.len());
+        if vec.len() == 0 {
+            return Ok(Into::<Bytes>::into(0));
+        }
+
+        // Initialize lazy stream.
+        let mut lazy_stream = {
+            let maybe_dump_path = match maybe_path {
+                None => None,
+                Some(path) => {
+                    let mut buf = path.clone();
+                    buf.push(path);
+                    buf.set_extension("streams");
+                    buf.push(name);
+                    buf.set_extension("content");
+                    Some(buf)
+                }
+            };
+            LazyStream::new(maybe_dump_path)
+        };
+
+        // Write (and possibly dump) data.
+        // In the current implementation, we just ignore any information other than the index.
+        for item in vec {
+            let index = item.raw();
+            lazy_stream.write_varnum(index as u32)?;
+        }
+
+        Self::flush_stream(name, &mut lazy_stream, out)
+    }
+
     /// Flush a lazy stream (either a prelude stream or a content stream) into a buffer.
     ///
     /// If the stream is empty, do nothing. Otherwise, add `[name_of_stream]compression_method;compressed_bytes`.
@@ -304,15 +329,13 @@ impl Encoder {
         name: &str,
         stream: &mut LazyStream,
         out: &mut Vec<u8>,
-    ) -> Result<(), std::io::Error> {
-        debug!(target: "write", "Encoder::flush_stream {}, {} instances", name, stream.instances());
-        let bytes_written = stream.bytes_written();
+    ) -> std::io::Result<Bytes> {
         stream.flush()?;
-        if let Some(ref data) = stream.data() {
+        if let Some(data) = stream.data() {
             debug!(target: "write", "Encoder::flush_stream: {} contains {} compressed bytes ({} uncompressed bytes written)",
                 name,
                 data.len(),
-                bytes_written,
+                stream.bytes_written(),
             );
 
             // Stream name
@@ -326,9 +349,11 @@ impl Encoder {
             out.write_varnum(len as u32)?;
 
             // Stream content
-            out.write_all(data)?;
+            out.write_all(&data)?;
+            Ok(Into::<Bytes>::into(len))
+        } else {
+            Ok(Into::<Bytes>::into(0))
         }
-        Ok(())
     }
 }
 
@@ -351,8 +376,15 @@ impl TokenWriter for Encoder {
         // Write content compressed streams, containing references to
         // both the prelude dictionaries and the static dictionaries.
         data.extend(SECTION_CONTENT);
-        for (name, stream) in self.content_streams.iter_mut().sorted_by_key(|kv| kv.0) {
-            Self::flush_stream(name, stream, &mut data).map_err(TokenWriterError::WriteError)?;
+        for (name, indices) in self.content_streams.iter_mut().sorted_by_key(|kv| kv.0) {
+            let len = Self::flush_indices(&self.path, name, indices, &mut data)
+                .map_err(TokenWriterError::WriteError)?;
+            *self
+                .options
+                .content_lengths
+                .borrow_mut()
+                .get_mut(&name)
+                .unwrap() += Into::<Bytes>::into(len);
         }
 
         // Write main stream of entropy-compressed data.
@@ -377,9 +409,6 @@ impl TokenWriter for Encoder {
         *self.options.content_lengths.borrow_mut() += self
             .content_opus_lengths
             .into_with(|_, field| field.done().unwrap().len());
-
-        *self.options.content_lengths.borrow_mut() +=
-            self.content_streams.into_statistics("brotli");
 
         // Update number of instances
         *self.options.content_instances.borrow_mut() += self.content_instances;

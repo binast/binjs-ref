@@ -114,11 +114,39 @@ macro_rules! increment_instance_count {
 #[derive(Clone, Copy, Debug)]
 pub enum Fetch {
     /// The value was already in the cache at the given index.
-    Hit(usize),
+    Hit(Index),
 
     /// The value was not in the cache. A slot has been allocated at the given index,
     /// but the definition still needs to be added.
-    Miss(usize),
+    Miss(Index),
+}
+impl Fetch {
+    /// Return the raw value of the fetch, as a `usize`, for writing to a stream.
+    pub fn raw(&self) -> usize {
+        match *self {
+            Fetch::Hit(result) => result.raw(),
+            Fetch::Miss(result) => result.raw(),
+        }
+    }
+}
+
+/// An index in an IndexedTable.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum Index {
+    /// The index represents a value in a shared dictionary.
+    Shared(usize),
+
+    /// The index represents a value in a prelude dictionary.
+    Prelude(usize),
+}
+impl Index {
+    /// Return the raw value of the index, as a `usize`, for writing to a stream.
+    pub fn raw(&self) -> usize {
+        match *self {
+            Index::Shared(result) => result,
+            Index::Prelude(result) => result,
+        }
+    }
 }
 
 /// The initial size of IndexedTables, in elements.
@@ -132,7 +160,7 @@ where
     T: Eq + std::hash::Hash + Clone,
 {
     values: Vec<T>,
-    indices: HashMap<T, usize>,
+    indices: HashMap<T, Index>,
 }
 impl<T> IndexedTable<T>
 where
@@ -156,7 +184,7 @@ where
                 debug!(target: "dictionary", "Too few instances: {} <= {} for {:?}", instances, threshold, value);
                 continue;
             }
-            let len = values.len();
+            let len = Index::Shared(values.len());
             values.push(value.clone());
             let prev = indices.insert(value, len);
             assert!(prev.is_none());
@@ -183,14 +211,16 @@ where
         use std::collections::hash_map::Entry::*;
         debug!(target: "dictionary", "Dictionary: 'I'm looking for {:?} in {:?}", value, self);
         let len = self.values.len();
-        match self.indices.entry(value.clone()) {
+        let result = match self.indices.entry(value.clone()) {
             Occupied(slot) => return Fetch::Hit(*slot.get()),
             Vacant(slot) => {
-                slot.insert(len);
+                let result = Index::Prelude(len);
+                slot.insert(result.clone());
+                result
             }
-        }
+        };
         self.values.push(value.clone());
-        Fetch::Miss(len)
+        Fetch::Miss(result)
     }
 
     /// Return the current state of the cache as a slice.
