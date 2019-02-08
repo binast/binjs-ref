@@ -36,6 +36,7 @@ use clap::*;
 use itertools::Itertools;
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::process::Command;
 
 /// The sizes observed for a stream.
@@ -46,6 +47,36 @@ struct Sizes {
 
     /// Brotli-compressed size.
     brotli: u64,
+
+    /// Bzip2-compressed size.
+    bzip: u64,
+}
+
+fn get_brotli_size(path: &Path) -> u64 {
+    let out = Command::new("brotli")
+        .arg("--best")
+        .arg("--keep")
+        .arg("--stdout")
+        .arg(&path)
+        .output()
+        .expect("Error during brotli");
+    assert!(out.status.success());
+    assert!(out.stdout.len() != 0);
+    out.stdout.len() as u64
+}
+
+fn get_bzip2_size(path: &Path) -> u64 {
+    let out = Command::new("bzip2")
+        .arg("--compress")
+        .arg("--best")
+        .arg("--keep")
+        .arg("--stdout")
+        .arg(&path)
+        .output()
+        .expect("Error during bzip2");
+    assert!(out.status.success());
+    assert!(out.stdout.len() != 0);
+    out.stdout.len() as u64
 }
 
 fn main() {
@@ -56,12 +87,17 @@ fn main() {
             Arg::with_name("path")
                 .index(1)
                 .help("Root of the directory where binjs_encode created its file.")
-                .required(true)
+                .required(true),
+            Arg::with_name("bzip")
+                .long("--compare-to-bzip")
+                .takes_value(false)
+                .help("If specified, compress files with bzip2 for comparison."),
         ])
         .get_matches();
 
     let root = matches.value_of("path").unwrap(); // Checked by clap.
     let glob = format!("{}/**/*", root); // Quick and dirty walk through subdirectories.
+    let compare_to_bzip = matches.is_present("bzip");
 
     let mut number_of_files = 0;
     let mut stats = HashMap::new();
@@ -79,19 +115,8 @@ fn main() {
             "binjs" | "js" | "entropy" => {
                 // binjs_decode doesn't output a brotli-compressed version of these
                 // files, so we call `brotli` manually to obtain one and evaluate
-                // the file size..
-                let brotli_size = {
-                    let out = Command::new("brotli")
-                        .arg("--best")
-                        .arg("--keep")
-                        .arg("--stdout")
-                        .arg(&path)
-                        .output()
-                        .expect("Error during brotli");
-                    assert!(out.status.success());
-                    assert!(out.stdout.len() != 0);
-                    out.stdout.len()
-                } as u64;
+                // the file size.
+                let brotli_size = get_brotli_size(&path);
 
                 let name = match extension.as_str() {
                     // For `binjs` and `js` files, we only care about the extension.
@@ -106,6 +131,10 @@ fn main() {
                     .or_insert_with(|| Sizes::default());
                 info.raw += meta_data.len();
                 info.brotli += brotli_size as u64;
+
+                if compare_to_bzip {
+                    info.bzip += get_bzip2_size(&path);
+                };
             }
             // Brotli files, output by binjs_encode.
             // Remove the `bro` from the name, store in `Sizes::brotli`.
@@ -128,6 +157,9 @@ fn main() {
                     .entry(name)
                     .or_insert_with(|| Sizes::default());
                 info.raw += meta_data.len();
+                if compare_to_bzip {
+                    info.bzip += get_bzip2_size(&path);
+                };
             }
         };
     }
@@ -136,10 +168,10 @@ fn main() {
 
     // Output results as CSV.
     // File name / Number of bytes (uncompressed) / Number of bytes (compressed with brotli)
-    println!("{:40}, {:10}, {:20}", "File", "raw (b)", "brotli-compressed (b)");
+    println!("{:40}, {:10}, {:20}, {:20}", "File", "raw (b)", "brotli-compressed (b)", "bzip2-compressed (b)");
     let print = |in_extension: &HashMap<String, Sizes>| {
         for (name, info) in in_extension.iter().sorted().into_iter() {
-            println!("{:40}, {:10}, {:20}", name, info.raw, info.brotli);
+            println!("{:40}, {:10}, {:20}, {:20}", name, info.raw, info.brotli, info.bzip);
         }
     };
 
