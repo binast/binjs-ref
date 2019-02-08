@@ -103,20 +103,20 @@ impl<T> PreludeStreams<T> {
         }
     }
 
-    /// Iterate throughh fields of PreludeStreams.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&'static str, &mut T)> {
+    /// Iterate through fields of PreludeStreams.
+    pub fn into_iter(self) -> impl Iterator<Item = (&'static str, T)> {
         vec![
-            ("identifier_names", &mut self.identifier_names),
-            ("identifier_names_len", &mut self.identifier_names_len),
-            ("property_keys", &mut self.property_keys),
-            ("property_keys_len", &mut self.property_keys_len),
-            ("string_literals", &mut self.string_literals),
-            ("string_literals_len", &mut self.string_literals_len),
-            ("interface_names", &mut self.interface_names),
-            ("string_enums", &mut self.string_enums),
-            ("list_lengths", &mut self.list_lengths),
-            ("floats", &mut self.floats),
-            ("unsigned_longs", &mut self.unsigned_longs),
+            ("identifier_names", self.identifier_names),
+            ("identifier_names_len", self.identifier_names_len),
+            ("property_keys", self.property_keys),
+            ("property_keys_len", self.property_keys_len),
+            ("string_literals", self.string_literals),
+            ("string_literals_len", self.string_literals_len),
+            ("interface_names", self.interface_names),
+            ("string_enums", self.string_enums),
+            ("list_lengths", self.list_lengths),
+            ("floats", self.floats),
+            ("unsigned_longs", self.unsigned_longs),
         ]
         .into_iter()
     }
