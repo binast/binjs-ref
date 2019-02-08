@@ -1,0 +1,93 @@
+Check main() in sizes.py for command-line switch info and which prereqs need to be installed and built.
+
+
+
+BinAST is at:
+
+8bf15e35 (HEAD -> master, origin/master, origin/HEAD) Merge pull request #266 from arai-a/json-conv-wtf8
+
+Commands which generated this data:
+
+    528  ./sizes.py gendict -d /tmp/ef20190102 -- ./ef-2019-01-02/*.js | tee ./aging.txt
+    529  ./sizes.py aging -d /tmp/ef20190102 './ef-2019-01-02/*.js' './ef-2019-01-03/*.js' './ef-2019-01-04/*.js' './ef-2019-01-10/*.js' './ef-2019-01-16/*.js' './ef-2019-02-01/*.js' | tee -a ./aging.txt
+
+Generating dictionary with lazification 0, depth 3, width 32
+Treating "./ef-2019-01-02/1il57kzux4m8oc4s.pkg.js" ("")
+Parsing.
+Building dictionary.
+Treating "./ef-2019-01-02/29yyovy82e1w8080.pkg.js" ("")
+Parsing.
+Building dictionary.
+Treating "./ef-2019-01-02/9ah15wskkvgo048c.pkg.js" ("")
+Parsing.
+Building dictionary.
+Treating "./ef-2019-01-02/9vmkl4636e8kkk80.pkg.js" ("")
+Parsing.
+Building dictionary.
+Treating "./ef-2019-01-02/e1yio9hnu9s008k4.pkg.js" ("")
+Parsing.
+Building dictionary.
+Treating "./ef-2019-01-02/e83irp28nps84kgo.pkg.js" ("")
+Parsing.
+Building dictionary.
+Treating "./ef-2019-01-02/eeuzfvmyypwg88o8.pkg.js" ("")
+Parsing.
+Building dictionary.
+Successfully generated dictionary from 7 files
+Writing probabilities to "/tmp/ef20190102/dict.entropy"
+brotli compressed dictionary size: 617381
+dir,filename,size,brotli,binast
+./ef-2019-01-02/*.js,./ef-2019-01-02/9vmkl4636e8kkk80.pkg.js,89855,21479,22771
+./ef-2019-01-02/*.js,./ef-2019-01-02/e1yio9hnu9s008k4.pkg.js,357179,65091,73609
+./ef-2019-01-02/*.js,./ef-2019-01-02/eeuzfvmyypwg88o8.pkg.js,91513,19719,22137
+./ef-2019-01-02/*.js,./ef-2019-01-02/29yyovy82e1w8080.pkg.js,338766,62930,69950
+./ef-2019-01-02/*.js,./ef-2019-01-02/9ah15wskkvgo048c.pkg.js,560732,119053,130437
+./ef-2019-01-02/*.js,./ef-2019-01-02/e83irp28nps84kgo.pkg.js,126827,35112,36905
+./ef-2019-01-02/*.js,./ef-2019-01-02/1il57kzux4m8oc4s.pkg.js,325286,75340,79054
+./ef-2019-01-03/*.js,./ef-2019-01-03/412r6fumc3ok884c.pkg.js,325443,75242,78989
+./ef-2019-01-03/*.js,./ef-2019-01-03/eeuzfvmyypwg88o8.pkg.js,91513,19719,22137
+./ef-2019-01-03/*.js,./ef-2019-01-03/7xfu0tlqxo08c0co.pkg.js,39020,8832,9607
+./ef-2019-01-03/*.js,./ef-2019-01-03/bvi3lo6qz5cs08sw.pkg.js,1337786,251325,242797
+./ef-2019-01-03/*.js,./ef-2019-01-03/e83irp28nps84kgo.pkg.js,126827,35112,36905
+./ef-2019-01-04/*.js,./ef-2019-01-04/412r6fumc3ok884c.pkg.js,325443,75242,78989
+./ef-2019-01-04/*.js,./ef-2019-01-04/eeuzfvmyypwg88o8.pkg.js,91513,19719,22137
+./ef-2019-01-04/*.js,./ef-2019-01-04/7xfu0tlqxo08c0co.pkg.js,39020,8832,9607
+./ef-2019-01-04/*.js,./ef-2019-01-04/bvi3lo6qz5cs08sw.pkg.js,1337786,251325,242797
+./ef-2019-01-04/*.js,./ef-2019-01-04/e83irp28nps84kgo.pkg.js,126827,35112,36905
+./ef-2019-01-10/*.js,./ef-2019-01-10/412r6fumc3ok884c.pkg.js,325443,75242,78989
+./ef-2019-01-10/*.js,./ef-2019-01-10/e1yio9hnu9s008k4.pkg.js,357361,65175,73646
+./ef-2019-01-10/*.js,./ef-2019-01-10/cha4l6ro774sssso.pkg.js,1004089,198226,203134
+./ef-2019-01-10/*.js,./ef-2019-01-10/eeuzfvmyypwg88o8.pkg.js,91572,19689,22145
+./ef-2019-01-10/*.js,./ef-2019-01-10/8wp8z9inaacc4gcs.pkg.js,16840,4804,5279
+./ef-2019-01-10/*.js,./ef-2019-01-10/e83irp28nps84kgo.pkg.js,126827,35112,36905
+./ef-2019-01-16/*.js,./ef-2019-01-16/58nuksoao1s0kkwg.pkg.js,41702,10417,11140
+./ef-2019-01-16/*.js,./ef-2019-01-16/1nidw2y1glno8so0.pkg.js,738718,156902,169534
+./ef-2019-01-16/*.js,./ef-2019-01-16/a0qvub32dgoo8kgo.pkg.js,81763,18940,20935
+./ef-2019-01-16/*.js,./ef-2019-01-16/els9xrlxxm8ss8co.pkg.js,87594,20088,21027
+./ef-2019-01-16/*.js,./ef-2019-01-16/412r6fumc3ok884c.pkg.js,326244,75486,79699
+./ef-2019-01-16/*.js,./ef-2019-01-16/368qcy0nxnokkw8o.pkg.js,25306,6963,7327
+./ef-2019-01-16/*.js,./ef-2019-01-16/7vpwwxafdxc0kcko.pkg.js,53411,13618,16030
+./ef-2019-01-16/*.js,./ef-2019-01-16/8hwej60sc4ws0w8s.pkg.js,9516,2936,3284
+./ef-2019-01-16/*.js,./ef-2019-01-16/3z8xi3ob8yuccs80.pkg.js,46306,10002,10473
+./ef-2019-01-16/*.js,./ef-2019-01-16/e9ismbbxu48wwwwk.pkg.js,104994,18300,24150
+./ef-2019-01-16/*.js,./ef-2019-01-16/cjiweuf5ixkcogk8.pkg.js,1627,635,881
+./ef-2019-01-16/*.js,./ef-2019-01-16/2trfpy2qqwu8o00w.pkg.js,336761,62400,69523
+./ef-2019-01-16/*.js,./ef-2019-01-16/ch23xtf7bjswsgcw.pkg.js,19158,6074,6296
+./ef-2019-01-16/*.js,./ef-2019-01-16/dskz70yeorsok0oo.pkg.js,31869,5917,6916
+./ef-2019-01-16/*.js,./ef-2019-01-16/5hwmza7i6ewwg88w.pkg.js,134492,30240,31485
+./ef-2019-01-16/*.js,./ef-2019-01-16/f1h86x9tfs0kc8k4.pkg.js,58044,13513,14293
+./ef-2019-01-16/*.js,./ef-2019-01-16/9ns3shgv69s0w8c4.pkg.js,49018,12037,13644
+./ef-2019-02-01/*.js,./ef-2019-02-01/4l10ng089tkw4cow.pkg.js,17129,4067,4282
+./ef-2019-02-01/*.js,./ef-2019-02-01/412r6fumc3ok884c.pkg.js,329659,76461,80254
+./ef-2019-02-01/*.js,./ef-2019-02-01/4y3wq56re4soos84.pkg.js,1017177,209147,213986
+./ef-2019-02-01/*.js,./ef-2019-02-01/9nzhl2gksn400ck4.pkg.js,360945,65845,74280
+./ef-2019-02-01/*.js,./ef-2019-02-01/xrzjeswn5lc84s4w.pkg.js,97169,23050,24550
+./ef-2019-02-01/*.js,./ef-2019-02-01/b7ca05ydphwsgwow.pkg.js,92308,19799,22216
+-------- Totals --------
+dir,size,brotli,binast
+./ef-2019-01-02/*.js,1890158,398724,434863
+./ef-2019-01-03/*.js,1920589,390230,390435
+./ef-2019-01-04/*.js,1920589,390230,390435
+./ef-2019-01-10/*.js,1922132,398248,420098
+./ef-2019-01-16/*.js,2146523,464468,506637
+./ef-2019-02-01/*.js,1914387,398369,419568
