@@ -85,11 +85,10 @@ def print_sizes(args):
         binast_size/br_size))
 
 
-      print('{0},{size},{brotli},{binast},{ratio:.3f}'.format(d, **sizes))
-
 def aging_measure(group, filename, dictionary):
   with open(filename, 'rb') as f:
     return (group, measure(f, dictionary))
+
 
 # Report encoded-size ratios from using a single dictionary trained on one 
 # directory but used to encode all directories.
@@ -126,6 +125,8 @@ def aging(args):
 
 
 def main():
+  os.environ['NODE_MAX_OLD_SPACE_SIZE'] = '9999'
+
   parser = argparse.ArgumentParser(
     fromfile_prefix_chars='@',
     description='''Measures binjs_encode sizes and Brotli+JS sizes.
