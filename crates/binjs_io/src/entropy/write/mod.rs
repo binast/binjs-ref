@@ -3,7 +3,7 @@
 mod lazy_stream;
 
 use self::lazy_stream::*;
-use super::dictionary::{Fetch, Index};
+use super::dictionary::{Fetch, TableRef};
 use super::rw::*;
 use bytes::lengthwriter::LengthWriter;
 use bytes::varnum::WriteVarNum;
@@ -56,7 +56,7 @@ pub struct Encoder {
     ///
     /// This is something of a hack and should be removed once we have a better
     /// idea of *what* we should encode with Brotli and what we shouldn't.
-    content_streams: ContentInfo<Vec<Index>>,
+    content_streams: ContentInfo<Vec<TableRef>>,
 
     /// Parts of the header that we compress with Brotli.
     prelude_streams: PreludeStreams<LazyStream>,
@@ -278,11 +278,11 @@ impl Encoder {
     ///
     /// If the stream is empty, do nothing. Otherwise, add `[name_of_stream]compression_method;compressed_bytes`.
     ///
-    /// If `maybe_path` is specified
+    /// If `maybe_path` is specified, flush to a subdirectory of the path.
     fn flush_indices(
         maybe_path: &Option<std::path::PathBuf>,
         name: &str,
-        vec: &mut Vec<Index>,
+        vec: &[TableRef],
         out: &mut Vec<u8>,
     ) -> std::io::Result<Bytes> {
         debug!(target: "write", "Encoder::flush_indices {}, {} instances", name, vec.len());
@@ -308,9 +308,10 @@ impl Encoder {
 
         // Write (and possibly dump) data.
         // In the current implementation, we just ignore any information other than the index.
+        let mut state = TableRefStreamState::<()>::new();
         for item in vec {
-            let index = item.raw();
-            lazy_stream.write_varnum(index as u32)?;
+            let as_u32 = state.into_u32(*item);
+            lazy_stream.write_varnum(as_u32)?;
         }
 
         Self::flush_stream(name, lazy_stream, out)
@@ -355,7 +356,7 @@ impl Encoder {
 impl TokenWriter for Encoder {
     type Data = Vec<u8>;
 
-    fn done(mut self) -> Result<Self::Data, TokenWriterError> {
+    fn done(self) -> Result<Self::Data, TokenWriterError> {
         let mut data: Vec<u8> = Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES);
 
         data.extend(GLOBAL_HEADER_START);
@@ -376,7 +377,7 @@ impl TokenWriter for Encoder {
         } else {
             &None
         };
-        for (name, indices) in self.content_streams.iter_mut().sorted_by_key(|kv| kv.0) {
+        for (name, indices) in self.content_streams.iter().sorted_by_key(|kv| kv.0) {
             let len = Self::flush_indices(path_for_flush, name, indices, &mut data)
                 .map_err(TokenWriterError::WriteError)?;
             *self

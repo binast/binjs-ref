@@ -3,7 +3,8 @@ extern crate itertools;
 
 use binjs::generic::{FromJSON, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString};
 use binjs::io::entropy;
-use binjs::io::entropy::dictionary::{DictionaryBuilder, FilesContaining};
+use binjs::io::entropy::dictionary::{DictionaryBuilder, FilesContaining, LinearTable};
+use binjs::io::entropy::rw::TableRefStreamState;
 use binjs::io::{Deserialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::{Script, Visitor, WalkPath, Walker};
@@ -222,3 +223,47 @@ where
         .sorted();
     assert_eq!(found, expected);
 }
+
+test!(test_linear_table, {
+    // Initialize a linear table from a shared dictionary.
+    let mut value_to_instances = HashMap::new();
+    for i in 0..5 {
+        value_to_instances.insert(i, i.into());
+    }
+
+    let mut linear_table = LinearTable::new(value_to_instances, /* threshold */ 1.into());
+
+    assert_eq!(
+        linear_table.shared_len(),
+        3,
+        "3 values should have passed the threshold"
+    );
+    assert_eq!(linear_table.prelude_len(), 0);
+    assert_eq!(linear_table.len(), 3);
+
+    // Add a prelude dictionary.
+    for i in 5..20 {
+        assert!(!linear_table.fetch_index(&i).is_hit());
+    }
+
+    assert_eq!(linear_table.shared_len(), 3);
+    assert_eq!(linear_table.prelude_len(), 15);
+    assert_eq!(linear_table.len(), 18);
+
+    // Generate an arbitrary list of indices.
+    let indices = (1..10)
+        .map(|x| x * 2)
+        .chain((1..9).map(|x| x * 2 + 1))
+        .map(|i| linear_table.fetch_index(&i).table_ref())
+        .collect_vec();
+
+    let mut serializer: TableRefStreamState<usize> = TableRefStreamState::new();
+    let serialized = indices.iter().map(|index| serializer.into_u32(*index));
+
+    let mut deserializer: TableRefStreamState<usize> = TableRefStreamState::new();
+    let deserialized = serialized
+        .map(|as_u32| deserializer.from_u32(as_u32, &linear_table).unwrap())
+        .collect_vec();
+
+    assert_eq!(indices, deserialized)
+});

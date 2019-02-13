@@ -409,8 +409,8 @@ impl Decoder {
             Deserialization<binjs_io::multipart::TreeTokenReader, AST>,
         Deserializer<binjs_io::binjs_json::read::Decoder<R>>:
             Deserialization<binjs_io::binjs_json::read::Decoder<R>, AST>,
-        Deserializer<binjs_io::entropy::read::Decoder<'a>>:
-            Deserialization<binjs_io::entropy::read::Decoder<'a>, AST>,
+        Deserializer<binjs_io::entropy::read::Decoder>:
+            Deserialization<binjs_io::entropy::read::Decoder, AST>,
     {
         let mut path = IOPath::new();
         match *format {
