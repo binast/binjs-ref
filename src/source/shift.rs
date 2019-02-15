@@ -125,11 +125,27 @@ impl Script {
     }
 }
 
+/// Options for parsing or pretty printing.
+struct Options {
+    /// If `true`, rewrite `foo["bar"]` into `foo.bar` whenever possible.
+    ///
+    /// Default value: `true`.
+    cleanup_bracket_expressions: bool,
+}
+impl Options {
+    fn new() -> Self {
+        Options {
+            cleanup_bracket_expressions: true,
+        }
+    }
+}
+
 /// Using a Node + Shift binary to parse an AST.
 pub struct Shift {
     parse_str: Script,
     parse_file: Script,
     codegen: Script,
+    options: Options,
 }
 
 impl Shift {
@@ -140,7 +156,16 @@ impl Shift {
             parse_str: Script::try_new(&node, "parse_str.js")?,
             parse_file: Script::try_new(&node, "parse_file.js")?,
             codegen: Script::try_new(&node, "codegen.js")?,
+            options: Options::new(),
         })
+    }
+
+    /// Determine whether bracket expressions should be cleaned up during parsing.
+    ///
+    /// If `true` or unset, rewrite `foo["bar"]` into `foo.bar` whenever possible.
+    pub fn with_cleanup_bracket_expressions(&mut self, value: bool) -> &mut Self {
+        self.options.cleanup_bracket_expressions = value;
+        self
     }
 
     // We need to mutate the AST to adjust it to the Shift format, so we take
@@ -172,7 +197,8 @@ impl SourceParser for Shift {
 
     fn parse_str(&self, data: &str) -> Result<JSON, Error> {
         let mut ast = self.parse_str.transform(&data.into())?;
-        FromShift.convert(&mut ast);
+        let converter = FromShift::new(&self.options);
+        converter.convert(&mut ast);
         Ok(ast)
     }
 
@@ -185,7 +211,8 @@ impl SourceParser for Shift {
 
         // A script to parse a source file, write it to stdout as JSON.
         let mut ast = self.parse_file.transform(&path.into())?;
-        FromShift.convert(&mut ast);
+        let converter = FromShift::new(&self.options);
+        converter.convert(&mut ast);
         Ok(ast)
     }
 }
@@ -208,8 +235,13 @@ struct ParameterScopeAndFunctionLength {
 }
 
 /// A data structure designed to convert from Shift AST to BinJS AST.
-struct FromShift;
-impl FromShift {
+struct FromShift<'a> {
+    options: &'a Options,
+}
+impl<'a> FromShift<'a> {
+    fn new(options: &'a Options) -> Self {
+        Self { options }
+    }
     fn convert(&self, value: &mut JSON) {
         use json::JsonValue::*;
         match *value {
@@ -241,9 +273,9 @@ impl FromShift {
         JSON::Object(scope)
     }
 
-    fn parameter_scope_and_length<'a, I>(&self, params: I) -> ParameterScopeAndFunctionLength
+    fn parameter_scope_and_length<'b, I>(&self, params: I) -> ParameterScopeAndFunctionLength
     where
-        I: IntoIterator<Item = &'a json::JsonValue>,
+        I: IntoIterator<Item = &'b json::JsonValue>,
     {
         let mut scope = Object::new();
         let mut length = 0;
@@ -484,6 +516,53 @@ impl FromShift {
             }
             Some("IdentifierExpression") => {
                 debug!(target: "Shift", "FromShift IdentifierExpression {:?}", object);
+                // No change.
+            }
+            Some("ComputedMemberExpression") if self.options.cleanup_bracket_expressions => {
+                // Rewrite
+                //
+                // ComputedMemberExpression {
+                //     _object: o
+                //     expression: LiteralStringExpression {
+                //        value: "foo"
+                //     }
+                // }
+                //
+                // into
+                //
+                // StaticMemberExpression {
+                //    _object: o
+                //    property: "foo"
+                // }
+                if let Some("LiteralStringExpression") = object["expression"]["type"].as_str() {
+                    let value = object["expression"].remove("value");
+                    object["type"] = "StaticMemberExpression".into();
+                    object["property"] = value;
+                    object.remove("expression");
+                }
+            }
+            Some("ComputedMemberAssignmentTarget") if self.options.cleanup_bracket_expressions => {
+                // Rewrite
+                //
+                // ComputedMemberAssignmentTarget {
+                //     _object: o
+                //     expression: LiteralStringExpression {
+                //        value: "foo"
+                //     }
+                // }
+                //
+                // into
+                //
+                // ComputedMemberAssignmentTarget {
+                //    _object: o
+                //    property: "foo"
+                // }
+                if let Some("LiteralStringExpression") = object["expression"]["type"].as_str() {
+                    let value = object["expression"].remove("value");
+                    object["type"] = "StaticMemberExpression".into();
+                    object["property"] = value;
+                    object.remove("expression");
+                }
             }
             _ => { /* No change */ }
         }
@@ -720,11 +799,14 @@ impl MutASTVisitor for ToShift {
 }
 
 #[test]
-fn test_shift_basic() {
+fn test_shift() {
     use env_logger;
     env_logger::init();
 
-    let shift = Shift::try_new().expect("Could not launch Shift");
+    let mut shift = Shift::try_new().expect("Could not launch Shift");
+
+    // Parse a simple function.
+
     let parsed = shift
         .parse_str("function foo() {}")
         .expect("Error in parse_str");
@@ -773,6 +855,69 @@ fn test_shift_basic() {
     };
 
     println!("Comparing\n{}\n{}", parsed.pretty(2), expected.pretty(2));
+    assert_eq!(parsed, expected);
 
+    // Parse a statement with cleanup.
+    let source = "foo['bar']"; // Will be rewritten `foo.bar`.
+    let parsed = shift
+        .with_cleanup_bracket_expressions(true)
+        .parse_str(source)
+        .expect("Error in parse_str");
+    let expected = object! {
+        "type" => "Script",
+        "directives" => array![],
+        "statements" => array![
+            object!{
+                "type" => "ExpressionStatement",
+                "expression" => object!{
+                    "type" => "StaticMemberExpression",
+                    "object" => object!{
+                        "type" => "IdentifierExpression",
+                        "name" => "foo"
+                    },
+                    "property" => "bar"
+                }
+            }
+        ],
+        "scope" => object!{
+            "type" => "AssertedScriptGlobalScope",
+            "declaredNames" => array![],
+            "hasDirectEval" => false,
+        },
+    };
+    println!("Comparing\n{}\n{}", parsed.pretty(2), expected.pretty(2));
+    assert_eq!(parsed, expected);
+
+    // Parse the same statement without cleanup.
+    let parsed = shift
+        .with_cleanup_bracket_expressions(false)
+        .parse_str(source)
+        .expect("Error in parse_str");
+    let expected = object! {
+        "type" => "Script",
+        "directives" => array![],
+        "statements" => array![
+            object!{
+                "type" => "ExpressionStatement",
+                "expression" => object!{
+                    "type" => "ComputedMemberExpression",
+                    "object" => object!{
+                        "type" => "IdentifierExpression",
+                        "name" => "foo"
+                    },
+                    "expression" => object!{
+                        "type" => "LiteralStringExpression",
+                        "value" => "bar"
+                    }
+                }
+            }
+        ],
+        "scope" => object!{
+            "type" => "AssertedScriptGlobalScope",
+            "declaredNames" => array![],
+            "hasDirectEval" => false,
+        },
+    };
+    println!("Comparing\n{}\n{}", parsed.pretty(2), expected.pretty(2));
     assert_eq!(parsed, expected);
 }
