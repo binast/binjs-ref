@@ -6,6 +6,8 @@ extern crate binjs;
 
 extern crate glob;
 extern crate itertools;
+#[macro_use]
+extern crate lazy_static;
 
 use binjs::generic::*;
 use binjs::source::*;
@@ -19,12 +21,16 @@ fn launch_shift() -> Shift {
     Shift::try_new().expect("Could not launch Shift")
 }
 
+lazy_static! {
+    static ref SHIFT: Shift = launch_shift();
+}
+
 fn bench_parsing_one_parser_per_run(bencher: &mut bencher::Bencher) {
     bench_parsing_aux(None, bencher);
 }
 
 fn bench_parsing_reuse_parser(bencher: &mut bencher::Bencher) {
-    bench_parsing_aux(Some(&launch_shift()), bencher);
+    bench_parsing_aux(Some(&SHIFT), bencher);
 }
 
 fn bench_parsing_aux(parser: Option<&Shift>, bencher: &mut bencher::Bencher) {
