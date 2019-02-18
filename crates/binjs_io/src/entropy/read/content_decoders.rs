@@ -39,24 +39,35 @@ where
     T: Eq + Hash + Clone + Ord,
 {
     /// Create a decoder from a shared dictionary, a prelude dictionary and a stream of varnum-encoded values.
-    pub fn new(
+    pub fn try_new(
         indexed_dictionary: LinearTable<T>,
         name: SharedString,
-        stream: Option<Vec<u8>>,
-    ) -> Self {
+        maybe_input: Option<Vec<u8>>,
+    ) -> Result<Self, TokenReaderError> {
         debug!(target: "read", "DictionaryStreamDecoder::new {} is a {}",
             name.as_str(),
-            match stream {
+            match maybe_input {
                 None => "EMPTY stream".to_string(),
                 Some(ref vec) => format!("non-empty ({} bytes) stream", vec.len())
             }
         );
-        Self {
+        let mut maybe_stream = maybe_input.map(Cursor::new);
+
+        // Determine the window length for the TableRefStreamState.
+        //
+        // If the stream is empty, we arbitrarily default to 0, as the TableRefStreamState won't be used.
+        let window_len = match maybe_stream {
+            Some(ref mut stream) => {
+                stream.read_varnum().map_err(TokenReaderError::ReadError)? as usize
+            }
+            None => 0,
+        };
+        Ok(Self {
             indexed_dictionary,
-            stream: stream.map(Cursor::new),
+            stream: maybe_stream,
             name,
-            index_stream_state: TableRefStreamState::new(),
-        }
+            index_stream_state: TableRefStreamState::new(window_len),
+        })
     }
 }
 impl<T> Iterator for DictionaryStreamDecoder<T>

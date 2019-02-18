@@ -161,8 +161,9 @@ pub type NameData = SmallVec<[u8; NAME_MAX_LEN]>;
 ///
 /// `TableRef` values are represented as follows:
 /// - a value `0` represents an `TableRef::Prelude` with index 1 + the latest `TableRef::Prelude` value we have encoded/decoded;
-/// - a value `v` in `[1, length of the shared dictionary]` represent `TableRef::Shared` with index `v - 1`;
-/// - a value `v > length of the shared dictionary` represents `TableRef::Prelude` with index `v - 1`.
+/// - a value `v` in `[1, window len]` represents a repeat of a previous value: 1 it the latest value, 2 the second latest, etc.
+/// - a value `v` in `[window len + 1, window len + length of the shared dictionary]` represent `TableRef::Shared` with index `v - window len - 1`;
+/// - a value `v > window len + length of the shared dictionary` represents `TableRef::Prelude` with index `v - window len - length of shared dictionary - 1`.
 pub struct TableRefStreamState<T> {
     /// The latest `TableRef::Prelude` value.
     ///
@@ -174,16 +175,37 @@ pub struct TableRefStreamState<T> {
     /// Phantom type, to ensure that we only ever use a given `TableRefStreamState` with
     /// a single (type of) LinearTable.
     phantom: PhantomData<T>,
+
+    /// The latest references encountered.
+    ///
+    /// window[0] is the latest reference encountered,
+    /// window[1] the second latest
+    /// ...
+    ///
+    /// Invariant:
+    /// - length is always <= window_max_len
+    /// - if i ≠ j, window[i] ≠ window[j]
+    window: Vec<TableRef>,
+
+    /// The maximal length of `self.window`, which is also the number of
+    /// integers to reserve to represent backreferences to values encountered
+    /// recently.
+    window_max_len: usize,
 }
 impl<T> TableRefStreamState<T>
 where
     T: Eq + std::hash::Hash + Clone,
 {
     /// Create a new `TableRefStreamState`.
-    pub fn new() -> Self {
+    ///
+    /// `window_max_len` represents the number of integers to reserve to
+    /// represent backreferences to values encountered recently.
+    pub fn new(window_max_len: usize) -> Self {
         TableRefStreamState {
             latest_in_prelude: None,
             phantom: PhantomData,
+            window_max_len,
+            window: Vec::with_capacity(window_max_len),
         }
     }
 
@@ -198,22 +220,80 @@ where
 
     /// Decode an `TableRef` from a `u32`.
     pub fn from_u32(&mut self, value: u32, table: &LinearTable<T>) -> Option<TableRef> {
-        if value == 0 {
-            // Value `0` is reserved to represent `latest_in_prelude + 1` (or `0` if `latest_in_prelude` is `None`).
-            let next_in_prelude = self.next_in_prelude();
-            self.latest_in_prelude = Some(next_in_prelude);
-            return Some(TableRef::Prelude(next_in_prelude as usize));
+        debug!(target: "rw", "TableRefStreamState::from_u32 {} with window_len {}, shared_len {}, total len {}",
+            value,
+            self.window_max_len,
+            table.shared_len(),
+            table.len());
+        let index = loop {
+            // Fake loop, used simply to be able to `break` out.
+            if value == 0 {
+                // Value `0` is reserved to represent `latest_in_prelude + 1` (or `0` if `latest_in_prelude` is `None`).
+                let next_in_prelude = self.next_in_prelude();
+                break TableRef::Prelude(next_in_prelude as usize);
+            }
+            // Renormalize from 0.
+            let value = value - 1;
+            debug!(target: "rw", "TableRefStreamState::from_u32, value is not 0, renormalizing to {}",
+                value);
+            if (value as usize) < self.window_max_len {
+                // this is a hit in the floating window.
+                break *self.window.get(value as usize)?;
+            }
+
+            // Renormalize from 0 again.
+            let value = value - self.window_max_len as u32;
+            debug!(target: "rw", "TableRefStreamState::from_u32, value is not in window, renormalizing to {}",
+                value);
+            if (value as usize) < table.shared_len() {
+                break TableRef::Shared(value as usize);
+            }
+
+            // Values beyond `table.shared_len()` represent prelude indices.
+            if (value as usize) < table.len() {
+                break TableRef::Prelude(value as usize);
+            }
+            return None;
+        };
+        // Update caches (latest in prelude, position in window).
+        self.update_position_in_window(index);
+        if let TableRef::Prelude(ref index_in_prelude) = index {
+            self.latest_in_prelude = Some(*index_in_prelude as u32)
         }
-        // Renormalize from 0.
-        let value = value - 1;
-        if (value as usize) < table.shared_len() {
-            return Some(TableRef::Shared(value as usize));
+        Some(index)
+    }
+
+    /// Update `window` using a LRU eviction strategy.
+    ///
+    /// Return:
+    /// - `Some(pos)` if `value` was already in `window` at position `pos`;
+    /// - `None` otherwise.
+    fn update_position_in_window(&mut self, value: TableRef) -> Option<usize> {
+        if self.window_max_len == 0 {
+            return None;
         }
-        // Values beyond `table.shared_len()` represent prelude indices.
-        if (value as usize) < table.len() {
-            self.latest_in_prelude = Some(value);
-            return Some(TableRef::Prelude(value as usize));
+        if let Some(pos) = self.window.iter().position(|i| i == &value) {
+            if pos == 0 {
+                // `value` was already the latest value in `window`, nothing to update.
+            } else {
+                // Rotate the value to the first position.
+                let ref mut slice = self.window.as_mut_slice()[0..pos + 1];
+                slice.rotate_right(1);
+            }
+            return Some(pos);
         }
+        if self.window.len() < self.window_max_len {
+            // Insert a new latest value in the window.
+            self.window.insert(0, value);
+        } else {
+            // Insert a new value at 0, shifting other values and getting
+            // rid of the last value in window.
+            let len = self.window.len();
+            self.window[len - 1] = value;
+            self.window.rotate_right(1);
+        }
+        assert!(self.window[0] == value);
+        assert!(self.window.len() <= self.window_max_len);
         None
     }
 
@@ -221,18 +301,35 @@ where
     ///
     /// This method does *not* perform any kind of sanity check on the `TableRef`.
     pub fn into_u32(&mut self, value: TableRef) -> u32 {
+        let maybe_position_in_window = self.update_position_in_window(value);
+
         match value {
-            // References to the shared dictionary are shifted by 1.
-            TableRef::Shared(i) => (i + 1) as u32,
+            TableRef::Shared(i) => {
+                match maybe_position_in_window {
+                    // If we repeat a recent value, emit its position.
+                    // Use interval [1, self.window_max_len].
+                    Some(pos) => (pos + 1) as u32,
+                    // Otherwise, emit a direct reference to the shared dictionary.
+                    // Use interval ]self.window_max_len, self.window_max_len + self.shared_len]
+                    None => (i + self.window_max_len + 1) as u32,
+                }
+            }
             // References to the prelude dictionary may be 0 (for next) or shifted by 1.
             TableRef::Prelude(i) => {
                 let i = i as u32;
                 let next_in_prelude = self.next_in_prelude();
                 self.latest_in_prelude = Some(i);
                 if next_in_prelude == i {
-                    0
-                } else {
-                    i + 1
+                    // 0 is reserved exactly for this.
+                    return 0;
+                }
+                match maybe_position_in_window {
+                    // If we repeat a recent value, emit its position.
+                    // Use interval [1, self.window_max_len].
+                    Some(pos) => (pos + 1) as u32,
+                    // Otherwise, emit a direct reference to the prelude dictionary.
+                    // Use interval ]self.window_max_len + self.shared_len, ..]
+                    None => (i + self.window_max_len as u32 + 1),
                 }
             }
         }

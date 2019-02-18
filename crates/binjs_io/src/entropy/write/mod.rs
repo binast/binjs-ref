@@ -276,13 +276,15 @@ macro_rules! emit_symbol_to_content_stream {
 impl Encoder {
     /// Flush a stream of indices (a content stream) into a buffer.
     ///
-    /// If the stream is empty, do nothing. Otherwise, add `[name_of_stream]compression_method;compressed_bytes`.
+    /// If the stream is empty, do nothing. Otherwise, add `[name_of_stream]compression_method;compressed_bytes`,
+    /// where `compressed_bytes` starts with a varnum indicating the LRU window len.
     ///
     /// If `maybe_path` is specified, flush to a subdirectory of the path.
     fn flush_indices(
         maybe_path: &Option<std::path::PathBuf>,
         name: &str,
         vec: &[TableRef],
+        window_len: usize,
         out: &mut Vec<u8>,
     ) -> std::io::Result<Bytes> {
         debug!(target: "write", "Encoder::flush_indices {}, {} instances", name, vec.len());
@@ -306,12 +308,16 @@ impl Encoder {
             LazyStream::new(maybe_dump_path)
         };
 
+        // Write window length.
+        lazy_stream.write_varnum(window_len as u32)?;
+
         // Write (and possibly dump) data.
         // In the current implementation, we just ignore any information other than the index.
-        let mut state = TableRefStreamState::<()>::new();
-        for item in vec {
-            let as_u32 = state.into_u32(*item);
-            lazy_stream.write_varnum(as_u32)?;
+
+        let mut state = TableRefStreamState::<()>::new(window_len);
+        for table_ref in vec {
+            let varnum = state.into_u32(*table_ref);
+            lazy_stream.write_varnum(varnum as u32)?;
         }
 
         Self::flush_stream(name, lazy_stream, out)
@@ -378,7 +384,8 @@ impl TokenWriter for Encoder {
             &None
         };
         for (name, indices) in self.content_streams.iter().sorted_by_key(|kv| kv.0) {
-            let len = Self::flush_indices(path_for_flush, name, indices, &mut data)
+            let window_len = self.options.content_window_len.get(name).unwrap();
+            let len = Self::flush_indices(path_for_flush, name, indices, *window_len, &mut data)
                 .map_err(TokenWriterError::WriteError)?;
             *self
                 .options

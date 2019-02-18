@@ -250,20 +250,42 @@ test!(test_linear_table, {
     assert_eq!(linear_table.prelude_len(), 15);
     assert_eq!(linear_table.len(), 18);
 
+    // An arbitrary list of fetch requests that attempts to ensure we hit
+    // all the interesting cases.
+    let requests = [
+        2, 4, 6, 8, 10, 12, 14, 16, // Regular access
+        3, 5, 7, 9, 11, 13, 15,
+        17, // More regular access, just make sure that it's not monotonic
+        10, 11, 4,  // Access old values
+        18, // A fresh value
+        10, 11, 4, 18, // Recent values
+    ];
+
     // Generate an arbitrary list of indices.
-    let indices = (1..10)
-        .map(|x| x * 2)
-        .chain((1..9).map(|x| x * 2 + 1))
+    let indices = requests
+        .iter()
         .map(|i| linear_table.fetch_index(&i).table_ref())
         .collect_vec();
 
-    let mut serializer: TableRefStreamState<usize> = TableRefStreamState::new();
-    let serialized = indices.iter().map(|index| serializer.into_u32(*index));
+    for window_len in 0..10 {
+        let mut serializer: TableRefStreamState<usize> = TableRefStreamState::new(window_len);
+        let serialized = indices
+            .iter()
+            .map(|index| serializer.into_u32(*index))
+            .collect_vec();
 
-    let mut deserializer: TableRefStreamState<usize> = TableRefStreamState::new();
-    let deserialized = serialized
-        .map(|as_u32| deserializer.from_u32(as_u32, &linear_table).unwrap())
-        .collect_vec();
+        eprintln!("Serialized: {:?}", serialized);
 
-    assert_eq!(indices, deserialized)
+        let mut deserializer: TableRefStreamState<usize> = TableRefStreamState::new(window_len);
+        let deserialized = serialized
+            .iter()
+            .map(|as_u32| deserializer.from_u32(*as_u32, &linear_table).unwrap())
+            .collect_vec();
+
+        assert_eq!(
+            indices, deserialized,
+            "Checking that indices == deserialized with a window_len of {}",
+            window_len
+        )
+    }
 });

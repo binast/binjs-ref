@@ -72,6 +72,22 @@ use io::statistics::{Bytes, BytesAndInstances, ContentInfo, Instances};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// The number of indices to reserve to recall
+/// recently used values in a content stream.
+///
+/// In issue #302, we have established that identifier_names
+/// seems to benefit of a window length of 8, and others
+/// a window length of 0.
+const DEFAULT_WINDOW_LEN_BOOLS: usize = 0;
+const DEFAULT_WINDOW_LEN_FLOATS: usize = 0;
+const DEFAULT_WINDOW_LEN_UNSIGNED_LONGS: usize = 0;
+const DEFAULT_WINDOW_LEN_STRING_ENUMS: usize = 0;
+const DEFAULT_WINDOW_LEN_PROPERTY_KEYS: usize = 0;
+const DEFAULT_WINDOW_LEN_IDENTIFIER_NAMES: usize = 8;
+const DEFAULT_WINDOW_LEN_INTERFACE_NAMES: usize = 0;
+const DEFAULT_WINDOW_LEN_STRING_LITERALS: usize = 0;
+const DEFAULT_WINDOW_LEN_LIST_LENGTHS: usize = 0;
+
 #[derive(Clone)]
 pub struct Options {
     /// The (shared) AST probability tables, generally shipped separately
@@ -88,6 +104,10 @@ pub struct Options {
     /// kind written. If several files are written with the same options,
     /// we accumulate statistics.
     content_instances: Rc<RefCell<ContentInfo<Instances>>>,
+
+    /// For each content section, the number of indices reserved to reference
+    /// recently used values.
+    content_window_len: ContentInfo<usize>,
 
     /// If `true`, when compressing a file, also write streams to separate files,
     /// for analysis purposes.
@@ -106,6 +126,17 @@ impl Options {
             content_lengths: Rc::new(RefCell::new(ContentInfo::default())),
             content_instances: Rc::new(RefCell::new(ContentInfo::default())),
             split_streams: false,
+            content_window_len: ContentInfo {
+                bools: DEFAULT_WINDOW_LEN_BOOLS,
+                floats: DEFAULT_WINDOW_LEN_FLOATS,
+                unsigned_longs: DEFAULT_WINDOW_LEN_UNSIGNED_LONGS,
+                string_enums: DEFAULT_WINDOW_LEN_STRING_ENUMS,
+                property_keys: DEFAULT_WINDOW_LEN_PROPERTY_KEYS,
+                identifier_names: DEFAULT_WINDOW_LEN_IDENTIFIER_NAMES,
+                interface_names: DEFAULT_WINDOW_LEN_INTERFACE_NAMES,
+                string_literals: DEFAULT_WINDOW_LEN_STRING_LITERALS,
+                list_lengths: DEFAULT_WINDOW_LEN_LIST_LENGTHS,
+            },
         }
     }
 
