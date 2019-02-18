@@ -12,7 +12,6 @@ build = "build.rs"
 multistream = []
 
 [dependencies]
-binjs_es6 = { path = "../binjs_es6", version = "*" }
 binjs_meta = { path = "../binjs_meta", version = "*" }
 binjs_shared = { path = "../binjs_shared", version = "*" }
 json = "^0.11"
