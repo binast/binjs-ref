@@ -233,21 +233,8 @@ macro_rules! make_ast_visitor {
     }
 }
 
-/// Define immutable AST Visitor/walker
-make_ast_visitor!(ASTVisitor, ASTWalker,);
-
 /// Define mutable AST Visitor/walker
 make_ast_visitor!(MutASTVisitor, MutASTWalker, mut);
-
-/// Ensure that a value is an inhabitant of the grammar.
-pub fn validate(syntax: &Spec, a: &JSON) -> Result<(), ASTError> {
-    struct ValidationVisitor;
-    impl ASTVisitor for ValidationVisitor {
-        /* Do nothing */
-    }
-    let mut walker = ASTWalker::new(syntax, ValidationVisitor);
-    walker.walk(a)
-}
 
 #[derive(Debug)]
 pub enum ASTError {
