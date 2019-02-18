@@ -1,12 +1,10 @@
 use ast::*;
 
-use binjs_shared::{FromJSON, Offset, ToJSON, VisitMe};
+use binjs_shared::{Offset, VisitMe};
 
 use std;
 use std::cell::RefCell;
 use std::rc::Rc;
-
-use json::JsonValue as JSON;
 
 /// Keep track of the number of nested levels of functions/methods/...
 /// we have crossed.
@@ -57,15 +55,6 @@ impl LazifierVisitor {
         script
             .walk(&mut WalkPath::new(), self)
             .expect("Could not walk script");
-    }
-    pub fn annotate(&mut self, ast: &mut JSON) {
-        // Import script
-        let mut script = Script::import(ast).expect("Invalid script"); // FIXME: Error values would be nicer.
-
-        self.annotate_script(&mut script);
-
-        // Reexport the AST to JSON.
-        *ast = script.export();
     }
 }
 
