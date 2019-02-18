@@ -110,99 +110,138 @@ macro_rules! increment_instance_count {
     }
 }
 
-/// Result of a fetch operation in a IndexedTable.
+/// Result of a fetch operation in a LinearTable.
 #[derive(Clone, Copy, Debug)]
 pub enum Fetch {
     /// The value was already in the cache at the given index.
-    Hit(Index),
+    Hit(TableRef),
 
     /// The value was not in the cache. A slot has been allocated at the given index,
     /// but the definition still needs to be added.
-    Miss(Index),
+    Miss(TableRef),
 }
 impl Fetch {
-    /// Return the raw value of the fetch, as a `usize`, for writing to a stream.
-    pub fn raw(&self) -> usize {
+    /// Return `true` if this result represents a hit.
+    pub fn is_hit(&self) -> bool {
         match *self {
-            Fetch::Hit(result) => result.raw(),
-            Fetch::Miss(result) => result.raw(),
+            Fetch::Hit(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn table_ref(&self) -> TableRef {
+        match *self {
+            Fetch::Hit(result) => result,
+            Fetch::Miss(result) => result,
         }
     }
 }
 
-/// An index in an IndexedTable.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum Index {
+/// An index in an LinearTable.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TableRef {
     /// The index represents a value in a shared dictionary.
     Shared(usize),
 
     /// The index represents a value in a prelude dictionary.
     Prelude(usize),
 }
-impl Index {
-    /// Return the raw value of the index, as a `usize`, for writing to a stream.
-    pub fn raw(&self) -> usize {
+impl TableRef {
+    /// Return the `usize` carried by this `TableRef`.
+    fn raw(&self) -> usize {
         match *self {
-            Index::Shared(result) => result,
-            Index::Prelude(result) => result,
+            TableRef::Shared(raw) => raw,
+            TableRef::Prelude(raw) => raw,
         }
     }
 }
 
-/// The initial size of IndexedTables, in elements.
+/// The initial size of LinearTables, in elements.
 const INDEXED_TABLE_INITIAL_CAPACITY: usize = 1024;
 
 /// A data structure designed to cache information accessible
 /// either by index or by value.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct IndexedTable<T>
+pub struct LinearTable<T>
 where
     T: Eq + std::hash::Hash + Clone,
 {
+    /// The values in the table, in the order in which they were added.
+    /// Used to perform lookup with `at_index`.
     values: Vec<T>,
-    indices: HashMap<T, Index>,
+
+    /// A mapping to value back to the indices used to access them.
+    refs_by_value: HashMap<T, TableRef>,
+
+    /// The number of values representing shared dictionary entries in this table.
+    shared_len: usize,
 }
-impl<T> IndexedTable<T>
+impl<T> LinearTable<T>
+where
+    T: Eq + std::hash::Hash + Clone,
+{
+    /// The number of values representing shared dictionary entries in this table.
+    pub fn shared_len(&self) -> usize {
+        self.shared_len
+    }
+
+    /// The number of values representing prelude dictionary entries in this table.
+    pub fn prelude_len(&self) -> usize {
+        self.values.len() - self.shared_len
+    }
+
+    /// The number of values in this table.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+}
+impl<T> LinearTable<T>
 where
     T: Eq + std::hash::Hash + Clone + std::fmt::Debug + Ord,
 {
-    /// Create a new IndexedTable from a list of instances.
+    /// Create a new LinearTable from a list of instances.
     ///
     /// Values appearing in `instances` that have `threshold` instances or less are ignored.
     pub fn new(
         value_to_instances: HashMap<T, FilesContaining>,
         threshold: FilesContaining,
     ) -> Self {
-        debug!(target: "dictionary", "Creating a IndexedTable with a threshold of {}", Into::<usize>::into(threshold));
+        debug!(target: "dictionary", "Creating a LinearTable with a threshold of {}", Into::<usize>::into(threshold));
         let value_to_instances = value_to_instances.into_iter().sorted(); // We sort to enforce traversal order.
         let mut values = Vec::with_capacity(INDEXED_TABLE_INITIAL_CAPACITY);
-        let mut indices = HashMap::with_capacity(INDEXED_TABLE_INITIAL_CAPACITY);
+        let mut refs_by_value = HashMap::with_capacity(INDEXED_TABLE_INITIAL_CAPACITY);
         for (value, instances) in value_to_instances {
-            debug!(target: "dictionary", "Should we add {:?} to the IndexedTable?", value);
+            debug!(target: "dictionary", "Should we add {:?} to the LinearTable ({} instances)?", value, instances);
             if instances <= threshold {
                 // Too few instances, skipping.
                 debug!(target: "dictionary", "Too few instances: {} <= {} for {:?}", instances, threshold, value);
                 continue;
             }
-            let len = Index::Shared(values.len());
+            let len = TableRef::Shared(values.len());
             values.push(value.clone());
-            let prev = indices.insert(value, len);
+            let prev = refs_by_value.insert(value, len);
             assert!(prev.is_none());
         }
-        let result = IndexedTable { values, indices };
-        debug!(target: "dictionary", "Dictionary: IndexedTable contains {:?}", result);
+        let shared_len = values.len();
+        let result = LinearTable {
+            values,
+            refs_by_value,
+            shared_len,
+        };
+        debug!(target: "dictionary", "Dictionary: LinearTable contains {:?}", result);
         result
     }
 
-    /// Create an empty `IndexedTable`.
+    /// Create an empty `LinearTable`.
     pub fn with_capacity(len: usize) -> Self {
-        IndexedTable {
+        LinearTable {
             values: Vec::with_capacity(len),
-            indices: HashMap::with_capacity(len),
+            refs_by_value: HashMap::with_capacity(len),
+            shared_len: 0,
         }
     }
 
-    /// Attempt to get the index for a value from the `IndexedTable`.
+    /// Attempt to get the index for a value from the `LinearTable`.
     ///
     /// If the value is already in the cache, return `Fetch::Hit(index)`, where `index` is the
     /// immutable index of the value. Otherwise, allocate a new slot `index` and return
@@ -211,10 +250,10 @@ where
         use std::collections::hash_map::Entry::*;
         debug!(target: "dictionary", "Dictionary: 'I'm looking for {:?} in {:?}", value, self);
         let len = self.values.len();
-        let result = match self.indices.entry(value.clone()) {
+        let result = match self.refs_by_value.entry(value.clone()) {
             Occupied(slot) => return Fetch::Hit(*slot.get()),
             Vacant(slot) => {
-                let result = Index::Prelude(len);
+                let result = TableRef::Prelude(len);
                 slot.insert(result.clone());
                 result
             }
@@ -223,11 +262,22 @@ where
         Fetch::Miss(result)
     }
 
-    /// Return the current state of the cache as a slice.
-    ///
-    /// It may be accessed by the index originally returned by the call to `fetch`.
-    pub fn as_slice(&self) -> &[T] {
-        &self.values
+    /// Create a copy of the current LinearTable with an added prelude dictionary.
+    pub fn with_prelude<'a>(&self, prelude: &'a [T]) -> Result<Self, &'a T> {
+        let mut clone = self.clone();
+        for item in prelude {
+            if clone.fetch_index(item).is_hit() {
+                // The prelude shouldn't duplicate anything from the dictionary.
+                return Err(item);
+            }
+        }
+        Ok(clone)
+    }
+
+    /// Access the contents of this table by index.
+    pub fn at_index(&self, index: &TableRef) -> Option<&T> {
+        let index = index.raw();
+        self.values.get(index)
     }
 }
 
@@ -288,22 +338,22 @@ pub struct Dictionary<T> {
     // compression-level and performance.
     // ---
     /// All unsigned longs.
-    pub unsigned_longs: IndexedTable<u32>,
+    pub unsigned_longs: LinearTable<u32>,
 
     /// All string literals. `None` for `null`.
-    pub string_literals: IndexedTable<Option<SharedString>>,
+    pub string_literals: LinearTable<Option<SharedString>>,
 
     /// All identifier names. `None` for `null`.
-    pub identifier_names: IndexedTable<Option<IdentifierName>>,
+    pub identifier_names: LinearTable<Option<IdentifierName>>,
 
     /// All property keys. `None` for `null`.
-    pub property_keys: IndexedTable<Option<PropertyKey>>,
+    pub property_keys: LinearTable<Option<PropertyKey>>,
 
     /// All list lenghts. `None` for `null`.
-    pub list_lengths: IndexedTable<Option<u32>>,
+    pub list_lengths: LinearTable<Option<u32>>,
 
     /// All floats. `None` for `null`.
-    pub floats: IndexedTable<Option<F64>>,
+    pub floats: LinearTable<Option<F64>>,
     // Missing:
     // - offsets (cannot be predicted?)
     // - directives?
@@ -329,13 +379,13 @@ impl<T> Dictionary<T> {
             identifier_name_by_window: WindowPredict::new(width),
             string_literal_by_window: WindowPredict::new(width),
 
-            // Indexed tables.
-            string_literals: IndexedTable::with_capacity(0),
-            identifier_names: IndexedTable::with_capacity(0),
-            property_keys: IndexedTable::with_capacity(0),
-            list_lengths: IndexedTable::with_capacity(0),
-            floats: IndexedTable::with_capacity(0),
-            unsigned_longs: IndexedTable::with_capacity(0),
+            // Linear tables.
+            string_literals: LinearTable::with_capacity(0),
+            identifier_names: LinearTable::with_capacity(0),
+            property_keys: LinearTable::with_capacity(0),
+            list_lengths: LinearTable::with_capacity(0),
+            floats: LinearTable::with_capacity(0),
+            unsigned_longs: LinearTable::with_capacity(0),
         }
     }
 
@@ -455,7 +505,7 @@ impl InstancesToProbabilities for Dictionary<Instances> {
                 .string_literal_by_window
                 .instances_to_probabilities("string_literal_by_window"),
 
-            // Indexed tables.
+            // Linear tables.
             string_literals: self.string_literals,
             floats: self.floats,
             list_lengths: self.list_lengths,
@@ -593,31 +643,31 @@ impl DictionaryBuilder {
         let mut dictionary = self.dictionary;
 
         // Generate indexed tables for user-extensible values.
-        dictionary.identifier_names = IndexedTable::new(
+        dictionary.identifier_names = LinearTable::new(
             self.files_containing_user_extensible_data
                 .identifier_name_instances,
             threshold,
         );
-        dictionary.property_keys = IndexedTable::new(
+        dictionary.property_keys = LinearTable::new(
             self.files_containing_user_extensible_data
                 .property_key_instances,
             threshold,
         );
-        dictionary.list_lengths = IndexedTable::new(
+        dictionary.list_lengths = LinearTable::new(
             self.files_containing_user_extensible_data
                 .list_length_instances,
             threshold,
         );
-        dictionary.floats = IndexedTable::new(
+        dictionary.floats = LinearTable::new(
             self.files_containing_user_extensible_data.float_instances,
             threshold,
         );
-        dictionary.unsigned_longs = IndexedTable::new(
+        dictionary.unsigned_longs = LinearTable::new(
             self.files_containing_user_extensible_data
                 .unsigned_long_instances,
             threshold,
         );
-        dictionary.string_literals = IndexedTable::new(
+        dictionary.string_literals = LinearTable::new(
             self.files_containing_user_extensible_data
                 .string_literal_instances,
             threshold,

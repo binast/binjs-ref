@@ -3,10 +3,13 @@
 //! or into a dynamic dictionary.
 
 use bytes::varnum::ReadVarNum;
+use entropy::dictionary::LinearTable;
+use entropy::rw::TableRefStreamState;
 use TokenReaderError;
 
 use binjs_shared::SharedString;
 
+use std::hash::Hash;
 use std::io::Cursor;
 
 /// A data structure used to read a content stream, sequences of indices
@@ -14,12 +17,11 @@ use std::io::Cursor;
 ///
 /// `T` is the type of items in the dictionary, e.g. `Option<u32>`, `IdentifierName`,
 /// ...
-pub struct DictionaryStreamDecoder<'a, T> {
-    /// A dictionary shared between many files.
-    shared_dictionary: &'a [T],
-
-    /// A dictionary defined in the prelude of the current file.
-    prelude_dictionary: Vec<T>,
+pub struct DictionaryStreamDecoder<T>
+where
+    T: Eq + Hash + Clone + Ord,
+{
+    indexed_dictionary: LinearTable<T>,
 
     /// A stream of varnums. Each varnum `n` is an index into either the shared_dictionary
     /// (if `n < shared_dictionary.len()`) or the prelude dictionary (otherwise).
@@ -29,16 +31,20 @@ pub struct DictionaryStreamDecoder<'a, T> {
 
     /// The name of this dictionary. Used for debugging/error reporting.
     name: SharedString,
+
+    index_stream_state: TableRefStreamState<T>,
 }
-impl<'a, T> DictionaryStreamDecoder<'a, T> {
+impl<T> DictionaryStreamDecoder<T>
+where
+    T: Eq + Hash + Clone + Ord,
+{
     /// Create a decoder from a shared dictionary, a prelude dictionary and a stream of varnum-encoded values.
     pub fn new(
-        shared_dictionary: &'a [T],
-        prelude_dictionary: Vec<T>,
+        indexed_dictionary: LinearTable<T>,
         name: SharedString,
         stream: Option<Vec<u8>>,
     ) -> Self {
-        debug!(target: "read", "DictionaryStreamDecoder::new {} a {}",
+        debug!(target: "read", "DictionaryStreamDecoder::new {} is a {}",
             name.as_str(),
             match stream {
                 None => "EMPTY stream".to_string(),
@@ -46,20 +52,21 @@ impl<'a, T> DictionaryStreamDecoder<'a, T> {
             }
         );
         Self {
-            shared_dictionary,
-            prelude_dictionary,
+            indexed_dictionary,
             stream: stream.map(Cursor::new),
             name,
+            index_stream_state: TableRefStreamState::new(),
         }
     }
 }
-impl<'a, T> Iterator for DictionaryStreamDecoder<'a, T>
+impl<T> Iterator for DictionaryStreamDecoder<T>
 where
-    T: Clone + std::fmt::Debug,
+    T: Hash + Eq + Clone + std::fmt::Debug + Ord,
 {
     type Item = Result<T, TokenReaderError>;
     fn next(&mut self) -> Option<Self::Item> {
-        debug!(target: "read", "DictionaryStreamDecoder::next on a {} stream",
+        debug!(target: "read", "DictionaryStreamDecoder::next {} on a {} stream",
+            self.name,
             match self.stream {
                 None => "EMPTY",
                 _ => "non-empty"
@@ -68,36 +75,33 @@ where
         match self.stream {
             None => return None,
             Some(ref mut stream) => {
-                debug!(target: "read", "DictionaryStreamDecoder::next position: {} / {}",
+                debug!(target: "read", "DictionaryStreamDecoder::next {} position: {} / {}",
+                    self.name,
                     stream.position(),
                     stream.get_ref().len());
                 if stream.position() == stream.get_ref().len() as u64 {
                     // We have reached the end of this stream.
                     return None;
                 }
-                let index = match stream.read_varnum() {
-                    Ok(result) => result as usize,
+                let as_u32 = match stream.read_varnum() {
+                    Ok(result) => result,
                     Err(err) => return Some(Err(TokenReaderError::ReadError(err))),
                 };
-
-                debug!(target: "read", "DictionaryStreamDecoder::next index: {}", index);
-                if index < self.shared_dictionary.len() {
-                    debug!(target: "read", "That's in the shared dictionary");
-                    return Some(Ok(self.shared_dictionary[index].clone()));
-                }
-                if index < self.shared_dictionary.len() + self.prelude_dictionary.len() {
-                    debug!(target: "read", "That's in the prelude dictionary, at index {}: {:?}",
-                        index - self.shared_dictionary.len(),
-                        self.prelude_dictionary
-                    );
-                    return Some(Ok(self.prelude_dictionary
-                        [index - self.shared_dictionary.len()]
-                    .clone()));
-                }
-                return Some(Err(TokenReaderError::BadDictionaryIndex {
-                    index: index as u32,
-                    dictionary: self.name.clone(),
-                }));
+                let index = match self
+                    .index_stream_state
+                    .from_u32(as_u32, &self.indexed_dictionary)
+                {
+                    Some(index) => index,
+                    None => {
+                        return Some(Err(TokenReaderError::BadDictionaryIndex {
+                            index: as_u32,
+                            dictionary: self.name.clone(),
+                        }));
+                    }
+                };
+                debug!(target: "read", "DictionaryStreamDecoder::next {} index: {:?}", self.name, index);
+                let result = self.indexed_dictionary.at_index(&index).unwrap(); // We have checked just above that the `index` is correct.
+                Some(Ok(result.clone()))
             }
         }
     }

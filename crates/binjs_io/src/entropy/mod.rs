@@ -53,7 +53,7 @@ pub mod dictionary;
 pub mod read;
 
 /// Tools shared by `read` and `write`.
-mod rw;
+pub mod rw;
 
 /// Misc convenience utilities.
 mod util;

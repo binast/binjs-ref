@@ -1,5 +1,8 @@
 //! Constants and data structures shared between entropy read and entropy write.
 
+use entropy::dictionary::{LinearTable, TableRef};
+use std::marker::PhantomData;
+
 use smallvec::SmallVec;
 
 /// The magic number at the start of the file.
@@ -150,3 +153,88 @@ impl<T> PreludeStreams<T> {
 /// A stack-allocated buffer for names of sections and streams.
 pub const NAME_MAX_LEN: usize = 32;
 pub type NameData = SmallVec<[u8; NAME_MAX_LEN]>;
+
+/// State of a input/output stream of `TableRef`.
+///
+/// Used to (de)serialize `TableRef`, as the encoding of an `TableRef`
+/// may depend on that of previous values.
+///
+/// `TableRef` values are represented as follows:
+/// - a value `0` represents an `TableRef::Prelude` with index 1 + the latest `TableRef::Prelude` value we have encoded/decoded;
+/// - a value `v` in `[1, length of the shared dictionary]` represent `TableRef::Shared` with index `v - 1`;
+/// - a value `v > length of the shared dictionary` represents `TableRef::Prelude` with index `v - 1`.
+pub struct TableRefStreamState<T> {
+    /// The latest `TableRef::Prelude` value.
+    ///
+    /// Updated whenever we
+    /// - encode a new `TableRef::Prelude`;
+    /// - decode a value to an `TableRef::Prelude`, including the special value `0`.
+    latest_in_prelude: Option<u32>,
+
+    /// Phantom type, to ensure that we only ever use a given `TableRefStreamState` with
+    /// a single (type of) LinearTable.
+    phantom: PhantomData<T>,
+}
+impl<T> TableRefStreamState<T>
+where
+    T: Eq + std::hash::Hash + Clone,
+{
+    /// Create a new `TableRefStreamState`.
+    pub fn new() -> Self {
+        TableRefStreamState {
+            latest_in_prelude: None,
+            phantom: PhantomData,
+        }
+    }
+
+    /// The value of `latest_in_prelude + 1`, or `0` if `latest_in_prelude`
+    /// has never been set.
+    fn next_in_prelude(&self) -> u32 {
+        match self.latest_in_prelude {
+            Some(latest) => latest + 1,
+            None => 0,
+        }
+    }
+
+    /// Decode an `TableRef` from a `u32`.
+    pub fn from_u32(&mut self, value: u32, table: &LinearTable<T>) -> Option<TableRef> {
+        if value == 0 {
+            // Value `0` is reserved to represent `latest_in_prelude + 1` (or `0` if `latest_in_prelude` is `None`).
+            let next_in_prelude = self.next_in_prelude();
+            self.latest_in_prelude = Some(next_in_prelude);
+            return Some(TableRef::Prelude(next_in_prelude as usize));
+        }
+        // Renormalize from 0.
+        let value = value - 1;
+        if (value as usize) < table.shared_len() {
+            return Some(TableRef::Shared(value as usize));
+        }
+        // Values beyond `table.shared_len()` represent prelude indices.
+        if (value as usize) < table.len() {
+            self.latest_in_prelude = Some(value);
+            return Some(TableRef::Prelude(value as usize));
+        }
+        None
+    }
+
+    /// Encode an `TableRef` into a `u32`.
+    ///
+    /// This method does *not* perform any kind of sanity check on the `TableRef`.
+    pub fn into_u32(&mut self, value: TableRef) -> u32 {
+        match value {
+            // References to the shared dictionary are shifted by 1.
+            TableRef::Shared(i) => (i + 1) as u32,
+            // References to the prelude dictionary may be 0 (for next) or shifted by 1.
+            TableRef::Prelude(i) => {
+                let i = i as u32;
+                let next_in_prelude = self.next_in_prelude();
+                self.latest_in_prelude = Some(i);
+                if next_in_prelude == i {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+        }
+    }
+}

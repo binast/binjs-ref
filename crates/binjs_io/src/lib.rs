@@ -44,6 +44,7 @@ pub enum TokenWriterError {
 pub enum TokenReaderError {
     UnexpectedEndOfStream(String),
     NotInDictionary(String),
+    DuplicateInDictionary(String),
     ReadError(std::io::Error),
     BadLength {
         expected: usize,
