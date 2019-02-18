@@ -1,10 +1,9 @@
 use ast::*;
-use binjs_shared::{FromJSON, IdentifierName, ToJSON, VisitMe};
+use binjs_shared::{IdentifierName, VisitMe};
 
 use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
-use json::JsonValue as JSON;
 
 #[derive(Debug, PartialEq, Eq)]
 enum BindingKind {
@@ -1492,14 +1491,5 @@ impl AnnotationVisitor {
         script
             .walk(&mut WalkPath::new(), &mut cleanup)
             .expect("Could not walk script for eval cleanup");
-    }
-    pub fn annotate(&mut self, ast: &mut JSON) {
-        // Import script
-        let mut script = Script::import(ast).expect("Invalid script"); // FIXME: Error values would be nicer.
-
-        self.annotate_script(&mut script);
-
-        // Reexport the AST to JSON.
-        *ast = script.export();
     }
 }

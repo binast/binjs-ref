@@ -9,8 +9,6 @@ extern crate binjs_shared;
 extern crate json;
 extern crate rand;
 
-pub mod annotate;
-
 /// Generic instance of `Spec` representing the es6 AST.
 pub mod es6;
 
