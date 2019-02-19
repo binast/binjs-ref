@@ -181,7 +181,7 @@ impl Decoder {
         // 5. Decode byte-compressed streams (could be made lazy/backgrounded)
         // FIXME: copying all these probability tables is a waste of time,
         // it wouldn't be too hard to keep a single copy in memory
-        let stream_floats = DictionaryStreamDecoder::new(
+        let stream_floats = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
                 .floats
@@ -189,8 +189,8 @@ impl Decoder {
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("floats"),
             content_data.floats,
-        );
-        let stream_unsigned_longs = DictionaryStreamDecoder::new(
+        )?;
+        let stream_unsigned_longs = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
                 .unsigned_longs
@@ -198,8 +198,8 @@ impl Decoder {
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("unsigned_longs"),
             content_data.unsigned_longs,
-        );
-        let stream_property_keys = DictionaryStreamDecoder::new(
+        )?;
+        let stream_property_keys = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
                 .property_keys
@@ -207,8 +207,8 @@ impl Decoder {
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("property_keys"),
             content_data.property_keys,
-        );
-        let stream_identifier_names = DictionaryStreamDecoder::new(
+        )?;
+        let stream_identifier_names = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
                 .identifier_names
@@ -216,8 +216,8 @@ impl Decoder {
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("identifier_names"),
             content_data.identifier_names,
-        );
-        let stream_string_literals = DictionaryStreamDecoder::new(
+        )?;
+        let stream_string_literals = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
                 .string_literals
@@ -225,8 +225,8 @@ impl Decoder {
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("string_literals"),
             content_data.string_literals,
-        );
-        let stream_list_lengths = DictionaryStreamDecoder::new(
+        )?;
+        let stream_list_lengths = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
                 .list_lengths
@@ -234,7 +234,7 @@ impl Decoder {
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("list_lengths"),
             content_data.list_lengths,
-        );
+        )?;
 
         // 6. Ready to read and decode main stream.
         input
