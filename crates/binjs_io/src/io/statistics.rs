@@ -33,71 +33,78 @@ impl BytesAndInstances {
     }
 }
 
+/// A macro used to generate code that will operate on all fields of a `PerUserExtensibleKind`.
 #[macro_export]
-macro_rules! for_field_in_content_info {
+macro_rules! for_field_in_user_extensible {
     ( $cb: ident ) => {
         $cb!(
-            (bools, "bools", b"bools"),
             (floats, "floats", b"floats"),
             (unsigned_longs, "unsigned_longs", b"unsigned_longs"),
-            (string_enums, "string_enums", b"string_enums"),
             (property_keys, "property_keys", b"property_keys"),
             (identifier_names, "identifier_names", b"identifier_names"),
-            (interface_names, "interface_names", b"interface_names"),
             (string_literals, "string_literals", b"string_literals"),
             (list_lengths, "list_lengths", b"list_lengths")
         )
     };
 }
 
-/// A container for information associated with a type of data we write to the stream
-/// as part of the content (i.e. not the header).
+/// During compression, we typically deal with both grammar-fixed data
+/// (e.g. the list of possible values in a string enum) and user-extensible
+/// data (e.g. string literals).
 ///
-/// Typically used to collect/display the number of bytes written in each category.
+/// This container is meant to store data associated with user-extensible data.
+/// This serves typically to store per-kind compression settings, per-kind
+/// compressed/decompressed data, dictionaries, etc.
 #[derive(Debug, Default, Add, Clone, AddAssign)]
-pub struct ContentInfo<T> {
-    pub bools: T,
+pub struct PerUserExtensibleKind<T> {
     pub floats: T,
     pub unsigned_longs: T,
-    pub string_enums: T,
     pub property_keys: T,
     pub identifier_names: T,
-    pub interface_names: T,
     pub string_literals: T,
     pub list_lengths: T,
 }
-impl<T> ContentInfo<T> {
-    /// Initialize a new `ContentInfo`.
+impl<T> PerUserExtensibleKind<T> {
+    /// Initialize a new `PerUserExtensibleKind`.
     pub fn with<F>(f: F) -> Self
     where
         F: Fn(&str) -> T,
     {
+        // Generate a PerUserExtensibleKind, where for each field:
+        //    `foo: f("foo")`.
+        //
+        // This macro doubles as a static checks that we haven't forgotten
+        // any field in `for_field_in_user_extensible`.
         macro_rules! with_field { ($(($ident: ident, $name: expr, $bname: expr )),*) => {
-            ContentInfo {
+            PerUserExtensibleKind {
                 $(
                     $ident: f($name),
                 )*
             }
         } };
-        for_field_in_content_info!(with_field)
+        for_field_in_user_extensible!(with_field)
     }
 
-    /// Convert a `ContentInfo` into another one.
-    pub fn into_with<F, U>(self, f: F) -> ContentInfo<U>
+    /// Convert a `PerUserExtensibleKind` into another one.
+    pub fn into_with<F, U>(self, f: F) -> PerUserExtensibleKind<U>
     where
         F: Fn(&str, T) -> U,
     {
+        // Generate a PerUserExtensibleKind, where for each field:
+        //    `foo: f("foo", self.foo)`.
         macro_rules! with_field { ($(($ident: ident, $name: expr, $bname: expr )),*) => {
-            ContentInfo {
+            PerUserExtensibleKind {
                 $(
                     $ident: f($name, self.$ident),
                 )*
             }
         } };
-        for_field_in_content_info!(with_field)
+        for_field_in_user_extensible!(with_field)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&'static str, &T)> {
+        // Generate a vector with one item per field
+        //    `(foo, &self.foo)`.
         macro_rules! with_field { ($(($ident: ident, $name: expr, $bname: expr )),*) => {
             vec![
                 $(
@@ -105,10 +112,12 @@ impl<T> ContentInfo<T> {
                 )*
             ]
         } };
-        for_field_in_content_info!(with_field).into_iter()
+        for_field_in_user_extensible!(with_field).into_iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&'static str, &mut T)> {
+        // Generate a vector with one item per field
+        //    `(foo, &mut self.foo)`.
         macro_rules! with_field { ($(($ident: ident, $name: expr, $bname: expr )),*) => {
             vec![
                 $(
@@ -116,10 +125,12 @@ impl<T> ContentInfo<T> {
                 )*
             ]
         } };
-        for_field_in_content_info!(with_field).into_iter()
+        for_field_in_user_extensible!(with_field).into_iter()
     }
 
     pub fn into_iter(self) -> impl Iterator<Item = (&'static str, T)> {
+        // Generate a vector with one item per field
+        //    `(foo, self.foo)`.
         macro_rules! with_field { ($(($ident: ident, $name: expr, $bname: expr )),*) => {
             vec![
                 $(
@@ -127,7 +138,7 @@ impl<T> ContentInfo<T> {
                 )*
             ]
         } };
-        for_field_in_content_info!(with_field).into_iter()
+        for_field_in_user_extensible!(with_field).into_iter()
     }
 
     /// Access a field by its name.
@@ -152,6 +163,8 @@ impl<T> ContentInfo<T> {
     ///
     /// Return `None` if `field_name` is not one of the field names.
     pub fn get_mut_b(&mut self, field_name: &[u8]) -> Option<&mut T> {
+        // Generate a `match` with for each field
+        //    `b"foo" => Some(&mut self.foo)`
         macro_rules! with_field { ($(($ident: ident, $name: expr, $bname: expr )),*) => {
             match field_name {
                 $(
@@ -160,9 +173,11 @@ impl<T> ContentInfo<T> {
                 _ => None,
             }
         } };
-        for_field_in_content_info!(with_field)
+        for_field_in_user_extensible!(with_field)
     }
     pub fn get_b(&self, field_name: &[u8]) -> Option<&T> {
+        // Generate a `match` with for each field
+        //    `b"foo" => Some(&self.foo)`
         macro_rules! with_field { ($(($ident: ident, $name: expr, $bname: expr )),*) => {
             match field_name {
                 $(
@@ -171,7 +186,7 @@ impl<T> ContentInfo<T> {
                 _ => None,
             }
         } };
-        for_field_in_content_info!(with_field)
+        for_field_in_user_extensible!(with_field)
     }
 }
 
@@ -199,26 +214,15 @@ impl DisplayWith</* Total */ BytesAndInstances> for BytesAndInstances {
     }
 }
 
-impl std::fmt::Display for ContentInfo<BytesAndInstances> {
+impl std::fmt::Display for PerUserExtensibleKind<BytesAndInstances> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         let total = BytesAndInstances {
             bytes: self.iter().map(|(_, data)| data.bytes.clone()).sum(),
             instances: self.iter().map(|(_, data)| data.instances.clone()).sum(),
         };
 
-        write!(formatter, "Content:\n  Fixed:\n")?;
-        for (field, name) in &[
-            (&self.bools, "bools"),
-            (&self.string_enums, "string enums"),
-            (&self.interface_names, "interface names"),
-        ] {
-            write!(formatter, "    {name}: ", name = name)?;
-            field.fmt(formatter, &total)?;
-            write!(formatter, "\n")?;
-        }
         write!(formatter, "  User-extensible:\n")?;
         for (field, name) in &[
-            (&self.property_keys, "property_keys"),
             (&self.identifier_names, "identifier names"),
             (&self.string_literals, "string literals"),
             (&self.floats, "floats"),
