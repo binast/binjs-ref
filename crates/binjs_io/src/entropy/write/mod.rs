@@ -3,8 +3,7 @@
 mod lazy_stream;
 
 use self::lazy_stream::*;
-use super::dictionary::Fetch;
-use super::probabilities::IntoStatistics;
+use super::dictionary::{Fetch, TableRef};
 use super::rw::*;
 use bytes::lengthwriter::LengthWriter;
 use bytes::varnum::WriteVarNum;
@@ -26,16 +25,6 @@ use range_encoding::opus;
 /// An arbitrary initialization size for buffers.
 const INITIAL_BUFFER_SIZE_BYTES: usize = 32768;
 
-impl IntoStatistics for ContentInfo<LazyStream> {
-    type AsStatistics = ContentInfo<Bytes>;
-    /// Finalize and return the number of compressed bytes written.
-    ///
-    /// This number is determined by examining the length of the buffer
-    /// to which this stream writes.
-    fn into_statistics(self, _description: &str) -> ContentInfo<Bytes> {
-        self.into_with(|name, field| field.into_statistics(name))
-    }
-}
 impl ContentInfo<opus::Writer<LengthWriter>> {
     /// Finalize and return the number of compressed bytes written.
     ///
@@ -63,11 +52,11 @@ pub struct Encoder {
     ///
     /// We're using an `LazyStream` rather than directly compressing, so
     /// as to simplify dumping of raw data to files, for forensics purposes,
-    /// and also so as to let us entirely skip streams that have 0 bytes written..
+    /// and also so as to let us entirely skip streams that have 0 bytes written.
     ///
     /// This is something of a hack and should be removed once we have a better
     /// idea of *what* we should encode with Brotli and what we shouldn't.
-    content_streams: ContentInfo<LazyStream>,
+    content_streams: ContentInfo<Vec<TableRef>>,
 
     /// Parts of the header that we compress with Brotli.
     prelude_streams: PreludeStreams<LazyStream>,
@@ -78,41 +67,35 @@ pub struct Encoder {
 
     /// Measure the number of entries written.
     content_instances: ContentInfo<Instances>,
+
+    /// The path of the file being written, if it's a file.
+    path: Option<std::path::PathBuf>,
 }
 
 impl Encoder {
     /// Create a new Encoder.
     pub fn new(path: Option<&std::path::Path>, options: ::entropy::Options) -> Self {
         // FIXME: We shouldn't need to clone the entire `options`. A shared immutable reference would do nicely.
+        let split_streams = options.split_streams;
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
-            dump_path: path.map(|path| {
-                let mut buf = std::path::PathBuf::new();
-                buf.push(path);
-                buf.set_extension("streams");
-                buf.push("main.entropy");
-                buf
-            }),
+            dump_path: if split_streams {
+                path.map(|path| {
+                    let mut buf = std::path::PathBuf::new();
+                    buf.push(path);
+                    buf.set_extension("streams");
+                    buf.push("main.entropy");
+                    buf
+                })
+            } else {
+                None
+            },
             options,
             content_opus_lengths: ContentInfo::with(|_| opus::Writer::new(LengthWriter::new())),
-            content_streams: ContentInfo::with(|name| {
-                let maybe_buf = match path {
-                    None => None,
-                    Some(path) => {
-                        let mut buf = std::path::PathBuf::new();
-                        buf.push(path);
-                        buf.set_extension("streams");
-                        buf.push(name);
-                        buf.set_extension("content");
-                        Some(buf)
-                    }
-                };
-                LazyStream::new(maybe_buf)
-            }),
+            content_streams: ContentInfo::with(|_| Vec::new()),
             prelude_streams: PreludeStreams::with(|name| {
                 let maybe_buf = match path {
-                    None => None,
-                    Some(path) => {
+                    Some(path) if split_streams => {
                         let mut buf = std::path::PathBuf::new();
                         buf.push(path);
                         buf.set_extension("streams");
@@ -120,10 +103,12 @@ impl Encoder {
                         buf.set_extension("prelude");
                         Some(buf)
                     }
+                    _ => None,
                 };
                 LazyStream::new(maybe_buf)
             }),
             content_instances: ContentInfo::with(|_| 0.into()),
+            path: path.map(std::path::Path::to_path_buf),
         }
     }
 }
@@ -193,7 +178,6 @@ macro_rules! emit_simple_symbol_to_streams {
         if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $dictionary, $out, $value, $description) {
             // The value does not appear either in the static dictionary or in the prelude dictionary.
             // Add it to the latter.
-            $me.prelude_streams.$out.increment();
             $me.prelude_streams.$out.$writer(*$value)
                 .map_err(TokenWriterError::WriteError)?;
         }
@@ -219,7 +203,6 @@ macro_rules! emit_string_symbol_to_streams {
         if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $dictionary, $out, $value, $description) {
             // The value does not appear either in the static dictionary or in the prelude dictionary.
             // Add it to the latter.
-            $me.prelude_streams.$out.increment();
             match $value {
                 Some(string) => {
                     // Write the binary representation of the length of string to the
@@ -256,7 +239,6 @@ macro_rules! emit_string_symbol_to_streams {
 macro_rules! emit_symbol_to_content_stream {
     ( $me: ident, $dictionary:ident, $out:ident, $value: expr, $description: expr ) => {
         {
-            use bytes::varnum::WriteVarNum;
             let value = $value;
 
             // 1. Fetch the index in the dictionary.
@@ -274,19 +256,14 @@ macro_rules! emit_symbol_to_content_stream {
             // Note: We must make sure that we don't forget to write the value
             // to the prelude if it's a Miss.
 
-            let as_usize: usize = index.clone();
-            let as_u32: u32 = as_usize as u32;
-
-            // 2. Locate stream
+            // 2. Append index for later compression
             let ref mut stream = $me.content_streams
                 .$out;
 
-            // 3. Write the index to Brotli.
             stream
-                .write_varnum(as_u32)
-                .map_err(TokenWriterError::WriteError)?;
+                .push(index);
 
-            // 4. Also, update statistics
+            // 3. Also, update statistics
             $me.content_instances
                 .$out += Into::<Instances>::into(1);
 
@@ -297,18 +274,66 @@ macro_rules! emit_symbol_to_content_stream {
 }
 
 impl Encoder {
+    /// Flush a stream of indices (a content stream) into a buffer.
+    ///
+    /// If the stream is empty, do nothing. Otherwise, add `[name_of_stream]compression_method;compressed_bytes`,
+    /// where `compressed_bytes` starts with a varnum indicating the LRU window len.
+    ///
+    /// If `maybe_path` is specified, flush to a subdirectory of the path.
+    fn flush_indices(
+        maybe_path: &Option<std::path::PathBuf>,
+        name: &str,
+        vec: &[TableRef],
+        window_len: usize,
+        out: &mut Vec<u8>,
+    ) -> std::io::Result<Bytes> {
+        debug!(target: "write", "Encoder::flush_indices {}, {} instances", name, vec.len());
+        if vec.len() == 0 {
+            // Nothing to write.
+            return Ok(Into::<Bytes>::into(0));
+        }
+
+        // Initialize lazy stream.
+        let mut lazy_stream = {
+            let maybe_dump_path = match maybe_path {
+                None => None,
+                Some(path) => {
+                    let mut buf = path
+                        .with_extension("streams")
+                        .join(name)
+                        .with_extension("content");
+                    Some(buf)
+                }
+            };
+            LazyStream::new(maybe_dump_path)
+        };
+
+        // Write window length.
+        lazy_stream.write_varnum(window_len as u32)?;
+
+        // Write (and possibly dump) data.
+        // In the current implementation, we just ignore any information other than the index.
+
+        let mut state = TableRefStreamState::<()>::new(window_len);
+        for table_ref in vec {
+            let varnum = state.into_u32(*table_ref);
+            lazy_stream.write_varnum(varnum as u32)?;
+        }
+
+        Self::flush_stream(name, lazy_stream, out)
+    }
+
     /// Flush a lazy stream (either a prelude stream or a content stream) into a buffer.
     ///
     /// If the stream is empty, do nothing. Otherwise, add `[name_of_stream]compression_method;compressed_bytes`.
     fn flush_stream(
         name: &str,
-        stream: &mut LazyStream,
+        mut stream: LazyStream,
         out: &mut Vec<u8>,
-    ) -> Result<(), std::io::Error> {
-        debug!(target: "write", "Encoder::flush_stream {}, {} instances", name, stream.instances());
-        let bytes_written = stream.bytes_written();
+    ) -> std::io::Result<Bytes> {
         stream.flush()?;
-        if let Some(ref data) = stream.data() {
+        let bytes_written = stream.bytes_written();
+        if let Some(data) = stream.done()? {
             debug!(target: "write", "Encoder::flush_stream: {} contains {} compressed bytes ({} uncompressed bytes written)",
                 name,
                 data.len(),
@@ -326,16 +351,18 @@ impl Encoder {
             out.write_varnum(len as u32)?;
 
             // Stream content
-            out.write_all(data)?;
+            out.write_all(&data)?;
+            Ok(Into::<Bytes>::into(len))
+        } else {
+            Ok(Into::<Bytes>::into(0))
         }
-        Ok(())
     }
 }
 
 impl TokenWriter for Encoder {
     type Data = Vec<u8>;
 
-    fn done(mut self) -> Result<Self::Data, TokenWriterError> {
+    fn done(self) -> Result<Self::Data, TokenWriterError> {
         let mut data: Vec<u8> = Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES);
 
         data.extend(GLOBAL_HEADER_START);
@@ -344,15 +371,28 @@ impl TokenWriter for Encoder {
 
         // Write prelude compressed streams, containing dictionaries.
         data.extend(SECTION_PRELUDE);
-        for (name, stream) in self.prelude_streams.iter_mut().sorted_by_key(|kv| kv.0) {
+        for (name, stream) in self.prelude_streams.into_iter().sorted_by_key(|kv| kv.0) {
             Self::flush_stream(name, stream, &mut data).map_err(TokenWriterError::WriteError)?;
         }
 
         // Write content compressed streams, containing references to
         // both the prelude dictionaries and the static dictionaries.
         data.extend(SECTION_CONTENT);
-        for (name, stream) in self.content_streams.iter_mut().sorted_by_key(|kv| kv.0) {
-            Self::flush_stream(name, stream, &mut data).map_err(TokenWriterError::WriteError)?;
+        let path_for_flush = if self.options.split_streams {
+            &self.path
+        } else {
+            &None
+        };
+        for (name, indices) in self.content_streams.iter().sorted_by_key(|kv| kv.0) {
+            let window_len = self.options.content_window_len.get(name).unwrap();
+            let len = Self::flush_indices(path_for_flush, name, indices, *window_len, &mut data)
+                .map_err(TokenWriterError::WriteError)?;
+            *self
+                .options
+                .content_lengths
+                .borrow_mut()
+                .get_mut(&name)
+                .unwrap() += Into::<Bytes>::into(len);
         }
 
         // Write main stream of entropy-compressed data.
@@ -364,6 +404,11 @@ impl TokenWriter for Encoder {
         let entropy = self.writer.done().map_err(TokenWriterError::WriteError)?;
 
         if let Some(path) = self.dump_path {
+            std::fs::DirBuilder::new()
+                .recursive(true)
+                .create(path.parent().unwrap())
+                .map_err(TokenWriterError::WriteError)?;
+
             let mut file = std::fs::File::create(path).map_err(TokenWriterError::WriteError)?;
             file.write_all(&entropy)
                 .map_err(TokenWriterError::WriteError)?;
@@ -377,9 +422,6 @@ impl TokenWriter for Encoder {
         *self.options.content_lengths.borrow_mut() += self
             .content_opus_lengths
             .into_with(|_, field| field.done().unwrap().len());
-
-        *self.options.content_lengths.borrow_mut() +=
-            self.content_streams.into_statistics("brotli");
 
         // Update number of instances
         *self.options.content_instances.borrow_mut() += self.content_instances;

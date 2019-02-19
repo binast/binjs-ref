@@ -32,6 +32,7 @@ impl BytesAndInstances {
         BytesAndInstances { bytes, instances }
     }
 }
+
 /// A container for information associated with a type of data we write to the stream
 /// as part of the content (i.e. not the header).
 ///
@@ -130,6 +131,20 @@ impl<T> ContentInfo<T> {
         .into_iter()
     }
 
+    /// Access a field by its name.
+    ///
+    /// This method is typically used to simplify parsing a file that
+    /// contains sections explicitly labelled "bools", "floats", etc.
+    /// In such case, `field_name` is expected to be a user input.
+    ///
+    /// Return `None` if `field_name` is not one of the field names.
+    pub fn get(&self, field_name: &str) -> Option<&T> {
+        self.get_b(field_name.as_bytes())
+    }
+    pub fn get_mut(&mut self, field_name: &str) -> Option<&mut T> {
+        self.get_mut_b(field_name.as_bytes())
+    }
+
     /// Access a field by its name, specified as a sequence of bytes.
     ///
     /// This method is typically used to simplify parsing a file that
@@ -148,6 +163,20 @@ impl<T> ContentInfo<T> {
             b"interface_names" => Some(&mut self.interface_names),
             b"string_literals" => Some(&mut self.string_literals),
             b"list_lengths" => Some(&mut self.list_lengths),
+            _ => None,
+        }
+    }
+    pub fn get_b(&self, field_name: &[u8]) -> Option<&T> {
+        match field_name {
+            b"bools" => Some(&self.bools),
+            b"floats" => Some(&self.floats),
+            b"unsigned_longs" => Some(&self.unsigned_longs),
+            b"string_enums" => Some(&self.string_enums),
+            b"property_keys" => Some(&self.property_keys),
+            b"identifier_names" => Some(&self.identifier_names),
+            b"interface_names" => Some(&self.interface_names),
+            b"string_literals" => Some(&self.string_literals),
+            b"list_lengths" => Some(&self.list_lengths),
             _ => None,
         }
     }

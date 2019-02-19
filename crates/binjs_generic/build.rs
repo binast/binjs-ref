@@ -9,19 +9,29 @@ use std::env;
 use std::fs::*;
 use std::io::*;
 
-const PATH_GRAMMAR_ES6: &'static str = "../../spec/es6.webidl";
+/// The webidl source files.
+///
+/// Order is important: first the main file, then any extension.
+const PATH_SOURCES: [&'static str; 2] =
+    ["../../spec/es6.webidl", "../../spec/es6-extension.webidl"];
 
 fn main() {
-    println!("cargo:rerun-if-changed={}", PATH_GRAMMAR_ES6);
+    for source in &PATH_SOURCES {
+        println!("cargo:rerun-if-changed={}", source);
+    }
 
     // Load webidl.
 
-    let mut file = File::open(PATH_GRAMMAR_ES6).expect("Could not open source");
-    let mut source = String::new();
-    file.read_to_string(&mut source)
-        .expect("Could not read source");
+    let sources: Vec<_> = PATH_SOURCES
+        .iter()
+        .map(|path| {
+            read_to_string(path)
+                .unwrap_or_else(|e| panic!("Could not open grammar file {}: {}", path, e))
+        })
+        .collect();
+    let sources = sources.iter().map(String::as_str);
 
-    let mut builder = Importer::import(&source).expect("Could not parse source");
+    let mut builder = Importer::import(sources).expect("Could not parse webidl sources");
     let fake_root = builder.node_name("Program");
     let null = builder.node_name("");
     builder.add_interface(&null).unwrap();

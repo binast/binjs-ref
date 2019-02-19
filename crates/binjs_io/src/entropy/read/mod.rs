@@ -20,7 +20,7 @@ use std::io::{Cursor, Read};
 use range_encoding::opus;
 
 /// An entropy decoder, based on the Opus bit-level entropy coding.
-pub struct Decoder<'a> {
+pub struct Decoder {
     /// The main stream, compressed using entropy and the dictionary
     /// in `self.options`.
     stream_main: opus::Reader<std::io::Cursor<Vec<u8>>>,
@@ -30,18 +30,18 @@ pub struct Decoder<'a> {
 
     /// Streams of user-extensible values, compressed using an off-the-shelf
     /// compressor (currently, Brotli).
-    stream_floats: DictionaryStreamDecoder<'a, Option<F64>>,
-    stream_unsigned_longs: DictionaryStreamDecoder<'a, u32>,
-    stream_property_keys: DictionaryStreamDecoder<'a, Option<PropertyKey>>,
-    stream_identifier_names: DictionaryStreamDecoder<'a, Option<IdentifierName>>,
-    stream_string_literals: DictionaryStreamDecoder<'a, Option<SharedString>>,
-    stream_list_lengths: DictionaryStreamDecoder<'a, Option<u32>>,
+    stream_floats: DictionaryStreamDecoder<Option<F64>>,
+    stream_unsigned_longs: DictionaryStreamDecoder<u32>,
+    stream_property_keys: DictionaryStreamDecoder<Option<PropertyKey>>,
+    stream_identifier_names: DictionaryStreamDecoder<Option<IdentifierName>>,
+    stream_string_literals: DictionaryStreamDecoder<Option<SharedString>>,
+    stream_list_lengths: DictionaryStreamDecoder<Option<u32>>,
 }
 
-impl<'a> FileStructurePrinter for Decoder<'a> {}
+impl FileStructurePrinter for Decoder {}
 
-impl<'a> Decoder<'a> {
-    pub fn new<R>(options: &'a ::entropy::Options, mut input: R) -> Result<Self, TokenReaderError>
+impl Decoder {
+    pub fn new<R>(options: &::entropy::Options, mut input: R) -> Result<Self, TokenReaderError>
     where
         R: Read,
     {
@@ -179,42 +179,62 @@ impl<'a> Decoder<'a> {
         input = Self::check_upcoming_section(decoder, &SECTION_MAIN_WITHOUT_BRACKETS)?;
 
         // 5. Decode byte-compressed streams (could be made lazy/backgrounded)
-        let stream_floats = DictionaryStreamDecoder::new(
-            options.probability_tables.floats.as_slice(),
-            prelude_floats,
+        // FIXME: copying all these probability tables is a waste of time,
+        // it wouldn't be too hard to keep a single copy in memory
+        let stream_floats = DictionaryStreamDecoder::try_new(
+            options
+                .probability_tables
+                .floats
+                .with_prelude(&prelude_floats)
+                .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("floats"),
             content_data.floats,
-        );
-        let stream_unsigned_longs = DictionaryStreamDecoder::new(
-            options.probability_tables.unsigned_longs.as_slice(),
-            prelude_unsigned_longs,
+        )?;
+        let stream_unsigned_longs = DictionaryStreamDecoder::try_new(
+            options
+                .probability_tables
+                .unsigned_longs
+                .with_prelude(&prelude_unsigned_longs)
+                .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("unsigned_longs"),
             content_data.unsigned_longs,
-        );
-        let stream_property_keys = DictionaryStreamDecoder::new(
-            options.probability_tables.property_keys.as_slice(),
-            prelude_property_keys,
+        )?;
+        let stream_property_keys = DictionaryStreamDecoder::try_new(
+            options
+                .probability_tables
+                .property_keys
+                .with_prelude(&prelude_property_keys)
+                .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("property_keys"),
             content_data.property_keys,
-        );
-        let stream_identifier_names = DictionaryStreamDecoder::new(
-            options.probability_tables.identifier_names.as_slice(),
-            prelude_identifier_names,
+        )?;
+        let stream_identifier_names = DictionaryStreamDecoder::try_new(
+            options
+                .probability_tables
+                .identifier_names
+                .with_prelude(&prelude_identifier_names)
+                .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("identifier_names"),
             content_data.identifier_names,
-        );
-        let stream_string_literals = DictionaryStreamDecoder::new(
-            options.probability_tables.string_literals.as_slice(),
-            prelude_string_literals,
+        )?;
+        let stream_string_literals = DictionaryStreamDecoder::try_new(
+            options
+                .probability_tables
+                .string_literals
+                .with_prelude(&prelude_string_literals)
+                .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("string_literals"),
             content_data.string_literals,
-        );
-        let stream_list_lengths = DictionaryStreamDecoder::new(
-            options.probability_tables.list_lengths.as_slice(),
-            prelude_list_lengths,
+        )?;
+        let stream_list_lengths = DictionaryStreamDecoder::try_new(
+            options
+                .probability_tables
+                .list_lengths
+                .with_prelude(&prelude_list_lengths)
+                .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("list_lengths"),
             content_data.list_lengths,
-        );
+        )?;
 
         // 6. Ready to read and decode main stream.
         input
@@ -337,13 +357,13 @@ macro_rules! content_stream {
         {
             debug!(target: "read", "Reading from content stream {}", $description);
             let value = $me.$stream.next()
-                .unwrap_or_else(|| Err(TokenReaderError::UnexpectedEndOfStream($description.to_string())))?;
+                .unwrap_or_else(|| Err(TokenReaderError::UnexpectedEndOfStream($description.to_string())) )?;
             Ok(value)
         }
     }
 }
 
-impl<'a> TokenReader for Decoder<'a> {
+impl TokenReader for Decoder {
     // ---- Fixed sets
 
     fn bool_at(&mut self, path: &Path) -> Result<Option<bool>, TokenReaderError> {
