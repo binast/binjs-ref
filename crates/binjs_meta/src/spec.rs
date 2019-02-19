@@ -116,6 +116,13 @@ impl TypeSum {
         }
         None
     }
+
+    /// Add a new type case to this sum.
+    pub fn with_type_case(&mut self, spec: TypeSpec) -> &mut Self {
+        debug_assert_eq!(self.interfaces.len(), 0);
+        self.types.push(spec);
+        self
+    }
 }
 
 /// Representation of a field in an interface.
@@ -720,8 +727,14 @@ impl SpecBuilder {
         self.typedefs_by_name.get(name).map(RefCell::borrow_mut)
     }
 
+    /// Access an already added typedef.
     pub fn get_typedef(&self, name: &NodeName) -> Option<Ref<Type>> {
         self.typedefs_by_name.get(name).map(RefCell::borrow)
+    }
+
+    /// Access an already added typedef, mutably.
+    pub fn get_typedef_mut(&mut self, name: &NodeName) -> Option<RefMut<Type>> {
+        self.typedefs_by_name.get(name).map(RefCell::borrow_mut)
     }
 
     /// Generate the graph.

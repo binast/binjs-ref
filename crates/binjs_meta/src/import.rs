@@ -21,11 +21,15 @@ pub struct Importer {
 impl Importer {
     /// Import a WebIDL spec into a SpecBuilder.
     ///
+    /// A WebIDL spec may consist in several files. Files are parsed in the order
+    /// of `sources`. An extension file (e.g. `es6-extended.webidl`) MUST appear
+    /// after the files it extends.
+    ///
     /// ```
     /// extern crate binjs_meta;
     /// use binjs_meta::spec::SpecOptions;
     ///
-    /// let mut builder = binjs_meta::import::Importer::import("
+    /// let mut builder = binjs_meta::import::Importer::import(vec!["
     ///    interface FooContents {
     ///      attribute boolean value;
     ///    };
@@ -35,7 +39,7 @@ impl Importer {
     ///    interface EagerFoo {
     ///       attribute FooContents contents;
     ///    };
-    /// ").expect("Could not parse");
+    /// "].into_iter()).expect("Could not parse");
     ///
     /// let fake_root = builder.node_name("@@ROOT@@"); // Unused
     /// let null = builder.node_name(""); // Used
@@ -69,13 +73,17 @@ impl Importer {
     ///     assert_eq!(contents_field.is_lazy(), true);
     /// }
     /// ```
-    pub fn import(s: &str) -> Result<SpecBuilder, weedle::Err<CompleteStr>> {
+    pub fn import<'a>(
+        sources: impl IntoIterator<Item = &'a str>,
+    ) -> Result<SpecBuilder, weedle::Err<CompleteStr<'a>>> {
         let mut importer = Importer {
             path: Vec::with_capacity(256),
             builder: SpecBuilder::new(),
         };
-        let ast = weedle::parse(s)?;
-        importer.import_all_definitions(&ast);
+        for source in sources {
+            let ast = weedle::parse(source)?;
+            importer.import_all_definitions(&ast);
+        }
         Ok(importer.builder)
     }
 
@@ -183,31 +191,70 @@ impl Importer {
             }
         }
         let name = self.builder.node_name(interface.identifier.0);
-        let mut node = self
-            .builder
-            .add_interface(&name)
-            .expect("Name already present");
-        for (field_name, field_type, laziness) in fields.drain(..) {
-            node.with_field_laziness(&field_name, field_type, laziness);
-        }
 
-        for attribute in interface
-            .attributes
-            .iter()
-            .flat_map(|attribute| &attribute.body.list)
+        // Set to `Some("Foo")` if this interface has attribute
+        // `[ExtendsTypeSum=Foo]`.
+        let mut extends_type_sum = None;
         {
-            if let attribute::ExtendedAttribute::NoArgs(attribute::ExtendedAttributeNoArgs(
-                Identifier(id),
-            )) = *attribute
+            let mut node = self
+                .builder
+                .add_interface(&name)
+                .expect("Name already present");
+            for (field_name, field_type, laziness) in fields.drain(..) {
+                node.with_field_laziness(&field_name, field_type, laziness);
+            }
+
+            for attribute in interface
+                .attributes
+                .iter()
+                .flat_map(|attribute| &attribute.body.list)
             {
-                if id == "Skippable" {
-                    panic!("Encountered deprecated attribute [Skippable]");
-                }
-                if id == "Scope" {
-                    node.with_scope(true);
+                use weedle::attribute::ExtendedAttribute::*;
+                use weedle::attribute::*;
+                match *attribute {
+                    NoArgs(ExtendedAttributeNoArgs(Identifier("Skippable"))) => {
+                        panic!("Encountered deprecated attribute [Skippable]");
+                    }
+                    NoArgs(ExtendedAttributeNoArgs(Identifier("Scope"))) => {
+                        node.with_scope(true);
+                    }
+                    Ident(ExtendedAttributeIdent {
+                        lhs_identifier: Identifier("ExtendsTypeSum"),
+                        assign: _,
+                        rhs: IdentifierOrString::Identifier(ref rhs),
+                    }) => {
+                        assert!(extends_type_sum.is_none());
+                        extends_type_sum = Some(rhs.0);
+                    }
+                    _ => panic!("Unknown attribute {:?}", attribute),
                 }
             }
         }
+
+        // If the node contains an attribute `[ExtendsTypeSum=Foobar]`,
+        // extend `typedef (... or ... or ...) Foobar` into
+        // `typedef (... or ... or ... or CurrentNode) Foobar`.
+        if let Some(ref extended) = extends_type_sum {
+            let node_name = self
+                .builder
+                .get_node_name(extended)
+                .unwrap_or_else(|| panic!("Could not find node name {}", extended));
+            let mut typedef = self
+                .builder
+                .get_typedef_mut(&node_name)
+                .unwrap_or_else(|| panic!("Could not find typedef {}", extended));
+            let mut typespec = typedef.spec_mut();
+            let typesum = if let TypeSpec::TypeSum(ref mut typesum) = *typespec {
+                typesum
+            } else {
+                panic!(
+                    "Attempting to extend a node that is not a type sum {}",
+                    extended
+                );
+            };
+            typesum.with_type_case(TypeSpec::NamedType(name));
+        }
+
         self.path.pop();
     }
 

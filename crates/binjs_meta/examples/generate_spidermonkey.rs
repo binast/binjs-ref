@@ -1610,7 +1610,8 @@ fn main() {
         .expect("Could not read source");
 
     println!("...importing webidl");
-    let mut builder = Importer::import(&source).expect("Could not parse source");
+    let mut builder =
+        Importer::import(vec![source.as_str()].into_iter()).expect("Could not parse source");
     let fake_root = builder.node_name("@@ROOT@@"); // Unused
     let null = builder.node_name(""); // Used
     builder.add_interface(&null).unwrap();
