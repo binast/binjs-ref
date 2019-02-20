@@ -306,8 +306,8 @@ impl FromJSON for {name} {{
 
                 let to_writer = format!(
                     "
-impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
+impl<W> Serialization<W, {name}> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &{name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing string enum {name}\");
         let str = match *value {{
 {variants}
@@ -641,8 +641,8 @@ impl ToJSON for {name} {{
                     );
 
                     let to_writer = format!("
-impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
+impl<W> Serialization<W, Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional sum {rust_name}\");
         match *value {{
             None => {{
@@ -651,12 +651,12 @@ impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W:
                 self.writer.exit_tagged_tuple_at(&{null_interface}{{}}, &interface_name, &[], path)?;
                 Ok(())
             }}
-            Some(ref sum) => (self as &mut Serialization<W, &'a {rust_name}>).serialize(sum, path)
+            Some(ref sum) => self.serialize(sum, path)
         }}
     }}
 }}
-impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {rust_name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
+impl<W> Serialization<W, {rust_name}> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &{rust_name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing sum {rust_name}\");
         match *value {{
 {variants}
@@ -673,7 +673,7 @@ impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWr
                                 format!(
 "           {name}::{constructor}(ref value) => {{
                 // Path will be updated by the serializer for this tagged tuple.
-                (self as &mut Serialization<W, &'a {constructor}>).serialize(value, path)
+                self.serialize(value, path)
             }}",
                                     name = name,
                                     constructor = case.to_class_cases())
@@ -925,8 +925,8 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
 }}
 
 
-impl<'a, W> Serialization<W, &'a {name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
+impl<W> Serialization<W, {name}> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &{name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing list {name}\");
         self.writer.enter_list_at(value.len(), path)?;
         for child in value {{
@@ -1163,8 +1163,8 @@ impl<R> Deserialization<R, Option<{rust_name}>> for Deserializer<R> where R: Tok
                         .format("\n")
                     );
                 let to_writer = format!("
-impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
+impl<W> Serialization<W, Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional tagged tuple {name}\");
         match *value {{
             None => {{
@@ -1173,12 +1173,12 @@ impl<'a, W> Serialization<W, &'a Option<{rust_name}>> for Serializer<W> where W:
                 self.writer.exit_tagged_tuple_at(&{null_interface}{{}}, &interface_name, &[], path)?;
                 Ok(())
             }}
-            Some(ref sum) => (self as &mut Serialization<W, &'a {rust_name}>).serialize(sum, path)
+            Some(ref sum) => self.serialize(sum, path)
         }}
     }}
 }}
-impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWriter {{
-    fn serialize(&mut self, value: &'a {rust_name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
+impl<W> Serialization<W, {rust_name}> for Serializer<W> where W: TokenWriter {{
+    fn serialize(&mut self, value: &{rust_name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
         let interface_name = InterfaceName::from_str(\"{name}\"); // String is shared
         let field_names = [{field_names}];
@@ -1216,7 +1216,7 @@ impl<'a, W> Serialization<W, &'a {rust_name}> for Serializer<W> where W: TokenWr
             let field_name = FieldName::from_str(\"{field_name}\");
             let path_item = ({index}, field_name.clone()); // String is shared
             path.enter_field(path_item.clone());
-            let result = (self as &mut Serialization<W, &'a _>).serialize(&value.{rust_field_name}, path);
+            let result = self.serialize(&value.{rust_field_name}, path);
             path.exit_field(path_item);
             if let Err(err) = result {{
                 break Err(err); // Break with error

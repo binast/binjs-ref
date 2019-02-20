@@ -10,7 +10,7 @@ extern crate binjs;
 use binjs::generic::{
     FieldName, FromJSON, IdentifierName, InterfaceName, Node, PropertyKey, SharedString,
 };
-use binjs::io::{TokenWriter, TokenWriterError};
+use binjs::io::{Serialization, TokenWriter, TokenWriterError};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::io::IOPath;
 

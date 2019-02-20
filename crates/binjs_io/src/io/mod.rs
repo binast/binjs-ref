@@ -354,12 +354,12 @@ pub trait TokenWriter {
 pub trait Serialization<W, T>
 where
     W: TokenWriter,
-    T: Sized,
+    T: ?Sized,
 {
     /// Serialize a piece of data.
     ///
     /// `path` indicates the path from the root of the AST.
-    fn serialize(&mut self, data: T, path: &mut Path) -> Result<(), TokenWriterError>;
+    fn serialize(&mut self, data: &T, path: &mut Path) -> Result<(), TokenWriterError>;
 }
 pub trait TokenSerializer<W>
 where
@@ -370,7 +370,7 @@ where
 pub trait RootedTokenSerializer<W, T>: Serialization<W, T> + TokenSerializer<W>
 where
     W: TokenWriter,
-    T: Sized,
+    T: ?Sized,
 {
 }
 pub trait TokenSerializerFamily<T> {
