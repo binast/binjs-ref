@@ -8,7 +8,7 @@ extern crate env_logger;
 
 use binjs::generic::FromJSON;
 use binjs::io::entropy::dictionary::DictionaryBuilder;
-use binjs::io::{Path as IOPath, TokenSerializer};
+use binjs::io::{Path as IOPath, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::Walker;
 

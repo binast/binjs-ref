@@ -190,12 +190,6 @@ where
     pub fn new(writer: W) -> Self {
         Self { writer }
     }
-    pub fn serialize<T>(&mut self, value: T, path: &mut IOPath) -> Result<(), TokenWriterError>
-    where
-        Self: Serialization<W, T>,
-    {
-        (self as &mut Serialization<W, T>).serialize(value, path)
-    }
 }
 
 impl<W> TokenSerializer<W> for Serializer<W>
@@ -213,182 +207,136 @@ where
 {
     fn serialize(
         &mut self,
-        value: Option<bool>,
+        value: &Option<bool>,
         path: &mut IOPath,
     ) -> Result<(), TokenWriterError> {
-        self.writer.bool_at(value, path)
+        self.writer.bool_at(*value, path)
     }
 }
 impl<W> Serialization<W, bool> for Serializer<W>
 where
     W: TokenWriter,
 {
-    fn serialize(&mut self, value: bool, path: &mut IOPath) -> Result<(), TokenWriterError> {
-        self.writer.bool_at(Some(value), path)
+    fn serialize(&mut self, value: &bool, path: &mut IOPath) -> Result<(), TokenWriterError> {
+        self.writer.bool_at(Some(*value), path)
     }
 }
 impl<W> Serialization<W, Option<f64>> for Serializer<W>
 where
     W: TokenWriter,
 {
-    fn serialize(&mut self, value: Option<f64>, path: &mut IOPath) -> Result<(), TokenWriterError> {
-        self.writer.float_at(value, path)
+    fn serialize(
+        &mut self,
+        value: &Option<f64>,
+        path: &mut IOPath,
+    ) -> Result<(), TokenWriterError> {
+        self.writer.float_at(*value, path)
     }
 }
 impl<W> Serialization<W, f64> for Serializer<W>
 where
     W: TokenWriter,
 {
-    fn serialize(&mut self, value: f64, path: &mut IOPath) -> Result<(), TokenWriterError> {
-        self.writer.float_at(Some(value), path)
+    fn serialize(&mut self, value: &f64, path: &mut IOPath) -> Result<(), TokenWriterError> {
+        self.writer.float_at(Some(*value), path)
     }
 }
 impl<W> Serialization<W, u32> for Serializer<W>
 where
     W: TokenWriter,
 {
-    fn serialize(&mut self, value: u32, path: &mut IOPath) -> Result<(), TokenWriterError> {
-        self.writer.unsigned_long_at(value, path)
+    fn serialize(&mut self, value: &u32, path: &mut IOPath) -> Result<(), TokenWriterError> {
+        self.writer.unsigned_long_at(*value, path)
     }
 }
-impl<'a, W> Serialization<W, &'a Option<bool>> for Serializer<W>
+impl<W> Serialization<W, SharedString> for Serializer<W>
 where
     W: TokenWriter,
 {
     fn serialize(
         &mut self,
-        value: &'a Option<bool>,
-        path: &mut IOPath,
-    ) -> Result<(), TokenWriterError> {
-        self.writer.bool_at(value.clone(), path)
-    }
-}
-impl<'a, W> Serialization<W, &'a bool> for Serializer<W>
-where
-    W: TokenWriter,
-{
-    fn serialize(&mut self, value: &'a bool, path: &mut IOPath) -> Result<(), TokenWriterError> {
-        self.writer.bool_at(Some(*value), path)
-    }
-}
-impl<'a, W> Serialization<W, &'a Option<f64>> for Serializer<W>
-where
-    W: TokenWriter,
-{
-    fn serialize(
-        &mut self,
-        value: &'a Option<f64>,
-        path: &mut IOPath,
-    ) -> Result<(), TokenWriterError> {
-        self.writer.float_at(value.clone(), path)
-    }
-}
-impl<'a, W> Serialization<W, &'a f64> for Serializer<W>
-where
-    W: TokenWriter,
-{
-    fn serialize(&mut self, value: &'a f64, path: &mut IOPath) -> Result<(), TokenWriterError> {
-        self.writer.float_at(Some(*value), path)
-    }
-}
-impl<'a, W> Serialization<W, &'a u32> for Serializer<W>
-where
-    W: TokenWriter,
-{
-    fn serialize(&mut self, value: &'a u32, path: &mut IOPath) -> Result<(), TokenWriterError> {
-        self.writer.unsigned_long_at(value.clone(), path)
-    }
-}
-/*
-impl<'a, W> Serialization<W, Option<&'a str>> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: Option<&'a str>, path: &mut IOPath) -> Result<(), TokenWriterError> {
-        self.writer.string_at(value, path)
-    }
-}
-impl<'a, W> Serialization<W, &'a str> for Serializer<W> where W: TokenWriter {
-    fn serialize(&mut self, value: &'a str, path: &mut IOPath) -> Result<(), TokenWriterError> {
-         self.writer.string_at(Some(value), path)
-   }
-}
-*/
-impl<'a, W> Serialization<W, &'a SharedString> for Serializer<W>
-where
-    W: TokenWriter,
-{
-    fn serialize(
-        &mut self,
-        value: &'a SharedString,
+        value: &SharedString,
         path: &mut IOPath,
     ) -> Result<(), TokenWriterError> {
         self.writer.string_at(Some(value), path)
     }
 }
-impl<'a, W> Serialization<W, &'a Option<SharedString>> for Serializer<W>
+impl<W> Serialization<W, Option<SharedString>> for Serializer<W>
 where
     W: TokenWriter,
 {
     fn serialize(
         &mut self,
-        value: &'a Option<SharedString>,
+        value: &Option<SharedString>,
         path: &mut IOPath,
     ) -> Result<(), TokenWriterError> {
         self.writer.string_at(value.as_ref(), path)
     }
 }
-impl<'a, W> Serialization<W, &'a IdentifierName> for Serializer<W>
+impl<W> Serialization<W, IdentifierName> for Serializer<W>
 where
     W: TokenWriter,
 {
     fn serialize(
         &mut self,
-        value: &'a IdentifierName,
+        value: &IdentifierName,
         path: &mut IOPath,
     ) -> Result<(), TokenWriterError> {
         self.writer.identifier_name_at(Some(&value), path)
     }
 }
-impl<'a, W> Serialization<W, &'a PropertyKey> for Serializer<W>
+impl<W> Serialization<W, PropertyKey> for Serializer<W>
 where
     W: TokenWriter,
 {
     fn serialize(
         &mut self,
-        value: &'a PropertyKey,
+        value: &PropertyKey,
         path: &mut IOPath,
     ) -> Result<(), TokenWriterError> {
         self.writer.property_key_at(Some(&value), path)
     }
 }
-impl<'a, W> Serialization<W, &'a Option<IdentifierName>> for Serializer<W>
+impl<W> Serialization<W, Option<IdentifierName>> for Serializer<W>
 where
     W: TokenWriter,
 {
     fn serialize(
         &mut self,
-        value: &'a Option<IdentifierName>,
+        value: &Option<IdentifierName>,
         path: &mut IOPath,
     ) -> Result<(), TokenWriterError> {
         self.writer.identifier_name_at(value.as_ref(), path)
     }
 }
-impl<'a, W> Serialization<W, &'a Option<PropertyKey>> for Serializer<W>
+impl<W> Serialization<W, Option<PropertyKey>> for Serializer<W>
 where
     W: TokenWriter,
 {
     fn serialize(
         &mut self,
-        value: &'a Option<PropertyKey>,
+        value: &Option<PropertyKey>,
         path: &mut IOPath,
     ) -> Result<(), TokenWriterError> {
         self.writer.property_key_at(value.as_ref(), path)
     }
 }
-impl<'a, W> Serialization<W, &'a Offset> for Serializer<W>
+impl<W> Serialization<W, Offset> for Serializer<W>
 where
     W: TokenWriter,
 {
-    fn serialize(&mut self, _: &'a Offset, path: &mut IOPath) -> Result<(), TokenWriterError> {
+    fn serialize(&mut self, _: &Offset, path: &mut IOPath) -> Result<(), TokenWriterError> {
         self.writer.offset_at(path)
+    }
+}
+impl<W, T> Serialization<W, Box<T>> for Serializer<W>
+where
+    W: TokenWriter,
+    T: ?Sized,
+    Self: Serialization<W, T>,
+{
+    fn serialize(&mut self, value: &Box<T>, path: &mut IOPath) -> Result<(), TokenWriterError> {
+        self.serialize(value.as_ref(), path)
     }
 }
 
@@ -455,15 +403,15 @@ impl Encoder {
     ) -> Result<Box<AsRef<[u8]>>, TokenWriterError>
     where
         Serializer<TokenWriterTreeAdapter<binjs_io::simple::TreeTokenWriter>>:
-            Serialization<TokenWriterTreeAdapter<binjs_io::simple::TreeTokenWriter>, &'a AST>,
+            Serialization<TokenWriterTreeAdapter<binjs_io::simple::TreeTokenWriter>, AST>,
         Serializer<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>>:
-            Serialization<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>, &'a AST>,
+            Serialization<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>, AST>,
         Serializer<TokenWriterTreeAdapter<binjs_io::xml::Encoder>>:
-            Serialization<TokenWriterTreeAdapter<binjs_io::xml::Encoder>, &'a AST>,
+            Serialization<TokenWriterTreeAdapter<binjs_io::xml::Encoder>, AST>,
         Serializer<binjs_io::binjs_json::write::TreeTokenWriter>:
-            Serialization<binjs_io::binjs_json::write::TreeTokenWriter, &'a AST>,
+            Serialization<binjs_io::binjs_json::write::TreeTokenWriter, AST>,
         Serializer<binjs_io::entropy::write::Encoder>:
-            Serialization<binjs_io::entropy::write::Encoder, &'a AST>,
+            Serialization<binjs_io::entropy::write::Encoder, AST>,
     {
         let mut io_path = IOPath::new();
         match *format {
