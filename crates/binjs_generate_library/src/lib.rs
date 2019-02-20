@@ -260,7 +260,7 @@ impl<R> Deserializer<R> where R: TokenReader {{
     }}
 }}
 
-impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
+impl<R> Deserialization<{name}> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing variant {name}\");
         self.deserialize_variant_{lowercase_name}(path)
@@ -306,7 +306,7 @@ impl FromJSON for {name} {{
 
                 let to_writer = format!(
                     "
-impl<W> Serialization<W, {name}> for Serializer<W> where W: TokenWriter {{
+impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &{name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing string enum {name}\");
         let str = match *value {{
@@ -521,7 +521,7 @@ impl Default for {name} {{
                     );
 
                     let from_reader = format!("
-impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
+impl<R> Deserialization<{name}> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<{name}, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing sum {name}\");
         let (kind, _) = self.reader.enter_tagged_tuple_at(path)?;
@@ -541,7 +541,7 @@ impl<R> Deserialization<R, {name}> for Deserializer<R> where R: TokenReader {{
         result
     }}
 }}
-impl<R> Deserialization<R, Option<{name}>> for Deserializer<R> where R: TokenReader {{
+impl<R> Deserialization<Option<{name}>> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{name}>, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional sum {name}\");
         let (kind, _) = self.reader.enter_tagged_tuple_at(path)?;
@@ -641,7 +641,7 @@ impl ToJSON for {name} {{
                     );
 
                     let to_writer = format!("
-impl<W> Serialization<W, Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
+impl<W> Serialization<Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional sum {rust_name}\");
         match *value {{
@@ -655,7 +655,7 @@ impl<W> Serialization<W, Option<{rust_name}>> for Serializer<W> where W: TokenWr
         }}
     }}
 }}
-impl<W> Serialization<W, {rust_name}> for Serializer<W> where W: TokenWriter {{
+impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &{rust_name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing sum {rust_name}\");
         match *value {{
@@ -925,7 +925,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
 }}
 
 
-impl<W> Serialization<W, {name}> for Serializer<W> where W: TokenWriter {{
+impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &{name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing list {name}\");
         self.writer.enter_list_at(value.len(), path)?;
@@ -1084,7 +1084,7 @@ impl<R> Deserializer<R> where R: TokenReader {{
     }}
 }}
 
-impl<R> InnerDeserialization<R, {rust_name}> for Deserializer<R> where R: TokenReader {{
+impl<R> InnerDeserialization<{rust_name}> for Deserializer<R> where R: TokenReader {{
     fn deserialize_inner(&mut self, path: &mut IOPath) -> Result<{rust_name}, TokenReaderError> where R: TokenReader {{
         let _ = path; // Deactivate warnings if there are no fields.
         print_file_structure!(self.reader, \"{name} {{{{\");
@@ -1096,13 +1096,13 @@ impl<R> InnerDeserialization<R, {rust_name}> for Deserializer<R> where R: TokenR
     }}
 }}
 
-impl<R> Deserialization<R, {rust_name}> for Deserializer<R> where R: TokenReader {{
+impl<R> Deserialization<{rust_name}> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<{rust_name}, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing tagged tuple {rust_name}\");
         self.deserialize_tuple_{lowercase_name}(path)
     }}
 }}
-impl<R> Deserialization<R, Option<{rust_name}>> for Deserializer<R> where R: TokenReader {{
+impl<R> Deserialization<Option<{rust_name}>> for Deserializer<R> where R: TokenReader {{
     fn deserialize(&mut self, path: &mut IOPath) -> Result<Option<{rust_name}>, TokenReaderError> {{
         debug!(target: \"deserialize_es6\", \"Deserializing optional tuple {rust_name}\");
         let (kind, _) = self.reader.enter_tagged_tuple_at(path)?;
@@ -1163,7 +1163,7 @@ impl<R> Deserialization<R, Option<{rust_name}>> for Deserializer<R> where R: Tok
                         .format("\n")
                     );
                 let to_writer = format!("
-impl<W> Serialization<W, Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
+impl<W> Serialization<Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing optional tagged tuple {name}\");
         match *value {{
@@ -1177,7 +1177,7 @@ impl<W> Serialization<W, Option<{rust_name}>> for Serializer<W> where W: TokenWr
         }}
     }}
 }}
-impl<W> Serialization<W, {rust_name}> for Serializer<W> where W: TokenWriter {{
+impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &{rust_name}, path: &mut IOPath) -> Result<(), TokenWriterError> {{
         debug!(target: \"serialize_es6\", \"Serializing tagged tuple {name}\");
         let interface_name = InterfaceName::from_str(\"{name}\"); // String is shared

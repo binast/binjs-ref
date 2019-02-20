@@ -33,7 +33,7 @@ where
     }
 }
 
-impl<R> Deserialization<R, Option<bool>> for Deserializer<R>
+impl<R> Deserialization<Option<bool>> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -41,7 +41,7 @@ where
         self.reader.bool_at(path)
     }
 }
-impl<R> Deserialization<R, bool> for Deserializer<R>
+impl<R> Deserialization<bool> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -53,7 +53,7 @@ where
         }
     }
 }
-impl<R> Deserialization<R, Option<f64>> for Deserializer<R>
+impl<R> Deserialization<Option<f64>> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -61,7 +61,7 @@ where
         self.reader.float_at(path)
     }
 }
-impl<R> Deserialization<R, f64> for Deserializer<R>
+impl<R> Deserialization<f64> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -73,7 +73,7 @@ where
         }
     }
 }
-impl<R> Deserialization<R, u32> for Deserializer<R>
+impl<R> Deserialization<u32> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -81,7 +81,7 @@ where
         self.reader.unsigned_long_at(path)
     }
 }
-impl<R> Deserialization<R, Offset> for Deserializer<R>
+impl<R> Deserialization<Offset> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -89,7 +89,7 @@ where
         Ok(Offset(self.reader.offset_at(path)?))
     }
 }
-impl<R> Deserialization<R, Option<SharedString>> for Deserializer<R>
+impl<R> Deserialization<Option<SharedString>> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -97,7 +97,7 @@ where
         self.reader.string_at(path)
     }
 }
-impl<R> Deserialization<R, SharedString> for Deserializer<R>
+impl<R> Deserialization<SharedString> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -109,7 +109,7 @@ where
         }
     }
 }
-impl<R> Deserialization<R, IdentifierName> for Deserializer<R>
+impl<R> Deserialization<IdentifierName> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -119,7 +119,7 @@ where
             .ok_or_else(|| From::from(TokenReaderError::EmptyString))
     }
 }
-impl<R> Deserialization<R, PropertyKey> for Deserializer<R>
+impl<R> Deserialization<PropertyKey> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -130,7 +130,7 @@ where
     }
 }
 
-impl<R> Deserialization<R, Option<IdentifierName>> for Deserializer<R>
+impl<R> Deserialization<Option<IdentifierName>> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -141,7 +141,7 @@ where
         self.reader.identifier_name_at(path)
     }
 }
-impl<R> Deserialization<R, Option<PropertyKey>> for Deserializer<R>
+impl<R> Deserialization<Option<PropertyKey>> for Deserializer<R>
 where
     R: TokenReader,
 {
@@ -150,10 +150,10 @@ where
     }
 }
 
-impl<R, T> Deserialization<R, Vec<T>> for Deserializer<R>
+impl<R, T> Deserialization<Vec<T>> for Deserializer<R>
 where
     R: TokenReader,
-    Self: Deserialization<R, T>,
+    Self: Deserialization<T>,
 {
     fn deserialize(&mut self, path: &mut IOPath) -> Result<Vec<T>, TokenReaderError> {
         let len = self.reader.enter_list_at(path)?;
@@ -201,7 +201,7 @@ where
     }
 }
 
-impl<W> Serialization<W, Option<bool>> for Serializer<W>
+impl<W> Serialization<Option<bool>> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -213,7 +213,7 @@ where
         self.writer.bool_at(*value, path)
     }
 }
-impl<W> Serialization<W, bool> for Serializer<W>
+impl<W> Serialization<bool> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -221,7 +221,7 @@ where
         self.writer.bool_at(Some(*value), path)
     }
 }
-impl<W> Serialization<W, Option<f64>> for Serializer<W>
+impl<W> Serialization<Option<f64>> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -233,7 +233,7 @@ where
         self.writer.float_at(*value, path)
     }
 }
-impl<W> Serialization<W, f64> for Serializer<W>
+impl<W> Serialization<f64> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -241,7 +241,7 @@ where
         self.writer.float_at(Some(*value), path)
     }
 }
-impl<W> Serialization<W, u32> for Serializer<W>
+impl<W> Serialization<u32> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -249,7 +249,7 @@ where
         self.writer.unsigned_long_at(*value, path)
     }
 }
-impl<W> Serialization<W, SharedString> for Serializer<W>
+impl<W> Serialization<SharedString> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -261,7 +261,7 @@ where
         self.writer.string_at(Some(value), path)
     }
 }
-impl<W> Serialization<W, Option<SharedString>> for Serializer<W>
+impl<W> Serialization<Option<SharedString>> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -273,7 +273,7 @@ where
         self.writer.string_at(value.as_ref(), path)
     }
 }
-impl<W> Serialization<W, IdentifierName> for Serializer<W>
+impl<W> Serialization<IdentifierName> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -285,7 +285,7 @@ where
         self.writer.identifier_name_at(Some(&value), path)
     }
 }
-impl<W> Serialization<W, PropertyKey> for Serializer<W>
+impl<W> Serialization<PropertyKey> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -297,7 +297,7 @@ where
         self.writer.property_key_at(Some(&value), path)
     }
 }
-impl<W> Serialization<W, Option<IdentifierName>> for Serializer<W>
+impl<W> Serialization<Option<IdentifierName>> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -309,7 +309,7 @@ where
         self.writer.identifier_name_at(value.as_ref(), path)
     }
 }
-impl<W> Serialization<W, Option<PropertyKey>> for Serializer<W>
+impl<W> Serialization<Option<PropertyKey>> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -321,7 +321,7 @@ where
         self.writer.property_key_at(value.as_ref(), path)
     }
 }
-impl<W> Serialization<W, Offset> for Serializer<W>
+impl<W> Serialization<Offset> for Serializer<W>
 where
     W: TokenWriter,
 {
@@ -329,11 +329,11 @@ where
         self.writer.offset_at(path)
     }
 }
-impl<W, T> Serialization<W, Box<T>> for Serializer<W>
+impl<W, T> Serialization<Box<T>> for Serializer<W>
 where
     W: TokenWriter,
     T: ?Sized,
-    Self: Serialization<W, T>,
+    Self: Serialization<T>,
 {
     fn serialize(&mut self, value: &Box<T>, path: &mut IOPath) -> Result<(), TokenWriterError> {
         self.serialize(value.as_ref(), path)
@@ -345,20 +345,16 @@ impl Decoder {
     pub fn new() -> Self {
         Decoder
     }
-    pub fn decode<'a, R: Read + Seek, AST>(
+    pub fn decode<R: Read + Seek, AST>(
         &self,
-        format: &'a mut binjs_io::Format,
+        format: &mut binjs_io::Format,
         source: R,
     ) -> Result<AST, TokenReaderError>
     where
-        Deserializer<binjs_io::simple::TreeTokenReader<R>>:
-            Deserialization<binjs_io::simple::TreeTokenReader<R>, AST>,
-        Deserializer<binjs_io::multipart::TreeTokenReader>:
-            Deserialization<binjs_io::multipart::TreeTokenReader, AST>,
-        Deserializer<binjs_io::binjs_json::read::Decoder<R>>:
-            Deserialization<binjs_io::binjs_json::read::Decoder<R>, AST>,
-        Deserializer<binjs_io::entropy::read::Decoder>:
-            Deserialization<binjs_io::entropy::read::Decoder, AST>,
+        Deserializer<binjs_io::simple::TreeTokenReader<R>>: Deserialization<AST>,
+        Deserializer<binjs_io::multipart::TreeTokenReader>: Deserialization<AST>,
+        Deserializer<binjs_io::binjs_json::read::Decoder<R>>: Deserialization<AST>,
+        Deserializer<binjs_io::entropy::read::Decoder>: Deserialization<AST>,
     {
         let mut path = IOPath::new();
         match *format {
@@ -395,23 +391,19 @@ impl Encoder {
     pub fn new() -> Self {
         Encoder
     }
-    pub fn encode<'a, AST>(
+    pub fn encode<AST>(
         &self,
         path: Option<&std::path::Path>,
-        format: &'a mut binjs_io::Format,
-        ast: &'a AST,
+        format: &mut binjs_io::Format,
+        ast: &AST,
     ) -> Result<Box<AsRef<[u8]>>, TokenWriterError>
     where
-        Serializer<TokenWriterTreeAdapter<binjs_io::simple::TreeTokenWriter>>:
-            Serialization<TokenWriterTreeAdapter<binjs_io::simple::TreeTokenWriter>, AST>,
+        Serializer<TokenWriterTreeAdapter<binjs_io::simple::TreeTokenWriter>>: Serialization<AST>,
         Serializer<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>>:
-            Serialization<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>, AST>,
-        Serializer<TokenWriterTreeAdapter<binjs_io::xml::Encoder>>:
-            Serialization<TokenWriterTreeAdapter<binjs_io::xml::Encoder>, AST>,
-        Serializer<binjs_io::binjs_json::write::TreeTokenWriter>:
-            Serialization<binjs_io::binjs_json::write::TreeTokenWriter, AST>,
-        Serializer<binjs_io::entropy::write::Encoder>:
-            Serialization<binjs_io::entropy::write::Encoder, AST>,
+            Serialization<AST>,
+        Serializer<TokenWriterTreeAdapter<binjs_io::xml::Encoder>>: Serialization<AST>,
+        Serializer<binjs_io::binjs_json::write::TreeTokenWriter>: Serialization<AST>,
+        Serializer<binjs_io::entropy::write::Encoder>: Serialization<AST>,
     {
         let mut io_path = IOPath::new();
         match *format {
