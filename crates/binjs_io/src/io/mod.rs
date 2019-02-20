@@ -351,9 +351,8 @@ pub trait TokenWriter {
     }
 }
 
-pub trait Serialization<W, T>
+pub trait Serialization<T>
 where
-    W: TokenWriter,
     T: ?Sized,
 {
     /// Serialize a piece of data.
@@ -367,7 +366,7 @@ where
 {
     fn done(self) -> Result<W::Data, TokenWriterError>;
 }
-pub trait RootedTokenSerializer<W, T>: Serialization<W, T> + TokenSerializer<W>
+pub trait RootedTokenSerializer<W, T>: Serialization<T> + TokenSerializer<W>
 where
     W: TokenWriter,
     T: ?Sized,
@@ -379,16 +378,14 @@ pub trait TokenSerializerFamily<T> {
         W: TokenWriter;
 }
 
-pub trait Deserialization<R, T>
+pub trait Deserialization<T>
 where
-    R: TokenReader,
     T: Sized,
 {
     fn deserialize(&mut self, &mut Path) -> Result<T, TokenReaderError>;
 }
-pub trait InnerDeserialization<R, T>
+pub trait InnerDeserialization<T>
 where
-    R: TokenReader,
     T: Sized,
 {
     fn deserialize_inner(&mut self, &mut Path) -> Result<T, TokenReaderError>;
