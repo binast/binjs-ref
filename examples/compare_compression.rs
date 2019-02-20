@@ -7,6 +7,7 @@ extern crate derive_more;
 extern crate env_logger;
 extern crate glob;
 extern crate itertools;
+extern crate tempdir;
 
 use binjs::generic::FromJSON;
 use binjs::source::*;
@@ -83,7 +84,9 @@ fn get_compressed_sizes(path: &std::path::Path) -> Sizes {
 
 fn main() {
     env_logger::init();
-    let dest_path_binjs = "/tmp/binjs-test.js.binjs";
+    let dir = tempdir::TempDir::new("test_multipart_io").unwrap();
+    let root = dir.path();
+    let dest_path_binjs = &root.join("/binjs-test.js.binjs");
 
     let matches = App::new("Compare BinJS compression and brotli/gzip compression")
         .author("David Teller <dteller@mozilla.com>")
