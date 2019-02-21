@@ -464,34 +464,6 @@ impl<T> Dictionary<T> {
         &self.floats
     }
 
-    // The following methods are read-write accessors. They are provided as an intermediate step
-    // but will disappear soon, as they are dangerous whenever we reuse a dictionary for two
-    // different files.
-
-    pub fn unsigned_longs_mut(&mut self) -> &mut LinearTable<u32> {
-        &mut self.unsigned_longs
-    }
-
-    pub fn string_literals_mut(&mut self) -> &mut LinearTable<Option<SharedString>> {
-        &mut self.string_literals
-    }
-
-    pub fn identifier_names_mut(&mut self) -> &mut LinearTable<Option<IdentifierName>> {
-        &mut self.identifier_names
-    }
-
-    pub fn property_keys_mut(&mut self) -> &mut LinearTable<Option<PropertyKey>> {
-        &mut self.property_keys
-    }
-
-    pub fn list_lengths_mut(&mut self) -> &mut LinearTable<Option<u32>> {
-        &mut self.list_lengths
-    }
-
-    pub fn floats_mut(&mut self) -> &mut LinearTable<Option<F64>> {
-        &mut self.floats
-    }
-
     /// Return the depth of the current dictionary.
     pub fn depth(&self) -> usize {
         assert_eq!(self.bool_by_path.depth(), self.string_enum_by_path.depth());

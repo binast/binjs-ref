@@ -3,7 +3,7 @@
 mod lazy_stream;
 
 use self::lazy_stream::*;
-use super::dictionary::{Fetch, TableRef};
+use super::dictionary::{Fetch, LinearTable, TableRef};
 use super::rw::*;
 use bytes::lengthwriter::LengthWriter;
 use bytes::varnum::WriteVarNum;
@@ -60,6 +60,27 @@ pub struct Encoder {
     /// Parts of the header that we compress with Brotli.
     prelude_streams: PreludeStreams<LazyStream>,
 
+    // --- Extensible sets of symbols, as indexed tables.
+    // We copy these tables to the Encoder as they are modified
+    // as we encode the file.
+    /// All unsigned longs.
+    unsigned_longs: LinearTable<u32>,
+
+    /// All string literals. `None` for `null`.
+    string_literals: LinearTable<Option<SharedString>>,
+
+    /// All identifier names. `None` for `null`.
+    identifier_names: LinearTable<Option<IdentifierName>>,
+
+    /// All property keys. `None` for `null`.
+    property_keys: LinearTable<Option<PropertyKey>>,
+
+    /// All list lenghts. `None` for `null`.
+    list_lengths: LinearTable<Option<u32>>,
+
+    /// All floats. `None` for `null`.
+    floats: LinearTable<Option<F64>>,
+
     // --- Statistics.
     /// Measure the number of bytes written.
     content_opus_lengths: ContentInfo<opus::Writer<LengthWriter>>,
@@ -76,6 +97,12 @@ impl Encoder {
     pub fn new(path: Option<&std::path::Path>, options: ::entropy::Options) -> Self {
         // FIXME: We shouldn't need to clone the entire `options`. A shared immutable reference would do nicely.
         let split_streams = options.split_streams;
+        let unsigned_longs = options.probability_tables.unsigned_longs().clone();
+        let string_literals = options.probability_tables.string_literals().clone();
+        let identifier_names = options.probability_tables.identifier_names().clone();
+        let property_keys = options.probability_tables.property_keys().clone();
+        let list_lengths = options.probability_tables.list_lengths().clone();
+        let floats = options.probability_tables.floats().clone();
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
             dump_path: if split_streams {
@@ -108,6 +135,12 @@ impl Encoder {
             }),
             content_instances: ContentInfo::with(|_| 0.into()),
             path: path.map(std::path::Path::to_path_buf),
+            unsigned_longs,
+            string_literals,
+            identifier_names,
+            property_keys,
+            list_lengths,
+            floats,
         }
     }
 }
@@ -242,9 +275,8 @@ macro_rules! emit_symbol_to_content_stream {
             let value = $value;
 
             // 1. Fetch the index in the dictionary.
-            let fetch = $me.options
-                .probability_tables
-                .$table()
+            let fetch = $me
+                .$table
                 .fetch_index(value);
 
             debug!(target: "write", "Writing index {:?} as {:?} index to {}", $value, fetch, $description);
@@ -472,7 +504,7 @@ impl TokenWriter for Encoder {
         use bytes::float::WriteVarFloat;
         emit_simple_symbol_to_streams!(
             self,
-            floats_mut,
+            floats,
             floats,
             write_maybe_varfloat2,
             &value.map(F64::from),
@@ -484,7 +516,7 @@ impl TokenWriter for Encoder {
     fn unsigned_long_at(&mut self, value: u32, _path: &Path) -> Result<(), TokenWriterError> {
         emit_simple_symbol_to_streams!(
             self,
-            unsigned_longs_mut,
+            unsigned_longs,
             unsigned_longs,
             write_varnum,
             &value,
@@ -500,7 +532,7 @@ impl TokenWriter for Encoder {
     ) -> Result<(), TokenWriterError> {
         emit_string_symbol_to_streams!(
             self,
-            string_literals_mut,
+            string_literals,
             string_literals,
             string_literals_len,
             &value.cloned(),
@@ -516,7 +548,7 @@ impl TokenWriter for Encoder {
     ) -> Result<(), TokenWriterError> {
         emit_string_symbol_to_streams!(
             self,
-            identifier_names_mut,
+            identifier_names,
             identifier_names,
             identifier_names_len,
             &value.cloned(),
@@ -532,7 +564,7 @@ impl TokenWriter for Encoder {
     ) -> Result<(), TokenWriterError> {
         emit_string_symbol_to_streams!(
             self,
-            property_keys_mut,
+            property_keys,
             property_keys,
             property_keys_len,
             &value.cloned(),
@@ -544,7 +576,7 @@ impl TokenWriter for Encoder {
     fn enter_list_at(&mut self, len: usize, _path: &Path) -> Result<(), TokenWriterError> {
         emit_simple_symbol_to_streams!(
             self,
-            list_lengths_mut,
+            list_lengths,
             list_lengths,
             write_maybe_varnum,
             &Some(len as u32),
