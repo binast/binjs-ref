@@ -555,6 +555,8 @@ impl ::FormatProvider for FormatProvider {
 
 #[test]
 fn test_simple_io() {
+    extern crate tempdir;
+
     use binjs_shared::ast::Path;
     use binjs_shared::{FieldName, InterfaceName, SharedString};
     use io::TokenWriterWithTree;
@@ -563,6 +565,10 @@ fn test_simple_io() {
     use std::io::{Cursor, Write};
 
     let path = Path::new();
+
+    let dir = tempdir::TempDir::new("test_multipart_io").unwrap();
+    let root = dir.path();
+    let new_file = |prefix: &str| File::create(root.join(prefix));
 
     eprintln!("Testing string I/O");
 
@@ -573,7 +579,7 @@ fn test_simple_io() {
             .expect("Writing simple string");
 
         let data = writer.data().unwrap();
-        File::create("/tmp/test-simple-string.binjs")
+        new_file("test-simple-string")
             .unwrap()
             .write_all(data)
             .unwrap();
@@ -594,7 +600,7 @@ fn test_simple_io() {
             .expect("Writing string with escapes");
 
         let result = writer.data().unwrap();
-        File::create("/tmp/test-string-with-escapes.binjs")
+        new_file("test-string-with-escapes")
             .unwrap()
             .write_all(result)
             .unwrap();
@@ -616,7 +622,7 @@ fn test_simple_io() {
             .expect("Writing empty untagged tuple");
 
         let data = writer.data().unwrap();
-        File::create("/tmp/test-empty-untagged-tuple.binjs")
+        new_file("test-empty-untagged-tuple")
             .unwrap()
             .write_all(data)
             .unwrap();
@@ -640,7 +646,7 @@ fn test_simple_io() {
             .expect("Writing trivial untagged tuple");
 
         let data = writer.data().unwrap();
-        File::create("/tmp/test-trivial-untagged-tuple.binjs")
+        new_file("test-trivial-untagged-tuple")
             .unwrap()
             .write_all(data)
             .unwrap();
@@ -682,7 +688,7 @@ fn test_simple_io() {
             .expect("Writing trivial tagged tuple");
 
         let data = writer.data().unwrap();
-        File::create("/tmp/test-simple-tagged-tuple.binjs")
+        new_file("test-simple-tagged-tuple")
             .unwrap()
             .write_all(data)
             .unwrap();
@@ -720,7 +726,7 @@ fn test_simple_io() {
         writer.list(vec![]).expect("Writing empty list");
 
         let data = writer.data().unwrap();
-        File::create("/tmp/test-empty-list.binjs")
+        new_file("test-empty-list")
             .unwrap()
             .write_all(data)
             .unwrap();
@@ -743,7 +749,7 @@ fn test_simple_io() {
             .expect("Writing trivial list");
 
         let data = writer.data().unwrap();
-        File::create("/tmp/test-trivial-list.binjs")
+        new_file("test-trivial-list")
             .unwrap()
             .write_all(data)
             .unwrap();
@@ -778,7 +784,7 @@ fn test_simple_io() {
         writer.list(vec![list]).expect("Writing outer list");
 
         let data = writer.data().unwrap();
-        File::create("/tmp/test-nested-lists.binjs")
+        new_file("test-nested-lists")
             .unwrap()
             .write_all(data)
             .unwrap();

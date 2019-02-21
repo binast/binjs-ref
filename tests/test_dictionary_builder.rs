@@ -5,7 +5,7 @@ use binjs::generic::{FromJSON, IdentifierName, InterfaceName, Offset, PropertyKe
 use binjs::io::entropy;
 use binjs::io::entropy::dictionary::{DictionaryBuilder, FilesContaining, LinearTable};
 use binjs::io::entropy::rw::TableRefStreamState;
-use binjs::io::{Deserialization, TokenSerializer};
+use binjs::io::{Deserialization, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::{Script, Visitor, WalkPath, Walker};
 use binjs::specialized::es6::io::IOPath;
