@@ -22,7 +22,7 @@ pub struct SymbolInfo {
 /// or a set of probability distributions.
 pub trait InstancesToProbabilities {
     type AsProbabilities;
-    fn instances_to_probabilities(self, description: &str) -> Self::AsProbabilities;
+    fn instances_to_probabilities(&self, description: &str) -> Self::AsProbabilities;
 }
 
 /// A structure that may be converted into statistical information.

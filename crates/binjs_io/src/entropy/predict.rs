@@ -166,17 +166,17 @@ mod context_information {
     {
         type AsProbabilities = ContextInformation<NodeValue, SymbolInfo>;
         fn instances_to_probabilities(
-            self,
+            &self,
             _description: &str,
         ) -> ContextInformation<NodeValue, SymbolInfo> {
             let stats_by_node_value = self
                 .stats_by_node_value
-                .into_iter()
+                .iter()
                 .sorted_by(|(value_1, _), (value_2, _)| Ord::cmp(value_1, value_2)); // We need to ensure that the order remains stable across process restarts.
 
             let instances = stats_by_node_value
                 .iter()
-                .map(|(_, instances)| Into::<usize>::into(instances.clone()) as u32)
+                .map(|(_, instances)| Into::<usize>::into(**instances) as u32)
                 .collect();
 
             let distribution = std::rc::Rc::new(std::cell::RefCell::new(
@@ -195,7 +195,7 @@ mod context_information {
                                 distribution: distribution.clone(),
                             },
                         );
-                        let for_value_by_symbol_index = value;
+                        let for_value_by_symbol_index = value.clone();
                         (for_stats_by_node_value, for_value_by_symbol_index)
                     })
                     .unzip();
@@ -274,13 +274,17 @@ where
         self.by_context.iter_mut()
     }
 
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&Context, &ContextInformation<NodeValue, Statistics>)> {
+        self.by_context.iter()
+    }
+
     /// Convert this predictor into an interator.
-    pub fn into_iter(self) -> impl Iterator<Item = (Context, NodeValue, Statistics)> {
-        std::iter::Iterator::flatten(self.by_context.into_iter().map(|(context, info)| {
-            let context = context.clone();
-            info.into_iter()
-                .map(move |(node_value, statistics)| (context.clone(), node_value, statistics))
-        }))
+    pub fn into_iter(
+        self,
+    ) -> impl Iterator<Item = (Context, ContextInformation<NodeValue, Statistics>)> {
+        self.by_context.into_iter()
     }
 
     /// The number of states in this predictor.
@@ -469,16 +473,16 @@ where
 {
     type AsProbabilities = ContextPredict<Context, NodeValue, SymbolInfo>;
     fn instances_to_probabilities(
-        self,
+        &self,
         description: &str,
     ) -> ContextPredict<Context, NodeValue, SymbolInfo> {
         debug!(target: "entropy", "Converting ContextPredict {} to probabilities", description);
         let by_context = self
             .by_context
-            .into_iter()
+            .iter()
             .map(|(context, info)| {
                 (
-                    context,
+                    context.clone(),
                     info.instances_to_probabilities("ContextInformation"),
                 )
             })
@@ -529,7 +533,7 @@ where
     NodeValue: Eq + Hash + Clone + Ord,
 {
     type AsProbabilities = PathPredict<NodeValue, SymbolInfo>;
-    fn instances_to_probabilities(self, description: &str) -> PathPredict<NodeValue, SymbolInfo> {
+    fn instances_to_probabilities(&self, description: &str) -> PathPredict<NodeValue, SymbolInfo> {
         PathPredict {
             depth: self.depth,
             context_predict: self.context_predict.instances_to_probabilities(description),
@@ -570,8 +574,16 @@ where
     }
 
     /// Convert this predictor into an interator.
-    pub fn into_iter(self) -> impl Iterator<Item = (IOPath, NodeValue, Statistics)> {
+    pub fn into_iter(
+        self,
+    ) -> impl Iterator<Item = (IOPath, ContextInformation<NodeValue, Statistics>)> {
         self.context_predict.into_iter()
+    }
+
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&IOPath, &ContextInformation<NodeValue, Statistics>)> {
+        self.context_predict.iter()
     }
 
     /// Return a tail of a path with the depth adapted to this predictor.
@@ -608,7 +620,7 @@ where
         self.context_predict.add(as_path, value);
     }
 
-    pub fn add_fallback(&mut self, other: Self) {
+    pub fn add_fallback(&mut self, other: &Self) {
         debug_assert!(
             !other.paths().any(|path| path.len() > 1),
             "The fallback dictionary should only contain paths of length 0 or 1."
@@ -640,9 +652,11 @@ where
         // We now insert wall the paths of `other` as (shorter) paths. The lookup methods know
         // that if they fail to find a path of full length, they should look for its length 1 tail.
         // This copy also handles any length 0 path.
-        for (path, value, statistics) in other.into_iter() {
-            debug_assert_eq!(Into::<usize>::into(statistics), 1);
-            self.add_if_absent(path.borrow(), value);
+        for (path, information) in other.iter() {
+            for (value, statistics) in information.iter() {
+                debug_assert_eq!(Into::<usize>::into(*statistics), 1);
+                self.add_if_absent(path.borrow(), value.clone());
+            }
         }
     }
 
@@ -960,13 +974,13 @@ where
 {
     type AsProbabilities = WindowPredict<NodeValue, SymbolInfo>;
     fn instances_to_probabilities(
-        self,
+        &self,
         _description: &str,
     ) -> WindowPredict<NodeValue, SymbolInfo> {
         WindowPredict {
             width: self.width,
-            value_by_dictionary_index: self.value_by_dictionary_index,
-            dictionary_index_by_value: self.dictionary_index_by_value,
+            value_by_dictionary_index: self.value_by_dictionary_index.clone(),
+            dictionary_index_by_value: self.dictionary_index_by_value.clone(),
             latest_values: Vec::with_capacity(self.width),
             info: self.info.instances_to_probabilities("WindowPredict::info"),
         }
