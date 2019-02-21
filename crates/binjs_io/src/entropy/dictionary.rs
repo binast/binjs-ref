@@ -287,13 +287,13 @@ pub struct Dictionary<T> {
     // Used for entropy coding.
     // ---
     /// All booleans appearing in the AST, predicted by path.
-    pub bool_by_path: PathPredict<Option<bool>, T>,
+    bool_by_path: PathPredict<Option<bool>, T>,
 
     /// All string enumerations, predicted by path.
-    pub string_enum_by_path: PathPredict<SharedString, T>,
+    string_enum_by_path: PathPredict<SharedString, T>,
 
     /// All interface names, predicted by path.
-    pub interface_name_by_path: PathPredict<InterfaceName, T>,
+    interface_name_by_path: PathPredict<InterfaceName, T>,
 
     // --- Extensible sets of symbols, predicted by path.
     // Used for experiments with entropy coding, but so far, not very
@@ -301,22 +301,22 @@ pub struct Dictionary<T> {
     // will disappear in future versions.
     // ---
     /// All floats appearing in the AST.
-    pub float_by_path: PathPredict<Option<F64>, T>,
+    float_by_path: PathPredict<Option<F64>, T>,
 
     /// All unsigned longs appearing in the AST.
-    pub unsigned_long_by_path: PathPredict<u32, T>,
+    unsigned_long_by_path: PathPredict<u32, T>,
 
     /// All property keys.
-    pub property_key_by_path: PathPredict<Option<PropertyKey>, T>,
+    property_key_by_path: PathPredict<Option<PropertyKey>, T>,
 
     /// All identifier names, predicted by path.
-    pub identifier_name_by_path: PathPredict<Option<IdentifierName>, T>,
+    identifier_name_by_path: PathPredict<Option<IdentifierName>, T>,
 
     /// All string literals, predicted by path.
-    pub string_literal_by_path: PathPredict<Option<SharedString>, T>,
+    string_literal_by_path: PathPredict<Option<SharedString>, T>,
 
     /// All list lengths, predicted by path.
-    pub list_length_by_path: PathPredict<Option<u32>, T>,
+    list_length_by_path: PathPredict<Option<u32>, T>,
 
     // --- Extensible sets of symbols, predicted by window.
     // Used for experiments for extensibility of entropy coding, but so far,
@@ -324,13 +324,13 @@ pub struct Dictionary<T> {
     // There are good chances that this section will disappear in future versions.
     // ---
     /// All property keys, predicted by window.
-    pub property_key_by_window: WindowPredict<Option<PropertyKey>, T>,
+    property_key_by_window: WindowPredict<Option<PropertyKey>, T>,
 
     /// All identifier names, predicted by window.
-    pub identifier_name_by_window: WindowPredict<Option<IdentifierName>, T>,
+    identifier_name_by_window: WindowPredict<Option<IdentifierName>, T>,
 
     /// All string literals, predicted by window.
-    pub string_literal_by_window: WindowPredict<Option<SharedString>, T>,
+    string_literal_by_window: WindowPredict<Option<SharedString>, T>,
 
     // --- Extensible sets of symbols, as indexed tables.
     // Used to represent instances of extensible sets of symbols as indices in
@@ -338,22 +338,22 @@ pub struct Dictionary<T> {
     // compression-level and performance.
     // ---
     /// All unsigned longs.
-    pub unsigned_longs: LinearTable<u32>,
+    unsigned_longs: LinearTable<u32>,
 
     /// All string literals. `None` for `null`.
-    pub string_literals: LinearTable<Option<SharedString>>,
+    string_literals: LinearTable<Option<SharedString>>,
 
     /// All identifier names. `None` for `null`.
-    pub identifier_names: LinearTable<Option<IdentifierName>>,
+    identifier_names: LinearTable<Option<IdentifierName>>,
 
     /// All property keys. `None` for `null`.
-    pub property_keys: LinearTable<Option<PropertyKey>>,
+    property_keys: LinearTable<Option<PropertyKey>>,
 
     /// All list lenghts. `None` for `null`.
-    pub list_lengths: LinearTable<Option<u32>>,
+    list_lengths: LinearTable<Option<u32>>,
 
     /// All floats. `None` for `null`.
-    pub floats: LinearTable<Option<F64>>,
+    floats: LinearTable<Option<F64>>,
     // Missing:
     // - offsets (cannot be predicted?)
     // - directives?
@@ -387,6 +387,109 @@ impl<T> Dictionary<T> {
             floats: LinearTable::with_capacity(0),
             unsigned_longs: LinearTable::with_capacity(0),
         }
+    }
+
+    // The following methods are read-only accessors and may be used regardless
+    // of whether we're producing the dictionary or using it.
+
+    pub fn bool_by_path(&self) -> &PathPredict<Option<bool>, T> {
+        &self.bool_by_path
+    }
+
+    pub fn string_enum_by_path(&self) -> &PathPredict<SharedString, T> {
+        &self.string_enum_by_path
+    }
+
+    pub fn interface_name_by_path(&self) -> &PathPredict<InterfaceName, T> {
+        &self.interface_name_by_path
+    }
+
+    pub fn float_by_path(&self) -> &PathPredict<Option<F64>, T> {
+        &self.float_by_path
+    }
+
+    pub fn unsigned_long_by_path(&self) -> &PathPredict<u32, T> {
+        &self.unsigned_long_by_path
+    }
+
+    pub fn property_key_by_path(&self) -> &PathPredict<Option<PropertyKey>, T> {
+        &self.property_key_by_path
+    }
+
+    pub fn identifier_name_by_path(&self) -> &PathPredict<Option<IdentifierName>, T> {
+        &self.identifier_name_by_path
+    }
+
+    pub fn string_literal_by_path(&self) -> &PathPredict<Option<SharedString>, T> {
+        &self.string_literal_by_path
+    }
+
+    pub fn list_length_by_path(&self) -> &PathPredict<Option<u32>, T> {
+        &self.list_length_by_path
+    }
+
+    pub fn property_key_by_window(&self) -> &WindowPredict<Option<PropertyKey>, T> {
+        &self.property_key_by_window
+    }
+
+    pub fn identifier_name_by_window(&self) -> &WindowPredict<Option<IdentifierName>, T> {
+        &self.identifier_name_by_window
+    }
+
+    pub fn string_literal_by_window(&self) -> &WindowPredict<Option<SharedString>, T> {
+        &self.string_literal_by_window
+    }
+
+    pub fn unsigned_longs(&self) -> &LinearTable<u32> {
+        &self.unsigned_longs
+    }
+
+    pub fn string_literals(&self) -> &LinearTable<Option<SharedString>> {
+        &self.string_literals
+    }
+
+    pub fn identifier_names(&self) -> &LinearTable<Option<IdentifierName>> {
+        &self.identifier_names
+    }
+
+    pub fn property_keys(&self) -> &LinearTable<Option<PropertyKey>> {
+        &self.property_keys
+    }
+
+    pub fn list_lengths(&self) -> &LinearTable<Option<u32>> {
+        &self.list_lengths
+    }
+
+    pub fn floats(&self) -> &LinearTable<Option<F64>> {
+        &self.floats
+    }
+
+    // The following methods are read-write accessors. They are provided as an intermediate step
+    // but will disappear soon, as they are dangerous whenever we reuse a dictionary for two
+    // different files.
+
+    pub fn unsigned_longs_mut(&mut self) -> &mut LinearTable<u32> {
+        &mut self.unsigned_longs
+    }
+
+    pub fn string_literals_mut(&mut self) -> &mut LinearTable<Option<SharedString>> {
+        &mut self.string_literals
+    }
+
+    pub fn identifier_names_mut(&mut self) -> &mut LinearTable<Option<IdentifierName>> {
+        &mut self.identifier_names
+    }
+
+    pub fn property_keys_mut(&mut self) -> &mut LinearTable<Option<PropertyKey>> {
+        &mut self.property_keys
+    }
+
+    pub fn list_lengths_mut(&mut self) -> &mut LinearTable<Option<u32>> {
+        &mut self.list_lengths
+    }
+
+    pub fn floats_mut(&mut self) -> &mut LinearTable<Option<F64>> {
+        &mut self.floats
     }
 
     /// Return the depth of the current dictionary.
@@ -437,6 +540,64 @@ impl<T> Dictionary<T> {
 }
 
 impl Dictionary<Instances> {
+    pub fn bool_by_path_mut(&mut self) -> &mut PathPredict<Option<bool>, Instances> {
+        &mut self.bool_by_path
+    }
+
+    pub fn string_enum_by_path_mut(&mut self) -> &mut PathPredict<SharedString, Instances> {
+        &mut self.string_enum_by_path
+    }
+
+    pub fn interface_name_by_path_mut(&mut self) -> &mut PathPredict<InterfaceName, Instances> {
+        &mut self.interface_name_by_path
+    }
+
+    pub fn float_by_path_mut(&mut self) -> &mut PathPredict<Option<F64>, Instances> {
+        &mut self.float_by_path
+    }
+
+    pub fn unsigned_long_by_path_mut(&mut self) -> &mut PathPredict<u32, Instances> {
+        &mut self.unsigned_long_by_path
+    }
+
+    pub fn property_key_by_path_mut(&mut self) -> &mut PathPredict<Option<PropertyKey>, Instances> {
+        &mut self.property_key_by_path
+    }
+
+    pub fn identifier_name_by_path_mut(
+        &mut self,
+    ) -> &mut PathPredict<Option<IdentifierName>, Instances> {
+        &mut self.identifier_name_by_path
+    }
+
+    pub fn string_literal_by_path_mut(
+        &mut self,
+    ) -> &mut PathPredict<Option<SharedString>, Instances> {
+        &mut self.string_literal_by_path
+    }
+
+    pub fn list_length_by_path_mut(&mut self) -> &mut PathPredict<Option<u32>, Instances> {
+        &mut self.list_length_by_path
+    }
+
+    pub fn property_key_by_window_mut(
+        &mut self,
+    ) -> &mut WindowPredict<Option<PropertyKey>, Instances> {
+        &mut self.property_key_by_window
+    }
+
+    pub fn identifier_name_by_window_mut(
+        &mut self,
+    ) -> &mut WindowPredict<Option<IdentifierName>, Instances> {
+        &mut self.identifier_name_by_window
+    }
+
+    pub fn string_literal_by_window_mut(
+        &mut self,
+    ) -> &mut WindowPredict<Option<SharedString>, Instances> {
+        &mut self.string_literal_by_window
+    }
+
     /// Combine a dictionary obtained by sampling (`self`) and a baseline dictionary
     /// (obtained by `entropy::baseline`) to produce a dictionary able to handle
     /// values that grammatically correct but have not been witnessed during

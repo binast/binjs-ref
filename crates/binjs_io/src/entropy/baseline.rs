@@ -116,11 +116,11 @@ impl<'a> BaselineDictionaryBuilder<'a> {
                             InterfaceName::from_rc_string(interface.name().to_rc_string().clone());
 
                         self.dictionary
-                            .interface_name_by_path
+                            .interface_name_by_path_mut()
                             .add_if_absent(path.borrow(), interface_name.clone());
                         if or_null {
                             self.dictionary
-                                .interface_name_by_path
+                                .interface_name_by_path_mut()
                                 .add_if_absent(path.borrow(), self.null_name.clone());
                         }
                     }
@@ -132,7 +132,7 @@ impl<'a> BaselineDictionaryBuilder<'a> {
                             let shared_string =
                                 SharedString::from_rc_string(Rc::new(value.clone()));
                             self.dictionary
-                                .string_enum_by_path
+                                .string_enum_by_path_mut()
                                 .add_if_absent(path.borrow(), shared_string);
                         }
                         if or_null {
@@ -145,14 +145,14 @@ impl<'a> BaselineDictionaryBuilder<'a> {
             }
             TypeSpec::Boolean => {
                 self.dictionary
-                    .bool_by_path
+                    .bool_by_path_mut()
                     .add_if_absent(path.borrow(), Some(true));
                 self.dictionary
-                    .bool_by_path
+                    .bool_by_path_mut()
                     .add_if_absent(path.borrow(), Some(false));
                 if or_null {
                     self.dictionary
-                        .bool_by_path
+                        .bool_by_path_mut()
                         .add_if_absent(path.borrow(), None);
                 }
             }
@@ -198,7 +198,7 @@ impl<'a> BaselineDictionaryBuilder<'a> {
         let empty_path = IOPath::new();
         for root in roots {
             self.dictionary
-                .interface_name_by_path
+                .interface_name_by_path_mut()
                 .add_if_absent(empty_path.borrow(), root);
         }
     }

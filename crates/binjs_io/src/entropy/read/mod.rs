@@ -184,7 +184,7 @@ impl Decoder {
         let stream_floats = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
-                .floats
+                .floats()
                 .with_prelude(&prelude_floats)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("floats"),
@@ -193,7 +193,7 @@ impl Decoder {
         let stream_unsigned_longs = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
-                .unsigned_longs
+                .unsigned_longs()
                 .with_prelude(&prelude_unsigned_longs)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("unsigned_longs"),
@@ -202,7 +202,7 @@ impl Decoder {
         let stream_property_keys = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
-                .property_keys
+                .property_keys()
                 .with_prelude(&prelude_property_keys)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("property_keys"),
@@ -211,7 +211,7 @@ impl Decoder {
         let stream_identifier_names = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
-                .identifier_names
+                .identifier_names()
                 .with_prelude(&prelude_identifier_names)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("identifier_names"),
@@ -220,7 +220,7 @@ impl Decoder {
         let stream_string_literals = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
-                .string_literals
+                .string_literals()
                 .with_prelude(&prelude_string_literals)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("string_literals"),
@@ -229,7 +229,7 @@ impl Decoder {
         let stream_list_lengths = DictionaryStreamDecoder::try_new(
             options
                 .probability_tables
-                .list_lengths
+                .list_lengths()
                 .with_prelude(&prelude_list_lengths)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
             SharedString::from_str("list_lengths"),
@@ -318,7 +318,7 @@ macro_rules! main_stream {
             let frequencies = $me
                 .options
                 .probability_tables
-                .$table
+                .$table()
                 .frequencies_at(path)
                 .ok_or_else(|| {
                     TokenReaderError::NotInDictionary(format!("{} at {:?}", $description, $path))
@@ -337,7 +337,7 @@ macro_rules! main_stream {
         let value = $me
             .options
             .probability_tables
-            .$table
+            .$table()
             .value_by_symbol_index(path, SymbolIndex::new(index as usize))
             .ok_or_else(|| {
                 TokenReaderError::NotInDictionary(format!("{} [{}]", stringify!($ident), index))

@@ -122,6 +122,10 @@ mod context_information {
     where
         NodeValue: Eq + Hash,
     {
+        pub fn stats_by_node_value(&self) -> &HashMap<NodeValue, SymbolInfo> {
+            &self.stats_by_node_value
+        }
+
         pub fn stats_by_node_value_mut(&mut self) -> &mut HashMap<NodeValue, SymbolInfo> {
             &mut self.stats_by_node_value
         }
@@ -207,10 +211,10 @@ mod context_information {
         NodeValue: Clone + Eq + Hash,
     {
         pub fn frequencies(
-            &mut self,
+            &self,
         ) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>> {
-            self.stats_by_node_value_mut()
-                .values_mut()
+            self.stats_by_node_value()
+                .values()
                 .next()
                 .map(|any| &any.distribution)
         }
@@ -343,7 +347,7 @@ where
     /// by `instances_to_probabilities`. The index corresponds to the one defined in
     /// the `SymbolInfo`.
     pub fn value_by_symbol_index<C2: ?Sized>(
-        &mut self,
+        &self,
         candidates: &[&C2],
         index: SymbolIndex,
     ) -> Option<&NodeValue>
@@ -367,14 +371,14 @@ where
     ///
     /// This is typically used to provide fallback dictionaries.
     pub fn frequencies_at<C2: ?Sized>(
-        &mut self,
+        &self,
         candidates: &[&C2],
     ) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>>
     where
         Context: std::borrow::Borrow<C2>,
         C2: Hash + Eq,
     {
-        let table = self.context_info_at_mut(candidates)?;
+        let table = self.context_info_at(candidates)?;
         table.frequencies()
     }
 
@@ -386,6 +390,18 @@ where
     /// that context.
     ///
     /// This is typically used to provide fallback dictionaries.
+    pub fn stats_by_node_value<C2: ?Sized>(
+        &self,
+        candidates: &[&C2],
+        value: &NodeValue,
+    ) -> Option<&SymbolInfo>
+    where
+        Context: std::borrow::Borrow<C2>,
+        C2: Hash + Eq,
+    {
+        let context_info = self.context_info_at(candidates)?;
+        context_info.stats_by_node_value().get(value)
+    }
     pub fn stats_by_node_value_mut<C2: ?Sized>(
         &mut self,
         candidates: &[&C2],
@@ -397,6 +413,29 @@ where
     {
         let context_info = self.context_info_at_mut(candidates)?;
         context_info.stats_by_node_value_mut().get_mut(value)
+    }
+
+    fn context_info_at<C2: ?Sized>(
+        &self,
+        candidates: &[&C2],
+    ) -> Option<&ContextInformation<NodeValue, SymbolInfo>>
+    where
+        Context: std::borrow::Borrow<C2>,
+        C2: Hash + Eq,
+    {
+        // This is an ugly workaround, as we cannot call `get_mut`
+        // from the loop.
+        let mut found = None;
+        for context in candidates {
+            if self.by_context.get(context).is_some() {
+                found = Some(context);
+                break;
+            }
+        }
+        match found {
+            None => return None,
+            Some(context) => return self.by_context.get(context),
+        }
     }
 
     fn context_info_at_mut<C2: ?Sized>(
@@ -623,7 +662,7 @@ where
     /// This method is only implemented when `Statistics=SymbolInfo` as the index is initialized
     /// by `instances_to_probabilities`.
     pub fn value_by_symbol_index(
-        &mut self,
+        &self,
         path: &[IOPathItem],
         index: SymbolIndex,
     ) -> Option<&NodeValue> {
@@ -645,6 +684,24 @@ where
     }
 
     /// Get the stats for a specific value at a specific path.
+    pub fn stats_by_node_value(&self, path: &[IOPathItem], value: &NodeValue) -> Option<&SymbolInfo>
+    where
+        NodeValue: std::fmt::Debug,
+    {
+        if path.len() >= 2 {
+            let candidates = [
+                // Case 1: If the path has been encountered during sampling.
+                self.tail(path),
+                // Case 2: If the path has not been encountered during sampling, fallback to its length 1 suffix.
+                Self::tail_of(path, 1),
+            ];
+            self.context_predict.stats_by_node_value(&candidates, value)
+        } else {
+            // The path has length 0 or 1, there is only one way to represent it in this PathPredict.
+            let candidates = [path];
+            self.context_predict.stats_by_node_value(&candidates, value)
+        }
+    }
     pub fn stats_by_node_value_mut(
         &mut self,
         path: &[IOPathItem],
@@ -672,7 +729,7 @@ where
 
     /// Get frequency information for a given path.
     pub fn frequencies_at(
-        &mut self,
+        &self,
         path: &[IOPathItem],
     ) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>> {
         if path.len() >= 2 {
@@ -843,11 +900,11 @@ where
 {
     /// Return all the frequencies in the window.
     pub fn frequencies(
-        &mut self,
+        &self,
     ) -> Option<&Rc<RefCell<range_encoding::CumulativeDistributionFrequency>>> {
         self.info
-            .stats_by_node_value_mut()
-            .values_mut()
+            .stats_by_node_value()
+            .values()
             .next()
             .map(|any| &any.distribution)
     }

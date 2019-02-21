@@ -16,7 +16,6 @@ use binjs_shared::{
 };
 
 use std::io::Write;
-use std::ops::DerefMut;
 
 #[allow(unused_imports)] // We keep enabling/disabling this.
 use itertools::Itertools;
@@ -130,8 +129,8 @@ macro_rules! emit_symbol_to_main_stream {
             // path information.
             let symbol = $me.options
                 .probability_tables
-                .$table
-                .stats_by_node_value_mut(path, &$value)
+                .$table()
+                .stats_by_node_value(path, &$value)
                 .ok_or_else(|| {
                     debug!(target: "entropy", "Couldn't find value {:?} at {:?} ({})",
                         $value, path, $description);
@@ -143,15 +142,16 @@ macro_rules! emit_symbol_to_main_stream {
 
             // 2. This gives us an index (`symbol.index`) and a probability distribution
             // (`symbol.distribution`). Use them to write the probability at bit-level.
-            let mut distribution = symbol.distribution
-                .borrow_mut();
-            $me.writer.symbol(symbol.index.into(), distribution.deref_mut())
+            let distribution = symbol.distribution
+                .as_ref()
+                .borrow();
+            $me.writer.symbol(symbol.index.into(), &distribution)
                 .map_err(TokenWriterError::WriteError)?;
 
             // 3. Also, update statistics
             $me.content_opus_lengths
                 .$info
-                .symbol(symbol.index.into(), distribution.deref_mut())
+                .symbol(symbol.index.into(), &distribution)
                 .map_err(TokenWriterError::WriteError)?;
             $me.content_instances
                 .$info += Into::<Instances>::into(1);
@@ -174,8 +174,8 @@ macro_rules! emit_symbol_to_main_stream {
 /// Usage:
 /// `emit_simple_symbol_to_streams!(self, name_of_the_indexed_table, name_of_the_stream, value_to_encode, "Description, used for debugging")`
 macro_rules! emit_simple_symbol_to_streams {
-    ( $me: ident, $dictionary: ident, $out: ident, $writer: ident, $value: expr, $description: expr ) => {
-        if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $dictionary, $out, $value, $description) {
+    ( $me: ident, $table: ident, $out: ident, $writer: ident, $value: expr, $description: expr ) => {
+        if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $table, $out, $value, $description) {
             // The value does not appear either in the static dictionary or in the prelude dictionary.
             // Add it to the latter.
             $me.prelude_streams.$out.$writer(*$value)
@@ -199,8 +199,8 @@ macro_rules! emit_simple_symbol_to_streams {
 /// Usage:
 /// `emit_string_symbol_to_streams!(self, name_of_the_indexed_table, name_of_the_string_prelude_stream, name_of_the_string_length_prelude_stream, value_to_encode, "Description, used for debugging")`
 macro_rules! emit_string_symbol_to_streams {
-    ( $me: ident, $dictionary: ident, $out: ident, $len: ident, $value: expr, $description: expr ) => {
-        if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $dictionary, $out, $value, $description) {
+    ( $me: ident, $table: ident, $out: ident, $len: ident, $value: expr, $description: expr ) => {
+        if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $table, $out, $value, $description) {
             // The value does not appear either in the static dictionary or in the prelude dictionary.
             // Add it to the latter.
             match $value {
@@ -237,14 +237,14 @@ macro_rules! emit_string_symbol_to_streams {
 /// Usage:
 /// `emit_symbol_to_content_stream!(self, name_of_the_indexed_table, name_of_the_string_content_stream, value_to_encode, "Description, used for debugging")`
 macro_rules! emit_symbol_to_content_stream {
-    ( $me: ident, $dictionary:ident, $out:ident, $value: expr, $description: expr ) => {
+    ( $me: ident, $table: ident, $out: ident, $value: expr, $description: expr ) => {
         {
             let value = $value;
 
             // 1. Fetch the index in the dictionary.
             let fetch = $me.options
                 .probability_tables
-                .$dictionary
+                .$table()
                 .fetch_index(value);
 
             debug!(target: "write", "Writing index {:?} as {:?} index to {}", $value, fetch, $description);
@@ -472,7 +472,7 @@ impl TokenWriter for Encoder {
         use bytes::float::WriteVarFloat;
         emit_simple_symbol_to_streams!(
             self,
-            floats,
+            floats_mut,
             floats,
             write_maybe_varfloat2,
             &value.map(F64::from),
@@ -484,7 +484,7 @@ impl TokenWriter for Encoder {
     fn unsigned_long_at(&mut self, value: u32, _path: &Path) -> Result<(), TokenWriterError> {
         emit_simple_symbol_to_streams!(
             self,
-            unsigned_longs,
+            unsigned_longs_mut,
             unsigned_longs,
             write_varnum,
             &value,
@@ -500,7 +500,7 @@ impl TokenWriter for Encoder {
     ) -> Result<(), TokenWriterError> {
         emit_string_symbol_to_streams!(
             self,
-            string_literals,
+            string_literals_mut,
             string_literals,
             string_literals_len,
             &value.cloned(),
@@ -516,7 +516,7 @@ impl TokenWriter for Encoder {
     ) -> Result<(), TokenWriterError> {
         emit_string_symbol_to_streams!(
             self,
-            identifier_names,
+            identifier_names_mut,
             identifier_names,
             identifier_names_len,
             &value.cloned(),
@@ -532,7 +532,7 @@ impl TokenWriter for Encoder {
     ) -> Result<(), TokenWriterError> {
         emit_string_symbol_to_streams!(
             self,
-            property_keys,
+            property_keys_mut,
             property_keys,
             property_keys_len,
             &value.cloned(),
@@ -544,7 +544,7 @@ impl TokenWriter for Encoder {
     fn enter_list_at(&mut self, len: usize, _path: &Path) -> Result<(), TokenWriterError> {
         emit_simple_symbol_to_streams!(
             self,
-            list_lengths,
+            list_lengths_mut,
             list_lengths,
             write_maybe_varnum,
             &Some(len as u32),
