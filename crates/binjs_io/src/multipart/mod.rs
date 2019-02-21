@@ -192,6 +192,7 @@ impl ::FormatProvider for FormatProvider {
 fn test_multipart_io() {
     println!("Multipart (de)tokenizer test starting");
     extern crate env_logger;
+    extern crate tempdir;
     env_logger::init();
 
     use binjs_shared::ast::Path;
@@ -203,6 +204,12 @@ fn test_multipart_io() {
 
     use std::fs::*;
     use std::io::{Cursor, Write};
+
+    let dir = tempdir::TempDir::new("test_multipart_io").unwrap();
+    let root = dir.path();
+    let new_file = |prefix: &str, suffix: &str| {
+        File::create(root.join(format!("{}-{}.binjs", prefix, suffix)))
+    };
 
     // All combinations of options for compression.
     let all_options = {
@@ -239,7 +246,7 @@ fn test_multipart_io() {
                 .expect("Writing simple string");
 
             let output = writer.done().expect("Finalizing data");
-            File::create(format!("/tmp/test-simple-string-{}.binjs", suffix))
+            new_file("test-simple-string", &suffix)
                 .expect("Could not create file")
                 .write_all(&output)
                 .unwrap();
@@ -261,7 +268,7 @@ fn test_multipart_io() {
                 .expect("Writing string with escapes");
 
             let output = writer.done().expect("Finalizing data");
-            File::create(format!("/tmp/test-string-with-escapes-{}.binjs", suffix))
+            new_file("test-string-with-escapes", &suffix)
                 .unwrap()
                 .write_all(&output)
                 .unwrap();
@@ -294,7 +301,7 @@ fn test_multipart_io() {
                 .expect("Writing trivial tagged tuple");
 
             let output = writer.done().expect("Finalizing data");
-            File::create(format!("/tmp/test-simple-tagged-tuple-{}.binjs", suffix))
+            new_file("test-simple-tagged-tuple", &suffix)
                 .unwrap()
                 .write_all(&output)
                 .unwrap();
@@ -336,7 +343,7 @@ fn test_multipart_io() {
             writer.list(vec![]).expect("Writing empty list");
 
             let output = writer.done().expect("Finalizing data");
-            File::create(format!("/tmp/test-empty-list-{}.binjs", suffix))
+            new_file("test-empty-list", &suffix)
                 .unwrap()
                 .write_all(&output)
                 .unwrap();
@@ -360,7 +367,7 @@ fn test_multipart_io() {
                 .expect("Writing trivial list");
 
             let output = writer.done().expect("Finalizing data");
-            File::create(format!("/tmp/test-trivial-list-{}.binjs", suffix))
+            new_file("test-trivial-list", &suffix)
                 .unwrap()
                 .write_all(&output)
                 .unwrap();
@@ -396,7 +403,7 @@ fn test_multipart_io() {
             writer.list(vec![list]).expect("Writing outer list");
 
             let output = writer.done().expect("Finalizing data");
-            File::create(format!("/tmp/test-nested-lists-{}.binjs", suffix))
+            new_file("test-nested-lists", &suffix)
                 .unwrap()
                 .write_all(&output)
                 .unwrap();

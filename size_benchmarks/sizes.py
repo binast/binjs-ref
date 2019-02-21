@@ -52,18 +52,31 @@ def brotli_compressed_size(inp):
     out, err = proc.communicate(inp.read())
     return len(out)
 
+# Returns a JS file's gzip-compressed size
+def gzip_compressed_size(inp):
+  gz_bin = 'gzip'
+  with subprocess.Popen(
+      [gz_bin, '-c', '-9', '-'],
+      stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
+    out, err = proc.communicate(inp.read())
+    print("gzip length is " + str(len(out)))
+    return len(out)
+
 # Returns a JS file's Brotli-compressed + BinAST-encoded size
-def measure(input_file, dictionary):
+def measure(input_file, dictionary, use_gzip):
   input_file.seek(0, 2)
   file_size = input_file.tell()
   input_file.seek(0)
-  br = brotli_compressed_size(input_file)
+  if use_gzip:
+    compressed_size = gzip_compressed_size(input_file)
+  else:
+    compressed_size = brotli_compressed_size(input_file)
   input_file.seek(0)
   binjs_size = binjs_compressed_size(input_file, dictionary)
   return (
     input_file.name,
     file_size,
-    br,
+    compressed_size,
     binjs_size)
 
 # Reports size bloat or size reduction from encoding input JS files to BinAST
@@ -71,11 +84,12 @@ def measure(input_file, dictionary):
 def print_sizes(args):
   dictionary = dict_path_to_filename(args.dictionary)
   input_files = args.input_files
+  use_gzip = args.gzip
   with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
-    futures = [executor.submit(measure, f, dictionary) for f in input_files]
+    futures = [executor.submit(measure, f, dictionary, use_gzip) for f in input_files]
     results = map(lambda f: f.result(),
                   concurrent.futures.as_completed(futures))
-    print('filename,size,brotli,binast,ratio')
+    print('filename,size,compressed,binast,ratio')
     for filename, size, br_size, binast_size in results:
       print('{},{},{},{},{:.3f}'.format(
         filename,
@@ -85,9 +99,9 @@ def print_sizes(args):
         binast_size/br_size))
 
 
-def aging_measure(group, filename, dictionary):
+def aging_measure(group, filename, dictionary, use_gzip):
   with open(filename, 'rb') as f:
-    return (group, measure(f, dictionary))
+    return (group, measure(f, dictionary, use_gzip))
 
 
 # Report encoded-size ratios from using a single dictionary trained on one 
@@ -97,13 +111,14 @@ def aging_measure(group, filename, dictionary):
 def aging(args):
   dictionary = dict_path_to_filename(args.dictionary)
   dirs = args.dirs
+  use_gzip = args.gzip
   with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
     futures = []
     for d in dirs:
       for filename in glob.iglob(d, recursive=True):
-        futures.append(executor.submit(aging_measure, d, filename, dictionary))
+        futures.append(executor.submit(aging_measure, d, filename, dictionary, use_gzip))
     dir_sizes = {}
-    print('dir,filename,size,brotli,binast,ratio')
+    print('dir,filename,size,compressed,binast,ratio')
     for d, g in itertools.groupby(map(lambda f: f.result(), futures),
                                   key=lambda r: r[0]):
       dir_size = {
@@ -118,7 +133,7 @@ def aging(args):
         dir_size['brotli'] += brotli
         dir_size['binast'] += binast
     print(8 * '-', 'Totals', 8 * '-')
-    print('dir,size,brotli,binast,ratio')
+    print('dir,size,compressed,binast,ratio')
     for d, sizes in dir_sizes.items():
       print('{0},{size},{brotli},{binast},'.format(d, **sizes) +
         '{:.3f}'.format(sizes['binast']/sizes['brotli']))
@@ -144,6 +159,8 @@ def main():
 
   measure_parser = subs.add_parser('measure',
                                    help='measure compressed file sizes')
+  measure_parser.add_argument('--gzip', action='store_true',
+                              help='compare vs gzip (default is brotli)')
   measure_parser.add_argument('-d', '--dictionary', required=True,
                               help='dictionary dir to read dict.entropy from')
   measure_parser.add_argument('input_files', nargs='+',
@@ -152,6 +169,8 @@ def main():
 
   aging_parser = subs.add_parser('aging',
                                  help='measure dictionary aging across dirs')
+  aging_parser.add_argument('--gzip', action='store_true',
+                              help='compare vs gzip (default is brotli)')
   aging_parser.add_argument('-d', '--dictionary', required=True,
                             help='dictionary dir to read dict.entropy from')
   aging_parser.add_argument('dirs', nargs='+',
