@@ -10,7 +10,7 @@ use super::rw::*;
 use super::util::*;
 
 use io::{FileStructurePrinter, Path, TokenReader};
-use statistics::ContentInfo;
+use statistics::PerUserExtensibleKind;
 use TokenReaderError;
 
 use binjs_shared::{FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString, F64};
@@ -153,7 +153,8 @@ impl Decoder {
         };
 
         // 4. Read byte-compressed streams
-        let mut content_data: ContentInfo<Option<Vec<u8>>> = ContentInfo::with(|_| None);
+        let mut content_data: PerUserExtensibleKind<Option<Vec<u8>>> =
+            PerUserExtensibleKind::with(|_| None);
         let mut decoder = SectionDecoder::new(input);
         for item in &mut decoder {
             // Extract data.

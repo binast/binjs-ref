@@ -67,7 +67,7 @@ pub mod probabilities;
 use self::dictionary::Dictionary;
 use self::probabilities::SymbolInfo;
 
-use io::statistics::{Bytes, BytesAndInstances, ContentInfo, Instances};
+use io::statistics::{Bytes, BytesAndInstances, Instances, PerUserExtensibleKind};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -78,13 +78,10 @@ use std::rc::Rc;
 /// In issue #302, we have established that identifier_names
 /// seems to benefit of a window length of 8, and others
 /// a window length of 0.
-const DEFAULT_WINDOW_LEN_BOOLS: usize = 0;
 const DEFAULT_WINDOW_LEN_FLOATS: usize = 0;
 const DEFAULT_WINDOW_LEN_UNSIGNED_LONGS: usize = 0;
-const DEFAULT_WINDOW_LEN_STRING_ENUMS: usize = 0;
 const DEFAULT_WINDOW_LEN_PROPERTY_KEYS: usize = 0;
 const DEFAULT_WINDOW_LEN_IDENTIFIER_NAMES: usize = 8;
-const DEFAULT_WINDOW_LEN_INTERFACE_NAMES: usize = 0;
 const DEFAULT_WINDOW_LEN_STRING_LITERALS: usize = 0;
 const DEFAULT_WINDOW_LEN_LIST_LENGTHS: usize = 0;
 
@@ -98,16 +95,16 @@ pub struct Options {
     /// Statistics obtained while writing: number of bytes written.
     /// If several files are written with the same options, we accumulate
     /// statistics.
-    content_lengths: Rc<RefCell<ContentInfo<Bytes>>>,
+    content_lengths: Rc<RefCell<PerUserExtensibleKind<Bytes>>>,
 
     /// Statistics obtained while writing: number of instances of each
     /// kind written. If several files are written with the same options,
     /// we accumulate statistics.
-    content_instances: Rc<RefCell<ContentInfo<Instances>>>,
+    content_instances: Rc<RefCell<PerUserExtensibleKind<Instances>>>,
 
     /// For each content section, the number of indices reserved to reference
     /// recently used values.
-    content_window_len: ContentInfo<usize>,
+    content_window_len: PerUserExtensibleKind<usize>,
 
     /// If `true`, when compressing a file, also write streams to separate files,
     /// for analysis purposes.
@@ -123,17 +120,14 @@ impl Options {
         };
         Options {
             probability_tables: probability_tables.instances_to_probabilities("dictionary"),
-            content_lengths: Rc::new(RefCell::new(ContentInfo::default())),
-            content_instances: Rc::new(RefCell::new(ContentInfo::default())),
+            content_lengths: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
+            content_instances: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
             split_streams: false,
-            content_window_len: ContentInfo {
-                bools: DEFAULT_WINDOW_LEN_BOOLS,
+            content_window_len: PerUserExtensibleKind {
                 floats: DEFAULT_WINDOW_LEN_FLOATS,
                 unsigned_longs: DEFAULT_WINDOW_LEN_UNSIGNED_LONGS,
-                string_enums: DEFAULT_WINDOW_LEN_STRING_ENUMS,
                 property_keys: DEFAULT_WINDOW_LEN_PROPERTY_KEYS,
                 identifier_names: DEFAULT_WINDOW_LEN_IDENTIFIER_NAMES,
-                interface_names: DEFAULT_WINDOW_LEN_INTERFACE_NAMES,
                 string_literals: DEFAULT_WINDOW_LEN_STRING_LITERALS,
                 list_lengths: DEFAULT_WINDOW_LEN_LIST_LENGTHS,
             },
@@ -141,19 +135,14 @@ impl Options {
     }
 
     /// Return the statistics as (number of instances, number of bytes).
-    pub fn statistics_for_write(&self) -> ContentInfo<BytesAndInstances> {
+    pub fn statistics_for_write(&self) -> PerUserExtensibleKind<BytesAndInstances> {
         let borrow_lengths = self.content_lengths.borrow();
         let borrow_instances = self.content_instances.borrow();
-        ContentInfo {
-            bools: BytesAndInstances::new(borrow_lengths.bools, borrow_instances.bools),
+        PerUserExtensibleKind {
             floats: BytesAndInstances::new(borrow_lengths.floats, borrow_instances.floats),
             unsigned_longs: BytesAndInstances::new(
                 borrow_lengths.unsigned_longs,
                 borrow_instances.unsigned_longs,
-            ),
-            string_enums: BytesAndInstances::new(
-                borrow_lengths.string_enums,
-                borrow_instances.string_enums,
             ),
             property_keys: BytesAndInstances::new(
                 borrow_lengths.property_keys,
@@ -162,10 +151,6 @@ impl Options {
             identifier_names: BytesAndInstances::new(
                 borrow_lengths.identifier_names,
                 borrow_instances.identifier_names,
-            ),
-            interface_names: BytesAndInstances::new(
-                borrow_lengths.interface_names,
-                borrow_instances.interface_names,
             ),
             string_literals: BytesAndInstances::new(
                 borrow_lengths.string_literals,
@@ -229,8 +214,8 @@ impl ::FormatProvider for FormatProvider {
 
         Ok(::Format::Entropy {
             options: Options {
-                content_lengths: Rc::new(RefCell::new(ContentInfo::default())),
-                content_instances: Rc::new(RefCell::new(ContentInfo::default())),
+                content_lengths: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
+                content_instances: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
                 split_streams,
                 ..Options::new(spec, dictionary)
             },
