@@ -1042,6 +1042,7 @@ impl binjs_shared::Node for {rust_name} {{
     fn name(&self) -> &'static str {{
         \"{rust_name}\"
     }}
+{dictionary}
 }}
 ",
                     fields = field_specs
@@ -1062,7 +1063,19 @@ impl binjs_shared::Node for {rust_name} {{
                         ))
                         .format(",\n"),
                     rust_name = rust_name,
-                    spec_name = name
+                    spec_name = name,
+                    dictionary = if let Some(field_name) = interface.scoped_dictionary() {
+                        format!(
+                            "
+    fn scoped_dictionary(&self) -> Option<&SharedString> {{
+        Some(&self.{})
+    }}
+",
+                            field_name.to_rust_identifier_case()
+                        )
+                    } else {
+                        "".to_string()
+                    }
                 );
 
                 let from_reader = format!("

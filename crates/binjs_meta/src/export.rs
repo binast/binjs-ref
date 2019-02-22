@@ -126,6 +126,10 @@ impl TypeDeanonymizer {
                     field.laziness(),
                 );
             }
+
+            if let Some(ref field_name) = interface.scoped_dictionary() {
+                declaration.with_scoped_dictionary(field_name);
+            }
         }
         // Copy and deanonymize typedefs
         for (name, definition) in spec.typedefs_by_name() {

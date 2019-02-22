@@ -267,6 +267,13 @@ where
 
 /// The root type for nodes in the AST.
 pub trait Node: downcast_rs::Downcast {
+    /// Return the name of the current node.
     fn name(&self) -> &'static str;
+
+    /// If this node should cause a dictionary change, return the name of the new dictionary
+    /// to use. Otherwise, None.
+    fn scoped_dictionary(&self) -> Option<&::SharedString> {
+        None
+    }
 }
 impl_downcast!(Node);
