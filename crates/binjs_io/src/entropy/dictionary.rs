@@ -11,7 +11,9 @@ use binjs_shared::{
 use itertools::Itertools;
 
 use std;
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub type IOPath = binjs_shared::ast::Path<
     InterfaceName,
@@ -71,7 +73,8 @@ macro_rules! update_in_context {
         use std::borrow::Borrow;
 
         let path = $path.borrow();
-        $me.dictionary.$table.add(path, $value);
+        let mut table = $me.dictionary.$table.borrow_mut();
+        table.add(path, $value);
 
         Ok(())
     }};
@@ -86,7 +89,8 @@ macro_rules! update_in_context {
 /// `update_in_window!(self, name_of_the_probability_table, value_to_encode)`
 macro_rules! update_in_window {
     ( $me: ident, $table:ident, $value: expr ) => {{
-        $me.dictionary.$table.add($value);
+        let mut table = $me.dictionary.$table.borrow_mut();
+        table.add($value);
 
         Ok(())
     }};
@@ -287,13 +291,13 @@ pub struct Dictionary<T> {
     // Used for entropy coding.
     // ---
     /// All booleans appearing in the AST, predicted by path.
-    bool_by_path: PathPredict<Option<bool>, T>,
+    bool_by_path: Rc<RefCell<PathPredict<Option<bool>, T>>>,
 
     /// All string enumerations, predicted by path.
-    string_enum_by_path: PathPredict<SharedString, T>,
+    string_enum_by_path: Rc<RefCell<PathPredict<SharedString, T>>>,
 
     /// All interface names, predicted by path.
-    interface_name_by_path: PathPredict<InterfaceName, T>,
+    interface_name_by_path: Rc<RefCell<PathPredict<InterfaceName, T>>>,
 
     // --- Extensible sets of symbols, predicted by path.
     // Used for experiments with entropy coding, but so far, not very
@@ -301,22 +305,22 @@ pub struct Dictionary<T> {
     // will disappear in future versions.
     // ---
     /// All floats appearing in the AST.
-    float_by_path: PathPredict<Option<F64>, T>,
+    float_by_path: Rc<RefCell<PathPredict<Option<F64>, T>>>,
 
     /// All unsigned longs appearing in the AST.
-    unsigned_long_by_path: PathPredict<u32, T>,
+    unsigned_long_by_path: Rc<RefCell<PathPredict<u32, T>>>,
 
     /// All property keys.
-    property_key_by_path: PathPredict<Option<PropertyKey>, T>,
+    property_key_by_path: Rc<RefCell<PathPredict<Option<PropertyKey>, T>>>,
 
     /// All identifier names, predicted by path.
-    identifier_name_by_path: PathPredict<Option<IdentifierName>, T>,
+    identifier_name_by_path: Rc<RefCell<PathPredict<Option<IdentifierName>, T>>>,
 
     /// All string literals, predicted by path.
-    string_literal_by_path: PathPredict<Option<SharedString>, T>,
+    string_literal_by_path: Rc<RefCell<PathPredict<Option<SharedString>, T>>>,
 
     /// All list lengths, predicted by path.
-    list_length_by_path: PathPredict<Option<u32>, T>,
+    list_length_by_path: Rc<RefCell<PathPredict<Option<u32>, T>>>,
 
     // --- Extensible sets of symbols, predicted by window.
     // Used for experiments for extensibility of entropy coding, but so far,
@@ -324,13 +328,13 @@ pub struct Dictionary<T> {
     // There are good chances that this section will disappear in future versions.
     // ---
     /// All property keys, predicted by window.
-    property_key_by_window: WindowPredict<Option<PropertyKey>, T>,
+    property_key_by_window: Rc<RefCell<WindowPredict<Option<PropertyKey>, T>>>,
 
     /// All identifier names, predicted by window.
-    identifier_name_by_window: WindowPredict<Option<IdentifierName>, T>,
+    identifier_name_by_window: Rc<RefCell<WindowPredict<Option<IdentifierName>, T>>>,
 
     /// All string literals, predicted by window.
-    string_literal_by_window: WindowPredict<Option<SharedString>, T>,
+    string_literal_by_window: Rc<RefCell<WindowPredict<Option<SharedString>, T>>>,
 
     // --- Extensible sets of symbols, as indexed tables.
     // Used to represent instances of extensible sets of symbols as indices in
@@ -338,22 +342,22 @@ pub struct Dictionary<T> {
     // compression-level and performance.
     // ---
     /// All unsigned longs.
-    unsigned_longs: LinearTable<u32>,
+    unsigned_longs: Rc<RefCell<LinearTable<u32>>>,
 
     /// All string literals. `None` for `null`.
-    string_literals: LinearTable<Option<SharedString>>,
+    string_literals: Rc<RefCell<LinearTable<Option<SharedString>>>>,
 
     /// All identifier names. `None` for `null`.
-    identifier_names: LinearTable<Option<IdentifierName>>,
+    identifier_names: Rc<RefCell<LinearTable<Option<IdentifierName>>>>,
 
     /// All property keys. `None` for `null`.
-    property_keys: LinearTable<Option<PropertyKey>>,
+    property_keys: Rc<RefCell<LinearTable<Option<PropertyKey>>>>,
 
     /// All list lenghts. `None` for `null`.
-    list_lengths: LinearTable<Option<u32>>,
+    list_lengths: Rc<RefCell<LinearTable<Option<u32>>>>,
 
     /// All floats. `None` for `null`.
-    floats: LinearTable<Option<F64>>,
+    floats: Rc<RefCell<LinearTable<Option<F64>>>>,
     // Missing:
     // - offsets (cannot be predicted?)
     // - directives?
@@ -364,114 +368,117 @@ impl<T> Dictionary<T> {
     pub fn new(depth: usize, width: usize) -> Self {
         Dictionary {
             // By path.
-            bool_by_path: PathPredict::new(depth),
-            float_by_path: PathPredict::new(depth),
-            unsigned_long_by_path: PathPredict::new(depth),
-            string_enum_by_path: PathPredict::new(depth),
-            property_key_by_path: PathPredict::new(depth),
-            identifier_name_by_path: PathPredict::new(depth),
-            string_literal_by_path: PathPredict::new(depth),
-            list_length_by_path: PathPredict::new(depth),
-            interface_name_by_path: PathPredict::new(depth),
+            bool_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
+            float_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
+            unsigned_long_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
+            string_enum_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
+            property_key_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
+            identifier_name_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
+            string_literal_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
+            list_length_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
+            interface_name_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
 
             // By window.
-            property_key_by_window: WindowPredict::new(width),
-            identifier_name_by_window: WindowPredict::new(width),
-            string_literal_by_window: WindowPredict::new(width),
+            property_key_by_window: Rc::new(RefCell::new(WindowPredict::new(width))),
+            identifier_name_by_window: Rc::new(RefCell::new(WindowPredict::new(width))),
+            string_literal_by_window: Rc::new(RefCell::new(WindowPredict::new(width))),
 
             // Linear tables.
-            string_literals: LinearTable::with_capacity(0),
-            identifier_names: LinearTable::with_capacity(0),
-            property_keys: LinearTable::with_capacity(0),
-            list_lengths: LinearTable::with_capacity(0),
-            floats: LinearTable::with_capacity(0),
-            unsigned_longs: LinearTable::with_capacity(0),
+            string_literals: Rc::new(RefCell::new(LinearTable::with_capacity(0))),
+            identifier_names: Rc::new(RefCell::new(LinearTable::with_capacity(0))),
+            property_keys: Rc::new(RefCell::new(LinearTable::with_capacity(0))),
+            list_lengths: Rc::new(RefCell::new(LinearTable::with_capacity(0))),
+            floats: Rc::new(RefCell::new(LinearTable::with_capacity(0))),
+            unsigned_longs: Rc::new(RefCell::new(LinearTable::with_capacity(0))),
         }
     }
 
     // The following methods are read-only accessors and may be used regardless
     // of whether we're producing the dictionary or using it.
 
-    pub fn bool_by_path(&self) -> &PathPredict<Option<bool>, T> {
-        &self.bool_by_path
+    pub fn bool_by_path(&self) -> Ref<PathPredict<Option<bool>, T>> {
+        self.bool_by_path.as_ref().borrow()
     }
 
-    pub fn string_enum_by_path(&self) -> &PathPredict<SharedString, T> {
-        &self.string_enum_by_path
+    pub fn string_enum_by_path(&self) -> Ref<PathPredict<SharedString, T>> {
+        self.string_enum_by_path.as_ref().borrow()
     }
 
-    pub fn interface_name_by_path(&self) -> &PathPredict<InterfaceName, T> {
-        &self.interface_name_by_path
+    pub fn interface_name_by_path(&self) -> Ref<PathPredict<InterfaceName, T>> {
+        self.interface_name_by_path.as_ref().borrow()
     }
 
-    pub fn float_by_path(&self) -> &PathPredict<Option<F64>, T> {
-        &self.float_by_path
+    pub fn float_by_path(&self) -> Ref<PathPredict<Option<F64>, T>> {
+        self.float_by_path.as_ref().borrow()
     }
 
-    pub fn unsigned_long_by_path(&self) -> &PathPredict<u32, T> {
-        &self.unsigned_long_by_path
+    pub fn unsigned_long_by_path(&self) -> Ref<PathPredict<u32, T>> {
+        self.unsigned_long_by_path.as_ref().borrow()
     }
 
-    pub fn property_key_by_path(&self) -> &PathPredict<Option<PropertyKey>, T> {
-        &self.property_key_by_path
+    pub fn property_key_by_path(&self) -> Ref<PathPredict<Option<PropertyKey>, T>> {
+        self.property_key_by_path.as_ref().borrow()
     }
 
-    pub fn identifier_name_by_path(&self) -> &PathPredict<Option<IdentifierName>, T> {
-        &self.identifier_name_by_path
+    pub fn identifier_name_by_path(&self) -> Ref<PathPredict<Option<IdentifierName>, T>> {
+        self.identifier_name_by_path.as_ref().borrow()
     }
 
-    pub fn string_literal_by_path(&self) -> &PathPredict<Option<SharedString>, T> {
-        &self.string_literal_by_path
+    pub fn string_literal_by_path(&self) -> Ref<PathPredict<Option<SharedString>, T>> {
+        self.string_literal_by_path.as_ref().borrow()
     }
 
-    pub fn list_length_by_path(&self) -> &PathPredict<Option<u32>, T> {
-        &self.list_length_by_path
+    pub fn list_length_by_path(&self) -> Ref<PathPredict<Option<u32>, T>> {
+        self.list_length_by_path.as_ref().borrow()
     }
 
-    pub fn property_key_by_window(&self) -> &WindowPredict<Option<PropertyKey>, T> {
-        &self.property_key_by_window
+    pub fn property_key_by_window(&self) -> Ref<WindowPredict<Option<PropertyKey>, T>> {
+        self.property_key_by_window.as_ref().borrow()
     }
 
-    pub fn identifier_name_by_window(&self) -> &WindowPredict<Option<IdentifierName>, T> {
-        &self.identifier_name_by_window
+    pub fn identifier_name_by_window(&self) -> Ref<WindowPredict<Option<IdentifierName>, T>> {
+        self.identifier_name_by_window.as_ref().borrow()
     }
 
-    pub fn string_literal_by_window(&self) -> &WindowPredict<Option<SharedString>, T> {
-        &self.string_literal_by_window
+    pub fn string_literal_by_window(&self) -> Ref<WindowPredict<Option<SharedString>, T>> {
+        self.string_literal_by_window.as_ref().borrow()
     }
 
-    pub fn unsigned_longs(&self) -> &LinearTable<u32> {
-        &self.unsigned_longs
+    pub fn unsigned_longs(&self) -> Ref<LinearTable<u32>> {
+        self.unsigned_longs.as_ref().borrow()
     }
 
-    pub fn string_literals(&self) -> &LinearTable<Option<SharedString>> {
-        &self.string_literals
+    pub fn string_literals(&self) -> Ref<LinearTable<Option<SharedString>>> {
+        self.string_literals.as_ref().borrow()
     }
 
-    pub fn identifier_names(&self) -> &LinearTable<Option<IdentifierName>> {
-        &self.identifier_names
+    pub fn identifier_names(&self) -> Ref<LinearTable<Option<IdentifierName>>> {
+        self.identifier_names.as_ref().borrow()
     }
 
-    pub fn property_keys(&self) -> &LinearTable<Option<PropertyKey>> {
-        &self.property_keys
+    pub fn property_keys(&self) -> Ref<LinearTable<Option<PropertyKey>>> {
+        self.property_keys.as_ref().borrow()
     }
 
-    pub fn list_lengths(&self) -> &LinearTable<Option<u32>> {
-        &self.list_lengths
+    pub fn list_lengths(&self) -> Ref<LinearTable<Option<u32>>> {
+        self.list_lengths.as_ref().borrow()
     }
 
-    pub fn floats(&self) -> &LinearTable<Option<F64>> {
-        &self.floats
+    pub fn floats(&self) -> Ref<LinearTable<Option<F64>>> {
+        self.floats.as_ref().borrow()
     }
 
     /// Return the depth of the current dictionary.
     pub fn depth(&self) -> usize {
-        assert_eq!(self.bool_by_path.depth(), self.string_enum_by_path.depth());
         assert_eq!(
-            self.bool_by_path.depth(),
-            self.interface_name_by_path.depth()
+            self.bool_by_path().depth(),
+            self.string_enum_by_path().depth()
         );
-        self.bool_by_path.depth()
+        assert_eq!(
+            self.bool_by_path().depth(),
+            self.interface_name_by_path().depth()
+        );
+        self.bool_by_path().depth()
     }
 
     /// Return the number of states in this dictionary.
@@ -498,92 +505,99 @@ impl<T> Dictionary<T> {
             unsigned_longs: _,
         } = *self;
 
-        bool_by_path.len()
-            + float_by_path.len()
-            + unsigned_long_by_path.len()
-            + string_enum_by_path.len()
-            + property_key_by_path.len()
-            + identifier_name_by_path.len()
-            + interface_name_by_path.len()
-            + string_literal_by_path.len()
-            + list_length_by_path.len()
-            + interface_name_by_path.len()
+        bool_by_path.borrow().len()
+            + float_by_path.borrow().len()
+            + unsigned_long_by_path.borrow().len()
+            + string_enum_by_path.borrow().len()
+            + property_key_by_path.borrow().len()
+            + identifier_name_by_path.borrow().len()
+            + interface_name_by_path.borrow().len()
+            + string_literal_by_path.borrow().len()
+            + list_length_by_path.borrow().len()
+            + interface_name_by_path.borrow().len()
     }
 }
 
 impl Dictionary<Instances> {
-    pub fn bool_by_path_mut(&mut self) -> &mut PathPredict<Option<bool>, Instances> {
-        &mut self.bool_by_path
+    pub fn bool_by_path_mut(&mut self) -> RefMut<PathPredict<Option<bool>, Instances>> {
+        self.bool_by_path.as_ref().borrow_mut()
     }
 
-    pub fn string_enum_by_path_mut(&mut self) -> &mut PathPredict<SharedString, Instances> {
-        &mut self.string_enum_by_path
+    pub fn string_enum_by_path_mut(&mut self) -> RefMut<PathPredict<SharedString, Instances>> {
+        self.string_enum_by_path.as_ref().borrow_mut()
     }
 
-    pub fn interface_name_by_path_mut(&mut self) -> &mut PathPredict<InterfaceName, Instances> {
-        &mut self.interface_name_by_path
+    pub fn interface_name_by_path_mut(&mut self) -> RefMut<PathPredict<InterfaceName, Instances>> {
+        self.interface_name_by_path.as_ref().borrow_mut()
     }
 
-    pub fn float_by_path_mut(&mut self) -> &mut PathPredict<Option<F64>, Instances> {
-        &mut self.float_by_path
+    pub fn float_by_path_mut(&mut self) -> RefMut<PathPredict<Option<F64>, Instances>> {
+        self.float_by_path.as_ref().borrow_mut()
     }
 
-    pub fn unsigned_long_by_path_mut(&mut self) -> &mut PathPredict<u32, Instances> {
-        &mut self.unsigned_long_by_path
+    pub fn unsigned_long_by_path_mut(&mut self) -> RefMut<PathPredict<u32, Instances>> {
+        self.unsigned_long_by_path.as_ref().borrow_mut()
     }
 
-    pub fn property_key_by_path_mut(&mut self) -> &mut PathPredict<Option<PropertyKey>, Instances> {
-        &mut self.property_key_by_path
+    pub fn property_key_by_path_mut(
+        &mut self,
+    ) -> RefMut<PathPredict<Option<PropertyKey>, Instances>> {
+        self.property_key_by_path.as_ref().borrow_mut()
     }
 
     pub fn identifier_name_by_path_mut(
         &mut self,
-    ) -> &mut PathPredict<Option<IdentifierName>, Instances> {
-        &mut self.identifier_name_by_path
+    ) -> RefMut<PathPredict<Option<IdentifierName>, Instances>> {
+        self.identifier_name_by_path.as_ref().borrow_mut()
     }
 
     pub fn string_literal_by_path_mut(
         &mut self,
-    ) -> &mut PathPredict<Option<SharedString>, Instances> {
-        &mut self.string_literal_by_path
+    ) -> RefMut<PathPredict<Option<SharedString>, Instances>> {
+        self.string_literal_by_path.as_ref().borrow_mut()
     }
 
-    pub fn list_length_by_path_mut(&mut self) -> &mut PathPredict<Option<u32>, Instances> {
-        &mut self.list_length_by_path
+    pub fn list_length_by_path_mut(&mut self) -> RefMut<PathPredict<Option<u32>, Instances>> {
+        self.list_length_by_path.as_ref().borrow_mut()
     }
 
     pub fn property_key_by_window_mut(
         &mut self,
-    ) -> &mut WindowPredict<Option<PropertyKey>, Instances> {
-        &mut self.property_key_by_window
+    ) -> RefMut<WindowPredict<Option<PropertyKey>, Instances>> {
+        self.property_key_by_window.as_ref().borrow_mut()
     }
 
     pub fn identifier_name_by_window_mut(
         &mut self,
-    ) -> &mut WindowPredict<Option<IdentifierName>, Instances> {
-        &mut self.identifier_name_by_window
+    ) -> RefMut<WindowPredict<Option<IdentifierName>, Instances>> {
+        self.identifier_name_by_window.as_ref().borrow_mut()
     }
 
     pub fn string_literal_by_window_mut(
         &mut self,
-    ) -> &mut WindowPredict<Option<SharedString>, Instances> {
-        &mut self.string_literal_by_window
+    ) -> RefMut<WindowPredict<Option<SharedString>, Instances>> {
+        self.string_literal_by_window.as_ref().borrow_mut()
     }
 
     /// Combine a dictionary obtained by sampling (`self`) and a baseline dictionary
     /// (obtained by `entropy::baseline`) to produce a dictionary able to handle
     /// values that grammatically correct but have not been witnessed during
     /// sampling.
-    pub fn with_grammar_fallback(self, fallback: Dictionary<Instances>) -> Self {
-        let mut result = self;
+    pub fn with_grammar_fallback(&self, fallback: Dictionary<Instances>) -> Self {
+        let result = self.clone();
         let original_len = result.len();
-        result.bool_by_path.add_fallback(fallback.bool_by_path);
+        result
+            .bool_by_path
+            .borrow_mut()
+            .add_fallback(&fallback.bool_by_path());
         result
             .string_enum_by_path
-            .add_fallback(fallback.string_enum_by_path);
+            .borrow_mut()
+            .add_fallback(&fallback.string_enum_by_path());
         result
             .interface_name_by_path
-            .add_fallback(fallback.interface_name_by_path);
+            .borrow_mut()
+            .add_fallback(&fallback.interface_name_by_path());
 
         debug!(target: "dictionary", "Added fallback to dictionary {} states => {} states",
             original_len,
@@ -598,53 +612,67 @@ impl InstancesToProbabilities for Dictionary<Instances> {
 
     /// Convert a dictionary counting instances into a dictionary that
     /// counts probabilities.
-    fn instances_to_probabilities(self, _description: &str) -> Dictionary<SymbolInfo> {
+    fn instances_to_probabilities(&self, _description: &str) -> Dictionary<SymbolInfo> {
         Dictionary {
             // By path.
-            bool_by_path: self.bool_by_path.instances_to_probabilities("bool_by_path"),
-            float_by_path: self
-                .float_by_path
-                .instances_to_probabilities("float_by_path"),
-            unsigned_long_by_path: self
-                .unsigned_long_by_path
-                .instances_to_probabilities("unsigned_long_by_path"),
-            string_enum_by_path: self
-                .string_enum_by_path
-                .instances_to_probabilities("string_enum_by_path"),
-            property_key_by_path: self
-                .property_key_by_path
-                .instances_to_probabilities("property_key_by_path"),
-            identifier_name_by_path: self
-                .identifier_name_by_path
-                .instances_to_probabilities("identifier_name_by_path"),
-            interface_name_by_path: self
-                .interface_name_by_path
-                .instances_to_probabilities("interface_name_by_path"),
-            string_literal_by_path: self
-                .string_literal_by_path
-                .instances_to_probabilities("string_literal_by_path"),
-            list_length_by_path: self
-                .list_length_by_path
-                .instances_to_probabilities("list_length_by_path"),
+            bool_by_path: Rc::new(RefCell::new(
+                self.bool_by_path()
+                    .instances_to_probabilities("bool_by_path"),
+            )),
+            float_by_path: Rc::new(RefCell::new(
+                self.float_by_path()
+                    .instances_to_probabilities("float_by_path"),
+            )),
+            unsigned_long_by_path: Rc::new(RefCell::new(
+                self.unsigned_long_by_path()
+                    .instances_to_probabilities("unsigned_long_by_path"),
+            )),
+            string_enum_by_path: Rc::new(RefCell::new(
+                self.string_enum_by_path()
+                    .instances_to_probabilities("string_enum_by_path"),
+            )),
+            property_key_by_path: Rc::new(RefCell::new(
+                self.property_key_by_path()
+                    .instances_to_probabilities("property_key_by_path"),
+            )),
+            identifier_name_by_path: Rc::new(RefCell::new(
+                self.identifier_name_by_path()
+                    .instances_to_probabilities("identifier_name_by_path"),
+            )),
+            interface_name_by_path: Rc::new(RefCell::new(
+                self.interface_name_by_path()
+                    .instances_to_probabilities("interface_name_by_path"),
+            )),
+            string_literal_by_path: Rc::new(RefCell::new(
+                self.string_literal_by_path()
+                    .instances_to_probabilities("string_literal_by_path"),
+            )),
+            list_length_by_path: Rc::new(RefCell::new(
+                self.list_length_by_path()
+                    .instances_to_probabilities("list_length_by_path"),
+            )),
 
             // By window.
-            property_key_by_window: self
-                .property_key_by_window
-                .instances_to_probabilities("property_key_by_window"),
-            identifier_name_by_window: self
-                .identifier_name_by_window
-                .instances_to_probabilities("identifier_name_by_window"),
-            string_literal_by_window: self
-                .string_literal_by_window
-                .instances_to_probabilities("string_literal_by_window"),
+            property_key_by_window: Rc::new(RefCell::new(
+                self.property_key_by_window()
+                    .instances_to_probabilities("property_key_by_window"),
+            )),
+            identifier_name_by_window: Rc::new(RefCell::new(
+                self.identifier_name_by_window()
+                    .instances_to_probabilities("identifier_name_by_window"),
+            )),
+            string_literal_by_window: Rc::new(RefCell::new(
+                self.string_literal_by_window()
+                    .instances_to_probabilities("string_literal_by_window"),
+            )),
 
-            // Linear tables.
-            string_literals: self.string_literals,
-            floats: self.floats,
-            list_lengths: self.list_lengths,
-            identifier_names: self.identifier_names,
-            property_keys: self.property_keys,
-            unsigned_longs: self.unsigned_longs,
+            // Linear tables. No probabilities here.
+            string_literals: self.string_literals.clone(),
+            floats: self.floats.clone(),
+            list_lengths: self.list_lengths.clone(),
+            identifier_names: self.identifier_names.clone(),
+            property_keys: self.property_keys.clone(),
+            unsigned_longs: self.unsigned_longs.clone(),
         }
     }
 }
@@ -707,11 +735,11 @@ impl<T> UserExtensibleData<T> {
 
 impl<K> InstancesToProbabilities for HashMap<K, FilesContaining>
 where
-    K: Eq + std::hash::Hash,
+    K: Eq + std::hash::Hash + Clone,
 {
     type AsProbabilities = HashMap<K, SymbolInfo>;
 
-    fn instances_to_probabilities(self, _description: &str) -> HashMap<K, SymbolInfo> {
+    fn instances_to_probabilities(&self, _description: &str) -> HashMap<K, SymbolInfo> {
         use std::cell::RefCell;
         use std::rc::Rc;
 
@@ -730,7 +758,7 @@ where
             .enumerate()
             .map(|(index, (key, _))| {
                 (
-                    key,
+                    (*key).clone(),
                     SymbolInfo {
                         index: SymbolIndex::from(index),
                         distribution: distribution.clone(),
@@ -776,35 +804,35 @@ impl DictionaryBuilder {
         let mut dictionary = self.dictionary;
 
         // Generate indexed tables for user-extensible values.
-        dictionary.identifier_names = LinearTable::new(
+        dictionary.identifier_names = Rc::new(RefCell::new(LinearTable::new(
             self.files_containing_user_extensible_data
                 .identifier_name_instances,
             threshold,
-        );
-        dictionary.property_keys = LinearTable::new(
+        )));
+        dictionary.property_keys = Rc::new(RefCell::new(LinearTable::new(
             self.files_containing_user_extensible_data
                 .property_key_instances,
             threshold,
-        );
-        dictionary.list_lengths = LinearTable::new(
+        )));
+        dictionary.list_lengths = Rc::new(RefCell::new(LinearTable::new(
             self.files_containing_user_extensible_data
                 .list_length_instances,
             threshold,
-        );
-        dictionary.floats = LinearTable::new(
+        )));
+        dictionary.floats = Rc::new(RefCell::new(LinearTable::new(
             self.files_containing_user_extensible_data.float_instances,
             threshold,
-        );
-        dictionary.unsigned_longs = LinearTable::new(
+        )));
+        dictionary.unsigned_longs = Rc::new(RefCell::new(LinearTable::new(
             self.files_containing_user_extensible_data
                 .unsigned_long_instances,
             threshold,
-        );
-        dictionary.string_literals = LinearTable::new(
+        )));
+        dictionary.string_literals = Rc::new(RefCell::new(LinearTable::new(
             self.files_containing_user_extensible_data
                 .string_literal_instances,
             threshold,
-        );
+        )));
 
         dictionary
     }
