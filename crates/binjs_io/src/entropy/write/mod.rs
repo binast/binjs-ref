@@ -7,7 +7,7 @@ use super::dictionary::{Fetch, LinearTable, TableRef};
 use super::rw::*;
 use bytes::lengthwriter::LengthWriter;
 use bytes::varnum::WriteVarNum;
-use io::statistics::{Bytes, ContentInfo, Instances};
+use io::statistics::{Bytes, Instances, PerUserExtensibleKind};
 use io::{Path, TokenWriter};
 use TokenWriterError;
 
@@ -24,11 +24,11 @@ use range_encoding::opus;
 /// An arbitrary initialization size for buffers.
 const INITIAL_BUFFER_SIZE_BYTES: usize = 32768;
 
-impl ContentInfo<opus::Writer<LengthWriter>> {
+impl PerUserExtensibleKind<opus::Writer<LengthWriter>> {
     /// Finalize and return the number of compressed bytes written.
     ///
     /// This number is determined by examining the underlying LengthWriter.
-    pub fn into_statistics(self) -> ContentInfo<Bytes> {
+    pub fn into_statistics(self) -> PerUserExtensibleKind<Bytes> {
         self.into_with(|_, value| value.done().unwrap().len().into())
     }
 }
@@ -55,7 +55,7 @@ pub struct Encoder {
     ///
     /// This is something of a hack and should be removed once we have a better
     /// idea of *what* we should encode with Brotli and what we shouldn't.
-    content_streams: ContentInfo<Vec<TableRef>>,
+    content_streams: PerUserExtensibleKind<Vec<TableRef>>,
 
     /// Parts of the header that we compress with Brotli.
     prelude_streams: PreludeStreams<LazyStream>,
@@ -83,10 +83,10 @@ pub struct Encoder {
 
     // --- Statistics.
     /// Measure the number of bytes written.
-    content_opus_lengths: ContentInfo<opus::Writer<LengthWriter>>,
+    content_opus_lengths: PerUserExtensibleKind<opus::Writer<LengthWriter>>,
 
     /// Measure the number of entries written.
-    content_instances: ContentInfo<Instances>,
+    content_instances: PerUserExtensibleKind<Instances>,
 
     /// The path of the file being written, if it's a file.
     path: Option<std::path::PathBuf>,
@@ -117,8 +117,10 @@ impl Encoder {
                 None
             },
             options,
-            content_opus_lengths: ContentInfo::with(|_| opus::Writer::new(LengthWriter::new())),
-            content_streams: ContentInfo::with(|_| Vec::new()),
+            content_opus_lengths: PerUserExtensibleKind::with(|_| {
+                opus::Writer::new(LengthWriter::new())
+            }),
+            content_streams: PerUserExtensibleKind::with(|_| Vec::new()),
             prelude_streams: PreludeStreams::with(|name| {
                 let maybe_buf = match path {
                     Some(path) if split_streams => {
@@ -133,7 +135,7 @@ impl Encoder {
                 };
                 LazyStream::new(maybe_buf)
             }),
-            content_instances: ContentInfo::with(|_| 0.into()),
+            content_instances: PerUserExtensibleKind::with(|_| 0.into()),
             path: path.map(std::path::Path::to_path_buf),
             unsigned_longs,
             string_literals,
@@ -150,9 +152,9 @@ impl Encoder {
 /// Note that this macro could not be implemented as a simple method, as we need to adapt it to different field names.
 ///
 /// Usage:
-/// `emit_symbol_to_main_stream!(self, name_of_the_probability_table, name_of_the_ContentInfo_field, "Description, used for debugging",  path_in_the_ast,  value_to_encode)`
+/// `emit_symbol_to_main_stream!(self, name_of_the_probability_table, "Description, used for debugging",  path_in_the_ast,  value_to_encode)`
 macro_rules! emit_symbol_to_main_stream {
-    ( $me: ident, $table: ident, $info: ident, $description: expr, $path: expr, $value: expr ) => {
+    ( $me: ident, $table: ident, $description: expr, $path: expr, $value: expr ) => {
         {
             use std::borrow::Borrow;
 
@@ -170,9 +172,6 @@ macro_rules! emit_symbol_to_main_stream {
                     TokenWriterError::NotInDictionary(format!("{}: {:?} at {:?}", $description, $value, path))
                 })?;
 
-            // FIXME: For extensibility purposes, if the value is not in the dictionary, we should
-            // add it to the prelude and a relevant content stream.
-
             // 2. This gives us an index (`symbol.index`) and a probability distribution
             // (`symbol.distribution`). Use them to write the probability at bit-level.
             let distribution = symbol.distribution
@@ -181,13 +180,6 @@ macro_rules! emit_symbol_to_main_stream {
             $me.writer.symbol(symbol.index.into(), &distribution)
                 .map_err(TokenWriterError::WriteError)?;
 
-            // 3. Also, update statistics
-            $me.content_opus_lengths
-                .$info
-                .symbol(symbol.index.into(), &distribution)
-                .map_err(TokenWriterError::WriteError)?;
-            $me.content_instances
-                .$info += Into::<Instances>::into(1);
             Ok(())
         }
     }
@@ -463,7 +455,7 @@ impl TokenWriter for Encoder {
     // --- Fixed set
 
     fn bool_at(&mut self, value: Option<bool>, path: &Path) -> Result<(), TokenWriterError> {
-        emit_symbol_to_main_stream!(self, bool_by_path, bools, "bool_by_path", path, value)
+        emit_symbol_to_main_stream!(self, bool_by_path, "bool_by_path", path, value)
     }
 
     fn string_enum_at(
@@ -474,7 +466,6 @@ impl TokenWriter for Encoder {
         emit_symbol_to_main_stream!(
             self,
             string_enum_by_path,
-            string_enums,
             "string_enum_by_path",
             path,
             value
@@ -491,7 +482,6 @@ impl TokenWriter for Encoder {
         emit_symbol_to_main_stream!(
             self,
             interface_name_by_path,
-            interface_names,
             "interface_name_by_path",
             path,
             tag
