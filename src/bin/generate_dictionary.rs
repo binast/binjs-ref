@@ -7,7 +7,7 @@ extern crate clap;
 extern crate env_logger;
 
 use binjs::generic::FromJSON;
-use binjs::io::entropy::dictionary::DictionaryBuilder;
+use binjs::io::entropy::dictionary::{DictionaryBuilder, Options as DictionaryOptions};
 use binjs::io::{Path as IOPath, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::Walker;
@@ -208,7 +208,11 @@ fn main_aux() {
 
     // Setup.
     let parser = Shift::try_new().expect("Could not launch Shift");
-    let mut builder = DictionaryBuilder::new(depth, width);
+    let mut builder = DictionaryBuilder::new(
+        DictionaryOptions::default()
+            .with_depth(depth)
+            .with_width(width),
+    );
     let mut number_of_files = 0;
 
     let mut options = Options {
