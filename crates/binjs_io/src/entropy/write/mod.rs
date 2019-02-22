@@ -3,7 +3,7 @@
 mod lazy_stream;
 
 use self::lazy_stream::*;
-use super::dictionary::{Fetch, TableRef};
+use super::dictionary::{Fetch, LinearTable, TableRef};
 use super::rw::*;
 use bytes::lengthwriter::LengthWriter;
 use bytes::varnum::WriteVarNum;
@@ -16,7 +16,6 @@ use binjs_shared::{
 };
 
 use std::io::Write;
-use std::ops::DerefMut;
 
 #[allow(unused_imports)] // We keep enabling/disabling this.
 use itertools::Itertools;
@@ -61,6 +60,27 @@ pub struct Encoder {
     /// Parts of the header that we compress with Brotli.
     prelude_streams: PreludeStreams<LazyStream>,
 
+    // --- Extensible sets of symbols, as indexed tables.
+    // We copy these tables to the Encoder as they are modified
+    // as we encode the file.
+    /// All unsigned longs.
+    unsigned_longs: LinearTable<u32>,
+
+    /// All string literals. `None` for `null`.
+    string_literals: LinearTable<Option<SharedString>>,
+
+    /// All identifier names. `None` for `null`.
+    identifier_names: LinearTable<Option<IdentifierName>>,
+
+    /// All property keys. `None` for `null`.
+    property_keys: LinearTable<Option<PropertyKey>>,
+
+    /// All list lenghts. `None` for `null`.
+    list_lengths: LinearTable<Option<u32>>,
+
+    /// All floats. `None` for `null`.
+    floats: LinearTable<Option<F64>>,
+
     // --- Statistics.
     /// Measure the number of bytes written.
     content_opus_lengths: PerUserExtensibleKind<opus::Writer<LengthWriter>>,
@@ -77,6 +97,12 @@ impl Encoder {
     pub fn new(path: Option<&std::path::Path>, options: ::entropy::Options) -> Self {
         // FIXME: We shouldn't need to clone the entire `options`. A shared immutable reference would do nicely.
         let split_streams = options.split_streams;
+        let unsigned_longs = options.probability_tables.unsigned_longs().clone();
+        let string_literals = options.probability_tables.string_literals().clone();
+        let identifier_names = options.probability_tables.identifier_names().clone();
+        let property_keys = options.probability_tables.property_keys().clone();
+        let list_lengths = options.probability_tables.list_lengths().clone();
+        let floats = options.probability_tables.floats().clone();
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
             dump_path: if split_streams {
@@ -111,6 +137,12 @@ impl Encoder {
             }),
             content_instances: PerUserExtensibleKind::with(|_| 0.into()),
             path: path.map(std::path::Path::to_path_buf),
+            unsigned_longs,
+            string_literals,
+            identifier_names,
+            property_keys,
+            list_lengths,
+            floats,
         }
     }
 }
@@ -132,8 +164,8 @@ macro_rules! emit_symbol_to_main_stream {
             // path information.
             let symbol = $me.options
                 .probability_tables
-                .$table
-                .stats_by_node_value_mut(path, &$value)
+                .$table()
+                .stats_by_node_value(path, &$value)
                 .ok_or_else(|| {
                     debug!(target: "entropy", "Couldn't find value {:?} at {:?} ({})",
                         $value, path, $description);
@@ -142,9 +174,10 @@ macro_rules! emit_symbol_to_main_stream {
 
             // 2. This gives us an index (`symbol.index`) and a probability distribution
             // (`symbol.distribution`). Use them to write the probability at bit-level.
-            let mut distribution = symbol.distribution
-                .borrow_mut();
-            $me.writer.symbol(symbol.index.into(), distribution.deref_mut())
+            let distribution = symbol.distribution
+                .as_ref()
+                .borrow();
+            $me.writer.symbol(symbol.index.into(), &distribution)
                 .map_err(TokenWriterError::WriteError)?;
 
             Ok(())
@@ -166,8 +199,8 @@ macro_rules! emit_symbol_to_main_stream {
 /// Usage:
 /// `emit_simple_symbol_to_streams!(self, name_of_the_indexed_table, name_of_the_stream, value_to_encode, "Description, used for debugging")`
 macro_rules! emit_simple_symbol_to_streams {
-    ( $me: ident, $dictionary: ident, $out: ident, $writer: ident, $value: expr, $description: expr ) => {
-        if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $dictionary, $out, $value, $description) {
+    ( $me: ident, $table: ident, $out: ident, $writer: ident, $value: expr, $description: expr ) => {
+        if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $table, $out, $value, $description) {
             // The value does not appear either in the static dictionary or in the prelude dictionary.
             // Add it to the latter.
             $me.prelude_streams.$out.$writer(*$value)
@@ -191,8 +224,8 @@ macro_rules! emit_simple_symbol_to_streams {
 /// Usage:
 /// `emit_string_symbol_to_streams!(self, name_of_the_indexed_table, name_of_the_string_prelude_stream, name_of_the_string_length_prelude_stream, value_to_encode, "Description, used for debugging")`
 macro_rules! emit_string_symbol_to_streams {
-    ( $me: ident, $dictionary: ident, $out: ident, $len: ident, $value: expr, $description: expr ) => {
-        if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $dictionary, $out, $value, $description) {
+    ( $me: ident, $table: ident, $out: ident, $len: ident, $value: expr, $description: expr ) => {
+        if let Fetch::Miss(_) = emit_symbol_to_content_stream!($me, $table, $out, $value, $description) {
             // The value does not appear either in the static dictionary or in the prelude dictionary.
             // Add it to the latter.
             match $value {
@@ -229,14 +262,13 @@ macro_rules! emit_string_symbol_to_streams {
 /// Usage:
 /// `emit_symbol_to_content_stream!(self, name_of_the_indexed_table, name_of_the_string_content_stream, value_to_encode, "Description, used for debugging")`
 macro_rules! emit_symbol_to_content_stream {
-    ( $me: ident, $dictionary:ident, $out:ident, $value: expr, $description: expr ) => {
+    ( $me: ident, $table: ident, $out: ident, $value: expr, $description: expr ) => {
         {
             let value = $value;
 
             // 1. Fetch the index in the dictionary.
-            let fetch = $me.options
-                .probability_tables
-                .$dictionary
+            let fetch = $me
+                .$table
                 .fetch_index(value);
 
             debug!(target: "write", "Writing index {:?} as {:?} index to {}", $value, fetch, $description);
