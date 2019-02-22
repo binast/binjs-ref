@@ -209,6 +209,15 @@ impl AnnotationVisitor {
             })
         }
 
+        debug_assert_eq!(
+            {
+                let as_set: HashSet<_> = declared_names.iter().map(|x| &x.name).collect();
+                as_set.len()
+            },
+            declared_names.len(),
+            "Duplicate declared names"
+        );
+
         let has_direct_eval = self.pop_direct_eval();
         AssertedBlockScope {
             declared_names,
@@ -295,6 +304,15 @@ impl AnnotationVisitor {
             })
         }
 
+        debug_assert_eq!(
+            {
+                let as_set: HashSet<_> = declared_names.iter().map(|x| &x.name).collect();
+                as_set.len()
+            },
+            declared_names.len(),
+            "Duplicate declared names"
+        );
+
         declared_names
     }
 
@@ -375,7 +393,8 @@ impl AnnotationVisitor {
             }
         }
 
-        let mut param_names = Vec::with_capacity(params.len());
+        let len = params.len();
+        let mut param_names = Vec::with_capacity(len);
         for param in params.into_iter() {
             let is_captured = captured_names.contains(&to_declaration(&param));
             param_names.push(match param {
@@ -402,6 +421,26 @@ impl AnnotationVisitor {
         }
 
         let has_direct_eval = self.pop_direct_eval();
+
+        debug_assert_eq!(
+            {
+                let as_set: HashSet<_> = param_names
+                    .iter()
+                    .map(|x| {
+                        use ast::AssertedMaybePositionalParameterName::*;
+                        match *x {
+                            AssertedPositionalParameterName(ref b) => &b.name,
+                            AssertedParameterName(ref b) => &b.name,
+                            AssertedRestParameterName(ref b) => &b.name,
+                        }
+                    })
+                    .collect();
+                as_set.len()
+            },
+            len,
+            "Duplicate param names"
+        );
+
         AssertedParameterScope {
             param_names,
             has_direct_eval,
@@ -429,6 +468,15 @@ impl AnnotationVisitor {
             let is_captured = captured_names.contains(&name);
             bound_names.push(AssertedBoundName { name, is_captured })
         }
+
+        debug_assert_eq!(
+            {
+                let as_set: HashSet<_> = bound_names.iter().map(|x| &x.name).collect();
+                as_set.len()
+            },
+            bound_names.len(),
+            "Duplicate declared names"
+        );
 
         let has_direct_eval = self.pop_direct_eval();
         AssertedBoundNamesScope {
