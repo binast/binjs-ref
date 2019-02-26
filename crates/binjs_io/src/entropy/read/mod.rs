@@ -314,16 +314,12 @@ macro_rules! main_stream {
         use std::ops::DerefMut;
         let path = $path.borrow();
 
+        let table = $me.options.probability_tables.$table();
         let index = {
             // 1. Get the frequency information for this path.
-            let frequencies = $me
-                .options
-                .probability_tables
-                .$table()
-                .frequencies_at(path)
-                .ok_or_else(|| {
-                    TokenReaderError::NotInDictionary(format!("{} at {:?}", $description, $path))
-                })?;
+            let frequencies = table.frequencies_at(path).ok_or_else(|| {
+                TokenReaderError::NotInDictionary(format!("{} at {:?}", $description, $path))
+            })?;
             let mut borrow = frequencies.borrow_mut();
 
             // 2. Let bit-level I/O determine the symbol index stored.
@@ -335,10 +331,7 @@ macro_rules! main_stream {
         };
 
         // 3. Deduce the value we have just read.
-        let value = $me
-            .options
-            .probability_tables
-            .$table()
+        let value = table
             .value_by_symbol_index(path, SymbolIndex::new(index as usize))
             .ok_or_else(|| {
                 TokenReaderError::NotInDictionary(format!("{} [{}]", stringify!($ident), index))

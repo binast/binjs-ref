@@ -94,9 +94,14 @@ pub struct Encoder {
 
 impl Encoder {
     /// Create a new Encoder.
+    ///
+    /// Note that cloning `options` is pretty cheap, as it is mostly a bunch
+    /// of `Rc<>`.
     pub fn new(path: Option<&std::path::Path>, options: ::entropy::Options) -> Self {
-        // FIXME: We shouldn't need to clone the entire `options`. A shared immutable reference would do nicely.
         let split_streams = options.split_streams;
+
+        // We need to clone the instances of `LinearTable` as using them modifies
+        // their content.
         let unsigned_longs = options.probability_tables.unsigned_longs().clone();
         let string_literals = options.probability_tables.string_literals().clone();
         let identifier_names = options.probability_tables.identifier_names().clone();
@@ -162,9 +167,11 @@ macro_rules! emit_symbol_to_main_stream {
 
             // 1. Locate the `SymbolInfo` information for this value given the
             // path information.
-            let symbol = $me.options
+            let table = $me.options
                 .probability_tables
-                .$table()
+                .$table();
+            let symbol =
+                table
                 .stats_by_node_value(path, &$value)
                 .ok_or_else(|| {
                     debug!(target: "entropy", "Couldn't find value {:?} at {:?} ({})",

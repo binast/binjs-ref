@@ -17,7 +17,7 @@ lzw = "^0.10"
 log = "^0.4"
 rand = "^0.6"
 range-encoding = "^0.2"
-serde = { version = "^1.0", features = ["derive"] }
+serde = { version = "^1.0", features = ["derive", "rc"] }
 smallvec = "^0.6"
 vec_map = "^0.8"
 xml-rs = "^0.8"
