@@ -10,6 +10,7 @@ use binjs::specialized::es6::io::Decoder;
 
 use std::fs::*;
 use std::io::*;
+use std::thread;
 
 use clap::*;
 
@@ -36,6 +37,18 @@ struct Options<'a> {
 }
 
 fn main() {
+    thread::Builder::new()
+        .name("large stack dedicated thread".to_string())
+        .stack_size(20 * 1024 * 1024)
+        .spawn(|| {
+            main_aux();
+        })
+        .expect("Could not launch dedicated thread")
+        .join()
+        .expect("Error in dedicated thread");
+}
+
+fn main_aux() {
     env_logger::init();
 
     let matches = App::new("BinJS decoder")
