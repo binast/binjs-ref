@@ -7,8 +7,7 @@ use binjs_generate_library::*;
 use binjs_meta::import::Importer;
 use binjs_meta::spec::SpecOptions;
 
-use std::fs::*;
-use std::io::*;
+use std::fs;
 
 use clap::*;
 
@@ -33,10 +32,7 @@ fn main() {
         .expect("Expected INPUT.webidl");
     let dest_path = matches.value_of("OUTPUT").expect("Expected OUTPUT");
 
-    let mut file = File::open(source_path).expect("Could not open source");
-    let mut source = String::new();
-    file.read_to_string(&mut source)
-        .expect("Could not read source");
+    let source = fs::read_to_string(source_path).expect("Could not read source");
 
     println!("...importing webidl");
     let mut builder =
@@ -55,16 +51,11 @@ fn main() {
 
     let dest_name = format!("{}-generic.rs", dest_path);
     println!("...exporting generic code to {}", dest_name);
-    let mut dest = File::create(dest_name).expect("Could not create rust generic source output");
-    dest.write_all(code.generic.as_bytes())
-        .expect("Could not write rust generic source output");
+    fs::write(dest_name, code.generic).expect("Could not write rust generic source output");
 
     let dest_name = format!("{}-strong.rs", dest_path);
     println!("...exporting strongly-typed code to {}", dest_name);
-    let mut dest =
-        File::create(dest_name).expect("Could not create rust strongly-typed source output");
-    dest.write_all(code.typed.as_bytes())
-        .expect("Could not write rust strongly-typed source output");
+    fs::write(dest_name, code.typed).expect("Could not write rust strongly-typed source output");
 
     println!("...done");
 }

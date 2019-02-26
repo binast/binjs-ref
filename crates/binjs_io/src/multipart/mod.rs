@@ -202,13 +202,15 @@ fn test_multipart_io() {
     use multipart::*;
     use CompressionTarget;
 
-    use std::fs::*;
-    use std::io::{Cursor, Write};
+    use std::fs;
+    use std::io::Cursor;
 
     let dir = tempdir::TempDir::new("test_multipart_io").unwrap();
     let root = dir.path();
-    let new_file = |prefix: &str, suffix: &str| {
-        File::create(root.join(format!("{}-{}.binjs", prefix, suffix)))
+    let write_file = |prefix: &str, suffix: &str, contents: &[u8]| {
+        let path = root.join(format!("{}-{}.binjs", prefix, suffix));
+        fs::write(&path, contents)
+            .unwrap_or_else(|e| panic!("Could not write file {:?}: {:?}", path, e))
     };
 
     // All combinations of options for compression.
@@ -246,10 +248,7 @@ fn test_multipart_io() {
                 .expect("Writing simple string");
 
             let output = writer.done().expect("Finalizing data");
-            new_file("test-simple-string", &suffix)
-                .expect("Could not create file")
-                .write_all(&output)
-                .unwrap();
+            write_file("test-simple-string", &suffix, &output);
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).expect("Creating reader");
             let simple_string = reader
@@ -268,10 +267,7 @@ fn test_multipart_io() {
                 .expect("Writing string with escapes");
 
             let output = writer.done().expect("Finalizing data");
-            new_file("test-string-with-escapes", &suffix)
-                .unwrap()
-                .write_all(&output)
-                .unwrap();
+            write_file("test-string-with-escapes", &suffix, &output);
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
             let escapes_string = reader
@@ -301,10 +297,7 @@ fn test_multipart_io() {
                 .expect("Writing trivial tagged tuple");
 
             let output = writer.done().expect("Finalizing data");
-            new_file("test-simple-tagged-tuple", &suffix)
-                .unwrap()
-                .write_all(&output)
-                .unwrap();
+            write_file("test-simple-tagged-tuple", &suffix, &output);
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
             let (name, fields) = reader
@@ -343,10 +336,7 @@ fn test_multipart_io() {
             writer.list(vec![]).expect("Writing empty list");
 
             let output = writer.done().expect("Finalizing data");
-            new_file("test-empty-list", &suffix)
-                .unwrap()
-                .write_all(&output)
-                .unwrap();
+            write_file("test-empty-list", &suffix, &output);
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
             let len = reader.enter_list_at(&path).expect("Reading empty list");
@@ -367,10 +357,7 @@ fn test_multipart_io() {
                 .expect("Writing trivial list");
 
             let output = writer.done().expect("Finalizing data");
-            new_file("test-trivial-list", &suffix)
-                .unwrap()
-                .write_all(&output)
-                .unwrap();
+            write_file("test-trivial-list", &suffix, &output);
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
             let len = reader.enter_list_at(&path).expect("Reading trivial list");
@@ -403,10 +390,7 @@ fn test_multipart_io() {
             writer.list(vec![list]).expect("Writing outer list");
 
             let output = writer.done().expect("Finalizing data");
-            new_file("test-nested-lists", &suffix)
-                .unwrap()
-                .write_all(&output)
-                .unwrap();
+            write_file("test-nested-lists", &suffix, &output);
 
             let mut reader = TreeTokenReader::new(Cursor::new(&output)).unwrap();
             let len = reader.enter_list_at(&path).expect("Reading outer list");

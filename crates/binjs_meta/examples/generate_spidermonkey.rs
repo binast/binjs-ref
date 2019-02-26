@@ -20,8 +20,7 @@ use binjs_meta::spec::*;
 use binjs_meta::util::{Reindentable, ToCases, ToStr};
 
 use std::collections::{HashMap, HashSet};
-use std::fs::*;
-use std::io::{Read, Write};
+use std::fs;
 
 use clap::{App, Arg};
 
@@ -1604,10 +1603,7 @@ fn main() {
         .value_of("INPUT.webidl")
         .expect("Expected INPUT.webidl");
 
-    let mut file = File::open(source_path).expect("Could not open source");
-    let mut source = String::new();
-    file.read_to_string(&mut source)
-        .expect("Could not read source");
+    let source = fs::read_to_string(source_path).expect("Could not read source");
 
     println!("...importing webidl");
     let mut builder =
@@ -1629,10 +1625,7 @@ fn main() {
 
     let rules_source_path = matches.value_of("INPUT.yaml").unwrap();
     println!("...generating rules");
-    let mut file = File::open(rules_source_path).expect("Could not open rules");
-    let mut data = String::new();
-    file.read_to_string(&mut data)
-        .expect("Could not read rules");
+    let data = fs::read_to_string(rules_source_path).expect("Could not read rules");
 
     let yaml = yaml_rust::YamlLoader::load_from_str(&data).expect("Could not parse rules");
     assert_eq!(yaml.len(), 1);
@@ -1640,22 +1633,14 @@ fn main() {
     let global_rules = GlobalRules::new(&new_syntax, &yaml[0]);
     let exporter = CPPExporter::new(new_syntax, global_rules);
 
-    let write_to = |description, arg, data: &String| {
+    let write_to = |description, arg, data: &str| {
         let dest_path = matches.value_of(arg).unwrap();
         println!(
             "...exporting {description}: {path}",
             description = description,
             path = dest_path
         );
-        let mut dest = File::create(&dest_path).unwrap_or_else(|e| {
-            panic!(
-                "Could not create {description} at {path}: {error}",
-                description = description,
-                path = dest_path,
-                error = e
-            )
-        });
-        dest.write_all(data.as_bytes()).unwrap_or_else(|e| {
+        fs::write(&dest_path, data).unwrap_or_else(|e| {
             panic!(
                 "Could not write {description} at {path}: {error}",
                 description = description,

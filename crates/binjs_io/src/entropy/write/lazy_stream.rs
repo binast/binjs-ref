@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::fs;
 use std::io::Write;
 
 /// Highest Brotli compression level.
@@ -67,12 +68,11 @@ impl LazyStream {
         if let Some(mut path) = self.dump_path.take() {
             {
                 let dir = path.parent().unwrap();
-                std::fs::DirBuilder::new().recursive(true).create(dir)?;
+                fs::DirBuilder::new().recursive(true).create(dir)?;
             }
 
             // Prepare the file for raw dumping.
-            let mut raw = std::fs::File::create(&path)?;
-            raw.write_all(&self.buffer)?;
+            fs::write(&path, &self.buffer)?;
 
             // Prepare the file for brotli-compressed dumping.
             // Create a double-extension ".foo.bro".
@@ -85,8 +85,7 @@ impl LazyStream {
                 }
             };
             path.set_extension(extension);
-            let mut brotli = std::fs::File::create(path)?;
-            brotli.write_all(&brotli_compressed)?;
+            fs::write(path, &brotli_compressed)?;
         }
 
         Ok(Some(brotli_compressed))

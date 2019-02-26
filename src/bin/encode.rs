@@ -10,7 +10,7 @@ use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::Walker;
 use binjs::specialized::es6::io::Encoder;
 
-use std::fs::*;
+use std::fs;
 use std::io::*;
 use std::path::{Path, PathBuf};
 use std::thread;
@@ -23,14 +23,12 @@ fn export_section(
     extension: &str,
 ) {
     let path = dest_bin_path
-        .clone()
+        .as_ref()
         .expect("Cannot write partial file without a destination")
         .with_extension(extension);
-    let mut file = File::create(path.clone())
-        .unwrap_or_else(|e| panic!("Could not create destination file {:?}: {:?}", path, e));
     let (data, _) = target.done().expect("Could not finalize compression");
-    file.write(data.as_ref())
-        .expect("Could not write destination file");
+    fs::write(&path, data.as_ref())
+        .unwrap_or_else(|e| panic!("Could not write destination file {:?}: {:?}", path, e));
     target.reset();
 }
 
@@ -64,13 +62,13 @@ struct EncodeParams<'a> {
 
 fn handle_path<'a>(options: &mut Options<'a>, source_path: &Path, sub_dir: &Path) {
     progress!(options.quiet, "Treating {:?} ({:?})", source_path, sub_dir);
-    let is_dir = std::fs::metadata(source_path).unwrap().is_dir();
+    let is_dir = fs::metadata(source_path).unwrap().is_dir();
     if is_dir {
         let file_name = source_path
             .file_name()
             .unwrap_or_else(|| panic!("Invalid source path {:?}", source_path));
         let sub_dir = sub_dir.join(file_name);
-        for entry in std::fs::read_dir(source_path)
+        for entry in fs::read_dir(source_path)
             .expect("Could not open directory")
             .map(|dir| dir.unwrap())
         {
@@ -91,7 +89,7 @@ fn handle_path<'a>(options: &mut Options<'a>, source_path: &Path, sub_dir: &Path
                 .file_stem()
                 .expect("Could not extract file name");
 
-            std::fs::create_dir_all(d.join(sub_dir))
+            fs::create_dir_all(d.join(sub_dir))
                 .expect("Could not find or create destination directory");
 
             let mut bin_path = d.join(sub_dir);
@@ -128,9 +126,7 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
     let (source_path, source_len, json) = match params.source {
         Source::FromFile { path } => (
             Some(path),
-            std::fs::metadata(path)
-                .expect("Could not open source")
-                .len(),
+            fs::metadata(path).expect("Could not open source").len(),
             options
                 .parser
                 .parse_file(path)
@@ -188,11 +184,8 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
 
     if let Some(ref bin_path) = dest_bin_path {
         progress!(options.quiet, "Writing binary file.");
-        let mut dest = File::create(bin_path).unwrap_or_else(|e| {
-            panic!("Could not create destination file {:?}: {:?}", bin_path, e)
-        });
-        dest.write((*data).as_ref())
-            .expect("Could not write destination file");
+        fs::write(bin_path, data.as_ref())
+            .unwrap_or_else(|e| panic!("Could not write destination file {:?}: {:?}", bin_path, e));
     } else {
         stdout()
             .write((*data).as_ref())
@@ -209,7 +202,7 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
         } else {
             progress!(options.quiet, "Copying source file.");
 
-            std::fs::copy(source_path.unwrap(), txt_path).expect("Could not copy source file");
+            fs::copy(source_path.unwrap(), txt_path).expect("Could not copy source file");
         }
     }
 

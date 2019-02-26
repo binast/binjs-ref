@@ -5,6 +5,7 @@ extern crate tempdir;
 
 use tempdir::TempDir;
 
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -50,11 +51,11 @@ fn perform_roundtrip(root: &Path, prefix: &str, source: &str, dictionary: Option
     let path_in_encoded_2 = root.join("encoded_2").join("sample.binjs");
     let path_decoded = root.join("decoded.js");
 
-    let mut dir_builder = std::fs::DirBuilder::new();
+    let mut dir_builder = fs::DirBuilder::new();
     dir_builder.recursive(true).create(root).unwrap();
 
     // Copy source file to `path_tmp_source`, to normalize file name.
-    std::fs::copy(&path_in_source, &path_tmp_source).unwrap();
+    fs::copy(&path_in_source, &path_tmp_source).unwrap();
 
     debug!(target: "test", "Encoding to encoded_1/sample.binjs");
     let mut command_1 = Command::new("target/debug/binjs_encode");
@@ -81,7 +82,7 @@ fn perform_roundtrip(root: &Path, prefix: &str, source: &str, dictionary: Option
     run(command_2).unwrap();
 
     // Copy again to `path_tmp_source`, to normalize file name.
-    std::fs::copy(&path_decoded, &path_tmp_source).unwrap();
+    fs::copy(&path_decoded, &path_tmp_source).unwrap();
 
     debug!(target: "test", "Re-encoding to encoded_2/sample.binjs");
     let mut command_3 = Command::new("target/debug/binjs_encode");
@@ -97,9 +98,9 @@ fn perform_roundtrip(root: &Path, prefix: &str, source: &str, dictionary: Option
     run(command_3).unwrap();
 
     debug!(target: "test", "Comparing the two decoded files");
-    let encoded_1 = std::fs::read(&path_in_encoded_1)
+    let encoded_1 = fs::read(&path_in_encoded_1)
         .unwrap_or_else(|e| panic!("Could not open file {:?}: {:?}", path_in_encoded_1, e));
-    let encoded_2 = std::fs::read(&path_in_encoded_2)
+    let encoded_2 = fs::read(&path_in_encoded_2)
         .unwrap_or_else(|e| panic!("Could not open file {:?}: {:?}", path_in_encoded_2, e));
     // First check for distinct lengths, it's a simple error to spot.
     assert_eq!(

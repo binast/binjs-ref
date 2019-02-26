@@ -8,7 +8,7 @@ use binjs::generic::ToJSON;
 use binjs::source::Shift;
 use binjs::specialized::es6::io::Decoder;
 
-use std::fs::*;
+use std::fs::{self, File};
 use std::io::*;
 use std::thread;
 
@@ -127,9 +127,7 @@ fn main_aux() {
     progress!(quiet, "Writing.");
     match options.dest_path {
         Some(path) => {
-            let mut dest = File::create(path).expect("Could not create destination file");
-            dest.write(source.as_bytes())
-                .expect("Could not write destination file");
+            fs::write(path, source).expect("Could not write destination file");
         }
         None => {
             stdout()

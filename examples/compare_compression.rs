@@ -17,7 +17,7 @@ use clap::*;
 use itertools::Itertools;
 
 use std::collections::HashMap;
-use std::io::Write;
+use std::fs;
 use std::process::Command;
 
 #[derive(Add, AddAssign, Clone, Default)]
@@ -140,13 +140,7 @@ fn main() {
                 .encode(None, &mut format, &ast)
                 .expect("Could not encode");
 
-            {
-                let mut binjs_encoded = std::fs::File::create(&dest_path_binjs)
-                    .expect("Could not create binjs-encoded file");
-                binjs_encoded
-                    .write_all((*data).as_ref())
-                    .expect("Could not write binjs-encoded file");
-            }
+            fs::write(&dest_path_binjs, data.as_ref()).expect("Could not write binjs-encoded file");
 
             let from_binjs = get_compressed_sizes(&std::path::Path::new(dest_path_binjs));
 
