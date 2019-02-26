@@ -59,7 +59,6 @@ def gzip_compressed_size(inp):
       [gz_bin, '-c', '-9', '-'],
       stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
     out, err = proc.communicate(inp.read())
-    print("gzip length is " + str(len(out)))
     return len(out)
 
 # Returns a JS file's Brotli-compressed + BinAST-encoded size
@@ -89,7 +88,9 @@ def print_sizes(args):
     futures = [executor.submit(measure, f, dictionary, use_gzip) for f in input_files]
     results = map(lambda f: f.result(),
                   concurrent.futures.as_completed(futures))
-    print('filename,size,compressed,binast,ratio')
+    print('filename,size,' + \
+      ('gzip' if use_gzip else 'br') + \
+      ',binast,ratio')
     for filename, size, br_size, binast_size in results:
       print('{},{},{},{},{:.3f}'.format(
         filename,
@@ -118,7 +119,9 @@ def aging(args):
       for filename in glob.iglob(d, recursive=True):
         futures.append(executor.submit(aging_measure, d, filename, dictionary, use_gzip))
     dir_sizes = {}
-    print('dir,filename,size,compressed,binast,ratio')
+    print('dir,filename,size,' + \
+      ('gzip' if use_gzip else 'br') + \
+      ',binast,ratio')
     for d, g in itertools.groupby(map(lambda f: f.result(), futures),
                                   key=lambda r: r[0]):
       dir_size = {
@@ -133,7 +136,9 @@ def aging(args):
         dir_size['brotli'] += brotli
         dir_size['binast'] += binast
     print(8 * '-', 'Totals', 8 * '-')
-    print('dir,size,compressed,binast,ratio')
+    print('dir,size,' + \
+      ('gzip' if use_gzip else 'br') + \
+      ',binast,ratio')
     for d, sizes in dir_sizes.items():
       print('{0},{size},{brotli},{binast},'.format(d, **sizes) +
         '{:.3f}'.format(sizes['binast']/sizes['brotli']))
