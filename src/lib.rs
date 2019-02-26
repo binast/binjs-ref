@@ -28,7 +28,6 @@ extern crate binjs_shared;
 extern crate json;
 #[macro_use]
 extern crate log;
-extern crate rand;
 extern crate which;
 
 #[cfg(test)]

@@ -24,13 +24,13 @@ env_logger = "^0.6"
 itertools = "^0.7"
 json = "^0.11"
 log = "^0.4"
-rand = "^0.6"
 which = "^2.0"
 
 [dev-dependencies]
 bencher = "^0.1"
 glob = "^0.2"
 lazy_static = "^1.2"
+rand = "^0.6"
 tempdir = "^0.3"
 test-logger = { version = "^0.1", git = "https://github.com/RReverser/test-logger" }
 yaml-rust = "^0.4"
