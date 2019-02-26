@@ -195,6 +195,7 @@ impl Importer {
         // Set to `Some("Foo")` if this interface has attribute
         // `[ExtendsTypeSum=Foo]`.
         let mut extends_type_sum = None;
+        let mut scoped_dictionary = None;
         {
             let mut node = self
                 .builder
@@ -226,8 +227,22 @@ impl Importer {
                         assert!(extends_type_sum.is_none());
                         extends_type_sum = Some(rhs.0);
                     }
+                    Ident(ExtendedAttributeIdent {
+                        lhs_identifier: Identifier("ScopedDictionary"),
+                        assign: _,
+                        rhs: IdentifierOrString::Identifier(ref rhs),
+                    }) => {
+                        assert!(scoped_dictionary.is_none());
+                        scoped_dictionary = Some(rhs.0);
+                    }
                     _ => panic!("Unknown attribute {:?}", attribute),
                 }
+            }
+
+            // If the node contains an attribute `[ScopedDictionary=field]`,
+            // mark the node as inserting a scoped dictionary with this field.
+            if let Some(ref field_name) = scoped_dictionary {
+                node.with_scoped_dictionary_str(field_name);
             }
         }
 

@@ -1016,7 +1016,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                                 TypeSpec::Boolean => "bool".to_string(),
                                 TypeSpec::Number => "f64".to_string(),
                                 TypeSpec::UnsignedLong => "u32".to_string(),
-                                TypeSpec::String => "String".to_string(),
+                                TypeSpec::String => "binjs_shared::SharedString".to_string(),
                                 TypeSpec::Void => "()".to_string(),
                                 TypeSpec::Offset => "Offset".to_string(),
                                 _ => TypeName::type_(field.type_()),
@@ -1042,6 +1042,7 @@ impl binjs_shared::Node for {rust_name} {{
     fn name(&self) -> &'static str {{
         \"{rust_name}\"
     }}
+{dictionary}
 }}
 ",
                     fields = field_specs
@@ -1051,11 +1052,30 @@ impl binjs_shared::Node for {rust_name} {{
     pub {rust_name}: {contents}",
                             rust_name = field_name.to_rust_identifier_case(),
                             spec_name = field_name.to_str(),
-                            contents = spec
+                            contents =
+                                // String is both the name of a DOM type and that of a Rust type.
+                                // Intercept them and ensure that we always use SharedString.
+                                if spec.as_str() == "String" {
+                                    "binjs_shared::SharedString"
+                                } else {
+                                    spec.as_str()
+                                }
                         ))
                         .format(",\n"),
                     rust_name = rust_name,
-                    spec_name = name
+                    spec_name = name,
+                    dictionary = if let Some(field_name) = interface.scoped_dictionary() {
+                        format!(
+                            "
+    fn scoped_dictionary(&self) -> Option<&SharedString> {{
+        Some(&self.{})
+    }}
+",
+                            field_name.to_rust_identifier_case()
+                        )
+                    } else {
+                        "".to_string()
+                    }
                 );
 
                 let from_reader = format!("

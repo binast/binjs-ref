@@ -586,9 +586,23 @@ pub struct InterfaceDeclaration {
     contents: Obj,
 
     is_scope: bool,
+
+    /// If Some(name), this interface introduces a scoped dictionary, i.e. a new
+    /// dictionary that is designed to be used when encoding/decoding its child
+    /// nodes.
+    scoped_dictionary: Option<FieldName>,
 }
 
 impl InterfaceDeclaration {
+    /// A list of the fields in the interface.
+    pub fn fields<'a>(&'a self) -> &'a [Field] {
+        self.contents.fields()
+    }
+    /// Fetch a specific field in the structure
+    pub fn field<'a>(&'a self, name: &FieldName) -> Option<&'a Field> {
+        self.contents.field(name)
+    }
+
     pub fn with_full_field(&mut self, contents: Field) -> &mut Self {
         let _ = self.contents.with_full_field(contents);
         self
@@ -624,6 +638,21 @@ impl InterfaceDeclaration {
     }
     pub fn with_scope(&mut self, value: bool) -> &mut Self {
         self.is_scope = value;
+        self
+    }
+    pub fn with_scoped_dictionary(&mut self, field_name: &FieldName) -> &mut Self {
+        self.with_scoped_dictionary_str(field_name.to_str())
+    }
+    pub fn with_scoped_dictionary_str(&mut self, field_name: &str) -> &mut Self {
+        let field_name = {
+            self.fields()
+                .into_iter()
+                .map(|field| field.name())
+                .find(|candidate| candidate.to_str() == field_name)
+                .expect("Attempting to set a scoped dictionary with a non-existent field name")
+                .clone()
+        };
+        self.scoped_dictionary = Some(field_name);
         self
     }
 }
@@ -697,6 +726,7 @@ impl SpecBuilder {
             name: name.clone(),
             contents: Obj::new(),
             is_scope: false,
+            scoped_dictionary: None,
         });
         self.interfaces_by_name.insert(name.clone(), result);
         self.interfaces_by_name.get(name).map(RefCell::borrow_mut)
@@ -1053,6 +1083,14 @@ impl Interface {
 
     pub fn is_scope(&self) -> bool {
         self.declaration.is_scope
+    }
+
+    /// If this interface introduces a scoped dictionary change,
+    /// return Some(field_name) where field_name is
+    /// the field of this interface containing the name of
+    /// the dictionary to use in the sub-ast.
+    pub fn scoped_dictionary(&self) -> Option<FieldName> {
+        self.declaration.scoped_dictionary.clone()
     }
 }
 

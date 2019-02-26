@@ -2,7 +2,7 @@
 //
 // These extensions are not part of the AST spec, but of the compression mechanism.
 
-[ExtendsTypeSum=Expression]
+[ExtendsTypeSum=Expression, ScopedDictionary=table]
 // An extension to `Expression` used to locally change probability tables.
 //
 // Instances of `BinASTExpressionWithProbabilityTable` are designed to
