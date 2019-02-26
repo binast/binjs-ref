@@ -17,7 +17,7 @@ use binjs::specialized::es6::ast::Walker;
 use binjs::specialized::es6::io::Encoder;
 
 use clap::*;
-use std::io::Write;
+use std::fs;
 
 fn main() {
     env_logger::init();
@@ -120,26 +120,15 @@ Note that this tool does not attempt to make sure that the files are entirely co
             i += 1;
 
             println!("Generated sample {}/{}", i, number);
-            {
-                let mut source_file = std::fs::File::create(format!("{}-{}.js", prefix, i))
-                    .expect("Could not create js file");
-                source_file
-                    .write_all(source.as_bytes())
-                    .expect("Could not write js file");
-            }
+            fs::write(format!("{}-{}.js", prefix, i), source).expect("Could not write js file");
 
             let encoder = Encoder::new();
             let encoded = encoder
                 .encode(None, &mut format, &ast)
                 .expect("Could not encode AST");
 
-            {
-                let mut encoded_file = std::fs::File::create(format!("{}-{}.binjs", prefix, i))
-                    .expect("Could not create binjs file");
-                encoded_file
-                    .write_all(encoded.as_ref().as_ref())
-                    .expect("Could not write binjs file");
-            }
+            fs::write(format!("{}-{}.binjs", prefix, i), encoded.as_ref())
+                .expect("Could not write binjs file");
         } else {
             println!("...could not pretty print this sample");
             continue;

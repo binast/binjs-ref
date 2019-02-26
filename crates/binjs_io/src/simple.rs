@@ -560,15 +560,19 @@ fn test_simple_io() {
     use binjs_shared::ast::Path;
     use binjs_shared::{FieldName, InterfaceName, SharedString};
     use io::TokenWriterWithTree;
-    use std::fs::*;
+    use std::fs;
 
-    use std::io::{Cursor, Write};
+    use std::io::Cursor;
 
     let path = Path::new();
 
     let dir = tempdir::TempDir::new("test_multipart_io").unwrap();
     let root = dir.path();
-    let new_file = |prefix: &str| File::create(root.join(prefix));
+    let write_file = |prefix: &str, contents: &[u8]| {
+        let path = root.join(prefix);
+        fs::write(&path, contents)
+            .unwrap_or_else(|e| panic!("Could not write file {:?}: {:?}", path, e));
+    };
 
     eprintln!("Testing string I/O");
 
@@ -579,10 +583,7 @@ fn test_simple_io() {
             .expect("Writing simple string");
 
         let data = writer.data().unwrap();
-        new_file("test-simple-string")
-            .unwrap()
-            .write_all(data)
-            .unwrap();
+        write_file("test-simple-string", data);
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
         let simple_string = reader
@@ -600,10 +601,7 @@ fn test_simple_io() {
             .expect("Writing string with escapes");
 
         let result = writer.data().unwrap();
-        new_file("test-string-with-escapes")
-            .unwrap()
-            .write_all(result)
-            .unwrap();
+        write_file("test-string-with-escapes", result);
 
         let mut reader = TreeTokenReader::new(Cursor::new(result));
         let escapes_string = reader
@@ -622,10 +620,7 @@ fn test_simple_io() {
             .expect("Writing empty untagged tuple");
 
         let data = writer.data().unwrap();
-        new_file("test-empty-untagged-tuple")
-            .unwrap()
-            .write_all(data)
-            .unwrap();
+        write_file("test-empty-untagged-tuple", data);
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
         reader
@@ -646,10 +641,7 @@ fn test_simple_io() {
             .expect("Writing trivial untagged tuple");
 
         let data = writer.data().unwrap();
-        new_file("test-trivial-untagged-tuple")
-            .unwrap()
-            .write_all(data)
-            .unwrap();
+        write_file("test-trivial-untagged-tuple", data);
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
         reader
@@ -688,10 +680,7 @@ fn test_simple_io() {
             .expect("Writing trivial tagged tuple");
 
         let data = writer.data().unwrap();
-        new_file("test-simple-tagged-tuple")
-            .unwrap()
-            .write_all(data)
-            .unwrap();
+        write_file("test-simple-tagged-tuple", data);
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
         let (name, fields) = reader
@@ -726,10 +715,7 @@ fn test_simple_io() {
         writer.list(vec![]).expect("Writing empty list");
 
         let data = writer.data().unwrap();
-        new_file("test-empty-list")
-            .unwrap()
-            .write_all(data)
-            .unwrap();
+        write_file("test-empty-list", data);
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
         let len = reader.enter_list_at(&path).expect("Reading empty list");
@@ -749,10 +735,7 @@ fn test_simple_io() {
             .expect("Writing trivial list");
 
         let data = writer.data().unwrap();
-        new_file("test-trivial-list")
-            .unwrap()
-            .write_all(data)
-            .unwrap();
+        write_file("test-trivial-list", data);
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
         let len = reader.enter_list_at(&path).expect("Reading trivial list");
@@ -784,10 +767,7 @@ fn test_simple_io() {
         writer.list(vec![list]).expect("Writing outer list");
 
         let data = writer.data().unwrap();
-        new_file("test-nested-lists")
-            .unwrap()
-            .write_all(data)
-            .unwrap();
+        write_file("test-nested-lists", data);
 
         let mut reader = TreeTokenReader::new(Cursor::new(data));
         let len = reader.enter_list_at(&path).expect("Reading outer list");

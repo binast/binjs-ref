@@ -12,7 +12,7 @@ use binjs::io::{Path as IOPath, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::Walker;
 
-use std::fs::*;
+use std::fs::{self, File};
 use std::path::Path;
 use std::thread;
 
@@ -40,13 +40,13 @@ fn handle_path<'a>(
     sub_dir: &Path,
 ) {
     progress!(options.quiet, "Treating {:?} ({:?})", source_path, sub_dir);
-    let is_dir = std::fs::metadata(source_path).unwrap().is_dir();
+    let is_dir = fs::metadata(source_path).unwrap().is_dir();
     if is_dir {
         let file_name = source_path
             .file_name()
             .unwrap_or_else(|| panic!("Invalid source path {:?}", source_path));
         let sub_dir = sub_dir.join(file_name);
-        for entry in std::fs::read_dir(source_path)
+        for entry in fs::read_dir(source_path)
             .expect("Could not open directory")
             .map(|dir| dir.unwrap())
         {
@@ -237,7 +237,7 @@ fn main_aux() {
     // FIXME: Remove strings that appear in a single file.
 
     // Write dictionaries.
-    DirBuilder::new()
+    fs::DirBuilder::new()
         .recursive(true)
         .create(dest)
         .expect("Could not create directory");

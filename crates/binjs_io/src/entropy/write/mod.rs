@@ -15,6 +15,7 @@ use binjs_shared::{
     FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString, F64,
 };
 
+use std::fs;
 use std::io::Write;
 
 #[allow(unused_imports)] // We keep enabling/disabling this.
@@ -435,15 +436,12 @@ impl TokenWriter for Encoder {
         let entropy = self.writer.done().map_err(TokenWriterError::WriteError)?;
 
         if let Some(path) = self.dump_path {
-            std::fs::DirBuilder::new()
+            fs::DirBuilder::new()
                 .recursive(true)
                 .create(path.parent().unwrap())
                 .map_err(TokenWriterError::WriteError)?;
 
-            let mut file = std::fs::File::create(path).map_err(TokenWriterError::WriteError)?;
-            file.write_all(&entropy)
-                .map_err(TokenWriterError::WriteError)?;
-            file.flush().map_err(TokenWriterError::WriteError)?;
+            fs::write(path, &entropy).map_err(TokenWriterError::WriteError)?;
         }
 
         data.write_all(&entropy)

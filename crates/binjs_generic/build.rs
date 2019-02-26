@@ -6,8 +6,7 @@ use binjs_meta::import::Importer;
 use binjs_meta::spec::SpecOptions;
 
 use std::env;
-use std::fs::*;
-use std::io::*;
+use std::fs;
 
 /// The webidl source files.
 ///
@@ -25,7 +24,7 @@ fn main() {
     let sources: Vec<_> = PATH_SOURCES
         .iter()
         .map(|path| {
-            read_to_string(path)
+            fs::read_to_string(path)
                 .unwrap_or_else(|e| panic!("Could not open grammar file {}: {}", path, e))
         })
         .collect();
@@ -47,9 +46,7 @@ fn main() {
     // Export generic source.
     let dest_dir = env::var("OUT_DIR").expect("OUT_DIR is not set");
     let dest_name = format!("{}/es6.rs", dest_dir);
-    let mut dest = File::create(dest_name).expect("Could not create rust generic source output");
-    dest.write_all(code.generic.as_bytes())
-        .expect("Could not write rust generic source output");
+    fs::write(dest_name, code.generic).expect("Could not write rust generic source output");
 
     println!("...done");
 }

@@ -7,7 +7,7 @@ extern crate env_logger;
 use binjs::io::Deserialization;
 use binjs::io::FileStructurePrinter;
 
-use std::fs::*;
+use std::fs::File;
 use std::io::*;
 
 use clap::*;
