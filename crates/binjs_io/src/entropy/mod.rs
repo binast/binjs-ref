@@ -198,6 +198,15 @@ impl Options {
             ),
         }
     }
+
+    /// Configure the `split-streams` option.
+    ///
+    /// If `value == true`, dump the individual streams for forensics purposes,
+    /// otherwise don't.
+    pub fn with_split_streams(&mut self, value: bool) -> &mut Self {
+        self.split_streams = value;
+        self
+    }
 }
 
 /// Command-line management.
