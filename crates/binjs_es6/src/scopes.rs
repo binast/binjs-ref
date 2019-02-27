@@ -1157,19 +1157,36 @@ impl Visitor<()> for AnnotationVisitor {
         path: &WalkPath,
         node: &mut EagerFunctionDeclaration,
     ) -> Result<Option<EagerFunctionDeclaration>, ()> {
-        debug!(target: "annotating", "exit_eager_function_declaration {:?} at {:?}", node.name.name, path);
+        debug!(target: "annotating",
+               "exit_eager_function_declaration {:?} at {:?}",
+               node.name.name, path);
 
         // If a name declaration was specified, remove it from `unknown`.
         let name = node.name.name.clone();
 
         // Var scope is already committed in exit_function_or_method_contents.
-        // The function's name is not actually bound in the function; the outer var binding is used.
-        // Anything we do from this point affects the scope outside the function.
-
-        // 1. If the declaration is at the toplevel, the name is declared as a `var`.
-        // 2. If the declaration is in a function's toplevel block, the name is declared as a `var`.
-        // 3. Otherwise, the name is declared as a `let`.
-        debug!(target: "annotating", "exit_eager_function_declaration sees {:?} at {:?}", node.name.name, path.get(0));
+        // The function's name is not actually bound in the function;
+        // the outer var binding is used.
+        // Anything we do from this point affects the scope outside the
+        // function.
+        //
+        // 1. If the declaration is at the toplevel, the name is declared as
+        //    a `var`.
+        // 2. If the declaration is in a function's toplevel block, the name
+        //    is declared as a `var`.
+        // 3. If the declaration is in then or else clause of if statement
+        //    without block:
+        //      a. If this is strict-mode, this is syntax error
+        //      b. If this is non-strict-mode, this is treated as a
+        //         function declaration inside a block
+        //    See Annex B.3.4 for more details.
+        //    This should be handled before entering scope analysis, and
+        //    either an error should be thrown, or a block statement should be
+        //    added.
+        // 4. Otherwise, the name is declared as a `let`.
+        debug!(target: "annotating",
+               "exit_eager_function_declaration sees {:?} at {:?}",
+               node.name.name, path.get(0));
         match path.get(0).expect("Impossible AST walk") {
             &WalkPathItem {
                 field: ASTField::Statements,
@@ -1211,8 +1228,19 @@ impl Visitor<()> for AnnotationVisitor {
                 debug!(target: "annotating", "exit_eager_function_declaration says it's a var (case 2)");
                 self.var_names_stack.last_mut().unwrap().insert(name);
             }
-            _ => {
+            &WalkPathItem {
+                field: ASTField::Consequent,
+                interface: ASTNode::IfStatement,
+            } |
+            &WalkPathItem {
+                field: ASTField::Alternate,
+                interface: ASTNode::IfStatement,
+            } => {
                 // Case 3.
+                panic!("function declaration shouldn't appear in consequent/alternate of if statement");
+            }
+            _ => {
+                // Case 4.
                 debug!(target: "annotating", "exit_eager_function_declaration says it's a non const lexical (case 3)");
                 self.non_const_lexical_names_stack
                     .last_mut()

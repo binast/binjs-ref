@@ -172,7 +172,7 @@ impl SourceParser for Shift {
 
     fn parse_str(&self, data: &str) -> Result<JSON, Error> {
         let mut ast = self.parse_str.transform(&data.into())?;
-        FromShift.convert(&mut ast);
+        FromShift.convert(&mut ast)?;
         Ok(ast)
     }
 
@@ -185,7 +185,7 @@ impl SourceParser for Shift {
 
         // A script to parse a source file, write it to stdout as JSON.
         let mut ast = self.parse_file.transform(&path.into())?;
-        FromShift.convert(&mut ast);
+        FromShift.convert(&mut ast)?;
         Ok(ast)
     }
 }
@@ -210,22 +210,23 @@ struct ParameterScopeAndFunctionLength {
 /// A data structure designed to convert from Shift AST to BinJS AST.
 struct FromShift;
 impl FromShift {
-    fn convert(&self, value: &mut JSON) {
+    fn convert(&self, value: &mut JSON) -> Result<(), Error> {
         use json::JsonValue::*;
         match *value {
             Array(ref mut array) => {
                 for value in array {
-                    self.convert(value);
+                    self.convert(value)?;
                 }
             }
             Object(ref mut object) => {
                 for (_, value) in object.iter_mut() {
-                    self.convert(value);
+                    self.convert(value)?;
                 }
-                self.convert_object(object)
+                self.convert_object(object)?
             }
             _ => {}
         }
+        Ok(())
     }
 
     fn make_eager(&self, object: &mut json::object::Object) {
@@ -366,7 +367,7 @@ impl FromShift {
         self.make_eager(object);
     }
 
-    fn convert_object(&self, object: &mut json::object::Object) {
+    fn convert_object(&self, object: &mut json::object::Object) -> Result<(), Error> {
         // By alphabetical order
         match object["type"].as_str() {
             Some("Block") => {
@@ -485,8 +486,39 @@ impl FromShift {
             Some("IdentifierExpression") => {
                 debug!(target: "Shift", "FromShift IdentifierExpression {:?}", object);
             }
+            Some("IfStatement") => {
+                // Function declaration cannot appear in consequent/alternate
+                // of if-statement, in strict-mode.
+                // Check it and throw error here, given Shift doesn't detect.
+                //
+                // FIXME: In non-strict mode, B.3.4 allows it and it
+                //        synthesizes a block statement.
+                if let Some(consequent) = object.get("consequent") {
+                    match consequent["type"].as_str() {
+                        Some("EagerFunctionDeclaration")
+                        | Some("LazyFunctionDeclaration") => {
+                            return Err(Error::ParsingError(
+                                "function declaration cannot appear in `then` clause of if statement".to_string()
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+                if let Some(alternate) = object.get("alternate") {
+                    match alternate["type"].as_str() {
+                        Some("EagerFunctionDeclaration")
+                        | Some("LazyFunctionDeclaration") => {
+                            return Err(Error::ParsingError(
+                                "function declaration cannot appear in `else` clause of if statement".to_string()
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
             _ => { /* No change */ }
         }
+        Ok(())
     }
 }
 
