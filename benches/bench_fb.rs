@@ -4,18 +4,13 @@
 extern crate bencher;
 extern crate binjs;
 
-extern crate glob;
-extern crate itertools;
 #[macro_use]
 extern crate lazy_static;
 
 use binjs::generic::*;
 use binjs::source::*;
 
-use itertools::Itertools;
-
-const PATHS: [&'static str; 1] = ["benches/test.js"];
-const NUMBER_OF_SAMPLES: usize = 3;
+const PATHS: &[&str] = &["tests/data/frameworks/angular.1.6.5.min.js"];
 
 fn launch_shift() -> Shift {
     Shift::try_new().expect("Could not launch Shift")
@@ -34,14 +29,7 @@ fn bench_parsing_reuse_parser(bencher: &mut bencher::Bencher) {
 }
 
 fn bench_parsing_aux(parser: Option<&Shift>, bencher: &mut bencher::Bencher) {
-    let entries = PATHS
-        .iter()
-        .map(|path_suffix| format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path_suffix))
-        .flat_map(|path| glob::glob(&path).expect("Invalid path"))
-        .map(|entry| entry.expect("Invalid entry"))
-        .sorted();
-    let paths: Vec<_> = entries.into_iter().take(NUMBER_OF_SAMPLES).collect();
-    for path in &paths {
+    for &path in PATHS {
         bencher.iter(move || {
             let shift;
 
