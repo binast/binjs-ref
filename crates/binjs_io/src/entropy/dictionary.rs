@@ -116,15 +116,14 @@ macro_rules! increment_instance_count {
 
 /// Result of a fetch operation in a LinearTable.
 #[derive(Clone, Copy, Debug)]
-pub enum Fetch {
-    /// The value was already in the cache at the given index.
-    Hit(TableRef),
+pub enum Fetch<T> {
+    /// The value was already in the cache.
+    Hit(T),
 
-    /// The value was not in the cache. A slot has been allocated at the given index,
-    /// but the definition still needs to be added.
-    Miss(TableRef),
+    /// The value was not in the cache.
+    Miss(T),
 }
-impl Fetch {
+impl<T> Fetch<T> {
     /// Return `true` if this result represents a hit.
     pub fn is_hit(&self) -> bool {
         match *self {
@@ -133,16 +132,17 @@ impl Fetch {
         }
     }
 
-    pub fn table_ref(&self) -> TableRef {
+    /// Return the slot represented by this fetch.
+    pub fn slot(&self) -> &T {
         match *self {
-            Fetch::Hit(result) => result,
-            Fetch::Miss(result) => result,
+            Fetch::Hit(ref result) => result,
+            Fetch::Miss(ref result) => result,
         }
     }
 }
 
 /// An index in an LinearTable.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum TableRef {
     /// The index represents a value in a shared dictionary.
     Shared(usize),
@@ -151,11 +151,10 @@ pub enum TableRef {
     Prelude(usize),
 }
 impl TableRef {
-    /// Return the `usize` carried by this `TableRef`.
-    fn raw(&self) -> usize {
+    pub fn as_shared(&self) -> Option<usize> {
         match *self {
-            TableRef::Shared(raw) => raw,
-            TableRef::Prelude(raw) => raw,
+            TableRef::Shared(result) => Some(result),
+            _ => None,
         }
     }
 }
@@ -250,14 +249,17 @@ where
     /// If the value is already in the cache, return `Fetch::Hit(index)`, where `index` is the
     /// immutable index of the value. Otherwise, allocate a new slot `index` and return
     /// `Fetch::Miss(index)`.
-    pub fn fetch_index(&mut self, value: &T) -> Fetch {
+    ///
+    /// In both `Fetch::Hit(index)` and `Fetch::Miss(index)`, `0` is the first value, `1` the second
+    /// value, etc.
+    pub fn fetch_index(&mut self, value: &T) -> Fetch<TableRef> {
         use std::collections::hash_map::Entry::*;
         debug!(target: "dictionary", "Dictionary: 'I'm looking for {:?} in {:?}", value, self);
-        let len = self.values.len();
+        let index = self.values.len() - self.shared_len;
         let result = match self.refs_by_value.entry(value.clone()) {
             Occupied(slot) => return Fetch::Hit(*slot.get()),
             Vacant(slot) => {
-                let result = TableRef::Prelude(len);
+                let result = TableRef::Prelude(index);
                 slot.insert(result.clone());
                 result
             }
@@ -268,6 +270,7 @@ where
 
     /// Create a copy of the current LinearTable with an added prelude dictionary.
     pub fn with_prelude<'a>(&self, prelude: &'a [T]) -> Result<Self, &'a T> {
+        debug!(target: "dictionary", "LinearTable with {} shared, {} prelude", self.shared_len(), prelude.len());
         let mut clone = self.clone();
         for item in prelude {
             if clone.fetch_index(item).is_hit() {
@@ -279,8 +282,11 @@ where
     }
 
     /// Access the contents of this table by index.
-    pub fn at_index(&self, index: &TableRef) -> Option<&T> {
-        let index = index.raw();
+    pub fn at_index(&self, table_ref: &TableRef) -> Option<&T> {
+        let index = match *table_ref {
+            TableRef::Shared(raw) => raw,
+            TableRef::Prelude(raw) => raw + self.shared_len,
+        };
         self.values.get(index)
     }
 }

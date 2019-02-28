@@ -312,13 +312,17 @@ impl Encoder {
     /// where `compressed_bytes` starts with a varnum indicating the LRU window len.
     ///
     /// If `maybe_path` is specified, flush to a subdirectory of the path.
-    fn flush_indices(
+    fn flush_indices<T>(
         maybe_path: &Option<std::path::PathBuf>,
         name: &str,
         vec: &[TableRef],
         window_len: usize,
+        table: &LinearTable<T>,
         out: &mut Vec<u8>,
-    ) -> std::io::Result<Bytes> {
+    ) -> std::io::Result<Bytes>
+    where
+        T: std::hash::Hash + Eq + Clone + std::fmt::Debug,
+    {
         debug!(target: "write", "Encoder::flush_indices {}, {} instances", name, vec.len());
         if vec.len() == 0 {
             // Nothing to write.
@@ -346,7 +350,8 @@ impl Encoder {
         // Write (and possibly dump) data.
         // In the current implementation, we just ignore any information other than the index.
 
-        let mut state = TableRefStreamState::<()>::new(window_len);
+        debug!(target: "write", "Flushing identifiers {:?} ({} shared, {} prelude)", table, table.shared_len(), table.prelude_len());
+        let mut state = TableRefStreamState::new(window_len, table);
         for table_ref in vec {
             let varnum = state.into_u32(*table_ref);
             lazy_stream.write_varnum(varnum as u32)?;
@@ -415,17 +420,23 @@ impl TokenWriter for Encoder {
         } else {
             &None
         };
-        for (name, indices) in self.content_streams.iter().sorted_by_key(|kv| kv.0) {
-            let window_len = self.options.content_window_len.get(name).unwrap();
-            let len = Self::flush_indices(path_for_flush, name, indices, *window_len, &mut data)
-                .map_err(TokenWriterError::WriteError)?;
-            *self
-                .options
-                .content_lengths
-                .borrow_mut()
-                .get_mut(&name)
-                .unwrap() += Into::<Bytes>::into(len);
-        }
+
+        // For each content stream, fetch the `content_window_len` option,
+        // and flush the indices.
+        macro_rules! write_indices_with_window_len { ($(($ident: ident, $name: expr, $bname: expr )),*) => {
+            $(
+                let indices = &self.content_streams.$ident;
+                let window_len = self.options.content_window_len.$ident;
+                let len = Self::flush_indices(path_for_flush, $name, indices, window_len, &self.$ident, &mut data)
+                    .map_err(TokenWriterError::WriteError)?;
+                self
+                    .options
+                    .content_lengths
+                    .borrow_mut()
+                    .$ident += Into::<Bytes>::into(len);
+            )*
+        } };
+        for_field_in_user_extensible!(write_indices_with_window_len);
 
         // Write main stream of entropy-compressed data.
         data.write_all(SECTION_MAIN)
