@@ -147,7 +147,7 @@ test!(test_entropy_roundtrip, {
             "Starting roundtrip with user-extensible values that do not show up in the dictionary"
         );
         let out_of_dictionary = [
-            "var z = y",
+            "var z = x + y;",
             "'use asm';",
             "function not_in_the_dictionary() {}",
             "function foo() { if (Math.E != 4) console.log(\"That's also normal.\"); }",
@@ -173,11 +173,12 @@ where
     S: SourceParser,
 {
     println!("Parsing with dictionary: {}", source);
-    let ast = parser.parse_str(source).expect("Could not parse source");
-    let mut ast = binjs::specialized::es6::ast::Script::import(&ast).expect("Could not import AST");
+    let reference = parser.parse_str(source).expect("Could not parse source");
+    let mut reference =
+        binjs::specialized::es6::ast::Script::import(&reference).expect("Could not import AST");
 
     println!("Reannotating");
-    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
+    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut reference);
 
     let mut path = IOPath::new();
 
@@ -185,16 +186,16 @@ where
     let encoder = entropy::write::Encoder::new(None, options.clone());
     let mut serializer = binjs::specialized::es6::io::Serializer::new(encoder);
     serializer
-        .serialize(&ast, &mut path)
+        .serialize(&reference, &mut path)
         .expect("Could not walk");
     let data = serializer.done().expect("Could not walk");
     assert_eq!(path.len(), 0);
 
     println!("Deserializing {} bytes with entropy", data.len());
-    let decoder = entropy::read::Decoder::new(&options, std::io::Cursor::new(data))
+    let decoder = entropy::read::Decoder::new(&options.clone(), std::io::Cursor::new(data))
         .expect("Could not create decoder");
     let mut deserializer = binjs::specialized::es6::io::Deserializer::new(decoder);
-    let mut script: Script = deserializer
+    let mut extracted: Script = deserializer
         .deserialize(&mut path)
         .expect("Could not deserialize");
 
@@ -202,10 +203,10 @@ where
     println!("{}", source);
     // At this stage, we have a problem: offsets are 0 in `ast`, but not necessarily
     // in `decoded`.
-    script
+    extracted
         .walk(&mut WalkPath::new(), &mut OffsetCleanerVisitor)
         .expect("Could not cleanup offsets");
-    assert_eq!(ast, script);
+    assert_eq!(extracted, reference);
 }
 
 fn check_strings<T, F>(found: &HashMap<T, FilesContaining>, expected: Vec<(&str, usize)>, f: F)
@@ -264,11 +265,12 @@ test!(test_linear_table, {
     // Generate an arbitrary list of indices.
     let indices = requests
         .iter()
-        .map(|i| linear_table.fetch_index(&i).table_ref())
+        .map(|i| *linear_table.fetch_index(&i).slot())
         .collect_vec();
 
     for window_len in 0..10 {
-        let mut serializer: TableRefStreamState<usize> = TableRefStreamState::new(window_len);
+        let mut serializer: TableRefStreamState<usize> =
+            TableRefStreamState::new(window_len, &linear_table);
         let serialized = indices
             .iter()
             .map(|index| serializer.into_u32(*index))
@@ -276,10 +278,11 @@ test!(test_linear_table, {
 
         eprintln!("Serialized: {:?}", serialized);
 
-        let mut deserializer: TableRefStreamState<usize> = TableRefStreamState::new(window_len);
+        let mut deserializer: TableRefStreamState<usize> =
+            TableRefStreamState::new(window_len, &linear_table);
         let deserialized = serialized
             .iter()
-            .map(|as_u32| deserializer.from_u32(*as_u32, &linear_table).unwrap())
+            .map(|as_u32| deserializer.from_u32(*as_u32).unwrap())
             .collect_vec();
 
         assert_eq!(
