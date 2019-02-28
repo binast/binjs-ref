@@ -64,7 +64,7 @@ name = "binjs_generate_prediction_tables"
 path = "src/bin/generate_dictionary.rs"
 
 [[bench]]
-name = "bench_fb"
+name = "bench"
 harness = false
 
 [workspace]
