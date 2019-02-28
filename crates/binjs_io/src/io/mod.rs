@@ -19,6 +19,7 @@ mod deprecated;
 pub use self::deprecated::{TokenWriterTreeAdapter, TokenWriterWithTree};
 
 /// Utilities to collect statistics about the data written.
+#[macro_use]
 pub mod statistics;
 
 /// An API for printing the binary representation and its structural
