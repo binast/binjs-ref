@@ -171,9 +171,7 @@ impl SourceParser for Shift {
     type Error = Error;
 
     fn parse_str(&self, data: &str) -> Result<JSON, Error> {
-        let mut ast = self.parse_str.transform(&data.into())?;
-        FromShift.convert(&mut ast);
-        Ok(ast)
+        self.parse_str.transform(&data.into())
     }
 
     /// Parse a text source file, using Shift.
@@ -184,9 +182,7 @@ impl SourceParser for Shift {
             .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?;
 
         // A script to parse a source file, write it to stdout as JSON.
-        let mut ast = self.parse_file.transform(&path.into())?;
-        FromShift.convert(&mut ast);
-        Ok(ast)
+        self.parse_file.transform(&path.into())
     }
 }
 
@@ -195,299 +191,10 @@ enum FunctionKind {
     FunctionDeclaration,
     Method,
     FunctionExpression,
-    ArrowExpression,
     ArrowExpressionWithFunctionBody,
     ArrowExpressionWithExpression,
     Getter,
     Setter,
-}
-
-struct ParameterScopeAndFunctionLength {
-    scope: json::JsonValue,
-    length: usize,
-}
-
-/// A data structure designed to convert from Shift AST to BinJS AST.
-struct FromShift;
-impl FromShift {
-    fn convert(&self, value: &mut JSON) {
-        use json::JsonValue::*;
-        match *value {
-            Array(ref mut array) => {
-                for value in array {
-                    self.convert(value);
-                }
-            }
-            Object(ref mut object) => {
-                for (_, value) in object.iter_mut() {
-                    self.convert(value);
-                }
-                self.convert_object(object)
-            }
-            _ => {}
-        }
-    }
-
-    fn make_eager(&self, object: &mut json::object::Object) {
-        let kind = format!("Eager{}", object["type"].as_str().unwrap());
-        object.insert("type", json::from(kind));
-    }
-
-    fn dummy_declared_scope(&self, name: &str) -> json::JsonValue {
-        let mut scope = Object::new();
-        scope["type"] = json::from(name);
-        scope["declaredNames"] = array![];
-        scope["hasDirectEval"] = JSON::Boolean(false);
-        JSON::Object(scope)
-    }
-
-    fn parameter_scope_and_length<'a, I>(&self, params: I) -> ParameterScopeAndFunctionLength
-    where
-        I: IntoIterator<Item = &'a json::JsonValue>,
-    {
-        let mut scope = Object::new();
-        let mut length = 0;
-        scope["type"] = json::from("AssertedParameterScope");
-        scope["paramNames"] = array![];
-        scope["hasDirectEval"] = JSON::Boolean(false);
-
-        let mut is_simple_parameter_list = true;
-        for item in params {
-            match item["type"].as_str() {
-                Some("BindingIdentifier") => {
-                    length += 1;
-                }
-                Some("ObjectBinding") | Some("ArrayBinding") => {
-                    is_simple_parameter_list = false;
-                    length += 1;
-                }
-                _ => {
-                    is_simple_parameter_list = false;
-                    break;
-                }
-            }
-        }
-
-        scope["isSimpleParameterList"] = JSON::Boolean(is_simple_parameter_list);
-
-        ParameterScopeAndFunctionLength {
-            scope: JSON::Object(scope),
-            length,
-        }
-    }
-
-    fn dummy_bound_names_scope(&self) -> json::JsonValue {
-        let mut scope = Object::new();
-        scope["type"] = json::from("AssertedBoundNamesScope");
-        scope["boundNames"] = array![];
-        scope["hasDirectEval"] = JSON::Boolean(true);
-        JSON::Object(scope)
-    }
-
-    fn create_function_contents(&self, object: &mut json::object::Object, kind: FunctionKind) {
-        assert!(kind != FunctionKind::ArrowExpressionWithFunctionBody);
-        assert!(kind != FunctionKind::ArrowExpressionWithExpression);
-        if kind != FunctionKind::Getter && kind != FunctionKind::Setter {
-            // `isAsync` is not supported by the parser yet.
-            if let None = object.get("isAsync") {
-                object["isAsync"] = JSON::Boolean(false)
-            }
-        }
-
-        let directives = if object["body"].has_key("directives") {
-            object["body"].remove("directives")
-        } else {
-            json::JsonValue::new_array()
-        };
-
-        let is_expression_body;
-        let mut body = object.remove("body").unwrap();
-        match body["type"].as_str() {
-            Some("FunctionBody") => {
-                body = body.remove("statements");
-                is_expression_body = false;
-            }
-            _ => {
-                is_expression_body = true;
-            }
-        }
-
-        let mut contents = Object::new();
-        match kind {
-            FunctionKind::FunctionDeclaration | FunctionKind::Method => {
-                contents["type"] = json::from("FunctionOrMethodContents");
-                contents["isThisCaptured"] = JSON::Boolean(false);
-            }
-            FunctionKind::FunctionExpression => {
-                contents["type"] = json::from("FunctionExpressionContents");
-                contents["isFunctionNameCaptured"] = JSON::Boolean(false);
-                contents["isThisCaptured"] = JSON::Boolean(false);
-            }
-            FunctionKind::ArrowExpression => {
-                if is_expression_body {
-                    object["type"] = json::from("ArrowExpressionWithExpression");
-                    contents["type"] = json::from("ArrowExpressionContentsWithExpression");
-                } else {
-                    object["type"] = json::from("ArrowExpressionWithFunctionBody");
-                    contents["type"] = json::from("ArrowExpressionContentsWithFunctionBody");
-                }
-            }
-            FunctionKind::Getter => {
-                contents["type"] = json::from("GetterContents");
-                contents["isThisCaptured"] = JSON::Boolean(false);
-            }
-            FunctionKind::Setter => {
-                contents["type"] = json::from("SetterContents");
-                contents["isThisCaptured"] = JSON::Boolean(false);
-            }
-            _ => {
-                panic!("unexpected FunctionKind");
-            }
-        }
-        if kind != FunctionKind::Getter {
-            if kind == FunctionKind::Setter {
-                contents["param"] = object.remove("param").unwrap();
-                let scope_and_length = self.parameter_scope_and_length(vec![&contents["param"]]);
-                contents["parameterScope"] = scope_and_length.scope;
-                object["length"] = json::from(scope_and_length.length);
-            } else {
-                contents["params"] = object.remove("params").unwrap();
-                assert!(contents["params"]["items"].is_array());
-                let scope_and_length =
-                    self.parameter_scope_and_length(contents["params"]["items"].members());
-                contents["parameterScope"] = scope_and_length.scope;
-                object["length"] = json::from(scope_and_length.length);
-            }
-        }
-        contents["bodyScope"] = self.dummy_declared_scope("AssertedVarScope");
-        contents["body"] = body;
-        object.insert("contents", JSON::Object(contents));
-        object.insert("directives", directives);
-        self.make_eager(object);
-    }
-
-    fn convert_object(&self, object: &mut json::object::Object) {
-        // By alphabetical order
-        match object["type"].as_str() {
-            Some("Block") => {
-                object.insert("scope", self.dummy_declared_scope("AssertedBlockScope"));
-            }
-            Some("BlockStatement") => {
-                // Rewrite
-                //
-                // BlockStatement {
-                //    block: Block {
-                //       ...foo
-                //    }
-                // }
-                //
-                // into
-                //
-                // Block {
-                //    ...foo
-                // }
-                let mut remove = match object.remove("block") {
-                    Some(JSON::Object(remove)) => remove,
-                    _ => panic!("No field `block` in a `BlockStatement`"),
-                };
-                std::mem::swap(object, &mut remove);
-                // At this stage
-                // - `remove` is the `BlockStatement`
-                // - `object` is the `Block`
-            }
-            Some("ForInStatement") | Some("ForOfStatement") => {
-                // In Shift, `left` is a `VariableDeclaration or AssignmentTarget`.
-                // In BinJS, `left` is a `ForInOfBinding or AssignmentTarget`.
-                if let Some("VariableDeclaration") = object["left"]["type"].as_str() {
-                    object["left"]["type"] = json::from("ForInOfBinding");
-                    let binding = object["left"]["declarators"][0].remove("binding");
-                    object["left"]["binding"] = binding;
-                    object["left"].remove("declarators");
-                }
-            }
-            Some("FunctionDeclaration") => {
-                self.create_function_contents(object, FunctionKind::FunctionDeclaration);
-            }
-            Some("Method") => {
-                self.create_function_contents(object, FunctionKind::Method);
-            }
-            Some("FunctionExpression") => {
-                self.create_function_contents(object, FunctionKind::FunctionExpression);
-            }
-            Some("ArrowExpression") => {
-                self.create_function_contents(object, FunctionKind::ArrowExpression);
-            }
-            Some("Getter") => {
-                self.create_function_contents(object, FunctionKind::Getter);
-            }
-            Some("Setter") => {
-                self.create_function_contents(object, FunctionKind::Setter);
-            }
-            Some("LabeledStatement") => {
-                // Rewrite type
-                object["type"] = json::from("LabelledStatement");
-            }
-            Some("LiteralRegExpExpression") => {
-                let mut flags = String::new();
-                if let JSON::Boolean(true) = object["global"] {
-                    flags.push('g');
-                }
-                if let JSON::Boolean(true) = object["ignoreCase"] {
-                    flags.push('i');
-                }
-                if let JSON::Boolean(true) = object["multiLine"] {
-                    flags.push('m');
-                }
-                if let JSON::Boolean(true) = object["sticky"] {
-                    flags.push('y');
-                }
-                if let JSON::Boolean(true) = object["unicode"] {
-                    flags.push('u');
-                }
-                object.insert("flags", json::from(flags));
-            }
-            Some("Script") => {
-                object.insert(
-                    "scope",
-                    self.dummy_declared_scope("AssertedScriptGlobalScope"),
-                );
-            }
-            Some("CatchClause") => {
-                object.insert("bindingScope", self.dummy_bound_names_scope());
-            }
-            Some("StaticPropertyName") => {
-                // Change type.
-                object["type"] = json::from("LiteralPropertyName");
-            }
-            Some("VariableDeclarationStatement") => {
-                // Rewrite
-                //
-                // VariableDeclarationStatement {
-                //    declaration: VariableDeclaration {
-                //       ...foo
-                //    }
-                // }
-                //
-                // into
-                //
-                // VariableDeclaration {
-                //    ...foo
-                // }
-                let mut remove = match object.remove("declaration") {
-                    Some(JSON::Object(remove)) => remove,
-                    _ => panic!("No field `declaration` in a `VariableDeclarationStatement`"),
-                };
-                std::mem::swap(object, &mut remove);
-                // At this stage
-                // - `remove` is the `VariableDeclarationStatement`
-                // - `object` is the `VariableDeclaration`
-            }
-            Some("IdentifierExpression") => {
-                debug!(target: "Shift", "FromShift IdentifierExpression {:?}", object);
-            }
-            _ => { /* No change */ }
-        }
-    }
 }
 
 /// A data structure designed to convert from BinJS AST to Shift AST.
@@ -772,7 +479,10 @@ fn test_shift_basic() {
         ]
     };
 
-    println!("Comparing\n{}\n{}", parsed.pretty(2), expected.pretty(2));
-
-    assert_eq!(parsed, expected);
+    assert!(
+        parsed == expected,
+        "{} != {}",
+        parsed.pretty(2),
+        expected.pretty(2)
+    );
 }
