@@ -9,20 +9,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// A macro used to simplify debugging.
-const DEBUG: bool = true;
-
 /// Utility: run a process, optionally displaying its stdout/stderr.
 fn run(mut command: std::process::Command) -> std::io::Result<()> {
-    let output = command.output()?;
-    if DEBUG || !output.status.success() {
-        debug!(target: "test", "Command: {command:?}\n** out:{out}\n** err:{err}",
-            command = command,
-            out =  String::from_utf8(output.stdout).unwrap_or_else(|_| "<cannot decode output>".to_string()),
-            err =  String::from_utf8(output.stderr).unwrap_or_else(|_| "<cannot decode output>".to_string())
-        );
-    }
-    assert!(output.status.success());
+    let status = command.status()?;
+    assert!(status.success());
     Ok(())
 }
 
