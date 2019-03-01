@@ -5,6 +5,7 @@ use binjs_meta::export::{TypeDeanonymizer, TypeName};
 use binjs_meta::spec::*;
 use binjs_meta::util::*;
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -1078,7 +1079,8 @@ impl binjs_shared::Node for {rust_name} {{
                     }
                 );
 
-                let from_reader = format!("
+                let from_reader =
+                    format!("
 impl<R> Deserializer<R> where R: TokenReader {{
     fn deserialize_tuple_{lowercase_name}(&mut self, path: &mut IOPath) -> Result<{rust_name}, TokenReaderError> where R: TokenReader {{
         let (interface_name, _) = self.reader.enter_tagged_tuple_at(path)?;
@@ -1110,6 +1112,7 @@ impl<R> InnerDeserialization<{rust_name}> for Deserializer<R> where R: TokenRead
         print_file_structure!(self.reader, \"{name} {{{{\");
 {fields_def}
         print_file_structure!(self.reader, \"}}}}\");
+{maybe_exit_scoped_dictionary}
         Ok({rust_name} {{
 {fields_use}
         }})
@@ -1169,19 +1172,45 @@ impl<R> Deserialization<Option<{rust_name}>> for Deserializer<R> where R: TokenR
         let data_{rust_field_name} = self.deserialize(path) as Result<{spec}, TokenReaderError>;
         path.exit_field(path_field);
         let data_{rust_field_name} = data_{rust_field_name}?;
+{maybe_enter_scoped_dictionary}
 ",
                             rust_field_name = field.name().to_rust_identifier_case(),
                             field_name = field.name().to_str(),
                             spec = field_specs_map.get(field.name()).unwrap(),
-                            index = index))
+                            index = index,
+                            maybe_enter_scoped_dictionary =
+                                loop { // Fake loop, to be able to break from any point.
+                                    if let Some(ref field_name) = interface.scoped_dictionary() {
+                                        if field_name == field.name() {
+                                            break Cow::from(format!(
+"
+        // Switch dictionary to read other children.
+        self.reader.enter_scoped_dictionary_at(&data_{rust_field_name}, path)?;",
+                                        rust_field_name = field.name().to_rust_identifier_case()))
+                                        }
+                                    }
+                                    break Cow::from("")
+                                }
+                            ))
                         .format("\n"),
                     fields_use = interface.contents()
                         .fields()
                         .iter()
                         .map(|field| format!("            {name}: data_{name},",
                             name = field.name().to_rust_identifier_case()))
-                        .format("\n")
+                        .format("\n"),
+                    maybe_exit_scoped_dictionary =
+                        if let Some(field_name) = interface.scoped_dictionary() {
+                            Cow::from(format!("
+        // Switch back to parent dictionary.
+        self.reader.exit_scoped_dictionary_at(&data_{rust_field_name}, path)?;
+",
+                                rust_field_name = field_name.to_rust_identifier_case()))
+                        } else {
+                            Cow::from("")
+                        }
                     );
+
                 let to_writer = format!("
 impl<W> Serialization<Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
@@ -1211,6 +1240,7 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
         }};
         path.exit_interface(interface_name.clone());
         result?;
+{maybe_exit_scoped_dictionary}
         self.writer.exit_tagged_tuple_at(value, &interface_name, &field_names, path)?;
 
         Ok(())
@@ -1240,11 +1270,37 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
             path.exit_field(path_item);
             if let Err(err) = result {{
                 break Err(err); // Break with error
-            }}",
+            }}
+{maybe_enter_scoped_dictionary}",
                                 index = index,
                                 field_name = field.name().to_str(),
-                                rust_field_name = field.name().to_rust_identifier_case()))
-                            .format("\n")
+                                rust_field_name = field.name().to_rust_identifier_case(),
+                            maybe_enter_scoped_dictionary =
+                                loop { // Fake loop, to be able to break from any point.
+                                    if let Some(ref field_name) = interface.scoped_dictionary() {
+                                        if field_name == field.name() {
+                                            break Cow::from(format!(
+"
+            // Switch dictionary to serialize other children of this node.
+            self.writer.enter_scoped_dictionary_at(&value.{rust_field_name}, path)?;
+",
+                                        rust_field_name = field.name().to_rust_identifier_case()))
+                                        }
+                                    }
+                                    break Cow::from("")
+                                }
+                            ))
+                            .format("\n"),
+                    maybe_exit_scoped_dictionary =
+                        if let Some(field_name) = interface.scoped_dictionary() {
+                            Cow::from(format!("
+        // All children have been serialized, switch back to parent dictionary.
+        self.writer.exit_scoped_dictionary_at(&value.{rust_field_name}, path)?;
+",
+                                rust_field_name = field_name.to_rust_identifier_case()))
+                        } else {
+                            Cow::from("")
+                        }
                     );
 
                 let from_json = format!(
