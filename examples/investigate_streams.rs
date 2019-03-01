@@ -27,8 +27,10 @@
 
 extern crate clap;
 extern crate glob;
+extern crate itertools;
 
 use clap::*;
+use itertools::Itertools;
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -144,8 +146,26 @@ fn main() {
                 .long("--compare-to-lzma")
                 .takes_value(false)
                 .help("If specified, compress files with lzma for comparison."),
+            Arg::with_name("rank-by")
+                .long("--rank-by")
+                .possible_values(&["alpha", "brotli"])
+                .default_value("alpha")
+                .help("Specify sorting order for individual streams"),
         ])
         .get_matches();
+
+    enum Ranking {
+        /// Sort by alphanumerical order.
+        Alpha,
+
+        /// Sort by compressed size.
+        BrotliCompressedSize,
+    };
+    let ranking = match matches.value_of("rank-by").unwrap() {
+        "alpha" => Ranking::Alpha,
+        "brotli" => Ranking::BrotliCompressedSize,
+        _ => panic!(),
+    };
 
     let root = matches.value_of("path").unwrap(); // Checked by clap.
     let glob = format!("{}/**/*", root); // Quick and dirty walk through subdirectories.
@@ -242,21 +262,23 @@ fn main() {
             lzma: "lzma (b)",
         },
     );
-    let print = |in_extension: BTreeMap<String, Compressions<u64>>| {
-        for (name, info) in in_extension {
-            print_column(&options, &name, &info);
-        }
-    };
 
     // Output `js` and `binjs` first.
-    if let Some(in_extension) = stats.remove("js") {
-        print(in_extension);
+    if let Some(mut in_extension) = stats.remove("js") {
+        print_column(&options, "js", &in_extension.remove("js").unwrap());
     }
-    if let Some(in_extension) = stats.remove("binjs") {
-        print(in_extension);
+    if let Some(mut in_extension) = stats.remove("binjs") {
+        print_column(&options, "binjs", &in_extension.remove("binjs").unwrap());
     }
-    // Output the rest by alphabetical order.
-    for (_, in_extension) in stats {
-        print(in_extension);
+    println!("");
+
+    // Output the rest by `ranking` order.
+    let all_values = stats.into_iter().flat_map(|(_, value)| value.into_iter());
+    let sorted = match ranking {
+        Ranking::Alpha => all_values.sorted(),
+        Ranking::BrotliCompressedSize => all_values.sorted_by_key(|x| x.1.brotli),
+    };
+    for (name, info) in sorted {
+        print_column(&options, &name, &info)
     }
 }
