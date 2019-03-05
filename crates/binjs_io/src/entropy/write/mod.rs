@@ -397,7 +397,7 @@ impl Encoder {
 }
 
 impl TokenWriter for Encoder {
-    type Data = Vec<u8>;
+    type Data = Box<[u8]>;
 
     fn done(self) -> Result<Self::Data, TokenWriterError> {
         let mut data: Vec<u8> = Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES);
@@ -465,7 +465,7 @@ impl TokenWriter for Encoder {
 
         // Update number of instances
         *self.options.content_instances.borrow_mut() += self.content_instances;
-        Ok(data)
+        Ok(data.into())
     }
 
     // --- Fixed set

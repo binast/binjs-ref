@@ -98,7 +98,7 @@ impl Encoder {
 }
 impl TokenWriterWithTree for Encoder {
     type Tree = Rc<SubTree>;
-    type Data = Vec<u8>;
+    type Data = Box<[u8]>;
 
     fn bool(&mut self, data: Option<bool>) -> Result<Self::Tree, TokenWriterError> {
         self.register(SubTree::Bool(data))
@@ -148,7 +148,7 @@ impl TokenWriterWithTree for Encoder {
                 .create_writer(&mut buf);
             self.root.write(&mut writer).unwrap();
         }
-        Ok(buf)
+        Ok(buf.into())
     }
 }
 

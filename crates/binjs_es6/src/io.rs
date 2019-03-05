@@ -396,7 +396,7 @@ impl Encoder {
         path: Option<&std::path::Path>,
         format: &mut binjs_io::Format,
         ast: &AST,
-    ) -> Result<Box<AsRef<[u8]>>, TokenWriterError>
+    ) -> Result<Box<[u8]>, TokenWriterError>
     where
         Serializer<TokenWriterTreeAdapter<binjs_io::simple::TreeTokenWriter>>: Serialization<AST>,
         Serializer<TokenWriterTreeAdapter<binjs_io::multipart::TreeTokenWriter>>:
@@ -411,8 +411,7 @@ impl Encoder {
                 let writer = binjs_io::simple::TreeTokenWriter::new();
                 let mut serializer = Serializer::new(TokenWriterTreeAdapter::new(writer));
                 serializer.serialize(ast, &mut io_path)?;
-                let data = serializer.done()?;
-                Ok(Box::new(data))
+                serializer.done()
             }
             binjs_io::Format::Multipart {
                 ref mut targets, ..
@@ -420,23 +419,20 @@ impl Encoder {
                 let writer = binjs_io::multipart::TreeTokenWriter::new(targets.clone());
                 let mut serializer = Serializer::new(TokenWriterTreeAdapter::new(writer));
                 serializer.serialize(ast, &mut io_path)?;
-                let data = serializer.done()?;
-                Ok(Box::new(data))
+                serializer.done()
             }
 
             binjs_io::Format::XML => {
                 let writer = binjs_io::xml::Encoder::new();
                 let mut serializer = Serializer::new(TokenWriterTreeAdapter::new(writer));
                 serializer.serialize(ast, &mut io_path)?;
-                let data = serializer.done()?;
-                Ok(Box::new(data))
+                serializer.done()
             }
             binjs_io::Format::JSON => {
                 let writer = binjs_io::binjs_json::write::TreeTokenWriter::new();
                 let mut serializer = Serializer::new(writer);
                 serializer.serialize(ast, &mut io_path)?;
-                let data = serializer.done()?;
-                Ok(Box::new(data))
+                serializer.done()
             }
             binjs_io::Format::Entropy { ref options } => {
                 // FIXME: Extract strings + frequency.
@@ -444,8 +440,7 @@ impl Encoder {
                 let writer = binjs_io::entropy::write::Encoder::new(path, (*options).clone());
                 let mut serializer = Serializer::new(writer);
                 serializer.serialize(ast, &mut io_path)?;
-                let data = serializer.done()?;
-                Ok(Box::new(data))
+                serializer.done()
             }
         }
     }
