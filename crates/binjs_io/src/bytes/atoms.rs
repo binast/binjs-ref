@@ -5,18 +5,8 @@ use std::io::{ Error, ErrorKind, Read, Write };
 
 use bytes::varnum::*;
 
-pub trait ToBytes {
-    fn to_bytes(&self) -> Vec<u8>;
-}
-
 pub trait FromBytes where Self: Sized {
     fn from_bytes(&[u8]) -> Result<Self, Error>;
-}
-
-impl ToBytes for String {
-    fn to_bytes(&self) -> Vec<u8> {
-        return self.bytes().collect();
-    }
 }
 
 impl FromBytes for String {
