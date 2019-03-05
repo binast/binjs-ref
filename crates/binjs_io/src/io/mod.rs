@@ -19,6 +19,7 @@ mod deprecated;
 pub use self::deprecated::{TokenWriterTreeAdapter, TokenWriterWithTree};
 
 /// Utilities to collect statistics about the data written.
+#[macro_use]
 pub mod statistics;
 
 /// An API for printing the binary representation and its structural
@@ -251,6 +252,34 @@ where
     fn exit_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
         Ok(())
     }
+
+    /// Signal that, from this point, reading is expected to use a specialized dictionary.
+    /// Use of the specialized dictionary will stop at `exit_scoped_dictionary_at`.
+    ///
+    /// This method is called during when visiting a node labelled `ScopedDictionary`,
+    /// once the dictionary name has been decoded.
+    ///
+    /// May be ignored by implementations of TokenReader that do not support dictionary switching.
+    fn enter_scoped_dictionary_at(
+        &mut self,
+        _name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenReaderError> {
+        Ok(())
+    }
+
+    /// Signal that, from this point, reading is expected to return to the previous  specialized dictionary.
+    ///
+    /// This method is called during when leaving a node labelled `ScopedDictionary`.
+    ///
+    /// May be ignored by implementations of TokenReader that do not support dictionary switching.
+    fn exit_scoped_dictionary_at(
+        &mut self,
+        _name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenReaderError> {
+        Ok(())
+    }
 }
 
 /// Build an in-memory representation of a BinTree.
@@ -348,6 +377,34 @@ pub trait TokenWriter {
     ) -> Result<(), TokenWriterError> {
         let string = value.map(IdentifierName::as_shared_string);
         self.string_at(string, path)
+    }
+
+    /// Signal that, from this point, writing is expected to use a specialized dictionary.
+    /// Use of the specialized dictionary will stop at `exit_scoped_dictionary_at`.
+    ///
+    /// This method is called during when visiting a node labelled `ScopedDictionary`,
+    /// once the dictionary name has been decoded.
+    ///
+    /// May be ignored by implementations of TokenWriter that do not support dictionary switching.
+    fn enter_scoped_dictionary_at(
+        &mut self,
+        _name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        Ok(())
+    }
+
+    /// Signal that, from this point, writing is expected to return to the previous  specialized dictionary.
+    ///
+    /// This method is called upon exiting a node labelled `ScopedDictionary`.
+    ///
+    /// May be ignored by implementations of TokenWriter that do not support dictionary switching.
+    fn exit_scoped_dictionary_at(
+        &mut self,
+        _name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        Ok(())
     }
 }
 

@@ -62,11 +62,12 @@ where
             }
             None => 0,
         };
+        let index_stream_state = TableRefStreamState::new(window_len, &indexed_dictionary);
         Ok(Self {
             indexed_dictionary,
             stream: maybe_stream,
             name,
-            index_stream_state: TableRefStreamState::new(window_len),
+            index_stream_state,
         })
     }
 }
@@ -98,10 +99,7 @@ where
                     Ok(result) => result,
                     Err(err) => return Some(Err(TokenReaderError::ReadError(err))),
                 };
-                let index = match self
-                    .index_stream_state
-                    .from_u32(as_u32, &self.indexed_dictionary)
-                {
+                let index = match self.index_stream_state.from_u32(as_u32) {
                     Some(index) => index,
                     None => {
                         return Some(Err(TokenReaderError::BadDictionaryIndex {
@@ -110,7 +108,6 @@ where
                         }));
                     }
                 };
-                debug!(target: "read", "DictionaryStreamDecoder::next {} index: {:?}", self.name, index);
                 let result = self.indexed_dictionary.at_index(&index).unwrap(); // We have checked just above that the `index` is correct.
                 Some(Ok(result.clone()))
             }
