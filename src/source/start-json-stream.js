@@ -12,16 +12,6 @@
 
 const split = require('split');
 
-// See crates/binjs_io/src/escaped_wtf8.rs
-function escapeWTF8(s) {
-    return s.replace(/[\u007F\uD800-\uDFFF]/gu, m => {
-        if (m == '\u007F') {
-            return '\u007F007F';
-        }
-        return '\u007F' + m.charCodeAt(0).toString(16);
-    });
-}
-
 /**
  * This API should be called with following options:
  * @param {object} opts
@@ -38,7 +28,7 @@ module.exports = ({ fromJSON, transform, toJSON }) =>
                         line = JSON.parse(line, fromJSON);
                         line = transform(line);
                         line = { type: 'Ok', value: line };
-                        line = escapeWTF8(JSON.stringify(line, toJSON));
+                        line = JSON.stringify(line, toJSON);
                     } catch (e) {
                         line = JSON.stringify({ type: 'Err', value: e.message });
                     }
