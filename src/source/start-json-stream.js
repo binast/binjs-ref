@@ -30,7 +30,7 @@ module.exports = ({ fromJSON, transform, toJSON }) =>
                         line = { type: 'Ok', value: line };
                         line = JSON.stringify(line, toJSON);
                     } catch (e) {
-                        line = { type: 'Err', value: e.message };
+                        line = JSON.stringify({ type: 'Err', value: e.message });
                     }
                     return line + '\n';
                 },
