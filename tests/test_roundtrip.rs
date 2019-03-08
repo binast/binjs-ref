@@ -22,9 +22,10 @@ use std::thread;
 /// a `CHANCES_TO_SKIP` probability of being skipped.
 const CHANCES_TO_SKIP: f64 = 0.9;
 
-const PATHS: [&'static str; 2] = [
+const PATHS: [&'static str; 3] = [
     "tests/data/facebook/single/**/*.js",
     "tests/data/frameworks/*.js",
+    "tests/data/misc/*.js",
 ];
 
 fn progress() {

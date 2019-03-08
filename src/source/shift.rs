@@ -12,6 +12,7 @@ use std::process::*;
 use std::sync::Mutex;
 
 use binjs_generic::syntax::{ASTError, MutASTVisitor, MutASTWalker, WalkPath};
+use binjs_io::escaped_wtf8;
 use binjs_meta::spec::{Interface, NodeName, Spec};
 
 use source::parser::SourceParser;
@@ -158,6 +159,7 @@ impl Shift {
             .transform(&ast)
             .and_then(|mut res| {
                 res.take_string()
+                    .map(escaped_wtf8::to_unicode_escape)
                     .ok_or_else(|| Error::JsonError(json::Error::wrong_type("string")))
             })
             .map_err(|err| {
