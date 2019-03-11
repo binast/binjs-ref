@@ -11,7 +11,6 @@ extern crate json;
 extern crate test_logger;
 
 use binjs::source::*;
-use binjs::util::JSONAs;
 use json::JsonValue as JSON;
 
 test!(test_annotations_scopes_1, {

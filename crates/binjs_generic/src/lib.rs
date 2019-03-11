@@ -2,7 +2,6 @@
 //! format.
 
 extern crate binjs_meta;
-extern crate binjs_shared;
 
 #[macro_use]
 extern crate json;
@@ -15,5 +14,4 @@ pub mod es6;
 pub mod pick;
 
 /// Walkers, comparisons.
-pub mod syntax;
 pub mod util;

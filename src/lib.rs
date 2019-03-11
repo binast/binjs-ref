@@ -66,6 +66,3 @@ pub mod meta {
 
 /// Parsing source JavaScript.
 pub mod source;
-
-/// Misc utilities.
-pub mod util;
