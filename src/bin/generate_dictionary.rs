@@ -6,7 +6,6 @@ extern crate bincode;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::generic::FromJSON;
 use binjs::io::entropy::dictionary::{DictionaryBuilder, Options as DictionaryOptions};
 use binjs::io::{Path as IOPath, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
@@ -78,13 +77,11 @@ fn handle_path_or_text<'a>(
     shared_number_of_files: &mut usize,
     source: &Path,
 ) {
-    let json = options
+    let mut ast = options
         .parser
         .parse_file(source)
         .expect("Could not parse source");
 
-    let mut ast =
-        binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
     binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
     if options.lazification > 0 {

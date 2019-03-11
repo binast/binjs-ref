@@ -4,7 +4,6 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::generic::FromJSON;
 use binjs::io::{CompressionTarget, Format};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::ast::Walker;
@@ -123,7 +122,7 @@ fn handle_path<'a>(options: &mut Options<'a>, source_path: &Path, sub_dir: &Path
 }
 
 fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
-    let (source_path, source_len, json) = match params.source {
+    let (source_path, source_len, mut ast) = match params.source {
         Source::FromFile { path } => (
             Some(path),
             fs::metadata(path).expect("Could not open source").len(),
@@ -144,8 +143,6 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
     let dest_bin_path = params.dest_bin_path;
     let dest_txt_path = params.dest_txt_path;
 
-    let mut ast =
-        binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
     binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
     if options.lazification > 0 {

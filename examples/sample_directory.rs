@@ -6,7 +6,6 @@ extern crate clap;
 extern crate rand;
 extern crate separator;
 
-use binjs::generic::FromJSON;
 use binjs::io::entropy::dictionary::{DictionaryBuilder, Options as DictionaryOptions};
 use binjs::io::entropy::write::Encoder;
 use binjs::io::entropy::Options;
@@ -176,17 +175,10 @@ fn main() {
             // Skip files that are too small.
             continue;
         }
-        let json = if let Ok(json) = parser.parse_file(&entry.default_path) {
-            json
-        } else {
-            // Could not parse source
-            continue;
-        };
-
-        let mut ast = if let Ok(ast) = binjs::specialized::es6::ast::Script::import(&json) {
+        let mut ast = if let Ok(ast) = parser.parse_file(&entry.default_path) {
             ast
         } else {
-            // Could not import AST.
+            // Could not parse source
             continue;
         };
 
@@ -220,17 +212,10 @@ fn main() {
             continue;
         }
 
-        let json = if let Ok(json) = parser.parse_file(&entry.default_path) {
-            json
-        } else {
-            // Could not parse source
-            continue;
-        };
-
-        let mut ast = if let Ok(ast) = binjs::specialized::es6::ast::Script::import(&json) {
+        let mut ast = if let Ok(ast) = parser.parse_file(&entry.default_path) {
             ast
         } else {
-            // Could not import AST.
+            // Could not parse source
             continue;
         };
 
