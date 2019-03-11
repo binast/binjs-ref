@@ -31,6 +31,7 @@ bencher = "^0.1"
 glob = "^0.2"
 lazy_static = "^1.2"
 rand = "^0.6"
+separator = "^0.4"
 tempdir = "^0.3"
 test-logger = { version = "^0.1", git = "https://github.com/RReverser/test-logger" }
 yaml-rust = "^0.4"
