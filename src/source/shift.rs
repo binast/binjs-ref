@@ -179,56 +179,33 @@ fn test_shift_basic() {
     use env_logger;
     env_logger::init();
 
+    use binjs_es6::ast::*;
+    use binjs_shared::IdentifierName;
+
     let shift = Shift::try_new().expect("Could not launch Shift");
 
     let parsed = shift
         .parse_str("function foo() {}")
         .expect("Error in parse_str");
 
-    let expected = ScriptAST::import(&object! {
-        "type" => "Script",
-        "directives" => array![],
-        "scope" => object!{
-            "type" => "AssertedScriptGlobalScope",
-            "declaredNames" => array![],
-            "hasDirectEval" => false,
-        },
-        "statements" => array![
-            object!{
-                "type" => "EagerFunctionDeclaration",
-                "isGenerator" => false,
-                "isAsync" => false,
-                "length" => 0,
-                "name" => object!{
-                    "type" => "BindingIdentifier",
-                    "name" => "foo"
+    let expected = Script {
+        statements: vec![Statement::EagerFunctionDeclaration(Box::new(
+            EagerFunctionDeclaration {
+                name: BindingIdentifier {
+                    name: IdentifierName::from_str("foo"),
                 },
-                "directives" => array![],
-                "contents" => object!{
-                    "type" => "FunctionOrMethodContents",
-                    "isThisCaptured" => false,
-                    "parameterScope" => object!{
-                        "type" => "AssertedParameterScope",
-                        "paramNames" => array![],
-                        "hasDirectEval" => false,
-                        "isSimpleParameterList" => true,
+                contents: FunctionOrMethodContents {
+                    parameter_scope: AssertedParameterScope {
+                        is_simple_parameter_list: true,
+                        ..Default::default()
                     },
-                    "params" => object!{
-                        "type" => "FormalParameters",
-                        "items" => array![],
-                        "rest" => json::Null,
-                    },
-                    "bodyScope" => object!{
-                        "type" => "AssertedVarScope",
-                        "declaredNames" => array![],
-                        "hasDirectEval" => false,
-                    },
-                    "body" => array![],
-                }
-            }
-        ]
-    })
-    .unwrap();
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ))],
+        ..Default::default()
+    };
 
     assert!(parsed == expected, "{:#?} != {:#?}", parsed, expected);
 }
