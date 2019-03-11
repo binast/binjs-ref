@@ -10,10 +10,10 @@ const NONE_FLOAT_REPR: u64 = 0x7FF0000000000001;
 const VARNUM_PREFIX_FLOAT: [u8; 2] = VARNUM_INVALID_ZERO_1;
 const VARNUM_NULL: [u8; 3] = VARNUM_INVALID_ZERO_2;
 
-pub fn varbytes_of_float(value: Option<f64>) -> Vec<u8> {
+pub fn varbytes_of_float(value: Option<f64>) -> Box<[u8]> {
     let mut buf = Vec::with_capacity(4);
     buf.write_maybe_varfloat(value).unwrap(); // The write cannot fail on a Vec<>
-    buf
+    buf.into()
 }
 
 /// Encode a f64 | null, little-endian

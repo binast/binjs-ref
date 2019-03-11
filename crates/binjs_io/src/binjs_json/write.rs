@@ -72,7 +72,7 @@ impl TreeTokenWriter {
 }
 
 impl TokenWriter for TreeTokenWriter {
-    type Data = Vec<u8>;
+    type Data = Box<[u8]>;
 
     fn done(mut self) -> Result<Self::Data, TokenWriterError> {
         match self.contexts.pop() {
@@ -81,7 +81,7 @@ impl TokenWriter for TreeTokenWriter {
                     .pop()
                     .expect("There should be only one item at the top level");
                 let source = json::stringify_pretty(top_level_item, 2);
-                let result = escaped_wtf8::to_unicode_escape(source).as_bytes().to_vec();
+                let result = escaped_wtf8::to_unicode_escape(source).into_bytes().into();
                 Ok(result)
             }
             _ => {

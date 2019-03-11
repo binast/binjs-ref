@@ -38,6 +38,7 @@ pub enum TokenWriterError {
     InvalidOffsetField,
     NotInDictionary(String),
     WriteError(std::io::Error),
+    DictionarySwitchingError(SharedString),
 }
 
 #[derive(Debug)]
@@ -77,6 +78,7 @@ pub enum TokenReaderError {
     EmptyNumber,
     BadEnumVariant,
     GenericError(String),
+    DictionarySwitchingError(SharedString),
 }
 impl TokenReaderError {
     pub fn invalid_value<T: std::fmt::Debug>(value: &T) -> Self {

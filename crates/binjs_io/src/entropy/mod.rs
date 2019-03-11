@@ -64,10 +64,12 @@ pub mod write;
 mod predict;
 pub mod probabilities;
 
-use self::dictionary::Dictionary;
+use self::dictionary::{Dictionary, DictionaryFamily};
 use self::probabilities::SymbolInfo;
 
 use io::statistics::{Bytes, BytesAndInstances, Instances, PerUserExtensibleKind};
+
+use binjs_shared::SharedString;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -123,10 +125,12 @@ const_with_str! {
 
 #[derive(Clone)]
 pub struct Options {
-    /// The (shared) AST probability tables, generally shipped separately
-    /// from the compressed files and used to predict the probability
-    /// of a symbol occurring at a specific position in the AST.
-    probability_tables: Dictionary<SymbolInfo>,
+    /// A family of dictionaries used to encode/decode an AST.
+    /// By convention
+    /// - key `""` maps to the starting dictionary;
+    /// - key `"*"` maps to the fallback dictionary, in which
+    ///   all probabilities are equal.
+    dictionaries: DictionaryFamily<SymbolInfo>,
 
     /// Statistics obtained while writing: number of bytes written.
     /// If several files are written with the same options, we accumulate
@@ -147,15 +151,31 @@ pub struct Options {
     split_streams: bool,
 }
 impl Options {
-    pub fn new(spec: &binjs_meta::spec::Spec, dictionary: Option<Dictionary<Instances>>) -> Self {
+    /// Create a fresh `Options` to encode/decode in a given grammar spec with
+    /// a family of dictionaries.
+    ///
+    /// If `dictionaries` is empty, a default dictionary is insertred.
+    pub fn new(
+        spec: &binjs_meta::spec::Spec,
+        mut dictionaries: DictionaryFamily<Instances>,
+    ) -> Self {
         use entropy::probabilities::InstancesToProbabilities;
+
+        // Introduce the fallback dictionary.
         let baseline = baseline::build(spec);
-        let probability_tables = match dictionary {
-            None => baseline,
-            Some(dictionary) => dictionary.with_grammar_fallback(baseline),
-        };
+        for dictionary in dictionaries.values_mut() {
+            *dictionary = dictionary.with_grammar_fallback(baseline.clone());
+        }
+        assert!(
+            !dictionaries.insert_baseline(baseline),
+            "The dictionary family MUST start without a definition for dictionary `*`"
+        );
+        let mut dictionaries = dictionaries.instances_to_probabilities("dictionary");
+        dictionaries
+            .enter_existing(&SharedString::from_str(""))
+            .unwrap(); // We just created this dictionary with the call to `insert_baseline`.
         Options {
-            probability_tables: probability_tables.instances_to_probabilities("dictionary"),
+            dictionaries,
             content_lengths: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
             content_instances: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
             split_streams: false,
@@ -289,14 +309,14 @@ impl ::FormatProvider for FormatProvider {
 
         let matches = matches.unwrap();
 
-        let dictionary = match matches.value_of("dictionary") {
-            None => None,
+        let dictionaries = match matches.value_of("dictionary") {
+            None => DictionaryFamily::new(),
             Some(path) => {
                 // Load a dictionary from disk.
                 let source = std::fs::File::open(&path).expect("Could not open dictionary");
-                let surface_dictionary: Dictionary<Instances> =
+                let surface_dictionary: DictionaryFamily<Instances> =
                     bincode::deserialize_from(source).expect("Could not decode dictionary");
-                Some(surface_dictionary)
+                surface_dictionary
             }
         };
 
@@ -322,7 +342,7 @@ impl ::FormatProvider for FormatProvider {
                 content_instances: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
                 split_streams,
                 content_window_len,
-                ..Options::new(spec, dictionary)
+                ..Options::new(spec, dictionaries)
             },
         })
     }

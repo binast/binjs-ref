@@ -22,6 +22,7 @@
 //! but experiments do not indicate any advantage to doing so, except perhaps faster
 //! initialization.
 
+use entropy::dictionary;
 use entropy::Dictionary;
 use io::statistics::Instances;
 
@@ -73,7 +74,7 @@ impl<'a> BaselineDictionaryBuilder<'a> {
         BaselineDictionaryBuilder {
             spec,
             null_name,
-            dictionary: Dictionary::new(/* depth */ 1, /* width */ 0),
+            dictionary: Dictionary::new(dictionary::Options::default().with_depth(1).with_width(0)),
         }
     }
 

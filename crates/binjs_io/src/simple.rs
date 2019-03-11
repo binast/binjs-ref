@@ -295,7 +295,7 @@ pub struct TreeTokenWriter {
 impl TreeTokenWriter {
     pub fn new() -> Self {
         TreeTokenWriter {
-            root: Rc::new(TreeItem::Bytes(Vec::new())),
+            root: Rc::new(TreeItem::Bytes(Box::default())),
         }
     }
     pub fn data(&self) -> Option<&[u8]> {
@@ -306,22 +306,15 @@ impl TreeTokenWriter {
     }
 
     fn register(&mut self, data: Vec<u8>) -> AbstractTree {
-        let result = Rc::new(TreeItem::Bytes(data));
+        let result = Rc::new(TreeItem::Bytes(data.into()));
         self.root = result.clone();
         AbstractTree(result)
     }
 }
 
-pub struct Data(pub Rc<Vec<u8>>);
-impl AsRef<[u8]> for Data {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref().as_ref()
-    }
-}
-
 #[derive(Clone)]
 enum TreeItem {
-    Bytes(Vec<u8>),
+    Bytes(Box<[u8]>),
     Offset,
 }
 
@@ -378,7 +371,7 @@ impl TreeTokenWriter {
 }
 impl TokenWriterWithTree for TreeTokenWriter {
     type Tree = AbstractTree;
-    type Data = Vec<u8>;
+    type Data = Box<[u8]>;
 
     fn done(self) -> Result<Self::Data, TokenWriterError> {
         let unwrapped = Rc::try_unwrap(self.root).unwrap_or_else(|e| {
@@ -516,7 +509,7 @@ impl TokenWriterWithTree for TreeTokenWriter {
         prefix.extend_from_str("</head>");
 
         let mut untagged = Vec::new();
-        untagged.push(AbstractTree(Rc::new(TreeItem::Bytes(prefix))));
+        untagged.push(AbstractTree(Rc::new(TreeItem::Bytes(prefix.into()))));
         for &(_, ref child) in children.iter() {
             untagged.push(child.clone())
         }
