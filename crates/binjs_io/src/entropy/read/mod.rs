@@ -184,7 +184,8 @@ impl Decoder {
         // it wouldn't be too hard to keep a single copy in memory
         let stream_floats = DictionaryStreamDecoder::try_new(
             options
-                .probability_tables
+                .dictionaries
+                .current()
                 .floats()
                 .with_prelude(&prelude_floats)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
@@ -193,7 +194,8 @@ impl Decoder {
         )?;
         let stream_unsigned_longs = DictionaryStreamDecoder::try_new(
             options
-                .probability_tables
+                .dictionaries
+                .current()
                 .unsigned_longs()
                 .with_prelude(&prelude_unsigned_longs)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
@@ -202,7 +204,8 @@ impl Decoder {
         )?;
         let stream_property_keys = DictionaryStreamDecoder::try_new(
             options
-                .probability_tables
+                .dictionaries
+                .current()
                 .property_keys()
                 .with_prelude(&prelude_property_keys)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
@@ -211,7 +214,8 @@ impl Decoder {
         )?;
         let stream_identifier_names = DictionaryStreamDecoder::try_new(
             options
-                .probability_tables
+                .dictionaries
+                .current()
                 .identifier_names()
                 .with_prelude(&prelude_identifier_names)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
@@ -220,7 +224,8 @@ impl Decoder {
         )?;
         let stream_string_literals = DictionaryStreamDecoder::try_new(
             options
-                .probability_tables
+                .dictionaries
+                .current()
                 .string_literals()
                 .with_prelude(&prelude_string_literals)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
@@ -229,7 +234,8 @@ impl Decoder {
         )?;
         let stream_list_lengths = DictionaryStreamDecoder::try_new(
             options
-                .probability_tables
+                .dictionaries
+                .current()
                 .list_lengths()
                 .with_prelude(&prelude_list_lengths)
                 .map_err(|v| TokenReaderError::DuplicateInDictionary(format!("{:?}", v)))?,
@@ -314,7 +320,7 @@ macro_rules! main_stream {
         use std::ops::DerefMut;
         let path = $path.borrow();
 
-        let table = $me.options.probability_tables.$table();
+        let table = $me.options.dictionaries.current().$table();
         let index = {
             // 1. Get the frequency information for this path.
             let frequencies = table.frequencies_at(path).ok_or_else(|| {
@@ -409,6 +415,27 @@ impl TokenReader for Decoder {
             .ok_or_else(|| TokenReaderError::EmptyList)?;
         // For the moment, we cannot read an optional list.
         Ok(length)
+    }
+
+    fn enter_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenReaderError> {
+        self.options
+            .dictionaries
+            .enter_existing(name)
+            .map_err(|_| TokenReaderError::DictionarySwitchingError(name.clone()))?;
+        Ok(())
+    }
+
+    fn exit_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenReaderError> {
+        self.options.dictionaries.exit(name);
+        Ok(())
     }
 
     // ---- TBD
