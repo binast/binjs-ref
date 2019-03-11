@@ -124,9 +124,10 @@ impl Script {
                 }
             }
         }
-        Err(Error::JSONError(json::Error::wrong_type(
-            "Result-like JSON object",
-        )))
+        Err(Error::FromJSONError(FromJSONError {
+            expected: "Result-like JSON object".to_string(),
+            got: output,
+        }))
     }
 }
 
