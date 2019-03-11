@@ -73,7 +73,7 @@ macro_rules! update_in_context {
         use std::borrow::Borrow;
 
         let path = $path.borrow();
-        let mut table = $me.dictionary.$table.borrow_mut();
+        let mut table = $me.dictionaries.current_mut().$table.borrow_mut();
         table.add(path, $value);
 
         Ok(())
@@ -89,7 +89,7 @@ macro_rules! update_in_context {
 /// `update_in_window!(self, name_of_the_probability_table, value_to_encode)`
 macro_rules! update_in_window {
     ( $me: ident, $table:ident, $value: expr ) => {{
-        let mut table = $me.dictionary.$table.borrow_mut();
+        let mut table = $me.dictionaries.current_mut().$table.borrow_mut();
         table.add($value);
 
         Ok(())
@@ -291,6 +291,27 @@ where
     }
 }
 
+/// Options for creating a dictionary.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct Options {
+    /// Length of AST paths used to establish probabilities.
+    depth: usize,
+
+    /// Width of AST paths used to establish probabilities.
+    width: usize,
+}
+impl Options {
+    /// Set the length of AST paths used to establish probabilities.
+    pub fn with_depth(self, depth: usize) -> Self {
+        Options { depth, ..self }
+    }
+
+    /// Set the width of windows of references used to establish probabilities.
+    pub fn with_width(self, width: usize) -> Self {
+        Options { width, ..self }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Dictionary<T> {
     // --- Non-extensible sets of symbols, predicted by path.
@@ -371,7 +392,7 @@ pub struct Dictionary<T> {
 impl<T> Dictionary<T> {
     /// Create a new dictionary using paths of `depth` depth
     /// and windows of `width` width.
-    pub fn new(depth: usize, width: usize) -> Self {
+    pub fn new(Options { depth, width }: Options) -> Self {
         Dictionary {
             // By path.
             bool_by_path: Rc::new(RefCell::new(PathPredict::new(depth))),
@@ -775,20 +796,145 @@ where
     }
 }
 
+/// A family of dictionaries.
+///
+/// By convention:
+/// - key `""` maps to the starting dictionary;
+/// - key `"*"` maps to the fallback dictionary, in which
+///   all probabilities are equal.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct DictionaryFamily<T> {
+    dictionaries: HashMap<SharedString, Dictionary<T>>,
+
+    /// The stack of dictionaries.
+    ///
+    /// Note that we clone dictionaries on top of the stack. This assumes that dictionary
+    /// cloning is cheap enough that this is a reasonable thing to do.
+    dictionary_stack: Vec<(SharedString, Dictionary<T>)>,
+}
+impl<T> DictionaryFamily<T> {
+    /// Exit the current dictionary, returning to the parent dictionary.
+    ///
+    /// # Failure
+    ///
+    /// Fails if `name` is not the name of the current dictionary. Used for assertion
+    /// purposes.
+    pub fn exit(&mut self, name: &SharedString) {
+        assert!(self.dictionary_stack.len() > 1);
+        let leaving = self.dictionary_stack.pop().unwrap();
+        assert_eq!(&leaving.0, name);
+    }
+
+    /// Return the sum of lengths of all dictionaries in this family.
+    pub fn len(&self) -> usize {
+        self.dictionaries
+            .values()
+            .map(|dictionary| dictionary.len())
+            .sum()
+    }
+}
+
+impl DictionaryFamily<Instances> {
+    /// Create an empty DictionaryFamily.
+    ///
+    /// Initially, this `DictionaryFamily` does not have a current
+    /// dictionary. Before the first call to `Self::current` or `Self::current_mut`,
+    /// clients MUST call either `enter_existing`or `enter_or_create` to enter a
+    /// dictionary.
+    pub fn new() -> Self {
+        DictionaryFamily {
+            dictionaries: HashMap::new(),
+            dictionary_stack: vec![],
+        }
+    }
+
+    /// Push a dictionary on top of the stack.
+    /// Create the dictionary if no such dictionary exists.
+    pub fn enter_or_create(&mut self, name: &SharedString, options: Options) {
+        let dictionary = self
+            .dictionaries
+            .entry(name.clone())
+            .or_insert_with(|| Dictionary::new(options));
+        self.dictionary_stack
+            .push((name.clone(), dictionary.clone()));
+    }
+
+    /// Access the current dictionary, mutably.
+    pub fn current_mut(&mut self) -> &mut Dictionary<Instances> {
+        &mut self
+            .dictionary_stack
+            .last_mut()
+            .expect("Cannot call `DictionaryFamily::current`, as there's no current dictionary.")
+            .1
+    }
+
+    /// Iterate mutably through all dictionaries in this family.
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut Dictionary<Instances>> {
+        self.dictionaries.values_mut()
+    }
+
+    /// Manually insert a dictionary in the family.
+    ///
+    /// Returns `true` if there was already a baseline dictionary, `false` otherwise.
+    pub fn insert_baseline(&mut self, dictionary: Dictionary<Instances>) -> bool {
+        // If there is no main dictionary, add one.
+        self.dictionaries
+            .entry(SharedString::from_str(""))
+            .or_insert_with(|| dictionary.clone());
+
+        // Insert a dictionary for special key `*`.
+        self.dictionaries
+            .insert(SharedString::from_str("*"), dictionary)
+            .is_some()
+    }
+}
+
+impl DictionaryFamily<SymbolInfo> {
+    pub fn enter_existing(&mut self, name: &SharedString) -> Result<(), ()> {
+        let dictionary = self.dictionaries.get(name).ok_or(())?;
+        self.dictionary_stack
+            .push((name.clone(), dictionary.clone()));
+        Ok(())
+    }
+
+    /// Access the current dictionary, immutably.
+    pub fn current(&self) -> &Dictionary<SymbolInfo> {
+        &self
+            .dictionary_stack
+            .last()
+            .expect("Cannot call `DictionaryFamily::current`, as there's no current dictionary.")
+            .1
+    }
+}
+
+impl InstancesToProbabilities for DictionaryFamily<Instances> {
+    type AsProbabilities = DictionaryFamily<SymbolInfo>;
+    fn instances_to_probabilities(&self, description: &str) -> DictionaryFamily<SymbolInfo> {
+        assert!(self.dictionary_stack.len() == 1 || self.dictionary_stack.len() == 0); // We only want the toplevel dictionary.
+        DictionaryFamily {
+            dictionaries: self
+                .dictionaries
+                .iter()
+                .map(|(name, dict)| (name.clone(), dict.instances_to_probabilities(description)))
+                .collect(),
+            dictionary_stack: vec![],
+        }
+    }
+}
+
 /// A structure used to build a dictionary based on a sample of files.
 pub struct DictionaryBuilder {
-    /// A dictionary.
-    ///
-    /// This is a shared reference as we typically wish to
-    /// access this field after the DictionaryBuilder
-    /// has been consumed and released by a `Serializer`.
-    dictionary: Dictionary<Instances>,
+    /// The family of dictionaries being constructed.
+    dictionaries: DictionaryFamily<Instances>,
 
     /// Number of instances of each string in the current file.
     instances_of_user_extensible_data_in_current_file: UserExtensibleData<InstancesInFile>,
 
     /// Number of files in which each string appears.
     files_containing_user_extensible_data: UserExtensibleData<FilesContaining>,
+
+    /// Options used to create new dictionaries.
+    options: Options,
 }
 
 impl DictionaryBuilder {
@@ -796,9 +942,12 @@ impl DictionaryBuilder {
     /// and windows of `width` width.
     ///
     /// Use `DictionaryBuilder::done` to convert it into a `Dictionary`.
-    pub fn new(depth: usize, width: usize) -> Self {
+    pub fn new(options: Options) -> Self {
+        let mut family = DictionaryFamily::new();
+        family.enter_or_create(&SharedString::from_str(""), options.clone());
         DictionaryBuilder {
-            dictionary: Dictionary::new(depth, width),
+            dictionaries: family,
+            options,
             instances_of_user_extensible_data_in_current_file: UserExtensibleData::default(),
             files_containing_user_extensible_data: UserExtensibleData::default(),
         }
@@ -806,45 +955,47 @@ impl DictionaryBuilder {
 
     /// Return a dictionary containing all the paths collected and all
     /// the user-extensible content that appear in more than one file.
-    pub fn done(self, threshold: FilesContaining) -> Dictionary<Instances> {
-        let mut dictionary = self.dictionary;
+    pub fn done(mut self, threshold: FilesContaining) -> DictionaryFamily<Instances> {
+        {
+            let dictionary = self.dictionaries.current_mut();
 
-        // Generate indexed tables for user-extensible values.
-        dictionary.identifier_names = Rc::new(RefCell::new(LinearTable::new(
-            self.files_containing_user_extensible_data
-                .identifier_name_instances,
-            threshold,
-        )));
-        dictionary.property_keys = Rc::new(RefCell::new(LinearTable::new(
-            self.files_containing_user_extensible_data
-                .property_key_instances,
-            threshold,
-        )));
-        dictionary.list_lengths = Rc::new(RefCell::new(LinearTable::new(
-            self.files_containing_user_extensible_data
-                .list_length_instances,
-            threshold,
-        )));
-        dictionary.floats = Rc::new(RefCell::new(LinearTable::new(
-            self.files_containing_user_extensible_data.float_instances,
-            threshold,
-        )));
-        dictionary.unsigned_longs = Rc::new(RefCell::new(LinearTable::new(
-            self.files_containing_user_extensible_data
-                .unsigned_long_instances,
-            threshold,
-        )));
-        dictionary.string_literals = Rc::new(RefCell::new(LinearTable::new(
-            self.files_containing_user_extensible_data
-                .string_literal_instances,
-            threshold,
-        )));
-
-        dictionary
+            // Generate indexed tables for user-extensible values.
+            // These tables are shared across all the dictionaries of the family.
+            dictionary.identifier_names = Rc::new(RefCell::new(LinearTable::new(
+                self.files_containing_user_extensible_data
+                    .identifier_name_instances,
+                threshold,
+            )));
+            dictionary.property_keys = Rc::new(RefCell::new(LinearTable::new(
+                self.files_containing_user_extensible_data
+                    .property_key_instances,
+                threshold,
+            )));
+            dictionary.list_lengths = Rc::new(RefCell::new(LinearTable::new(
+                self.files_containing_user_extensible_data
+                    .list_length_instances,
+                threshold,
+            )));
+            dictionary.floats = Rc::new(RefCell::new(LinearTable::new(
+                self.files_containing_user_extensible_data.float_instances,
+                threshold,
+            )));
+            dictionary.unsigned_longs = Rc::new(RefCell::new(LinearTable::new(
+                self.files_containing_user_extensible_data
+                    .unsigned_long_instances,
+                threshold,
+            )));
+            dictionary.string_literals = Rc::new(RefCell::new(LinearTable::new(
+                self.files_containing_user_extensible_data
+                    .string_literal_instances,
+                threshold,
+            )));
+        }
+        self.dictionaries
     }
 
     pub fn len(&self) -> usize {
-        self.dictionary.len()
+        self.dictionaries.len()
     }
 
     /// Access statistics on the number of files containing specific user-extensible values.
@@ -956,7 +1107,7 @@ impl<'a> TokenWriter for &'a mut DictionaryBuilder {
 
     fn done(self) -> Result<Self::Data, TokenWriterError> {
         self.done_with_file();
-        debug!(target: "entropy", "Built a dictionary with len: {}", self.dictionary.len());
+        debug!(target: "entropy", "Built a dictionary family with len: {}", self.dictionaries.len());
         Ok([])
     }
 
@@ -1028,7 +1179,7 @@ impl TokenWriter for DictionaryBuilder {
 
     fn done(mut self) -> Result<Self::Data, TokenWriterError> {
         self.done_with_file();
-        debug!(target: "entropy", "Built a dictionary with len: {}", self.dictionary.len());
+        debug!(target: "entropy", "Built a dictionary family with len: {}", self.dictionaries.len());
         Ok([])
     }
 
@@ -1153,6 +1304,25 @@ impl TokenWriter for DictionaryBuilder {
     }
 
     fn offset_at(&mut self, _path: &IOPath) -> Result<(), TokenWriterError> {
+        Ok(())
+    }
+
+    fn enter_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        _path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        self.dictionaries
+            .enter_or_create(name, self.options.clone());
+        Ok(())
+    }
+
+    fn exit_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        _path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        self.dictionaries.exit(name);
         Ok(())
     }
 }

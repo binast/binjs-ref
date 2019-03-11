@@ -103,12 +103,12 @@ impl Encoder {
 
         // We need to clone the instances of `LinearTable` as using them modifies
         // their content.
-        let unsigned_longs = options.probability_tables.unsigned_longs().clone();
-        let string_literals = options.probability_tables.string_literals().clone();
-        let identifier_names = options.probability_tables.identifier_names().clone();
-        let property_keys = options.probability_tables.property_keys().clone();
-        let list_lengths = options.probability_tables.list_lengths().clone();
-        let floats = options.probability_tables.floats().clone();
+        let unsigned_longs = options.dictionaries.current().unsigned_longs().clone();
+        let string_literals = options.dictionaries.current().string_literals().clone();
+        let identifier_names = options.dictionaries.current().identifier_names().clone();
+        let property_keys = options.dictionaries.current().property_keys().clone();
+        let list_lengths = options.dictionaries.current().list_lengths().clone();
+        let floats = options.dictionaries.current().floats().clone();
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
             dump_path: if split_streams {
@@ -169,7 +169,8 @@ macro_rules! emit_symbol_to_main_stream {
             // 1. Locate the `SymbolInfo` information for this value given the
             // path information.
             let table = $me.options
-                .probability_tables
+                .dictionaries
+                .current()
                 .$table();
             let symbol =
                 table
@@ -588,6 +589,27 @@ impl TokenWriter for Encoder {
             &Some(len as u32),
             "enter_list_at"
         );
+        Ok(())
+    }
+
+    fn enter_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        self.options
+            .dictionaries
+            .enter_existing(name)
+            .map_err(|_| TokenWriterError::DictionarySwitchingError(name.clone()))?;
+        Ok(())
+    }
+
+    fn exit_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        self.options.dictionaries.exit(name);
         Ok(())
     }
 

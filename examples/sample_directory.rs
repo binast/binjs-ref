@@ -7,7 +7,7 @@ extern crate rand;
 extern crate separator;
 
 use binjs::generic::FromJSON;
-use binjs::io::entropy::dictionary::DictionaryBuilder;
+use binjs::io::entropy::dictionary::{DictionaryBuilder, Options as DictionaryOptions};
 use binjs::io::entropy::write::Encoder;
 use binjs::io::entropy::Options;
 use binjs::io::{Path as IOPath, Serialization, TokenSerializer};
@@ -165,7 +165,8 @@ fn main() {
         .partition(|_| rng.gen_range(0., 1.) <= sampling);
 
     println!("** Building dictionary from {} files", dictionary.len());
-    let mut dictionary_builder = DictionaryBuilder::new(depth, /* width */ 1);
+    let mut dictionary_builder =
+        DictionaryBuilder::new(DictionaryOptions::default().with_depth(depth).with_width(1));
 
     let dictionary_len = dictionary.len();
     for (index, entry) in dictionary.into_iter().enumerate() {
@@ -201,7 +202,7 @@ fn main() {
 
     let dictionary = dictionary_builder.done(dict_threshold.into());
 
-    let mut options = Options::new(&spec, Some(dictionary));
+    let mut options = Options::new(&spec, dictionary);
     options.with_split_streams(dump_path.is_some());
 
     println!("** Testing on {} files", control.len());

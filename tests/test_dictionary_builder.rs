@@ -3,7 +3,9 @@ extern crate itertools;
 
 use binjs::generic::{FromJSON, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString};
 use binjs::io::entropy;
-use binjs::io::entropy::dictionary::{DictionaryBuilder, FilesContaining, LinearTable};
+use binjs::io::entropy::dictionary::{
+    DictionaryBuilder, FilesContaining, LinearTable, Options as DictionaryOptions,
+};
 use binjs::io::entropy::rw::TableRefStreamState;
 use binjs::io::{Deserialization, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
@@ -40,7 +42,11 @@ test!(test_entropy_roundtrip, {
         "function foo() { if (Math.PI != 3) console.log(\"That's alright\"); }",
     ];
 
-    let mut builder = DictionaryBuilder::new(DEPTH, WIDTH);
+    let mut builder = DictionaryBuilder::new(
+        DictionaryOptions::default()
+            .with_depth(DEPTH)
+            .with_width(WIDTH),
+    );
     for source in &dict_sources {
         println!("Parsing");
         let ast = parser.parse_str(source).expect("Could not parse source");
@@ -130,12 +136,20 @@ test!(test_entropy_roundtrip, {
     // Spec to generate the fallback dictionary.
     let spec = binjs::generic::es6::Library::spec();
 
-    for maybe_dictionary in vec![Some(dictionary), None].into_iter() {
-        if maybe_dictionary.is_some() {
-            println!("** Testing with a dictionary");
-        } else {
-            println!("** Testing WITHOUT a dictionary");
-        }
+    // Also create an empty dictionary family.
+    let empty_dictionary = {
+        let mut builder = DictionaryBuilder::new(
+            DictionaryOptions::default()
+                .with_depth(DEPTH)
+                .with_width(WIDTH),
+        );
+        builder.done(0.into())
+    };
+
+    for (name, maybe_dictionary) in
+        vec![("sampled", dictionary), ("empty", empty_dictionary)].into_iter()
+    {
+        println!("** Testing with {} dictionary", name);
         let options = entropy::Options::new(&spec, maybe_dictionary);
 
         println!("Starting roundtrip with the sources that were used to build thhe dictionary");
