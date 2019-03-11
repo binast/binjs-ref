@@ -154,9 +154,8 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
     }
 
     if options.show_ast {
-        use binjs::generic::ToJSON;
-        let json = ast.export();
-        println!("{:#}", json);
+        serde_json::to_writer_pretty(std::io::stdout(), &ast).unwrap();
+        println!();
     }
 
     progress!(options.quiet, "Encoding.");

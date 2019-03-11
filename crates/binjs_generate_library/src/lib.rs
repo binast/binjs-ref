@@ -112,16 +112,12 @@ impl RustExporter {
         // Buffer used to generate the strongly-typed data structure.
         let mut ast_buffer = String::new();
         ast_buffer.push_str("
-use binjs_shared;
-use binjs_shared::{ FieldName, FromJSON, FromJSONError, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString, ToJSON, VisitMe };
+use binjs_shared::{ FieldName, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString, VisitMe };
 use binjs_io::{ Deserialization, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter, TokenWriterError };
 
 use io::*;
 
-use std;
 use std::convert::{ From };
-
-use serde_json::Value as JSON;
 
 ");
 
@@ -187,7 +183,11 @@ use serde_json::Value as JSON;
                 let definition = format!(
                     "
 /// Implementation of string enum {name}
-#[derive(PartialEq, Debug, Clone)]\npub enum {rust_name} {{\n{values}\n}}\n",
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub enum {rust_name} {{
+{values}
+}}
+",
                     name = name,
                     rust_name = rust_name,
                     values = string_enum
@@ -195,7 +195,7 @@ use serde_json::Value as JSON;
                         .iter()
                         .map(|s| format!(
                             "
-    /// Implementation of variant \"{spec_variant_name}\"
+    #[serde(rename = \"{spec_variant_name}\")]
     {rust_variant_name}",
                             spec_variant_name = s,
                             rust_variant_name = ToCases::to_cpp_enum_case(s)
@@ -218,28 +218,6 @@ impl Default for {name} {{
 ",
                     name = name,
                     default = string_enum.strings()[0].to_cpp_enum_case()
-                );
-
-                let to_json = format!(
-                    "
-impl ToJSON for {name} {{
-    fn export(&self) -> JSON {{
-        JSON::from(match *self {{
-{cases}
-        }})
-    }}
-}}\n\n",
-                    cases = string_enum
-                        .strings()
-                        .iter()
-                        .map(|s| format!(
-                            "           {name}::{typed} => \"{string}\"",
-                            name = name,
-                            typed = s.to_cpp_enum_case(),
-                            string = s,
-                        ))
-                        .format(",\n"),
-                    name = name
                 );
 
                 let from_reader = format!("
@@ -278,32 +256,6 @@ impl<R> Deserialization<{name}> for Deserializer<R> where R: TokenReader {{
                         .format("\n")
                     );
 
-                let from_json = format!(
-                    "
-impl FromJSON for {name} {{
-    fn import(source: &JSON) -> Result<Self, FromJSONError > {{
-        match source.as_str() {{
-{cases},
-            _ => Err(FromJSONError {{
-                expected: \"Instance of {name}\".to_string(),
-                got: source.to_string(),
-            }})
-        }}
-    }}
-}}\n\n",
-                    cases = string_enum
-                        .strings()
-                        .iter()
-                        .map(|s| format!(
-                            "           Some(\"{string}\") => Ok({name}::{typed})",
-                            name = name,
-                            typed = s.to_cpp_enum_case(),
-                            string = s,
-                        ))
-                        .format(",\n"),
-                    name = name
-                );
-
                 let to_writer = format!(
                     "
 impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
@@ -340,8 +292,6 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
 
                 buffer.push_str(&definition);
                 buffer.push_str(&default);
-                buffer.push_str(&from_json);
-                buffer.push_str(&to_json);
                 buffer.push_str(&from_reader);
                 buffer.push_str(&to_writer);
                 buffer.push_str(&walker);
@@ -429,7 +379,8 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                     let definition = format!(
                         "
 /// Implementation of interface sum {node_name}
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = \"type\")]
 pub enum {name} {{
 {contents}
     /// An additional value used to mark that the node was stolen by a call to `steal()`.
@@ -599,51 +550,6 @@ impl<R> Deserialization<Option<{name}>> for Deserializer<R> where R: TokenReader
                                     null = null_name,
                                 );
 
-                    let from_json = format!("
-impl FromJSON for {name} {{
-    fn import(value: &JSON) -> Result<Self, FromJSONError> {{
-        match value[\"type\"].as_str() {{
-{cases},
-            _ => Err(FromJSONError {{
-                expected: \"Instance of {kind}\".to_string(),
-                got: value.to_string()
-            }})
-        }}
-    }}
-}}\n\n",
-                                name = name,
-                                kind = name,
-                                cases = types.iter()
-                                    .map(|case| {
-                                        format!("           Some(\"{case}\") => Ok({name}::{constructor}(Box::new(FromJSON::import(value)?)))",
-                                            name = name,
-                                            case = case,
-                                            constructor = case.to_class_cases())
-                                    })
-                                    .format(",\n")
-                                );
-
-                    let to_json = format!(
-                        "
-impl ToJSON for {name} {{
-    fn export(&self) -> JSON {{
-        match *self {{
-{cases}
-            {name}::BinASTStolen => panic!()
-        }}
-    }}
-}}\n\n",
-                        name = name,
-                        cases = types
-                            .iter()
-                            .map(|case| format!(
-                                "           {name}::{constructor}(ref value) => value.export(),\n",
-                                name = name,
-                                constructor = case.to_class_cases()
-                            ))
-                            .format("")
-                    );
-
                     let to_writer = format!("
 impl<W> Serialization<Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
@@ -760,8 +666,6 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
                     buffer.push_str(&subsum_from);
                     buffer.push_str(&from_reader);
                     buffer.push_str(&to_writer);
-                    buffer.push_str(&from_json);
-                    buffer.push_str(&to_json);
                     // buffer.push_str(&into);
                     buffer.push_str(&walk);
 
@@ -854,7 +758,6 @@ impl<'a, 'b> From<&'a mut ViewMut{super_name}<'a>> for Result<ViewMut{name}<'b>,
             }
 
             buffer.push_str("\n\n// Aliases to primitive types (by lexicographical order)\n");
-            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in primitives.drain(..) {
                 let typedef = source.get(name).unwrap();
                 let source = format!(
@@ -891,7 +794,6 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                 buffer.push_str(&source);
             }
             buffer.push_str("\n\n// Aliases to list types (by lexicographical order)\n");
-            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in lists.drain(..) {
                 let typedef = source.get(name).unwrap();
                 if let TypeSpec::Array {
@@ -985,7 +887,6 @@ impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
                 );
             }
             buffer.push_str("\n\n// Aliases to optional types (by lexicographical order)\n");
-            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in options.drain(..) {
                 let typedef = source.get(name).unwrap();
                 if let TypeSpec::NamedType(ref contents) = *typedef.spec() {
@@ -1064,7 +965,8 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                 let definition = format!(
                     "
 /// Implementation of interface {spec_name}.
-#[derive(Default, PartialEq, Debug, Clone)]
+#[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = \"type\")]
 pub struct {rust_name} {{
 {fields}
 }}
@@ -1082,7 +984,7 @@ impl binjs_shared::Node for {rust_name} {{
                     fields = field_specs
                         .iter()
                         .map(|(field_name, spec)| format!(
-                            "    /// Implementation of field {spec_name}
+                            "    #[serde(rename = \"{spec_name}\")]
     pub {rust_name}: {contents}",
                             rust_name = field_name.to_rust_identifier_case(),
                             spec_name = field_name.to_str(),
@@ -1338,60 +1240,6 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
                         }
                     );
 
-                let from_json = format!(
-                    "
-impl FromJSON for {rust_name} {{
-    fn import(value: &JSON) -> Result<Self, FromJSONError> {{
-        match value[\"type\"].as_str() {{
-            Some(\"{kind}\") => {{ /* Good */ }},
-            _ => return Err(FromJSONError {{
-                expected: \"Instance of {kind}\".to_string(),
-                got: value.to_string()
-            }})
-        }}
-        Ok({rust_name} {{
-{fields}
-        }})
-    }}
-}}\n\n",
-                    kind = name,
-                    rust_name = rust_name,
-                    fields = interface
-                        .contents()
-                        .fields()
-                        .iter()
-                        .map(|field| format!(
-                            "            {name}: FromJSON::import(&value[\"{key}\"])?,\n",
-                            key = field.name().to_str(),
-                            name = field.name().to_rust_identifier_case()
-                        ))
-                        .format("")
-                );
-
-                let to_json = format!(
-                    "
-impl ToJSON for {rust_name} {{
-    fn export(&self) -> JSON {{
-        json!({{
-            \"type\": JSON::from(\"{kind}\"),
-{fields}
-        }})
-    }}
-}}\n\n",
-                    kind = name,
-                    rust_name = rust_name,
-                    fields = interface
-                        .contents()
-                        .fields()
-                        .iter()
-                        .map(|field| format!(
-                            "             \"{key}\": self.{name}.export()",
-                            key = field.name().to_str(),
-                            name = field.name().to_rust_identifier_case()
-                        ))
-                        .format(",\n")
-                );
-
                 let walk = format!("
 /// Shallow casting mechanism.
 #[derive(Debug)]
@@ -1451,8 +1299,6 @@ impl<'a> Walker<'a> for ViewMut{rust_name}<'a> where Self: 'a {{
                 buffer.push_str(&definition);
                 buffer.push_str(&from_reader);
                 buffer.push_str(&to_writer);
-                buffer.push_str(&from_json);
-                buffer.push_str(&to_json);
                 buffer.push_str(&walk);
                 buffer.push_str("\n\n\n");
             }

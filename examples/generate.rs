@@ -7,16 +7,18 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 extern crate rand;
+extern crate serde;
 
 const DEFAULT_TREE_SIZE: isize = 5;
 
 use binjs::generic::pick::{Pick, Picker};
-use binjs::generic::FromJSON;
 use binjs::source::Shift;
 use binjs::specialized::es6::ast::Walker;
 use binjs::specialized::es6::io::Encoder;
 
 use clap::*;
+use serde::Deserialize;
+
 use std::fs;
 
 fn main() {
@@ -102,7 +104,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
         let json = Picker.random(&spec, &mut rng, size);
 
         let mut ast =
-            binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
+            binjs::specialized::es6::ast::Script::deserialize(&json).expect("Could not import AST");
 
         if lazification > 0 {
             let mut path = binjs::specialized::es6::ast::WalkPath::new();
