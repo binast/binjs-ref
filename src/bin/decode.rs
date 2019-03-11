@@ -120,9 +120,7 @@ fn main_aux() {
 
     progress!(quiet, "Pretty-printing");
     let printer = Shift::try_new().expect("Could not launch Shift");
-    let source = printer
-        .to_source(&spec, json)
-        .expect("Could not pretty-print");
+    let source = printer.to_source(&json).expect("Could not pretty-print");
 
     progress!(quiet, "Writing.");
     match options.dest_path {

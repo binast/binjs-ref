@@ -24,7 +24,7 @@ extern crate binjs_io;
 extern crate binjs_meta;
 extern crate binjs_shared;
 
-#[macro_use]
+#[cfg_attr(test, macro_use)]
 extern crate json;
 #[macro_use]
 extern crate log;

@@ -17,7 +17,7 @@ const split = require('split');
  * @param {object} opts
  * @param {function=} opts.fromJSON - An optional JSON.parse reviver (see MDN).
  * @param {function} opts.transform - A callback that transforms a parsed value and either returns a result or throws.
- * @param {function=} opts.toJSON - An optional JSON.stringify reviver (see MDN).
+ * @param {function=} opts.toJSON - An optional JSON.stringify replacer (see MDN).
  */
 module.exports = ({ fromJSON, transform, toJSON }) =>
     process.stdin
