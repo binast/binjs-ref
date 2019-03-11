@@ -196,10 +196,22 @@ function convertObject(obj) {
     return obj;
 }
 
+// See crates/binjs_io/src/escaped_wtf8.rs
+function escapeWTF8(s) {
+    return s.replace(/[\u007F\uD800-\uDFFF]/gu, m => {
+        if (m == '\u007F') {
+            return '\u007F007F';
+        }
+        return '\u007F' + m.charCodeAt(0).toString(16).toUpperCase();
+    });
+}
+
 // This is a replacer callback for JSON.stringify to convert Shift AST to BinaryAST JSON.
 module.exports = function convert(_key, value) {
     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         return convertObject(value);
+    } else if (typeof value === 'string') {
+        return escapeWTF8(value);
     } else {
         return value;
     }
