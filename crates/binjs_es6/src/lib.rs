@@ -10,7 +10,7 @@ extern crate binjs_shared;
 extern crate assert_matches;
 extern crate itertools;
 #[macro_use]
-extern crate serde_json;
+extern crate serde;
 #[macro_use]
 extern crate log;
 

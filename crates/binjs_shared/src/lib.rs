@@ -7,9 +7,6 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 
-mod json_conversion;
-pub use json_conversion::*;
-
 pub mod ast;
 pub use ast::Node;
 
@@ -17,7 +14,7 @@ pub mod mru;
 mod shared_string;
 pub use shared_string::SharedString;
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Offset(pub u32);
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -7,7 +7,7 @@
 use io::{FileStructurePrinter, Path, TokenReader};
 use TokenReaderError;
 
-use binjs_shared::{FieldName, FromJSON, IdentifierName, InterfaceName, PropertyKey, SharedString};
+use binjs_shared::{FieldName, IdentifierName, InterfaceName, PropertyKey, SharedString};
 
 pub type PathItem = binjs_shared::ast::PathItem<InterfaceName, /* Field */ (usize, FieldName)>;
 
@@ -128,7 +128,7 @@ impl JSONUtil {
     /// number.
     fn get_number_property(obj: &JSON, name: &str) -> Result<f64, TokenReaderError> {
         let value = Self::get_property(obj, name)?;
-        f64::import(&value).map_err(|_| {
+        f64::deserialize(value).map_err(|_| {
             TokenReaderError::GenericError(format!("'{}' property should be a number", name))
         })
     }
@@ -143,7 +143,7 @@ impl JSONUtil {
         if value.is_null() {
             return Ok(None);
         }
-        let n = f64::import(&value).map_err(|_| {
+        let n = f64::deserialize(value).map_err(|_| {
             TokenReaderError::GenericError(format!(
                 "'{}' property should be either a number or a null",
                 name

@@ -1,7 +1,6 @@
 //! Read the data through a call to the Shift parser
 
 use serde::Deserialize;
-use serde_json::Value as JSON;
 
 use std::env;
 use std::ffi::OsString;
@@ -12,7 +11,6 @@ use std::sync::Mutex;
 
 use binjs_es6::ast::Script as AST;
 use binjs_io::escaped_wtf8;
-use binjs_shared::{FromJSON, FromJSONError, ToJSON};
 
 use source::parser::SourceParser;
 
@@ -23,7 +21,6 @@ pub enum Error {
     CouldNotLaunch(std::io::Error),
     IOError(std::io::Error),
     JSONError(serde_json::Error),
-    FromJSONError(FromJSONError),
     InvalidPath(PathBuf),
     NodeNotFound(which::Error),
     ParsingError(String),
@@ -95,46 +92,33 @@ impl Script {
     /// See start-json-stream.js for some more details.
     pub fn transform<I, O>(&self, input: &I) -> Result<O, Error>
     where
-        I: ?Sized + ToJSON,
-        O: FromJSON,
+        I: ?Sized + serde::Serialize,
+        O: serde::de::DeserializeOwned,
     {
-        let input = input.export();
-
         let output = (move || {
             let mut io = self.0.lock().unwrap();
-            writeln!(io.input, "{}", input)?;
+            serde_json::to_writer(&mut io.input, input)?;
+            writeln!(io.input)?;
             io.output.next().unwrap()
         })()
         .map_err(Error::IOError)?;
 
-        {
-            let mut deserializer = serde_json::Deserializer::from_str(&output);
+        let mut deserializer = serde_json::Deserializer::from_str(&output);
 
-            deserializer.disable_recursion_limit();
+        deserializer.disable_recursion_limit();
 
-            let result = JSON::deserialize(&mut deserializer).map_err(Error::JSONError)?;
-            if let JSON::Object(mut obj) = result {
-                if let (Some(mut value), Some(ty)) = (
-                    obj.remove("value"),
-                    obj.get("type").and_then(|ty| ty.as_str()),
-                ) {
-                    match ty {
-                        "Ok" => return Ok(FromJSON::import(&value).map_err(Error::FromJSONError)?),
-                        "Err" => {
-                            if let JSON::String(msg) = value {
-                                return Err(Error::ParsingError(msg));
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
+        #[derive(Deserialize)]
+        #[serde(tag = "type", content = "value")]
+        enum CustomResult<T> {
+            Ok(T),
+            Err(String),
         }
 
-        Err(Error::FromJSONError(FromJSONError {
-            expected: "Result-like JSON object".to_string(),
-            got: output,
-        }))
+        match CustomResult::deserialize(&mut deserializer) {
+            Ok(CustomResult::Ok(v)) => Ok(v),
+            Ok(CustomResult::Err(msg)) => Err(Error::ParsingError(msg)),
+            Err(err) => Err(Error::JSONError(err)),
+        }
     }
 }
 

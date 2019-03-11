@@ -4,7 +4,6 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::generic::ToJSON;
 use binjs::source::Shift;
 use binjs::specialized::es6::io::Decoder;
 
@@ -113,7 +112,8 @@ fn main_aux() {
 
     if options.print_json {
         progress!(quiet, "Printing to screen...");
-        println!("{:#}", tree.export());
+        serde_json::to_writer_pretty(std::io::stdout(), &tree).unwrap();
+        println!();
     }
 
     progress!(quiet, "Pretty-printing");
