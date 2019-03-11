@@ -111,16 +111,15 @@ fn main_aux() {
         }
     };
 
-    let json = tree.export();
     if options.print_json {
         progress!(quiet, "Printing to screen...");
-        let pretty = json.pretty(2);
+        let pretty = tree.export().pretty(2);
         println!("{}", pretty);
     }
 
     progress!(quiet, "Pretty-printing");
     let printer = Shift::try_new().expect("Could not launch Shift");
-    let source = printer.to_source(&json).expect("Could not pretty-print");
+    let source = printer.to_source(&tree).expect("Could not pretty-print");
 
     progress!(quiet, "Writing.");
     match options.dest_path {

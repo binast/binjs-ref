@@ -1,7 +1,7 @@
 extern crate binjs;
 extern crate itertools;
 
-use binjs::generic::{FromJSON, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString};
+use binjs::generic::{IdentifierName, InterfaceName, Offset, PropertyKey, SharedString};
 use binjs::io::entropy;
 use binjs::io::entropy::dictionary::{
     DictionaryBuilder, FilesContaining, LinearTable, Options as DictionaryOptions,
@@ -49,9 +49,7 @@ test!(test_entropy_roundtrip, {
     );
     for source in &dict_sources {
         println!("Parsing");
-        let ast = parser.parse_str(source).expect("Could not parse source");
-        let mut ast =
-            binjs::specialized::es6::ast::Script::import(&ast).expect("Could not import AST");
+        let mut ast = parser.parse_str(source).expect("Could not parse source");
 
         println!("Annotating");
         binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
@@ -184,12 +182,10 @@ test!(test_entropy_roundtrip, {
 
 fn test_with_options<S>(parser: &S, source: &str, options: &entropy::Options)
 where
-    S: SourceParser,
+    S: SourceParser<Script>,
 {
     println!("Parsing with dictionary: {}", source);
-    let reference = parser.parse_str(source).expect("Could not parse source");
-    let mut reference =
-        binjs::specialized::es6::ast::Script::import(&reference).expect("Could not import AST");
+    let mut reference = parser.parse_str(source).expect("Could not parse source");
 
     println!("Reannotating");
     binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut reference);

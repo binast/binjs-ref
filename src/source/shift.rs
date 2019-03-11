@@ -9,7 +9,9 @@ use std::path::*;
 use std::process::*;
 use std::sync::Mutex;
 
+use binjs_es6::ast::Script as ScriptAST;
 use binjs_io::escaped_wtf8;
+use binjs_shared::{FromJSON, FromJSONError, ToJSON};
 
 use source::parser::SourceParser;
 
@@ -20,6 +22,7 @@ pub enum Error {
     CouldNotLaunch(std::io::Error),
     IOError(std::io::Error),
     JSONError(json::Error),
+    FromJSONError(FromJSONError),
     InvalidPath(PathBuf),
     NodeNotFound(which::Error),
     ParsingError(String),
@@ -89,7 +92,13 @@ impl Script {
     /// has failed with an error, and these are converted into Rust `Result`.
     ///
     /// See start-json-stream.js for some more details.
-    pub fn transform(&self, input: &JSON) -> Result<JSON, Error> {
+    pub fn transform<I, O>(&self, input: &I) -> Result<O, Error>
+    where
+        I: ?Sized + ToJSON,
+        O: FromJSON,
+    {
+        let input = input.export();
+
         let output = (move || {
             let mut io = self.0.lock().unwrap();
             input.write(&mut io.input)?;
@@ -105,7 +114,7 @@ impl Script {
                 obj.get("type").and_then(|ty| ty.as_str()),
             ) {
                 match ty {
-                    "Ok" => return Ok(value),
+                    "Ok" => return Ok(FromJSON::import(&value).map_err(Error::FromJSONError)?),
                     "Err" => {
                         if let Some(msg) = value.take_string() {
                             return Err(Error::ParsingError(msg));
@@ -139,42 +148,29 @@ impl Shift {
         })
     }
 
-    // We need to mutate the AST to adjust it to the Shift format, so we take
-    // it by ownership rather than by reference.
-    //
-    // If the caller needs the original AST after this call, it's their
-    // responsibility to clone it and pass to this function.
-    pub fn to_source(&self, ast: &JSON) -> Result<String, Error> {
+    pub fn to_source(&self, ast: &ScriptAST) -> Result<String, Error> {
         self.codegen
-            .transform(&ast)
-            .and_then(|mut res| {
-                res.take_string()
-                    .map(escaped_wtf8::to_unicode_escape)
-                    .ok_or_else(|| Error::JSONError(json::Error::wrong_type("string")))
-            })
-            .map_err(|err| {
-                warn!("Could not pretty-print {}", ast.pretty(2));
-                err
-            })
+            .transform(ast)
+            .map(escaped_wtf8::to_unicode_escape)
     }
 }
 
-impl SourceParser for Shift {
+impl SourceParser<ScriptAST> for Shift {
     type Error = Error;
 
-    fn parse_str(&self, data: &str) -> Result<JSON, Error> {
-        self.parse_str.transform(&data.into())
+    fn parse_str(&self, data: &str) -> Result<ScriptAST, Error> {
+        self.parse_str.transform(data)
     }
 
     /// Parse a text source file, using Shift.
-    fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<JSON, Error> {
+    fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<ScriptAST, Error> {
         let path = path
             .as_ref()
             .to_str()
             .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?;
 
         // A script to parse a source file, write it to stdout as JSON.
-        self.parse_file.transform(&path.into())
+        self.parse_file.transform(path)
     }
 }
 
@@ -184,10 +180,12 @@ fn test_shift_basic() {
     env_logger::init();
 
     let shift = Shift::try_new().expect("Could not launch Shift");
+
     let parsed = shift
         .parse_str("function foo() {}")
         .expect("Error in parse_str");
-    let expected = object! {
+
+    let expected = ScriptAST::import(&object! {
         "type" => "Script",
         "directives" => array![],
         "scope" => object!{
@@ -229,12 +227,8 @@ fn test_shift_basic() {
                 }
             }
         ]
-    };
+    })
+    .unwrap();
 
-    assert!(
-        parsed == expected,
-        "{} != {}",
-        parsed.pretty(2),
-        expected.pretty(2)
-    );
+    assert!(parsed == expected, "{:#?} != {:#?}", parsed, expected);
 }

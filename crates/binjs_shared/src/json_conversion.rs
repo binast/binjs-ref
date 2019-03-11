@@ -147,9 +147,9 @@ where
 pub trait ToJSON {
     fn export(&self) -> JSON;
 }
-impl ToJSON for String {
+impl ToJSON for str {
     fn export(&self) -> JSON {
-        json::from(self.clone())
+        json::from(self)
     }
 }
 impl ToJSON for bool {
