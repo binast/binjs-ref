@@ -9,7 +9,6 @@ use std::path::*;
 use std::process::*;
 use std::sync::Mutex;
 
-use binjs_generic::syntax::ASTError;
 use binjs_io::escaped_wtf8;
 
 use source::parser::SourceParser;
@@ -22,7 +21,6 @@ pub enum Error {
     IOError(std::io::Error),
     JsonError(json::Error),
     InvalidPath(PathBuf),
-    InvalidAST(ASTError),
     NodeNotFound(which::Error),
     ParsingError(String),
 }
