@@ -19,7 +19,7 @@ use which::which;
 pub enum Error {
     CouldNotLaunch(std::io::Error),
     IOError(std::io::Error),
-    JsonError(json::Error),
+    JSONError(json::Error),
     InvalidPath(PathBuf),
     NodeNotFound(which::Error),
     ParsingError(String),
@@ -98,7 +98,7 @@ impl Script {
         })()
         .map_err(Error::IOError)?;
 
-        let result = json::parse(&output).map_err(Error::JsonError)?;
+        let result = json::parse(&output).map_err(Error::JSONError)?;
         if let JSON::Object(mut obj) = result {
             if let (Some(mut value), Some(ty)) = (
                 obj.remove("value"),
@@ -115,7 +115,7 @@ impl Script {
                 }
             }
         }
-        Err(Error::JsonError(json::Error::wrong_type(
+        Err(Error::JSONError(json::Error::wrong_type(
             "Result-like JSON object",
         )))
     }
@@ -150,7 +150,7 @@ impl Shift {
             .and_then(|mut res| {
                 res.take_string()
                     .map(escaped_wtf8::to_unicode_escape)
-                    .ok_or_else(|| Error::JsonError(json::Error::wrong_type("string")))
+                    .ok_or_else(|| Error::JSONError(json::Error::wrong_type("string")))
             })
             .map_err(|err| {
                 warn!("Could not pretty-print {}", ast.pretty(2));
