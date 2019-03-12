@@ -9,7 +9,7 @@ use std::path::*;
 use std::process::*;
 use std::sync::Mutex;
 
-use binjs_es6::ast::Script as ScriptAST;
+use binjs_es6::ast::Script as AST;
 use binjs_io::escaped_wtf8;
 use binjs_shared::{FromJSON, FromJSONError, ToJSON};
 
@@ -149,22 +149,22 @@ impl Shift {
         })
     }
 
-    pub fn to_source(&self, ast: &ScriptAST) -> Result<String, Error> {
+    pub fn to_source(&self, ast: &AST) -> Result<String, Error> {
         self.codegen
             .transform(ast)
             .map(escaped_wtf8::to_unicode_escape)
     }
 }
 
-impl SourceParser<ScriptAST> for Shift {
+impl SourceParser<AST> for Shift {
     type Error = Error;
 
-    fn parse_str(&self, data: &str) -> Result<ScriptAST, Error> {
+    fn parse_str(&self, data: &str) -> Result<AST, Error> {
         self.parse_str.transform(data)
     }
 
     /// Parse a text source file, using Shift.
-    fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<ScriptAST, Error> {
+    fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<AST, Error> {
         let path = path
             .as_ref()
             .to_str()
