@@ -28,21 +28,23 @@ fn bench_parsing_reuse_parser(bencher: &mut bencher::Bencher) {
 }
 
 fn bench_parsing_aux(parser: Option<&Shift>, bencher: &mut bencher::Bencher) {
-    for &path in PATHS {
-        bencher.iter(move || {
+    bencher.iter(move || {
+        for &path in PATHS {
             let shift;
 
-            match parser {
-                Some(parser) => parser,
-                None => {
-                    shift = launch_shift();
-                    &shift
+            bencher::black_box(
+                match parser {
+                    Some(parser) => parser,
+                    None => {
+                        shift = launch_shift();
+                        &shift
+                    }
                 }
-            }
-            .parse_file(path)
-            .expect("Could not parse source")
-        });
-    }
+                .parse_file(path)
+                .expect("Could not parse source"),
+            );
+        }
+    });
 }
 
 benchmark_group!(
