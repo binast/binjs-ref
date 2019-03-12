@@ -9,7 +9,9 @@ use std::path::*;
 use std::process::*;
 use std::sync::Mutex;
 
+use binjs_es6::ast::Script as AST;
 use binjs_io::escaped_wtf8;
+use binjs_shared::{FromJSON, FromJSONError, ToJSON};
 
 use source::parser::SourceParser;
 
@@ -19,7 +21,8 @@ use which::which;
 pub enum Error {
     CouldNotLaunch(std::io::Error),
     IOError(std::io::Error),
-    JsonError(json::Error),
+    JSONError(json::Error),
+    FromJSONError(FromJSONError),
     InvalidPath(PathBuf),
     NodeNotFound(which::Error),
     ParsingError(String),
@@ -89,7 +92,13 @@ impl Script {
     /// has failed with an error, and these are converted into Rust `Result`.
     ///
     /// See start-json-stream.js for some more details.
-    pub fn transform(&self, input: &JSON) -> Result<JSON, Error> {
+    pub fn transform<I, O>(&self, input: &I) -> Result<O, Error>
+    where
+        I: ?Sized + ToJSON,
+        O: FromJSON,
+    {
+        let input = input.export();
+
         let output = (move || {
             let mut io = self.0.lock().unwrap();
             input.write(&mut io.input)?;
@@ -98,14 +107,14 @@ impl Script {
         })()
         .map_err(Error::IOError)?;
 
-        let result = json::parse(&output).map_err(Error::JsonError)?;
+        let result = json::parse(&output).map_err(Error::JSONError)?;
         if let JSON::Object(mut obj) = result {
             if let (Some(mut value), Some(ty)) = (
                 obj.remove("value"),
                 obj.get("type").and_then(|ty| ty.as_str()),
             ) {
                 match ty {
-                    "Ok" => return Ok(value),
+                    "Ok" => return Ok(FromJSON::import(&value).map_err(Error::FromJSONError)?),
                     "Err" => {
                         if let Some(msg) = value.take_string() {
                             return Err(Error::ParsingError(msg));
@@ -115,9 +124,10 @@ impl Script {
                 }
             }
         }
-        Err(Error::JsonError(json::Error::wrong_type(
-            "Result-like JSON object",
-        )))
+        Err(Error::FromJSONError(FromJSONError {
+            expected: "Result-like JSON object".to_string(),
+            got: output,
+        }))
     }
 }
 
@@ -139,42 +149,29 @@ impl Shift {
         })
     }
 
-    // We need to mutate the AST to adjust it to the Shift format, so we take
-    // it by ownership rather than by reference.
-    //
-    // If the caller needs the original AST after this call, it's their
-    // responsibility to clone it and pass to this function.
-    pub fn to_source(&self, ast: &JSON) -> Result<String, Error> {
+    pub fn to_source(&self, ast: &AST) -> Result<String, Error> {
         self.codegen
-            .transform(&ast)
-            .and_then(|mut res| {
-                res.take_string()
-                    .map(escaped_wtf8::to_unicode_escape)
-                    .ok_or_else(|| Error::JsonError(json::Error::wrong_type("string")))
-            })
-            .map_err(|err| {
-                warn!("Could not pretty-print {}", ast.pretty(2));
-                err
-            })
+            .transform(ast)
+            .map(escaped_wtf8::to_unicode_escape)
     }
 }
 
-impl SourceParser for Shift {
+impl SourceParser<AST> for Shift {
     type Error = Error;
 
-    fn parse_str(&self, data: &str) -> Result<JSON, Error> {
-        self.parse_str.transform(&data.into())
+    fn parse_str(&self, data: &str) -> Result<AST, Error> {
+        self.parse_str.transform(data)
     }
 
     /// Parse a text source file, using Shift.
-    fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<JSON, Error> {
+    fn parse_file<P: AsRef<Path>>(&self, path: P) -> Result<AST, Error> {
         let path = path
             .as_ref()
             .to_str()
             .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?;
 
         // A script to parse a source file, write it to stdout as JSON.
-        self.parse_file.transform(&path.into())
+        self.parse_file.transform(path)
     }
 }
 
@@ -183,58 +180,33 @@ fn test_shift_basic() {
     use env_logger;
     env_logger::init();
 
+    use binjs_es6::ast::*;
+    use binjs_shared::IdentifierName;
+
     let shift = Shift::try_new().expect("Could not launch Shift");
+
     let parsed = shift
         .parse_str("function foo() {}")
         .expect("Error in parse_str");
-    let expected = object! {
-        "type" => "Script",
-        "directives" => array![],
-        "scope" => object!{
-            "type" => "AssertedScriptGlobalScope",
-            "declaredNames" => array![],
-            "hasDirectEval" => false,
-        },
-        "statements" => array![
-            object!{
-                "type" => "EagerFunctionDeclaration",
-                "isGenerator" => false,
-                "isAsync" => false,
-                "length" => 0,
-                "name" => object!{
-                    "type" => "BindingIdentifier",
-                    "name" => "foo"
+
+    let expected = Script {
+        statements: vec![Statement::EagerFunctionDeclaration(Box::new(
+            EagerFunctionDeclaration {
+                name: BindingIdentifier {
+                    name: IdentifierName::from_str("foo"),
                 },
-                "directives" => array![],
-                "contents" => object!{
-                    "type" => "FunctionOrMethodContents",
-                    "isThisCaptured" => false,
-                    "parameterScope" => object!{
-                        "type" => "AssertedParameterScope",
-                        "paramNames" => array![],
-                        "hasDirectEval" => false,
-                        "isSimpleParameterList" => true,
+                contents: FunctionOrMethodContents {
+                    parameter_scope: AssertedParameterScope {
+                        is_simple_parameter_list: true,
+                        ..Default::default()
                     },
-                    "params" => object!{
-                        "type" => "FormalParameters",
-                        "items" => array![],
-                        "rest" => json::Null,
-                    },
-                    "bodyScope" => object!{
-                        "type" => "AssertedVarScope",
-                        "declaredNames" => array![],
-                        "hasDirectEval" => false,
-                    },
-                    "body" => array![],
-                }
-            }
-        ]
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ))],
+        ..Default::default()
     };
 
-    assert!(
-        parsed == expected,
-        "{} != {}",
-        parsed.pretty(2),
-        expected.pretty(2)
-    );
+    assert!(parsed == expected, "{:#?} != {:#?}", parsed, expected);
 }

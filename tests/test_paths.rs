@@ -7,9 +7,7 @@
 
 extern crate binjs;
 
-use binjs::generic::{
-    FieldName, FromJSON, IdentifierName, InterfaceName, Node, PropertyKey, SharedString,
-};
+use binjs::generic::{FieldName, IdentifierName, InterfaceName, Node, PropertyKey, SharedString};
 use binjs::io::{Serialization, TokenWriter, TokenWriterError};
 use binjs::source::{Shift, SourceParser};
 use binjs::specialized::es6::io::IOPath;
@@ -177,8 +175,7 @@ test!(test_es6_paths, {
     let source = "function foo(x, y) { var i; for (i = 0; i < 100; ++i) { console.log(x, y + i, x + y + i, x + y + i + 1); } }";
 
     println!("Parsing");
-    let ast = parser.parse_str(source).expect("Could not parse source");
-    let mut ast = binjs::specialized::es6::ast::Script::import(&ast).expect("Could not import AST");
+    let mut ast = parser.parse_str(source).expect("Could not parse source");
 
     println!("Annotating");
     binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
