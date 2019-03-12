@@ -202,7 +202,13 @@ function escapeWTF8(s) {
         if (m == '\u007F') {
             return '\u007F007F';
         }
-        return '\u007F' + m.charCodeAt(0).toString(16).toUpperCase();
+        return (
+            '\u007F' +
+            m
+                .charCodeAt(0)
+                .toString(16)
+                .toUpperCase()
+        );
     });
 }
 

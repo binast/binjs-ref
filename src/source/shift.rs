@@ -1,7 +1,5 @@
 //! Read the data through a call to the Shift parser
 
-use json;
-use json::object::Object;
 use json::JsonValue as JSON;
 
 use std::env;
@@ -11,9 +9,7 @@ use std::path::*;
 use std::process::*;
 use std::sync::Mutex;
 
-use binjs_generic::syntax::{ASTError, MutASTVisitor, MutASTWalker, WalkPath};
 use binjs_io::escaped_wtf8;
-use binjs_meta::spec::{Interface, NodeName, Spec};
 
 use source::parser::SourceParser;
 
@@ -25,7 +21,6 @@ pub enum Error {
     IOError(std::io::Error),
     JsonError(json::Error),
     InvalidPath(PathBuf),
-    InvalidAST(ASTError),
     NodeNotFound(which::Error),
     ParsingError(String),
 }
@@ -149,12 +144,7 @@ impl Shift {
     //
     // If the caller needs the original AST after this call, it's their
     // responsibility to clone it and pass to this function.
-    pub fn to_source(&self, syntax: &Spec, mut ast: JSON) -> Result<String, Error> {
-        debug!(target: "Shift", "Preparing source\n{:#}", ast);
-        let mut walker = MutASTWalker::new(syntax, ToShift);
-        walker.walk(&mut ast).map_err(Error::InvalidAST)?;
-        debug!(target: "Shift", "Prepared source\n{:#}", ast);
-
+    pub fn to_source(&self, ast: &JSON) -> Result<String, Error> {
         self.codegen
             .transform(&ast)
             .and_then(|mut res| {
@@ -185,246 +175,6 @@ impl SourceParser for Shift {
 
         // A script to parse a source file, write it to stdout as JSON.
         self.parse_file.transform(&path.into())
-    }
-}
-
-#[derive(PartialEq)]
-enum FunctionKind {
-    FunctionDeclaration,
-    Method,
-    FunctionExpression,
-    ArrowExpressionWithFunctionBody,
-    ArrowExpressionWithExpression,
-    Getter,
-    Setter,
-}
-
-/// A data structure designed to convert from BinJS AST to Shift AST.
-
-struct ToShift;
-impl ToShift {
-    fn remove_eager_or_lazy(&self, obj: &mut json::object::Object) {
-        let kind = { obj["type"].as_str().unwrap().to_string() };
-        const EAGER: &'static str = "Eager";
-        const LAZY: &'static str = "Lazy";
-
-        if kind.starts_with(EAGER) {
-            obj["type"] = json::from(&kind[EAGER.len()..])
-        } else if kind.starts_with(LAZY) {
-            obj["type"] = json::from(&kind[LAZY.len()..])
-        } else {
-            panic!()
-        }
-    }
-    fn remove_with_suffix(&self, obj: &mut json::object::Object) {
-        let kind = { obj["type"].as_str().unwrap().to_string() };
-        const WITHFUNCTIONBODY: &'static str = "WithFunctionBody";
-        const WITHEXPRESSION: &'static str = "WithExpression";
-
-        if kind.ends_with(WITHFUNCTIONBODY) {
-            obj["type"] = json::from(&kind[..(kind.len() - WITHFUNCTIONBODY.len())])
-        } else if kind.ends_with(WITHEXPRESSION) {
-            obj["type"] = json::from(&kind[..(kind.len() - WITHEXPRESSION.len())])
-        }
-    }
-    fn remove_function_contents(&self, obj: &mut json::object::Object, kind: FunctionKind) {
-        self.remove_eager_or_lazy(obj);
-        self.remove_with_suffix(obj);
-
-        // Remove unused fields.
-        obj.remove("isAsync");
-        obj.remove("scope");
-        obj.remove("contents_skip");
-        obj.remove("length");
-
-        // Move some fields back from *Contents.
-        let mut contents = obj.remove("contents").unwrap();
-        obj["params"] = contents.remove("params");
-
-        if kind == FunctionKind::ArrowExpressionWithExpression {
-            obj["body"] = contents.remove("body");
-        } else {
-            let mut body = Object::new();
-            body["type"] = json::from("FunctionBody");
-            body["directives"] = obj.remove("directives").unwrap();
-            body["statements"] = contents.remove("body");
-            obj["body"] = JSON::Object(body);
-        }
-    }
-}
-impl MutASTVisitor for ToShift {
-    fn exit_interface(
-        &mut self,
-        _path: &WalkPath,
-        value: &mut JSON,
-        interface: &Interface,
-        name: &NodeName,
-    ) -> Result<(), ASTError> {
-        debug!(target: "Shift", "Should I rewrite {:?} at {:?}", interface.name(), name);
-        match (name.to_str(), interface.name().to_str(), value) {
-            ("Statement", "Block", &mut JSON::Object(ref mut object)) => {
-                debug!(target: "Shift", "Yes I should: from {}", object.dump());
-                // Rewrite
-                //
-                // Block { // Used as Statement
-                //    ...foo
-                // }
-                //
-                // into
-                //
-                // BlockStatement {
-                //    block: Block {
-                //       ...foo
-                //    }
-                // }
-                let mut insert = Object::new();
-                insert["type"] = json::from("BlockStatement");
-                std::mem::swap(&mut insert, object);
-                // From here,
-                // - `object` is `BlockStatement`.
-                // - `insert` is `Block`.
-                object["block"] = JSON::Object(insert);
-                debug!(target: "Shift", "into {}", object.dump());
-            }
-            ("Statement", "VariableDeclaration", &mut JSON::Object(ref mut object)) => {
-                // Rewrite
-                //
-                // VariableDeclaration { // Used as Statement
-                //    ...foo
-                // }
-                //
-                // into
-                //
-                // VariableDeclarationStatement {
-                //    declaration: VariableDeclaration {
-                //       ...foo
-                //    }
-                // }
-                let mut insert = Object::new();
-                insert["type"] = json::from("VariableDeclarationStatement");
-                std::mem::swap(&mut insert, object);
-                // From here,
-                // - `object` is `VariableDeclarationStatement`.
-                // - `insert` is `VariableDeclaration`.
-                object["declaration"] = JSON::Object(insert);
-            }
-            (_, "Script", &mut JSON::Object(ref mut object)) => {
-                // Remove unused field.
-                object.remove("scope");
-            }
-            (_, "CatchClause", &mut JSON::Object(ref mut object)) => {
-                // Remove unused field.
-                object.remove("bindingScope");
-            }
-            (_, "LabelledStatement", &mut JSON::Object(ref mut object)) => {
-                // Change type.
-                object["type"] = json::from("LabeledStatement");
-            }
-            (_, "LiteralPropertyName", &mut JSON::Object(ref mut object)) => {
-                // Change type.
-                object["type"] = json::from("StaticPropertyName");
-            }
-            (_, "LiteralRegExpExpression", &mut JSON::Object(ref mut object)) => {
-                let mut global = false;
-                let mut ignore_case = false;
-                let mut multi_line = false;
-                let mut sticky = false;
-                let mut unicode = false;
-                if let Some(flags) = object["flags"].as_str() {
-                    for c in flags.chars() {
-                        match c {
-                            'g' => {
-                                global = true;
-                            }
-                            'i' => {
-                                ignore_case = true;
-                            }
-                            'm' => {
-                                multi_line = true;
-                            }
-                            'y' => {
-                                sticky = true;
-                            }
-                            'u' => {
-                                unicode = true;
-                            }
-                            _ => { /* ignore */ }
-                        }
-                    }
-                }
-                object.insert("global", json::from(global));
-                object.insert("ignoreCase", json::from(ignore_case));
-                object.insert("multiLine", json::from(multi_line));
-                object.insert("sticky", json::from(sticky));
-                object.insert("unicode", json::from(unicode));
-            }
-            (_, "ForInOfBinding", &mut JSON::Object(ref mut object)) => {
-                // Rewrite
-                //
-                // ForInOfBinding {
-                //    kind,
-                //    binding
-                // }
-                //
-                // into
-                //
-                // VariableDeclaration {
-                //    kind,
-                //    declarators: [{
-                //      VariableDeclarator {
-                //        init: null,
-                //        binding
-                //      }
-                //    }]
-                // }
-                object["type"] = json::from("VariableDeclaration");
-                let binding = object.remove("binding");
-                object["declarators"] = array![object! {
-                    "type" => "VariableDeclarator",
-                    "init" => json::Null,
-                    "binding" => binding
-                }];
-            }
-            (_, "EagerFunctionExpression", &mut JSON::Object(ref mut object))
-            | (_, "LazyFunctionExpression", &mut JSON::Object(ref mut object)) => {
-                self.remove_function_contents(object, FunctionKind::FunctionExpression);
-            }
-            (_, "EagerFunctionDeclaration", &mut JSON::Object(ref mut object))
-            | (_, "LazyFunctionDeclaration", &mut JSON::Object(ref mut object)) => {
-                self.remove_function_contents(object, FunctionKind::FunctionDeclaration);
-            }
-            (_, "EagerMethod", &mut JSON::Object(ref mut object))
-            | (_, "LazyMethod", &mut JSON::Object(ref mut object)) => {
-                self.remove_function_contents(object, FunctionKind::Method);
-            }
-            (_, "EagerGetter", &mut JSON::Object(ref mut object))
-            | (_, "LazyGetter", &mut JSON::Object(ref mut object)) => {
-                self.remove_function_contents(object, FunctionKind::Getter);
-            }
-            (_, "EagerSetter", &mut JSON::Object(ref mut object))
-            | (_, "LazySetter", &mut JSON::Object(ref mut object)) => {
-                self.remove_function_contents(object, FunctionKind::Setter);
-            }
-            (_, "EagerArrowExpressionWithFunctionBody", &mut JSON::Object(ref mut object))
-            | (_, "LazyArrowExpressionWithFunctionBody", &mut JSON::Object(ref mut object)) => {
-                self.remove_function_contents(
-                    object,
-                    FunctionKind::ArrowExpressionWithFunctionBody,
-                );
-            }
-            (_, "EagerArrowExpressionWithExpression", &mut JSON::Object(ref mut object))
-            | (_, "LazyArrowExpressionWithExpression", &mut JSON::Object(ref mut object)) => {
-                self.remove_function_contents(object, FunctionKind::ArrowExpressionWithExpression);
-            }
-            (_, "IdentifierExpression", &mut JSON::Object(ref mut object)) => {
-                debug!(target: "Shift", "IdentifierExpression {:?}", object);
-                // FIXME: We probably need to rewrite the IdentifierDefinition.
-            }
-            _ => {
-                // Nothing to do.
-            }
-        }
-        Ok(())
     }
 }
 

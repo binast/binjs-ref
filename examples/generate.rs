@@ -116,7 +116,7 @@ Note that this tool does not attempt to make sure that the files are entirely co
             binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
         }
 
-        if let Ok(source) = parser.to_source(&spec, json) {
+        if let Ok(source) = parser.to_source(&json) {
             i += 1;
 
             println!("Generated sample {}/{}", i, number);
