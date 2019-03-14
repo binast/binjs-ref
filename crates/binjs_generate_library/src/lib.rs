@@ -119,6 +119,13 @@ use io::*;
 
 use std::convert::{ From };
 
+/// Dummy single-variant enum to deserialize only a string `type` and fail otherwise.
+#[derive(Deserialize)]
+enum TypeKey {
+    #[serde(rename = \"type\")]
+    TypeKey,
+}
+
 ");
 
         // Buffer used to generate the generic data structure (struct declaration).
@@ -379,13 +386,48 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                     let definition = format!(
                         "
 /// Implementation of interface sum {node_name}
-#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Serialize)]
 #[serde(tag = \"type\")]
 pub enum {name} {{
 {contents}
     /// An additional value used to mark that the node was stolen by a call to `steal()`.
     BinASTStolen,
 }}\n
+
+// An optimised implementation of tagged deserialise that expects `type` to be the first key in the object.
+//
+// This does not strictly adhere to JSON spec, but gives ~2.5x better performance than generic
+// deserialistaion with arbitrary ordering.
+//
+// See https://github.com/serde-rs/serde/issues/1495 for details.
+impl<'de> serde::Deserialize<'de> for {name} {{
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {{
+        #[derive(Deserialize)]
+        enum VariantTag {{
+            {variant_tags}
+        }}
+
+        struct MapVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for MapVisitor {{
+            type Value = {name};
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {{
+                f.write_str(\"an object\")
+            }}
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<{name}, A::Error> {{
+                let (_, variant): (TypeKey, VariantTag) = map.next_entry()?.ok_or_else(|| serde::de::Error::invalid_length(0, &\"1 or more items\"))?;
+                let de = serde::de::value::MapAccessDeserializer::new(map);
+                match variant {{
+                    {value_variants}
+                }}
+            }}
+        }}
+
+        de.deserialize_map(MapVisitor)
+    }}
+}}
 
 /// A mechanism to view value as an instance of interface sum {node_name}
 ///
@@ -406,6 +448,21 @@ pub enum ViewMut{name}<'a> {{\n{ref_mut_contents}\n}}\n",
                             .map(|case| format!(
                                 "    {name}(&'a mut {name})",
                                 name = case.to_class_cases()
+                            ))
+                            .format(",\n"),
+                        variant_tags = types
+                            .iter()
+                            .map(|case| format!(
+                                "    {name}",
+                                name = case.to_class_cases()
+                            ))
+                            .format(",\n"),
+                        value_variants = types
+                            .iter()
+                            .map(|case| format!(
+                                "    VariantTag::{case} => serde::Deserialize::deserialize(de).map({name}::{case})",
+                                name = name,
+                                case = case.to_class_cases()
                             ))
                             .format(",\n"),
                     );

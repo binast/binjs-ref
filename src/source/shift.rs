@@ -95,30 +95,30 @@ impl Script {
         I: ?Sized + serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        let output = (move || {
+        let output = {
             let mut io = self.0.lock().unwrap();
-            serde_json::to_writer(&mut io.input, input)?;
-            writeln!(io.input)?;
-            io.output.next().unwrap()
-        })()
-        .map_err(Error::IOError)?;
+
+            serde_json::to_writer(&mut io.input, input).map_err(Error::JSONError)?;
+            writeln!(io.input).map_err(Error::IOError)?;
+
+            io.output.next().unwrap().map_err(Error::IOError)?
+        };
+
+        #[derive(Deserialize)]
+        #[serde(tag = "type", content = "value")]
+        #[serde(remote = "std::result::Result")]
+        enum Result<T, E> {
+            Ok(T),
+            Err(E),
+        }
 
         let mut deserializer = serde_json::Deserializer::from_str(&output);
 
         deserializer.disable_recursion_limit();
 
-        #[derive(Deserialize)]
-        #[serde(tag = "type", content = "value")]
-        enum CustomResult<T> {
-            Ok(T),
-            Err(String),
-        }
-
-        match CustomResult::deserialize(&mut deserializer) {
-            Ok(CustomResult::Ok(v)) => Ok(v),
-            Ok(CustomResult::Err(msg)) => Err(Error::ParsingError(msg)),
-            Err(err) => Err(Error::JSONError(err)),
-        }
+        Result::deserialize(&mut deserializer)
+            .map_err(Error::JSONError)?
+            .map_err(Error::ParsingError)
     }
 }
 
