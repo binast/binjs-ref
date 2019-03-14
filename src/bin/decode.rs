@@ -113,8 +113,7 @@ fn main_aux() {
 
     if options.print_json {
         progress!(quiet, "Printing to screen...");
-        let pretty = tree.export().pretty(2);
-        println!("{}", pretty);
+        println!("{:#}", tree.export());
     }
 
     progress!(quiet, "Pretty-printing");
