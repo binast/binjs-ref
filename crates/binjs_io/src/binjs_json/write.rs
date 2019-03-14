@@ -11,7 +11,6 @@ use binjs_shared::{FieldName, IdentifierName, InterfaceName, Node, PropertyKey, 
 
 use escaped_wtf8;
 
-use json;
 use json::JsonValue as JSON;
 
 /// Context for either list or tagged tuple.

@@ -1,6 +1,5 @@
 use {IdentifierName, PropertyKey, SharedString};
 
-use json;
 use json::JsonValue as JSON;
 
 #[derive(Debug)]
