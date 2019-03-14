@@ -15,7 +15,6 @@ use escaped_wtf8;
 
 use std::collections::VecDeque;
 
-use json;
 use json::JsonValue as JSON;
 
 use std::io::Read;

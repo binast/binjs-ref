@@ -3,7 +3,6 @@ use util::pick;
 use binjs_meta::spec::*;
 use std::iter;
 
-use json;
 use json::JsonValue as JSON;
 use rand;
 use rand::distributions::Alphanumeric;
