@@ -24,7 +24,8 @@ extern crate binjs_io;
 extern crate binjs_meta;
 extern crate binjs_shared;
 
-extern crate json;
+extern crate serde;
+extern crate serde_json;
 extern crate which;
 
 #[cfg(test)]

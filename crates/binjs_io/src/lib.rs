@@ -8,8 +8,8 @@ extern crate clap;
 extern crate derive_more;
 extern crate flate2;
 extern crate itertools;
-extern crate json;
 extern crate lzw;
+extern crate serde_json;
 #[macro_use]
 extern crate log;
 extern crate rand;

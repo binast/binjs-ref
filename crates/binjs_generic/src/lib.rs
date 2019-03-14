@@ -3,9 +3,8 @@
 
 extern crate binjs_meta;
 
-#[macro_use]
-extern crate json;
 extern crate rand;
+extern crate serde_json;
 
 /// Generic instance of `Spec` representing the es6 AST.
 pub mod es6;

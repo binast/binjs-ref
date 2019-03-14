@@ -1,6 +1,7 @@
 //! Read the data through a call to the Shift parser
 
-use json::JsonValue as JSON;
+use serde::Deserialize;
+use serde_json::Value as JSON;
 
 use std::env;
 use std::ffi::OsString;
@@ -21,7 +22,7 @@ use which::which;
 pub enum Error {
     CouldNotLaunch(std::io::Error),
     IOError(std::io::Error),
-    JSONError(json::Error),
+    JSONError(serde_json::Error),
     FromJSONError(FromJSONError),
     InvalidPath(PathBuf),
     NodeNotFound(which::Error),
@@ -101,29 +102,35 @@ impl Script {
 
         let output = (move || {
             let mut io = self.0.lock().unwrap();
-            input.write(&mut io.input)?;
-            writeln!(io.input)?;
+            writeln!(io.input, "{}", input)?;
             io.output.next().unwrap()
         })()
         .map_err(Error::IOError)?;
 
-        let result = json::parse(&output).map_err(Error::JSONError)?;
-        if let JSON::Object(mut obj) = result {
-            if let (Some(mut value), Some(ty)) = (
-                obj.remove("value"),
-                obj.get("type").and_then(|ty| ty.as_str()),
-            ) {
-                match ty {
-                    "Ok" => return Ok(FromJSON::import(&value).map_err(Error::FromJSONError)?),
-                    "Err" => {
-                        if let Some(msg) = value.take_string() {
-                            return Err(Error::ParsingError(msg));
+        {
+            let mut deserializer = serde_json::Deserializer::from_str(&output);
+
+            deserializer.disable_recursion_limit();
+
+            let result = JSON::deserialize(&mut deserializer).map_err(Error::JSONError)?;
+            if let JSON::Object(mut obj) = result {
+                if let (Some(mut value), Some(ty)) = (
+                    obj.remove("value"),
+                    obj.get("type").and_then(|ty| ty.as_str()),
+                ) {
+                    match ty {
+                        "Ok" => return Ok(FromJSON::import(&value).map_err(Error::FromJSONError)?),
+                        "Err" => {
+                            if let JSON::String(msg) = value {
+                                return Err(Error::ParsingError(msg));
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
+
         Err(Error::FromJSONError(FromJSONError {
             expected: "Result-like JSON object".to_string(),
             got: output,
