@@ -28,6 +28,13 @@ impl Drop for LevelGuard {
     }
 }
 
+/// Trivial implementation of the constructor for `Option<LevelGuard>`.
+impl<'a> From<&'a LazifierVisitor> for Option<LevelGuard> {
+    fn from(_: &'a LazifierVisitor) -> Self {
+        None
+    }
+}
+
 /// A visitor in charge of rewriting an AST to introduce laziness.
 pub struct LazifierVisitor {
     /// A nesting level at which to stop.

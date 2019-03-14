@@ -30,6 +30,12 @@ impl Visitor<()> for OffsetCleanerVisitor {
         Ok(())
     }
 }
+/// A trivial constructor for our trivial guards.
+impl<'a> From<&'a OffsetCleanerVisitor> for () {
+    fn from(_: &'a OffsetCleanerVisitor) -> () {
+        ()
+    }
+}
 
 test!(test_entropy_roundtrip, {
     let parser = Shift::try_new().expect("Could not launch Shift");
