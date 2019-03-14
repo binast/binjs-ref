@@ -15,7 +15,8 @@ use escaped_wtf8;
 
 use std::collections::VecDeque;
 
-use json::JsonValue as JSON;
+use serde::Deserialize;
+use serde_json::Value as JSON;
 
 use std::io::Read;
 use std::marker::PhantomData;
@@ -85,14 +86,9 @@ struct JSONUtil {}
 impl JSONUtil {
     /// Get the specified property of the given object.
     fn get_property<'a>(obj: &'a JSON, name: &str) -> Result<&'a JSON, TokenReaderError> {
-        if obj.has_key(name) {
-            Ok(&obj[name])
-        } else {
-            Err(TokenReaderError::GenericError(format!(
-                "{} property doesn't exist",
-                name
-            )))
-        }
+        obj.get(name).ok_or_else(|| {
+            TokenReaderError::GenericError(format!("{} property doesn't exist", name))
+        })
     }
 
     /// Get the specified property of the given object, and convert it to a
@@ -222,10 +218,15 @@ impl JSONReader {
 
     /// Convert the JSON to the list of tokens.
     fn read_all_tokens(&mut self, buffer: String) -> Result<(), TokenReaderError> {
-        let root =
-            json::parse(escaped_wtf8::from_unicode_escape(buffer).as_str()).map_err(|err| {
-                TokenReaderError::GenericError(format!("Failed to parse source: {}", err))
-            })?;
+        let buffer = escaped_wtf8::from_unicode_escape(buffer);
+
+        let mut deserializer = serde_json::Deserializer::from_str(&buffer);
+
+        deserializer.disable_recursion_limit();
+
+        let root = JSON::deserialize(&mut deserializer).map_err(|err| {
+            TokenReaderError::GenericError(format!("Failed to parse source: {}", err))
+        })?;
 
         if !root.is_object() {
             return Err(TokenReaderError::GenericError(

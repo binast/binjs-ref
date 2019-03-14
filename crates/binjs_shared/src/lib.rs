@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate downcast_rs;
 extern crate itertools;
-extern crate json;
+extern crate serde_json;
 #[macro_use]
 extern crate log;
 #[macro_use]

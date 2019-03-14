@@ -121,7 +121,7 @@ use io::*;
 use std;
 use std::convert::{ From };
 
-use json::JsonValue as JSON;
+use serde_json::Value as JSON;
 
 ");
 
@@ -1359,10 +1359,10 @@ impl FromJSON for {rust_name} {{
                     "
 impl ToJSON for {rust_name} {{
     fn export(&self) -> JSON {{
-        object!{{
-            \"type\" => JSON::from(\"{kind}\"),
+        json!({{
+            \"type\": JSON::from(\"{kind}\"),
 {fields}
-        }}
+        }})
     }}
 }}\n\n",
                     kind = name,
@@ -1372,7 +1372,7 @@ impl ToJSON for {rust_name} {{
                         .fields()
                         .iter()
                         .map(|field| format!(
-                            "             \"{key}\" => self.{name}.export()",
+                            "             \"{key}\": self.{name}.export()",
                             key = field.name().to_str(),
                             name = field.name().to_rust_identifier_case()
                         ))
