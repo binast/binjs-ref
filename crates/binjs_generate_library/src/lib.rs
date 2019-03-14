@@ -225,7 +225,7 @@ impl Default for {name} {{
                     "
 impl ToJSON for {name} {{
     fn export(&self) -> JSON {{
-        json::from(match *self {{
+        JSON::from(match *self {{
 {cases}
         }})
     }}
@@ -1361,7 +1361,7 @@ impl FromJSON for {rust_name} {{
 impl ToJSON for {rust_name} {{
     fn export(&self) -> JSON {{
         object!{{
-            \"type\" => json::from(\"{kind}\"),
+            \"type\" => JSON::from(\"{kind}\"),
 {fields}
         }}
     }}
