@@ -18,7 +18,7 @@ impl FromJSON for bool {
         match value.as_bool() {
             None => Err(FromJSONError {
                 expected: "Boolean".to_string(),
-                got: value.dump(),
+                got: value.to_string(),
             }),
             Some(ref s) => Ok(*s),
         }
@@ -43,7 +43,7 @@ impl FromJSON for f64 {
             }
             _ => Err(FromJSONError {
                 expected: "Number".to_string(),
-                got: value.dump(),
+                got: value.to_string(),
             }),
         }
     }
@@ -53,7 +53,7 @@ impl FromJSON for u32 {
         match value.as_u32() {
             None => Err(FromJSONError {
                 expected: "Number".to_string(),
-                got: value.dump(),
+                got: value.to_string(),
             }),
             Some(ref s) => Ok(*s as u32),
         }
@@ -64,7 +64,7 @@ impl FromJSON for String {
         match value.as_str() {
             None => Err(FromJSONError {
                 expected: "String".to_string(),
-                got: value.dump(),
+                got: value.to_string(),
             }),
             Some(ref s) => Ok(s.to_string()),
         }
@@ -75,7 +75,7 @@ impl FromJSON for SharedString {
         match value.as_str() {
             None => Err(FromJSONError {
                 expected: "String".to_string(),
-                got: value.dump(),
+                got: value.to_string(),
             }),
             Some(ref s) => Ok(SharedString::from_string(s.to_string())),
         }
@@ -86,7 +86,7 @@ impl FromJSON for IdentifierName {
         match value.as_str() {
             None => Err(FromJSONError {
                 expected: "Identifier or IdentifierName".to_string(),
-                got: value.dump(),
+                got: value.to_string(),
             }),
             Some(ref s) => Ok(IdentifierName::from_string(s.to_string())),
         }
@@ -97,7 +97,7 @@ impl FromJSON for PropertyKey {
         match value.as_str() {
             None => Err(FromJSONError {
                 expected: "PropertyKey".to_string(),
-                got: value.dump(),
+                got: value.to_string(),
             }),
             Some(ref s) => Ok(PropertyKey::from_string(s.to_string())),
         }
@@ -119,7 +119,7 @@ where
             }
             _ => Err(FromJSONError {
                 expected: "Array".to_string(),
-                got: value.dump(),
+                got: value.to_string(),
             }),
         }
     }

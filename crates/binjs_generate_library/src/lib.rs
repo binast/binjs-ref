@@ -287,7 +287,7 @@ impl FromJSON for {name} {{
 {cases},
             _ => Err(FromJSONError {{
                 expected: \"Instance of {name}\".to_string(),
-                got: source.dump(),
+                got: source.to_string(),
             }})
         }}
     }}
@@ -604,7 +604,7 @@ impl FromJSON for {name} {{
 {cases},
             _ => Err(FromJSONError {{
                 expected: \"Instance of {kind}\".to_string(),
-                got: value.dump()
+                got: value.to_string()
             }})
         }}
     }}
@@ -1334,7 +1334,7 @@ impl FromJSON for {rust_name} {{
             Some(\"{kind}\") => {{ /* Good */ }},
             _ => return Err(FromJSONError {{
                 expected: \"Instance of {kind}\".to_string(),
-                got: value.dump()
+                got: value.to_string()
             }})
         }}
         Ok({rust_name} {{
