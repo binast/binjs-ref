@@ -149,22 +149,22 @@ pub trait ToJSON {
 }
 impl ToJSON for str {
     fn export(&self) -> JSON {
-        json::from(self)
+        JSON::from(self)
     }
 }
 impl ToJSON for bool {
     fn export(&self) -> JSON {
-        json::from(self.clone())
+        JSON::from(self.clone())
     }
 }
 impl ToJSON for f64 {
     fn export(&self) -> JSON {
-        json::from(self.clone())
+        JSON::from(self.clone())
     }
 }
 impl ToJSON for u32 {
     fn export(&self) -> JSON {
-        json::from(self.clone())
+        JSON::from(self.clone())
     }
 }
 impl<T> ToJSON for Vec<T>

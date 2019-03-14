@@ -70,12 +70,12 @@ impl Pick for TypeSpec {
                     .map(|()| rng.sample(Alphanumeric))
                     .take(len)
                     .collect();
-                json::from(string)
+                JSON::from(string)
             }
-            TypeSpec::Number => json::from(rng.gen::<f64>()),
+            TypeSpec::Number => JSON::from(rng.gen::<f64>()),
             TypeSpec::Void => JSON::Null,
             TypeSpec::Offset | TypeSpec::UnsignedLong => {
-                json::from(rng.gen_range(0, u32::max_value()))
+                JSON::from(rng.gen_range(0, u32::max_value()))
             }
         }
     }
