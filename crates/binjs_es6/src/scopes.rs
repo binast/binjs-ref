@@ -622,6 +622,13 @@ fn maybe_exit_destructuring_parameter(visitor: &mut AnnotationVisitor, path: &Wa
     visitor.binding_kind_stack.pop();
 }
 
+/// A trivial constructor for our guards.
+impl<'a> From<&'a AnnotationVisitor> for () {
+    fn from(_: &'a AnnotationVisitor) -> () {
+        ()
+    }
+}
+
 impl Visitor<()> for AnnotationVisitor {
     // Identifiers
 
@@ -1282,6 +1289,14 @@ struct EvalCleanupAnnotator {
     /// `true` if name `eval` was bound at this level or higher in the tree.
     eval_bindings: Vec<bool>,
 }
+
+/// A trivial constructor for our trivial guards.
+impl<'a> From<&'a EvalCleanupAnnotator> for () {
+    fn from(_: &'a EvalCleanupAnnotator) -> () {
+        ()
+    }
+}
+
 impl Visitor<()> for EvalCleanupAnnotator {
     // FIXME: Anything that has a scope (including CatchClause and its invisible scope) should push an `eval_bindings`.
     // on entering, pop it on exit.

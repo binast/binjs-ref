@@ -40,6 +40,12 @@ impl Visitor<()> for OffsetCleanerVisitor {
         Ok(())
     }
 }
+/// A trivial constructor for our trivial guards.
+impl<'a> From<&'a OffsetCleanerVisitor> for () {
+    fn from(_: &'a OffsetCleanerVisitor) -> () {
+        ()
+    }
+}
 
 #[test]
 fn test_roundtrip() {
