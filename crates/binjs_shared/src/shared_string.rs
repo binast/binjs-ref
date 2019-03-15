@@ -95,7 +95,13 @@ impl SharedString {
 
 #[macro_export]
 macro_rules! shared_string {
-    (pub $name: ident) => {
+    (
+        $(#[$outer:meta])*
+        pub $name: ident
+    ) => {
+        // Documentation comments are actually syntactic sugar for #[doc="Some documentation comment"].
+        // We capture them and insert them in the generated macro.
+        $(#[$outer])*
         #[derive(Clone, Eq, PartialOrd, Ord, Debug, Hash, Serialize, Deserialize)]
         pub struct $name(pub shared_string::SharedString);
         impl $name {
