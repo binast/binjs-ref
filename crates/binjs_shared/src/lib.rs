@@ -31,18 +31,26 @@ pub enum VisitMe<T> {
     DoneHere,
 }
 
-/// An identifier, inside the grammar.
-shared_string!(pub IdentifierName);
+shared_string!(
+    /// An identifier, inside the grammar.
+    pub IdentifierName
+);
 pub type Identifier = IdentifierName;
 
-/// A property, inside the grammar.
-shared_string!(pub PropertyKey);
+shared_string!(
+    /// A property, inside the grammar.
+    pub PropertyKey
+);
 
-/// An interface *of* the grammar.
-shared_string!(pub InterfaceName);
+shared_string!(
+    /// An interface *of* the grammar.
+    pub InterfaceName
+);
 
-/// A field name *of* the grammar.
-shared_string!(pub FieldName);
+shared_string!(
+    /// A field name *of* the grammar.
+    pub FieldName
+);
 
 /// A container for f64 values that implements an *arbitrary*
 /// total order, equality relation, hash.
