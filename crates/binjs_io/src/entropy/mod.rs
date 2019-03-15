@@ -94,7 +94,14 @@ use std::rc::Rc;
 /// }
 /// ```
 macro_rules! const_with_str {
-    ( $(const $const_name: ident: $ty: ty = $init: expr;)* mod $mod_name: ident;) => {
+    (
+        $(#[$outer:meta])*
+        $(const $const_name: ident: $ty: ty = $init: expr;)*
+        mod $mod_name: ident;
+    ) => {
+        // Documentation comments are actually syntactic sugar for #[doc="Some documentation comment"].
+        // We capture them and insert them in the generated macro.
+        $(#[$outer])*
         mod $mod_name {
             $(pub const $const_name: &'static str = stringify!($init);)*
         }
@@ -102,17 +109,18 @@ macro_rules! const_with_str {
     }
 }
 
-/// The number of indices to reserve to recall
-/// recently used values in a content stream.
-///
-/// In issue #302, we have established that identifier_names
-/// seems to benefit of a window length of 8, and others
-/// a window length of 0.
-///
-/// The macro call generates a module `arg_as_str` holding the
-/// string representations of the consts. Used for the `clap`
-/// default args.
 const_with_str! {
+    /// The number of indices to reserve to recall
+    /// recently used values in a content stream.
+    ///
+    /// In issue #302, we have established that identifier_names
+    /// seems to benefit of a window length of 8, and others
+    /// a window length of 0.
+    ///
+    /// The macro call generates a module `arg_as_str` holding the
+    /// string representations of the consts. Used for the `clap`
+    /// default args.
+
     const DEFAULT_WINDOW_LEN_FLOATS: usize = 0;
     const DEFAULT_WINDOW_LEN_UNSIGNED_LONGS: usize = 0;
     const DEFAULT_WINDOW_LEN_PROPERTY_KEYS: usize = 0;
