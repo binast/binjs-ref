@@ -622,13 +622,6 @@ fn maybe_exit_destructuring_parameter(visitor: &mut AnnotationVisitor, path: &Wa
     visitor.binding_kind_stack.pop();
 }
 
-/// A trivial constructor for our guards.
-impl<'a> From<&'a AnnotationVisitor> for () {
-    fn from(_: &'a AnnotationVisitor) -> () {
-        ()
-    }
-}
-
 impl Visitor<()> for AnnotationVisitor {
     // Identifiers
 
@@ -1288,13 +1281,6 @@ impl Visitor<()> for AnnotationVisitor {
 struct EvalCleanupAnnotator {
     /// `true` if name `eval` was bound at this level or higher in the tree.
     eval_bindings: Vec<bool>,
-}
-
-/// A trivial constructor for our trivial guards.
-impl<'a> From<&'a EvalCleanupAnnotator> for () {
-    fn from(_: &'a EvalCleanupAnnotator) -> () {
-        ()
-    }
 }
 
 impl Visitor<()> for EvalCleanupAnnotator {
