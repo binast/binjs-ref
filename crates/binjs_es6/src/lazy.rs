@@ -29,8 +29,8 @@ impl Drop for LevelGuard {
 }
 
 /// Trivial implementation of the constructor for `Option<LevelGuard>`.
-impl<'a> From<&'a LazifierVisitor> for Option<LevelGuard> {
-    fn from(_: &'a LazifierVisitor) -> Self {
+impl WalkGuard<LazifierVisitor> for Option<LevelGuard> {
+    fn new(_: &LazifierVisitor, _: &WalkPath) -> Option<LevelGuard> {
         None
     }
 }

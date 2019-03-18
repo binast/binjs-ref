@@ -332,7 +332,7 @@ impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
                 let walker = format!("
 impl<'a> Walker<'a> for {name} where Self: 'a {{
     type Output = {name};
-    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         Ok(None)
     }}
 }}\n",
@@ -435,6 +435,7 @@ pub enum {name} {{\n{contents}\n}}\n
 /// A mechanism to view value as an instance of interface sum {node_name}
 ///
 /// Used to perform shallow cast between larger sums and smaller sums.
+#[derive(Debug)]
 pub enum ViewMut{name}<'a> {{\n{ref_mut_contents}\n}}\n",
                         name = name,
                         node_name = node_name,
@@ -684,14 +685,14 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
                     let walk = format!("
 impl<'a> Walker<'a> for {name} {{
     type Output = {name};
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         let mut walker : ViewMut{name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
     type Output = {name};
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         let me = self;
 {supers}
         match visitor.enter_{snake}(path, me)? {{
@@ -854,6 +855,7 @@ impl<'a, 'b> From<&'a mut ViewMut{super_name}<'a>> for Result<ViewMut{name}<'b>,
 pub type {name} = {contents};
 
 /// Shallow casting mechanism for {name}.
+#[derive(Debug)]
 pub struct ViewMut{name}<'a>(&'a mut {name});
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(value: &'a mut {name}) -> Self {{
@@ -862,7 +864,7 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a primitive.
         Ok(None)
     }}
@@ -917,6 +919,7 @@ pub type ViewMut{name}<'a> = ViewMutListOfStatement<'a>;
 {empty_check}pub type {name} = Vec<{contents}>;
 
 /// Shallow casting mechanism.
+#[derive(Debug)]
 pub struct ViewMut{name}<'a>(&'a mut {name});
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(value: &'a mut {name}) -> Self {{
@@ -925,14 +928,14 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for {name} {{
     type Output = {name};
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         let mut walker : ViewMut{name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not callback on the `Vec<>` itself, just on its contents.
         for iter in self.0.iter_mut() {{
             let rewrite = {{
@@ -984,6 +987,7 @@ impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
 pub type {name} = Option<{contents}>;\n
 
 /// Shallow casting mechanism.
+#[derive(Debug)]
 pub struct ViewMut{name}<'a>(&'a mut {name});
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(value: &'a mut {name}) -> Self {{
@@ -992,7 +996,7 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not callback on the `Option<>` itself, just on its contents.
         if let Some(ref mut contents) = self.0 {{
             let result =
@@ -1381,6 +1385,7 @@ impl ToJSON for {rust_name} {{
 
                 let walk = format!("
 /// Shallow casting mechanism.
+#[derive(Debug)]
 pub struct ViewMut{rust_name}<'a>(&'a mut {rust_name});
 impl<'a> From<&'a mut {rust_name}> for ViewMut{rust_name}<'a> {{
     fn from(value: &'a mut {rust_name}) -> Self {{
@@ -1389,14 +1394,14 @@ impl<'a> From<&'a mut {rust_name}> for ViewMut{rust_name}<'a> {{
 }}
 impl<'a> Walker<'a> for {rust_name} {{
     type Output = {rust_name};
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{rust_name}>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{rust_name}>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         let mut walker : ViewMut{rust_name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{rust_name}<'a> where Self: 'a {{
     type Output = {rust_name};
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         path.enter_interface(ASTNode::{rust_name});
         match visitor.enter_{snake}(path, self.0)? {{
             VisitMe::DoneHere => Ok(None),
@@ -1501,17 +1506,29 @@ pub type IOPath = binjs_shared::ast::Path<binjs_shared::InterfaceName, ( /* chil
 /// using `Visitor`.
 ///
 /// Type argument `G` is a type of guards.
-pub trait Visitor<E, G=()> where G: for<'me> From<&'me Self> {{
+pub trait Visitor<E, G=()> where G: WalkGuard<Self>, Self: Sized {{
 {interfaces}
 {sums}
     fn visit_offset(&mut self, _path: &WalkPath, _node: &mut Offset) -> Result<(), E> {{
         Ok(())
     }}
-}}\n
+}}
+
 pub trait Walker<'a>: Sized {{
     type Output;
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V>;
-}}\n
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V>;
+}}
+
+pub trait WalkGuard<V> where Self: Sized {{
+    fn new(visitor: &V, path: &WalkPath) -> Self;
+}}
+
+/// Trivial implementation of `WalkGuard` for `()`.
+impl<V> WalkGuard<V> for () {{
+    fn new(_: &V, _: &WalkPath) -> () {{
+        ()
+    }}
+}}
 
 /// A structure that cannot be visited.
 #[derive(Default)]
@@ -1520,7 +1537,7 @@ struct ViewMutNothing<T> {{
 }}
 impl<'a, T> Walker<'a> for ViewMutNothing<T> {{
     type Output = T;
-    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a nothing.
         Ok(None)
     }}
@@ -1534,7 +1551,7 @@ impl<'a> From<&'a mut bool> for ViewMutNothing<bool> {{
 }}
 impl<'a> Walker<'a> for bool {{
     type Output = Self;
-    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a bool.
         Ok(None)
     }}
@@ -1547,7 +1564,7 @@ impl<'a> From<&'a mut f64> for ViewMutNothing<f64> {{
 }}
 impl<'a> Walker<'a> for f64 {{
     type Output = Self;
-    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a f64.
         Ok(None)
     }}
@@ -1560,13 +1577,14 @@ impl<'a> From<&'a mut u32> for ViewMutNothing<u32> {{
 }}
 impl<'a> Walker<'a> for u32 {{
     type Output = Self;
-    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a u32.
         Ok(None)
     }}
 }}
 
 // We actually use ViewMutOffset to reset offsets to 0 during tests.
+#[derive(Debug)]
 pub struct ViewMutOffset<'a>(&'a mut Offset);
 impl<'a> From<&'a mut Offset> for ViewMutOffset<'a> {{
     fn from(value: &'a mut Offset) -> Self {{
@@ -1575,7 +1593,7 @@ impl<'a> From<&'a mut Offset> for ViewMutOffset<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMutOffset<'a> {{
     type Output = Offset;
-    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: for<'w> From<&'w V> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         visitor.visit_offset(path, &mut self.0)?;
         Ok(None)
     }}
@@ -1601,8 +1619,8 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
                     .map(|name| {
                         let interface = interfaces.get(&name).unwrap();
                         format!("
-    fn enter_{name}(&mut self, _path: &WalkPath, _node: &mut {node_name}) -> Result<VisitMe<G>, E> {{
-        Ok(VisitMe::HoldThis(G::from(self))) // interface
+    fn enter_{name}(&mut self, path: &WalkPath, _node: &mut {node_name}) -> Result<VisitMe<G>, E> {{
+        Ok(VisitMe::HoldThis(G::new(self, path))) // interface
     }}
     fn exit_{name}(&mut self, _path: &WalkPath, _node: &mut {node_name}) -> Result<Option<{node_name}>, E> {{
         Ok(None)
@@ -1616,8 +1634,8 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
                     .drain(..)
                     .map(|name| {
                         format!("
-    fn enter_{name}<'a>(&mut self, _path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<VisitMe<G>, E> {{
-        Ok(VisitMe::HoldThis(G::from(self))) // sum
+    fn enter_{name}<'a>(&mut self, path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<VisitMe<G>, E> {{
+        Ok(VisitMe::HoldThis(G::new(self, path))) // sum
     }}
     fn exit_{name}<'a>(&mut self, _path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<Option<{node_name}>, E> {{
         Ok(None)
