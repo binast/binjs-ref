@@ -25,3 +25,6 @@ pub mod scopes;
 
 /// Introducing laziness in an AST.
 pub mod lazy;
+
+/// Rewriting language fragments.
+pub mod sublanguages;
