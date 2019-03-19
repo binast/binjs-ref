@@ -20,11 +20,83 @@ pub mod ast;
 /// Serialization/deserialization utilities.
 pub mod io;
 
+/// A mechanism used to enrich an AST obtained from parsing with additional information
+/// and/or domain-specific rewrites.
+///
+/// See the definition of fields for individual enrichments.
+pub struct Enrich {
+    /// If `true`, introduce `AssertedScope*` information.
+    ///
+    /// Default: `true`, as this is necessary for most tests and command-line tools.
+    pub scopes: bool,
+
+    /// Introduce laziness for all functions strictly below level `t`.
+    ///
+    /// Default: 0 (deactivated), as this is an optional, WIP, optimization.
+    pub lazy_threshold: u32,
+
+    /// If `Some(t)`, introduce scoped dictionaries around pure data expressions
+    /// of size >= t.
+    ///
+    /// Default: `None` (deactivated), as this is an optional, WIP, optimization.
+    pub pure_data_threshold: Option<usize>,
+}
+
+impl Default for Enrich {
+    fn default() -> Self {
+        Enrich {
+            scopes: true,
+            lazy_threshold: 0,
+            pure_data_threshold: None,
+        }
+    }
+}
+impl Enrich {
+    /// Perform enrichments.
+    pub fn enrich(&self, script: &mut ast::Script) {
+        if self.lazy_threshold > 0 {
+            let mut visitor = lazy::LazifierVisitor::new(self.lazy_threshold);
+            visitor.annotate_script(script);
+        }
+        if self.scopes {
+            let mut visitor = scopes::AnnotationVisitor::new();
+            visitor.annotate_script(script);
+        }
+        if let Some(threshold) = self.pure_data_threshold {
+            sublanguages::InjectVisitor::rewrite_script(threshold, script);
+        }
+    }
+}
+
+/// A mechanism used to cleanup an AST previously enriched with `Enrich`.
+///
+/// See the definition of fields for individual enrichments.
+pub struct Cleanup {
+    /// If `true`, get rid of all instances of scoped dictionaries.
+    /// Default: `false`.
+    pub scoped_dictionaries: bool,
+}
+impl Default for Cleanup {
+    fn default() -> Self {
+        Cleanup {
+            scoped_dictionaries: false,
+        }
+    }
+}
+impl Cleanup {
+    /// Perform enrichments.
+    pub fn cleanup(&self, script: &mut ast::Script) {
+        if self.scoped_dictionaries {
+            sublanguages::CleanupVisitor::rewrite_script(script);
+        }
+    }
+}
+
 /// Computing scope information from a strongly-typed AST.
-pub mod scopes;
+mod scopes;
 
 /// Introducing laziness in an AST.
-pub mod lazy;
+mod lazy;
 
 /// Rewriting language fragments.
-pub mod sublanguages;
+mod sublanguages;

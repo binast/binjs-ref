@@ -183,7 +183,8 @@ fn main() {
         };
 
         println!("...adding {:?}", entry.default_path);
-        binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
+        let enricher = binjs::specialized::es6::Enrich::default();
+        enricher.enrich(&mut ast);
 
         let mut serializer = binjs::specialized::es6::io::Serializer::new(&mut dictionary_builder);
         serializer
@@ -226,7 +227,8 @@ fn main() {
         );
         total_original_size += original_size;
 
-        binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
+        let enricher = binjs::specialized::es6::Enrich::default();
+        enricher.enrich(&mut ast);
 
         let destination_path = match dump_path {
             Some(ref path) => Some(path.join(entry.relative_path.as_path())),

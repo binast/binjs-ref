@@ -52,7 +52,11 @@ test!(test_entropy_roundtrip, {
         let mut ast = parser.parse_str(source).expect("Could not parse source");
 
         println!("Annotating");
-        binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
+        let enricher = binjs::specialized::es6::Enrich {
+            scopes: true,
+            ..Default::default()
+        };
+        enricher.enrich(&mut ast);
 
         println!("Extracting dictionary");
         let mut serializer = binjs::specialized::es6::io::Serializer::new(&mut builder);
@@ -188,7 +192,11 @@ where
     let mut reference = parser.parse_str(source).expect("Could not parse source");
 
     println!("Reannotating");
-    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut reference);
+    let enricher = binjs::specialized::es6::Enrich {
+        scopes: true,
+        ..Default::default()
+    };
+    enricher.enrich(&mut reference);
 
     let mut path = IOPath::new();
 

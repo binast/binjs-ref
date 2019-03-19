@@ -132,7 +132,8 @@ fn main() {
                 .parse_file(source_path.clone())
                 .expect("Could not parse source");
 
-            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
+            let enricher = binjs::specialized::es6::Enrich::default();
+            enricher.enrich(&mut ast);
 
             let data = encoder
                 .encode(None, &mut format, &ast)

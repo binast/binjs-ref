@@ -9,7 +9,6 @@ extern crate env_logger;
 use binjs::io::entropy::dictionary::{DictionaryBuilder, Options as DictionaryOptions};
 use binjs::io::{Path as IOPath, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
-use binjs::specialized::es6::ast::Walker;
 
 use std::fs::{self, File};
 use std::path::Path;
@@ -82,16 +81,12 @@ fn handle_path_or_text<'a>(
         .parse_file(source)
         .expect("Could not parse source");
 
-    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
-
-    if options.lazification > 0 {
-        progress!(options.quiet, "Introducing laziness.");
-        let mut path = binjs::specialized::es6::ast::WalkPath::new();
-        let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(options.lazification);
-        ast.walk(&mut path, &mut visitor)
-            .expect("Could not introduce laziness");
-    }
-
+    let enricher = binjs::specialized::es6::Enrich {
+        lazy_threshold: options.lazification,
+        scopes: true,
+        ..Default::default()
+    };
+    enricher.enrich(&mut ast);
     progress!(options.quiet, "Building dictionary.");
 
     {

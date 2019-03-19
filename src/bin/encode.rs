@@ -6,7 +6,6 @@ extern crate env_logger;
 
 use binjs::io::{CompressionTarget, Format};
 use binjs::source::{Shift, SourceParser};
-use binjs::specialized::es6::ast::Walker;
 use binjs::specialized::es6::io::Encoder;
 
 use std::fs;
@@ -143,15 +142,12 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
     let dest_bin_path = params.dest_bin_path;
     let dest_txt_path = params.dest_txt_path;
 
-    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
-
-    if options.lazification > 0 {
-        progress!(options.quiet, "Introducing laziness.");
-        let mut path = binjs::specialized::es6::ast::WalkPath::new();
-        let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(options.lazification);
-        ast.walk(&mut path, &mut visitor)
-            .expect("Could not introduce laziness");
-    }
+    let enricher = binjs::specialized::es6::Enrich {
+        lazy_threshold: options.lazification,
+        scopes: true,
+        ..Default::default()
+    };
+    enricher.enrich(&mut ast);
 
     if options.show_ast {
         serde_json::to_writer_pretty(std::io::stdout(), &ast).unwrap();
