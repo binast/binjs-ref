@@ -20,6 +20,7 @@ struct Options<'a> {
     parser: &'a Shift,
     lazification: u32,
     quiet: bool,
+    show_ast: bool,
 }
 
 macro_rules! progress {
@@ -87,8 +88,13 @@ fn handle_path_or_text<'a>(
         ..Default::default()
     };
     enricher.enrich(&mut ast);
-    progress!(options.quiet, "Building dictionary.");
 
+    if options.show_ast {
+        serde_json::to_writer_pretty(std::io::stdout(), &ast).unwrap();
+        println!();
+    }
+
+    progress!(options.quiet, "Building dictionary.");
     {
         let mut serializer = binjs::specialized::es6::io::Serializer::new(dictionary_builder);
         serializer
@@ -132,6 +138,9 @@ fn main_aux() {
                 .short("o")
                 .takes_value(true)
                 .help("Output directory to use for writing the dictionaries. May be overwritten."),
+            Arg::with_name("show-ast")
+                .long("show-ast")
+                .help("Show the AST of each source file before extracting the dictionary"),
             Arg::with_name("lazify")
                 .long("lazify")
                 .takes_value(true)
@@ -211,6 +220,7 @@ fn main_aux() {
         parser: &parser,
         lazification,
         quiet,
+        show_ast: matches.is_present("show-ast"),
     };
 
     // Process files.
