@@ -432,6 +432,7 @@ impl AnnotationVisitor {
                             AssertedPositionalParameterName(ref b) => &b.name,
                             AssertedParameterName(ref b) => &b.name,
                             AssertedRestParameterName(ref b) => &b.name,
+                            BinASTStolen => panic!(),
                         }
                     })
                     .collect();
@@ -1512,6 +1513,7 @@ impl Visitor<()> for EvalCleanupAnnotator {
                 AssertedMaybePositionalParameterName::AssertedRestParameterName(ref p) => {
                     p.name == "eval"
                 }
+                AssertedMaybePositionalParameterName::BinASTStolen => panic!(),
             })
             .is_some()
         {

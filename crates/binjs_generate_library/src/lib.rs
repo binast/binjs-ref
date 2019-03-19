@@ -321,12 +321,12 @@ impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
                         .strings()
                         .iter()
                         .map(|s| format!(
-                            "            {name}::{typed} => \"{string}\"",
+                            "            {name}::{typed} => \"{string}\",\n",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s,
                         ))
-                        .format(",\n")
+                        .format("")
                 );
 
                 let walker = format!("
@@ -430,7 +430,11 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                         "
 /// Implementation of interface sum {node_name}
 #[derive(PartialEq, Debug, Clone)]
-pub enum {name} {{\n{contents}\n}}\n
+pub enum {name} {{
+{contents}
+    /// An additional value used to mark that the node was stolen by a call to `steal()`.
+    BinASTStolen,
+}}\n
 
 /// A mechanism to view value as an instance of interface sum {node_name}
 ///
@@ -442,10 +446,10 @@ pub enum ViewMut{name}<'a> {{\n{ref_mut_contents}\n}}\n",
                         contents = types
                             .iter()
                             .map(|case| format!(
-                                "    {name}(Box<{name}>)",
+                                "    {name}(Box<{name}>),",
                                 name = case.to_class_cases()
                             ))
-                            .format(",\n"),
+                            .format(""),
                         ref_mut_contents = types
                             .iter()
                             .map(|case| format!(
@@ -484,6 +488,7 @@ impl From<{subsum_name}> for {name} {{
     fn from(value: {subsum_name}) -> Self {{
         match value {{
 {cases}
+            {subsum_name}::BinASTStolen => panic!()
         }}
     }}
 }}
@@ -493,12 +498,12 @@ impl From<{subsum_name}> for {name} {{
                                         cases = typesums.get(subsum_name).unwrap()
                                             .iter()
                                             .map(|variant| {
-                                                format!("           {subsum_name}::{variant_name}(x) => {name}::{variant_name}(x)",
+                                                format!("           {subsum_name}::{variant_name}(x) => {name}::{variant_name}(x),\n",
                                                     subsum_name = subsum_name.to_class_cases(),
                                                     name = name,
                                                     variant_name = variant.to_class_cases())
                                             })
-                                            .format(",\n")
+                                            .format("")
                                     ))
                                     .format("\n")
                             )
@@ -515,10 +520,7 @@ impl Default for {name} {{
 
 ",
                         name = name,
-                        default = format!(
-                            "{variant}(Box::new(Default::default()))",
-                            variant = types[0].to_class_cases()
-                        ),
+                        default = "BinASTStolen",
                     );
 
                     let from_reader = format!("
@@ -627,6 +629,7 @@ impl ToJSON for {name} {{
     fn export(&self) -> JSON {{
         match *self {{
 {cases}
+            {name}::BinASTStolen => panic!()
         }}
     }}
 }}\n\n",
@@ -634,11 +637,11 @@ impl ToJSON for {name} {{
                         cases = types
                             .iter()
                             .map(|case| format!(
-                                "           {name}::{constructor}(ref value) => value.export()",
+                                "           {name}::{constructor}(ref value) => value.export(),\n",
                                 name = name,
                                 constructor = case.to_class_cases()
                             ))
-                            .format(",\n")
+                            .format("")
                     );
 
                     let to_writer = format!("
@@ -661,6 +664,7 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
         debug!(target: \"serialize_es6\", \"Serializing sum {rust_name}\");
         match *value {{
 {variants}
+            {rust_name}::BinASTStolen => panic!()
         }}
     }}
 }}
@@ -675,11 +679,12 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
 "           {name}::{constructor}(ref value) => {{
                 // Path will be updated by the serializer for this tagged tuple.
                 self.serialize(value, path)
-            }}",
+            }}
+",
                                     name = name,
                                     constructor = case.to_class_cases())
                             })
-                            .format(",\n")
+                            .format("")
                         );
 
                     let walk = format!("
@@ -765,6 +770,7 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(value: &'a mut {name}) -> ViewMut{name}<'a> {{
         match *value {{
 {variants_from}
+            {name}::BinASTStolen => panic!()
         }}
     }}
 }}
@@ -782,12 +788,12 @@ impl<'a> ViewMut{name}<'a> {{
                         name = name.to_class_cases(),
                         variants_from = types.iter()
                             .map(|variant| {
-                                format!("            {name}::{variant}(ref mut x) => ViewMut{name}::{variant}(x),",
+                                format!("            {name}::{variant}(ref mut x) => ViewMut{name}::{variant}(x),\n",
                                     name = name.to_class_cases(),
                                     variant = variant.to_class_cases(),
                                 )
                             })
-                            .format("\n"),
+                            .format(""),
                         variants_steal = types.iter()
                             .map(|variant| {
                                 format!(
@@ -795,12 +801,13 @@ impl<'a> ViewMut{name}<'a> {{
                 let mut stolen = Default::default();
                 std::mem::swap(*source, &mut stolen);
                 {name}::{variant}(Box::new(stolen))
-            }}",
+            }}
+",
                                     name = name.to_class_cases(),
                                     variant = variant.to_class_cases(),
                                 )
                             })
-                            .format("\n"),
+                            .format(""),
                         )
                     );
 
