@@ -7,7 +7,7 @@ use super::dictionary::{Fetch, LinearTable, TableRef};
 use super::rw::*;
 use bytes::lengthwriter::LengthWriter;
 use bytes::varnum::WriteVarNum;
-use io::statistics::{Bytes, Instances, PerUserExtensibleKind};
+use io::statistics::{Bytes, Instances, PerUserExtensibleKind, Rational};
 use io::{Path, TokenWriter};
 use TokenWriterError;
 
@@ -160,7 +160,7 @@ impl Encoder {
 /// Usage:
 /// `emit_symbol_to_main_stream!(self, name_of_the_probability_table, "Description, used for debugging",  path_in_the_ast,  value_to_encode)`
 macro_rules! emit_symbol_to_main_stream {
-    ( $me: ident, $table: ident, $description: expr, $path: expr, $value: expr ) => {
+    ( $me: ident, $table: ident, $table_of_statistics: ident, $description: expr, $path: expr, $value: expr ) => {
         {
             use std::borrow::Borrow;
 
@@ -188,6 +188,16 @@ macro_rules! emit_symbol_to_main_stream {
                 .borrow();
             $me.writer.symbol(symbol.index.into(), &distribution)
                 .map_err(TokenWriterError::WriteError)?;
+
+            // 3. Also update our table of statistics
+            let mut probability_stats = $me.options
+                .probability_stats
+                .borrow_mut();
+            let probability = Rational {
+                num: distribution.at_index(symbol.index.into()).unwrap().width() as usize,
+                den: distribution.width() as usize
+            };
+            probability_stats.$table_of_statistics.add_probability(probability);
 
             Ok(())
         }
@@ -472,7 +482,7 @@ impl TokenWriter for Encoder {
     // --- Fixed set
 
     fn bool_at(&mut self, value: Option<bool>, path: &Path) -> Result<(), TokenWriterError> {
-        emit_symbol_to_main_stream!(self, bool_by_path, "bool_by_path", path, value)
+        emit_symbol_to_main_stream!(self, bool_by_path, bools, "bool_by_path", path, value)
     }
 
     fn string_enum_at(
@@ -483,6 +493,7 @@ impl TokenWriter for Encoder {
         emit_symbol_to_main_stream!(
             self,
             string_enum_by_path,
+            string_enums,
             "string_enum_by_path",
             path,
             value
@@ -499,6 +510,7 @@ impl TokenWriter for Encoder {
         emit_symbol_to_main_stream!(
             self,
             interface_name_by_path,
+            interface_names,
             "interface_name_by_path",
             path,
             tag

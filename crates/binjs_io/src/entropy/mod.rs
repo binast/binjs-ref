@@ -67,7 +67,9 @@ pub mod probabilities;
 use self::dictionary::{Dictionary, DictionaryFamily};
 use self::probabilities::SymbolInfo;
 
-use io::statistics::{Bytes, BytesAndInstances, Instances, PerUserExtensibleKind};
+use io::statistics::{
+    Bytes, BytesAndInstances, Instances, PerStaticKind, PerUserExtensibleKind, ProbabilityHistogram,
+};
 
 use binjs_shared::SharedString;
 
@@ -150,6 +152,8 @@ pub struct Options {
     /// we accumulate statistics.
     content_instances: Rc<RefCell<PerUserExtensibleKind<Instances>>>,
 
+    probability_stats: Rc<RefCell<PerStaticKind<ProbabilityHistogram>>>,
+
     /// For each content section, the number of indices reserved to reference
     /// recently used values.
     content_window_len: PerUserExtensibleKind<usize>,
@@ -186,6 +190,7 @@ impl Options {
             dictionaries,
             content_lengths: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
             content_instances: Rc::new(RefCell::new(PerUserExtensibleKind::default())),
+            probability_stats: Rc::new(RefCell::new(PerStaticKind::default())),
             split_streams: false,
             content_window_len: PerUserExtensibleKind {
                 floats: DEFAULT_WINDOW_LEN_FLOATS,
@@ -199,31 +204,58 @@ impl Options {
     }
 
     /// Return the statistics as (number of instances, number of bytes).
-    pub fn statistics_for_write(&self) -> PerUserExtensibleKind<BytesAndInstances> {
-        let borrow_lengths = self.content_lengths.borrow();
-        let borrow_instances = self.content_instances.borrow();
-        PerUserExtensibleKind {
-            floats: BytesAndInstances::new(borrow_lengths.floats, borrow_instances.floats),
-            unsigned_longs: BytesAndInstances::new(
-                borrow_lengths.unsigned_longs,
-                borrow_instances.unsigned_longs,
-            ),
-            property_keys: BytesAndInstances::new(
-                borrow_lengths.property_keys,
-                borrow_instances.property_keys,
-            ),
-            identifier_names: BytesAndInstances::new(
-                borrow_lengths.identifier_names,
-                borrow_instances.identifier_names,
-            ),
-            string_literals: BytesAndInstances::new(
-                borrow_lengths.string_literals,
-                borrow_instances.string_literals,
-            ),
-            list_lengths: BytesAndInstances::new(
-                borrow_lengths.list_lengths,
-                borrow_instances.list_lengths,
-            ),
+    pub fn statistics_for_write(&self) -> impl std::fmt::Display {
+        let per_user_extensible_kind = {
+            let borrow_lengths = self.content_lengths.borrow();
+            let borrow_instances = self.content_instances.borrow();
+            PerUserExtensibleKind {
+                floats: BytesAndInstances::new(borrow_lengths.floats, borrow_instances.floats),
+                unsigned_longs: BytesAndInstances::new(
+                    borrow_lengths.unsigned_longs,
+                    borrow_instances.unsigned_longs,
+                ),
+                property_keys: BytesAndInstances::new(
+                    borrow_lengths.property_keys,
+                    borrow_instances.property_keys,
+                ),
+                identifier_names: BytesAndInstances::new(
+                    borrow_lengths.identifier_names,
+                    borrow_instances.identifier_names,
+                ),
+                string_literals: BytesAndInstances::new(
+                    borrow_lengths.string_literals,
+                    borrow_instances.string_literals,
+                ),
+                list_lengths: BytesAndInstances::new(
+                    borrow_lengths.list_lengths,
+                    borrow_instances.list_lengths,
+                ),
+            }
+        };
+
+        let probability_stats = self.probability_stats.clone();
+
+        struct Statistics<A, B> {
+            bytes_and_instances_per_user_extensible_kind: A,
+            probability_histogram_per_static_kind: Rc<RefCell<B>>,
+        }
+        impl<A, B> std::fmt::Display for Statistics<A, B>
+        where
+            A: std::fmt::Display,
+            B: std::fmt::Display,
+        {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+                self.bytes_and_instances_per_user_extensible_kind
+                    .fmt(formatter)?;
+                self.probability_histogram_per_static_kind
+                    .borrow()
+                    .fmt(formatter)?;
+                Ok(())
+            }
+        }
+        Statistics {
+            bytes_and_instances_per_user_extensible_kind: per_user_extensible_kind,
+            probability_histogram_per_static_kind: probability_stats,
         }
     }
 
