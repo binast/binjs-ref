@@ -1172,6 +1172,22 @@ impl<'a> TokenWriter for &'a mut DictionaryBuilder {
     fn offset_at(&mut self, path: &IOPath) -> Result<(), TokenWriterError> {
         (*self).offset_at(path)
     }
+
+    fn enter_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        (*self).enter_scoped_dictionary_at(name, path)
+    }
+
+    fn exit_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        path: &IOPath,
+    ) -> Result<(), TokenWriterError> {
+        (*self).exit_scoped_dictionary_at(name, path)
+    }
 }
 
 impl TokenWriter for DictionaryBuilder {
