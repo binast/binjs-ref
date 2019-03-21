@@ -446,7 +446,7 @@ pub enum ViewMut{name}<'a> {{\n{ref_mut_contents}\n}}\n",
                         contents = types
                             .iter()
                             .map(|case| format!(
-                                "    {name}(Box<{name}>),",
+                                "    {name}(Box<{name}>),\n",
                                 name = case.to_class_cases()
                             ))
                             .format(""),
