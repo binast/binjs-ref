@@ -119,11 +119,33 @@ use io::*;
 
 use std::convert::{ From };
 
-/// Dummy single-variant enum to deserialize only a string `type` and fail otherwise.
-#[derive(Deserialize)]
-enum TypeKey {
-    #[serde(rename = \"type\")]
-    TypeKey,
+/// Dummy type to deserialize only a string `type` and fail otherwise.
+struct TypeKey;
+
+impl<'de> serde::Deserialize<'de> for TypeKey {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = TypeKey;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str(\"a key `type` as the *first* item in the object\")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<TypeKey, E> {
+                match s {
+                    \"type\" => Ok(TypeKey),
+                    _ => Err(serde::de::Error::invalid_value(
+                        serde::de::Unexpected::Other(&format!(\"key `{}`\", s)),
+                        &self
+                    ))
+                }
+            }
+        }
+
+        de.deserialize_str(Visitor)
+    }
 }
 
 ");
