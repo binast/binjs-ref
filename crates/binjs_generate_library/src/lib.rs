@@ -1315,7 +1315,9 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
                                             break Cow::from(format!(
 "
             // Switch dictionary to serialize other children of this node.
-            self.writer.enter_scoped_dictionary_at(&value.{rust_field_name}, path)?;
+            if let Err(err) = self.writer.enter_scoped_dictionary_at(&value.{rust_field_name}, path) {{
+                break Err(err); // Break with error
+            }}
 ",
                                         rust_field_name = field.name().to_rust_identifier_case()))
                                         }
