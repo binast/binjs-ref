@@ -190,6 +190,116 @@ impl<T> PerUserExtensibleKind<T> {
     }
 }
 
+/// A macro used to generate code that will operate on all fields of a `PerStaticKind`.
+#[macro_export]
+macro_rules! for_field_in_per_static {
+    ( $cb: ident ) => {
+        $cb!(
+            (bools, "bools", "bools", b"bools"),
+            (interface_names, "interfaces", "interfaces", b"interfaces"),
+            (
+                string_enums,
+                "string_enums",
+                "string enums",
+                b"string_enums"
+            )
+        )
+    };
+}
+
+/// During compression, we typically deal with both grammar-fixed data
+/// (e.g. the list of possible values in a string enum) and user-extensible
+/// data (e.g. string literals).
+///
+/// This container is meant to store data associated with grammar-fixed data.
+/// This serves typically to store per-kind compression settings, per-kind
+/// compressed/decompressed data, dictionaries, etc.
+#[derive(Debug, Default)]
+pub struct PerStaticKind<T> {
+    pub bools: T,
+    pub interface_names: T,
+    pub string_enums: T,
+}
+
+/// A default number of buckets for histograms.
+const DEFAULT_HISTOGRAM_BUCKETS: usize = 32;
+
+/// Simple representation of a rational number.
+///
+/// Used to avoid some fixed-point computation when it's not really necessary.
+pub struct Rational<T> {
+    /// The numerator.
+    pub num: T,
+
+    /// The denominator.
+    pub den: T,
+}
+
+/// A histogram designed to store information on how hoften we perform an operation
+/// marked by a given probability.
+pub struct ProbabilityHistogram {
+    buckets: Vec<usize>,
+}
+impl ProbabilityHistogram {
+    pub fn with_capacity(len: usize) -> Self {
+        assert!(len > 1);
+        let mut buckets = Vec::with_capacity(len);
+        buckets.resize(len, 0);
+        Self { buckets }
+    }
+
+    pub fn new() -> Self {
+        Self::with_capacity(DEFAULT_HISTOGRAM_BUCKETS)
+    }
+
+    /// Add a probability to the corresponding bucket in the histogram.
+    pub fn add_probability(&mut self, probability: Rational<usize>) {
+        assert!(probability.num <= probability.den);
+        let len = self.buckets.len();
+        let index = (probability.num * (len - 1)) / probability.den;
+        self.buckets[index] += 1;
+    }
+}
+impl Default for ProbabilityHistogram {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for ProbabilityHistogram {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        let total: usize = self.buckets.iter().sum();
+        write!(formatter, "  bucket ")?;
+        for i in 0..32 {
+            write!(formatter, " | {:3}", i)?;
+        }
+        write!(formatter, "\n --------")?;
+        for _ in 0..32 {
+            write!(formatter, "-|----")?;
+        }
+        write!(formatter, "\n       % ")?;
+        for bucket in &self.buckets {
+            write!(formatter, " | {:3.0}", 100. * *bucket as f64 / total as f64)?;
+        }
+        write!(formatter, "\n")?;
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for PerStaticKind<ProbabilityHistogram> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(formatter, "Static:\n")?;
+        macro_rules! with_field { ($(($ident: ident, $name: expr, $user_readable: expr, $bname: expr )),*) => {
+                $(
+                    write!(formatter, "    {name}:\n", name = $user_readable)?;
+                    write!(formatter, "{content}", content = self.$ident)?;
+                )*
+        } };
+        for_field_in_per_static!(with_field);
+        Ok(())
+    }
+}
+
 pub trait DisplayWith<T> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter, data: &T) -> Result<(), std::fmt::Error>;
 }
