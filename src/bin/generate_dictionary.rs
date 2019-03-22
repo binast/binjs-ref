@@ -9,7 +9,6 @@ extern crate env_logger;
 use binjs::io::entropy::dictionary::{DictionaryBuilder, Options as DictionaryOptions};
 use binjs::io::{Path as IOPath, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
-use binjs::specialized::es6::ast::Walker;
 
 use std::fs::{self, File};
 use std::path::Path;
@@ -21,6 +20,7 @@ struct Options<'a> {
     parser: &'a Shift,
     lazification: u32,
     quiet: bool,
+    show_ast: bool,
 }
 
 macro_rules! progress {
@@ -82,18 +82,19 @@ fn handle_path_or_text<'a>(
         .parse_file(source)
         .expect("Could not parse source");
 
-    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
+    let enricher = binjs::specialized::es6::Enrich {
+        lazy_threshold: options.lazification,
+        scopes: true,
+        ..Default::default()
+    };
+    enricher.enrich(&mut ast);
 
-    if options.lazification > 0 {
-        progress!(options.quiet, "Introducing laziness.");
-        let mut path = binjs::specialized::es6::ast::WalkPath::new();
-        let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(options.lazification);
-        ast.walk(&mut path, &mut visitor)
-            .expect("Could not introduce laziness");
+    if options.show_ast {
+        serde_json::to_writer_pretty(std::io::stdout(), &ast).unwrap();
+        println!();
     }
 
     progress!(options.quiet, "Building dictionary.");
-
     {
         let mut serializer = binjs::specialized::es6::io::Serializer::new(dictionary_builder);
         serializer
@@ -137,6 +138,9 @@ fn main_aux() {
                 .short("o")
                 .takes_value(true)
                 .help("Output directory to use for writing the dictionaries. May be overwritten."),
+            Arg::with_name("show-ast")
+                .long("show-ast")
+                .help("Show the AST of each source file before extracting the dictionary"),
             Arg::with_name("lazify")
                 .long("lazify")
                 .takes_value(true)
@@ -216,6 +220,7 @@ fn main_aux() {
         parser: &parser,
         lazification,
         quiet,
+        show_ast: matches.is_present("show-ast"),
     };
 
     // Process files.

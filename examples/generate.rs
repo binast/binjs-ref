@@ -13,7 +13,6 @@ const DEFAULT_TREE_SIZE: isize = 5;
 
 use binjs::generic::pick::{Pick, Picker};
 use binjs::source::Shift;
-use binjs::specialized::es6::ast::Walker;
 use binjs::specialized::es6::io::Encoder;
 
 use clap::*;
@@ -106,17 +105,12 @@ Note that this tool does not attempt to make sure that the files are entirely co
         let mut ast =
             binjs::specialized::es6::ast::Script::deserialize(&json).expect("Could not import AST");
 
-        if lazification > 0 {
-            let mut path = binjs::specialized::es6::ast::WalkPath::new();
-            let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(lazification);
-            ast.walk(&mut path, &mut visitor)
-                .expect("Could not introduce laziness");
-        }
-
-        if !random_metadata {
-            // Overwrite random annotations.
-            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
-        }
+        let enricher = binjs::specialized::es6::Enrich {
+            lazy_threshold: lazification,
+            scopes: !random_metadata,
+            ..Default::default()
+        };
+        enricher.enrich(&mut ast);
 
         if let Ok(source) = parser.to_source(&ast) {
             i += 1;

@@ -95,7 +95,7 @@ fn main_aux() {
     };
 
     progress!(quiet, "Reading.");
-    let tree: binjs::specialized::es6::ast::Script = match source_path {
+    let mut tree = match source_path {
         Some(path) => parse_tree(
             &|| BufReader::new(File::open(path).expect("Could not open source")),
             &mut options,
@@ -115,6 +115,12 @@ fn main_aux() {
         serde_json::to_writer_pretty(std::io::stdout(), &tree).unwrap();
         println!();
     }
+
+    let cleaner = binjs::specialized::es6::Cleanup {
+        scoped_dictionaries: true,
+        ..Default::default()
+    };
+    cleaner.cleanup(&mut tree);
 
     progress!(quiet, "Pretty-printing");
     let printer = Shift::try_new().expect("Could not launch Shift");

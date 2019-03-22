@@ -94,21 +94,19 @@ fn main() {
             let entry = entry.expect("Invalid entry");
             eprint!("\n{:?}.", entry);
 
-            // Parse and preprocess file.
-
-            let mut ast = parser
+            // Immutable copy.
+            let reference_ast = parser
                 .parse_file(entry.clone())
                 .expect("Could not parse source");
 
-            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
-
-            // Immutable copy.
-            let reference_ast = ast;
             'per_level: for level in &[0, 1, 2, 3, 4, 5] {
                 let mut ast = reference_ast.clone();
-                let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(*level);
-                ast.walk(&mut path, &mut visitor)
-                    .expect("Could not introduce laziness");
+                let enricher = binjs::specialized::es6::Enrich {
+                    lazy_threshold: *level,
+                    scopes: false,
+                    ..Default::default()
+                };
+                enricher.enrich(&mut ast);
                 progress();
 
                 let options = Targets {
@@ -164,8 +162,6 @@ fn main() {
             let mut ast = parser
                 .parse_file(entry.clone())
                 .expect("Could not parse source");
-
-            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
             {
                 progress();
