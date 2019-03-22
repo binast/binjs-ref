@@ -152,7 +152,7 @@ fn main_aux() {
             Arg::with_name("depth")
                 .long("depth")
                 .takes_value(true)
-                .default_value("3")
+                .default_value("2")
                 .validator(|s| s.parse::<u32>()
                     .map(|_| ())
                     .map_err(|e| format!("Invalid number {}", e)))
