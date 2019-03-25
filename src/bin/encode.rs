@@ -147,7 +147,7 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
         scopes: true,
         ..Default::default()
     };
-    enricher.enrich(&mut ast);
+    enricher.enrich(&mut ast).expect("Could not enrich AST");
 
     if options.show_ast {
         serde_json::to_writer_pretty(std::io::stdout(), &ast).unwrap();

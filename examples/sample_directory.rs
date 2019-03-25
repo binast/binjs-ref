@@ -175,16 +175,21 @@ fn main() {
             // Skip files that are too small.
             continue;
         }
-        let mut ast = if let Ok(ast) = parser.parse_file(&entry.default_path) {
-            ast
-        } else {
-            // Could not parse source
-            continue;
+        let mut ast = match parser.parse_file(&entry.default_path) {
+            Ok(ast) => ast,
+            Err(e) => {
+                // Could not parse source
+                println!("...skipping file due to parse error {:?}", e);
+                continue;
+            }
         };
 
         println!("...adding {:?}", entry.default_path);
         let enricher = binjs::specialized::es6::Enrich::default();
-        enricher.enrich(&mut ast);
+        if let Err(e) = enricher.enrich(&mut ast) {
+            println!("...skipping file due to enrichment error {:?}", e);
+            continue;
+        }
 
         let mut serializer = binjs::specialized::es6::io::Serializer::new(&mut dictionary_builder);
         serializer
@@ -207,17 +212,28 @@ fn main() {
     let control_len = control.len();
     for (index, entry) in control.into_iter().enumerate() {
         println!("...file {}/{}", index, control_len);
-        let original_size = std::fs::metadata(&entry.default_path).unwrap().len();
+        let original_size = match std::fs::metadata(&entry.default_path) {
+            Ok(metadata) => metadata.len(),
+            Err(e) => {
+                println!(
+                    "...skipping file {:?} due to access error {:?}",
+                    entry.default_path, e
+                );
+                continue;
+            }
+        };
         if original_size < min_size as u64 {
             // Skip files that are too small.
             continue;
         }
 
-        let mut ast = if let Ok(ast) = parser.parse_file(&entry.default_path) {
-            ast
-        } else {
-            // Could not parse source
-            continue;
+        let mut ast = match parser.parse_file(&entry.default_path) {
+            Ok(ast) => ast,
+            Err(e) => {
+                // Could not parse source
+                println!("...skipping file due to parse error {:?}", e);
+                continue;
+            }
         };
 
         println!("...compressing {:?}", entry.default_path);
@@ -228,7 +244,10 @@ fn main() {
         total_original_size += original_size;
 
         let enricher = binjs::specialized::es6::Enrich::default();
-        enricher.enrich(&mut ast);
+        if let Err(e) = enricher.enrich(&mut ast) {
+            println!("...skipping file due to enrichment error {:?}", e);
+            continue;
+        }
 
         let destination_path = match dump_path {
             Some(ref path) => Some(path.join(entry.relative_path.as_path())),

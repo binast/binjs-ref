@@ -20,6 +20,16 @@ pub mod ast;
 /// Serialization/deserialization utilities.
 pub mod io;
 
+/// Errors encountered during a call to `Enrich`.
+///
+/// These errors generally mean that we have encountered a fragment of JavaScript
+/// which we do not support yet.
+#[derive(Debug)]
+pub enum EnrichError {
+    /// While analyzing scopes, we exit a binding identifier but there is no binding kind.
+    MissingBindingKind,
+}
+
 /// A mechanism used to enrich an AST obtained from parsing with additional information
 /// and/or domain-specific rewrites.
 ///
@@ -53,18 +63,19 @@ impl Default for Enrich {
 }
 impl Enrich {
     /// Perform enrichments.
-    pub fn enrich(&self, script: &mut ast::Script) {
+    pub fn enrich(&self, script: &mut ast::Script) -> Result<(), EnrichError> {
         if self.lazy_threshold > 0 {
             let mut visitor = lazy::LazifierVisitor::new(self.lazy_threshold);
-            visitor.annotate_script(script);
+            visitor.annotate_script(script)?;
         }
         if self.scopes {
             let mut visitor = scopes::AnnotationVisitor::new();
-            visitor.annotate_script(script);
+            visitor.annotate_script(script)?;
         }
         if let Some(threshold) = self.pure_data_threshold {
-            sublanguages::InjectVisitor::rewrite_script(threshold, script);
+            sublanguages::InjectVisitor::rewrite_script(threshold, script)?;
         }
+        Ok(())
     }
 }
 

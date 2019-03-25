@@ -110,7 +110,8 @@ Note that this tool does not attempt to make sure that the files are entirely co
             scopes: !random_metadata,
             ..Default::default()
         };
-        enricher.enrich(&mut ast);
+        enricher.enrich(&mut ast)
+            .expect("Could not enrich AST");
 
         if let Ok(source) = parser.to_source(&ast) {
             i += 1;

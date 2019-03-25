@@ -56,7 +56,8 @@ test!(test_entropy_roundtrip, {
             scopes: true,
             ..Default::default()
         };
-        enricher.enrich(&mut ast);
+        enricher.enrich(&mut ast)
+            .expect("Could not enrich AST");
 
         println!("Extracting dictionary");
         let mut serializer = binjs::specialized::es6::io::Serializer::new(&mut builder);
@@ -196,7 +197,8 @@ where
         scopes: true,
         ..Default::default()
     };
-    enricher.enrich(&mut reference);
+    enricher.enrich(&mut ast)
+        .expect("Could not enrich AST");
 
     let mut path = IOPath::new();
 
