@@ -164,8 +164,82 @@ NamedContentStream ::= "[floats]" ContentStream<f64?>
 If the same content name (`"[floats]"`, `"[unsigned_longs]"`, etc.) appears more than once, this
 is a syntax error.
 
+## Internal compression
 
-TBD
+All content streams have the same structure
+
+```
+ContentStream<T> ::= CompressionFormat ";" ByteLen CompressedContentStream<T>
+```
+
+Where:
+
+- the `CompressionFormat` is the name of the compression to use to decompress the `CompressedByteStream`;
+- the `ByteLen` is the number of bytes in the `CompressedByteStream`;
+
+Let us call `ExpandedContentStream<T>` the result of decompressing the `ByteLen` bytes of
+a `CompressedContentStream<T>` with the specified `CompressionFormat`.
+
+## Stream interpretation
+
+All expanded content streams have the same structure
+
+```
+ExpandedContentStream<T> ::= WindowLen ExpandedContentReferences<T>
+WindowLen ::= var_u32
+```
+
+Where `WindowLen` is the number of bytes in the LRU cache used to interpret `ExpandedContentReferences`. It may be 0.
+
+```
+ExpandedContentReferences<T> ::= ContentReferenceBytes<T>*
+ContentReferenceBytes<T> ::= var_u32
+```
+
+Interpreting a `ContentReferenceBytes<T>` requires the following information:
+- a per-stream value `prelude_latest`, initially set to `-1`;
+- a per-stream value `imported_len`, initially set to `0`.
+
+A `ContentReferenceBytes<T>` is interpreted into a `ContentReference<T>` through
+the following algorithm:
+
+```python
+prelude_latest = -1
+imported = []
+window = LRU(WindowLen)
+prelude_len = # Length of the matching Prelude stream
+def interpret(u32):
+    # 0 means "next in prelude"
+    if u32 == 0:
+        prelude_latest += 1
+        return PreludeReference(prelude_latest)
+    # [1, WindowLen] is a LRU cache
+    if 1 <= u32 and u32 <= len(window):
+        result = window.fetch(u32 - 1)
+        if result.isinstance(PreludeReference):
+            prelude_latest = result.index
+        return result
+    # [WindowLen + 1, WindowLen + PreludeLen] is a reference to the prelude
+    # dictionary.
+    if len(window) + 1 <= u32 and u32 <= len(window) + len(prelude):
+        prelude_latest = u32 - len(window) - 1
+        result = PreludeReference(prelude_latest)
+        window.insert(result)
+        return result
+    # [WindowLen + PreludeLen + 1, WindowLen + PreludeLen + len(imported)] is a reference
+    # to an already encountered value from the shared dictionary.
+    if len(window) + len(prelude) + 1 <= u32 and u32 <= len(window) + len(prelude) + len(imported):
+        result = imported[u32 - len(window) - len(prelude) - 1]
+        window.insert(result)
+        return result
+    # Any value above is a first-time reference into the shared dictionary.
+    if len(window) + len(prelude) + len(imported) < u32:
+        result = SharedReference(u32 - len(window) - len(prelude) - len(imported))
+        window.insert(result)
+        return result
+
+```
+
 
 # Main
 
