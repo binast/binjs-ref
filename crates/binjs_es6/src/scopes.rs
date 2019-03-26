@@ -1,13 +1,25 @@
 use ast::*;
 use binjs_shared::{IdentifierName, VisitMe};
-use EnrichError;
 
 use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
-type EnterResult = Result<VisitMe<()>, EnrichError>;
-type ExitResult<T> = Result<Option<T>, EnrichError>;
+type EnterResult = Result<VisitMe<()>, ScopeError>;
+type ExitResult<T> = Result<Option<T>, ScopeError>;
+
+#[derive(Debug)]
+pub enum ScopeError {
+    /// While analyzing scopes, we exit a binding identifier but there is no binding kind.
+    MissingBindingKind,
+
+    /// This name is defined twice in the same scope
+    NameIsDefinedTwiceInTheSameScope {
+        /// If `true`, the name is a const lexical name.
+        const_lexical: bool,
+        name: IdentifierName,
+    },
+}
 
 #[derive(Debug, PartialEq, Eq)]
 enum BindingKind {
@@ -240,7 +252,7 @@ impl AnnotationVisitor {
         self.push_direct_eval();
         self.push_free_names();
     }
-    fn pop_incomplete_var_scope(&mut self, path: &WalkPath) -> VarAndLexNames {
+    fn pop_incomplete_var_scope(&mut self, path: &WalkPath) -> Result<VarAndLexNames, ScopeError> {
         debug!(target: "annotating", "pop_incomplete_var_scope at {:?}", path);
         let var_names = self.var_names_stack.pop().unwrap();
         let non_const_lexical_names = self.non_const_lexical_names_stack.pop().unwrap();
@@ -252,29 +264,32 @@ impl AnnotationVisitor {
 
         // Check that a name isn't defined twice in the same scope.
         for name in var_names.intersection(&non_const_lexical_names) {
-            panic!(
-                "This name is both non-const-lexical-bound and var-bound: {:?}",
-                name
-            );
+            return Err(ScopeError::NameIsDefinedTwiceInTheSameScope {
+                const_lexical: false,
+                name: name.clone(),
+            });
         }
         for name in var_names.intersection(&const_lexical_names) {
-            panic!(
-                "This name is both const-lexical-bound and var-bound: {:?}",
-                name
-            );
+            return Err(ScopeError::NameIsDefinedTwiceInTheSameScope {
+                const_lexical: true,
+                name: name.clone(),
+            });
         }
-        VarAndLexNames {
+        Ok(VarAndLexNames {
             var_names,
             non_const_lexical_names,
             const_lexical_names,
-        }
+        })
     }
-    fn pop_var_and_lex_declared_names(&mut self, path: &WalkPath) -> Vec<AssertedDeclaredName> {
+    fn pop_var_and_lex_declared_names(
+        &mut self,
+        path: &WalkPath,
+    ) -> Result<Vec<AssertedDeclaredName>, ScopeError> {
         let VarAndLexNames {
             var_names,
             non_const_lexical_names,
             const_lexical_names,
-        } = self.pop_incomplete_var_scope(path);
+        } = self.pop_incomplete_var_scope(path)?;
         let captured_names =
             self.pop_captured_names(&[&var_names, &non_const_lexical_names, &const_lexical_names]);
         self.pop_free_names(
@@ -317,26 +332,29 @@ impl AnnotationVisitor {
             "Duplicate declared names"
         );
 
-        declared_names
+        Ok(declared_names)
     }
 
-    fn pop_var_scope(&mut self, path: &WalkPath) -> AssertedVarScope {
-        let declared_names = self.pop_var_and_lex_declared_names(path);
+    fn pop_var_scope(&mut self, path: &WalkPath) -> Result<AssertedVarScope, ScopeError> {
+        let declared_names = self.pop_var_and_lex_declared_names(path)?;
         let has_direct_eval = self.pop_direct_eval();
 
-        AssertedVarScope {
+        Ok(AssertedVarScope {
             declared_names,
             has_direct_eval,
-        }
+        })
     }
-    fn pop_script_global_scope(&mut self, path: &WalkPath) -> AssertedScriptGlobalScope {
-        let declared_names = self.pop_var_and_lex_declared_names(path);
+    fn pop_script_global_scope(
+        &mut self,
+        path: &WalkPath,
+    ) -> Result<AssertedScriptGlobalScope, ScopeError> {
+        let declared_names = self.pop_var_and_lex_declared_names(path)?;
         let has_direct_eval = self.pop_direct_eval();
 
-        AssertedScriptGlobalScope {
+        Ok(AssertedScriptGlobalScope {
             declared_names,
             has_direct_eval,
-        }
+        })
     }
 
     fn push_this_captured(&mut self) {
@@ -372,7 +390,7 @@ impl AnnotationVisitor {
         &mut self,
         path: &WalkPath,
         parameter_scope: &AssertedParameterScope,
-    ) -> AssertedParameterScope {
+    ) -> Result<AssertedParameterScope, ScopeError> {
         debug!(target: "annotating", "pop_param_scope at {:?}", path);
 
         fn to_declaration(param: &ParamKind) -> IdentifierName {
@@ -446,11 +464,11 @@ impl AnnotationVisitor {
             "Duplicate param names"
         );
 
-        AssertedParameterScope {
+        Ok(AssertedParameterScope {
             param_names,
             has_direct_eval,
             is_simple_parameter_list: parameter_scope.is_simple_parameter_list,
-        }
+        })
     }
     fn push_bound_names_scope(&mut self, _path: &WalkPath) {
         debug!(target: "annotating", "push_bound_names_scope at {:?}", _path);
@@ -627,7 +645,7 @@ fn maybe_exit_destructuring_parameter(visitor: &mut AnnotationVisitor, path: &Wa
     visitor.binding_kind_stack.pop();
 }
 
-impl Visitor<EnrichError> for AnnotationVisitor {
+impl Visitor<ScopeError> for AnnotationVisitor {
     // Identifiers
 
     fn exit_call_expression(
@@ -730,7 +748,7 @@ impl Visitor<EnrichError> for AnnotationVisitor {
                 debug!(target: "annotating", "exit_binding identifier – marking {name:?} at {path:?}",
                        name = node.name,
                        path = path);
-                return Err(EnrichError::MissingBindingKind);
+                return Err(ScopeError::MissingBindingKind);
             }
             _ => {}
         }
@@ -800,7 +818,7 @@ impl Visitor<EnrichError> for AnnotationVisitor {
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_script(&mut self, path: &WalkPath, node: &mut Script) -> ExitResult<Script> {
-        node.scope = self.pop_script_global_scope(path);
+        node.scope = self.pop_script_global_scope(path)?;
         Ok(None)
     }
 
@@ -809,7 +827,7 @@ impl Visitor<EnrichError> for AnnotationVisitor {
         Ok(VisitMe::HoldThis(()))
     }
     fn exit_module(&mut self, path: &WalkPath, node: &mut Module) -> ExitResult<Module> {
-        node.scope = self.pop_var_scope(path);
+        node.scope = self.pop_var_scope(path)?;
         Ok(None)
     }
 
@@ -835,7 +853,7 @@ impl Visitor<EnrichError> for AnnotationVisitor {
     ) -> ExitResult<CatchClause> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::Bound));
         node.binding_scope = self.pop_bound_names_scope(path);
-        let var_scope = self.pop_incomplete_var_scope(path);
+        let var_scope = self.pop_incomplete_var_scope(path)?;
 
         assert_eq!(var_scope.non_const_lexical_names.len(), 0, "The implicit scope of a catch should not contain lexically declared names. This requires an actual block.");
         assert_eq!(var_scope.const_lexical_names.len(), 0, "The implicit scope of a catch should not contain lexically declared names. This requires an actual block.");
@@ -928,8 +946,8 @@ impl Visitor<EnrichError> for AnnotationVisitor {
     ) -> ExitResult<SetterContents> {
         assert_matches!(self.binding_kind_stack.pop(), Some(BindingKind::RestParam));
         // Commit parameter scope and var scope.
-        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
-        node.body_scope = self.pop_var_scope(path);
+        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope)?;
+        node.body_scope = self.pop_var_scope(path)?;
 
         Ok(None)
     }
@@ -959,7 +977,7 @@ impl Visitor<EnrichError> for AnnotationVisitor {
         path: &WalkPath,
         node: &mut GetterContents,
     ) -> ExitResult<GetterContents> {
-        node.body_scope = self.pop_var_scope(path);
+        node.body_scope = self.pop_var_scope(path)?;
 
         Ok(None)
     }
@@ -994,8 +1012,8 @@ impl Visitor<EnrichError> for AnnotationVisitor {
         node.is_this_captured = self.pop_this_captured();
 
         // Commit parameter scope and var scope.
-        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
-        node.body_scope = self.pop_var_scope(path);
+        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope)?;
+        node.body_scope = self.pop_var_scope(path)?;
 
         Ok(None)
     }
@@ -1026,8 +1044,8 @@ impl Visitor<EnrichError> for AnnotationVisitor {
         node: &mut ArrowExpressionContentsWithFunctionBody,
     ) -> ExitResult<ArrowExpressionContentsWithFunctionBody> {
         // Commit parameter scope and var scope.
-        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
-        node.body_scope = self.pop_var_scope(path);
+        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope)?;
+        node.body_scope = self.pop_var_scope(path)?;
 
         Ok(None)
     }
@@ -1046,8 +1064,8 @@ impl Visitor<EnrichError> for AnnotationVisitor {
         node: &mut ArrowExpressionContentsWithExpression,
     ) -> ExitResult<ArrowExpressionContentsWithExpression> {
         // Commit parameter scope and var scope.
-        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
-        node.body_scope = self.pop_var_scope(path);
+        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope)?;
+        node.body_scope = self.pop_var_scope(path)?;
 
         Ok(None)
     }
@@ -1103,8 +1121,8 @@ impl Visitor<EnrichError> for AnnotationVisitor {
     ) -> ExitResult<FunctionExpressionContents> {
         node.is_this_captured = self.pop_this_captured();
 
-        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope);
-        node.body_scope = self.pop_var_scope(path);
+        node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope)?;
+        node.body_scope = self.pop_var_scope(path)?;
 
         // Wait to pop the function name until after we handle vars and params.
         // If there's a shadowing var, the var is captured, not the function name.
@@ -1265,7 +1283,7 @@ struct EvalCleanupAnnotator {
     eval_bindings: Vec<bool>,
 }
 
-impl Visitor<EnrichError> for EvalCleanupAnnotator {
+impl Visitor<ScopeError> for EvalCleanupAnnotator {
     // FIXME: Anything that has a scope (including CatchClause and its invisible scope) should push an `eval_bindings`.
     // on entering, pop it on exit.
     fn enter_eager_function_declaration(
@@ -1492,7 +1510,7 @@ impl Visitor<EnrichError> for EvalCleanupAnnotator {
 }
 
 impl AnnotationVisitor {
-    pub fn annotate_script(&mut self, script: &mut Script) -> Result<(), EnrichError> {
+    pub fn annotate_script(&mut self, script: &mut Script) -> Result<(), ScopeError> {
         // Annotate.
 
         // At this stage, we may have false positives for `hasDirectEval`.

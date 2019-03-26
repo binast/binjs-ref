@@ -26,8 +26,12 @@ pub mod io;
 /// which we do not support yet.
 #[derive(Debug)]
 pub enum EnrichError {
-    /// While analyzing scopes, we exit a binding identifier but there is no binding kind.
-    MissingBindingKind,
+    ScopeError(scopes::ScopeError),
+}
+impl From<scopes::ScopeError> for EnrichError {
+    fn from(err: scopes::ScopeError) -> Self {
+        EnrichError::ScopeError(err)
+    }
 }
 
 /// A mechanism used to enrich an AST obtained from parsing with additional information
