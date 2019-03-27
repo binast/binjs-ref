@@ -133,8 +133,7 @@ fn main() {
                 .expect("Could not parse source");
 
             let enricher = binjs::specialized::es6::Enrich::default();
-            enricher.enrich(&mut ast)
-                .expect("Could not enrich AST");
+            enricher.enrich(&mut ast).expect("Could not enrich AST");
 
             let data = encoder
                 .encode(None, &mut format, &ast)

@@ -9,6 +9,7 @@ extern crate env_logger;
 use binjs::io::entropy::dictionary::{DictionaryBuilder, Options as DictionaryOptions};
 use binjs::io::{Path as IOPath, Serialization, TokenSerializer};
 use binjs::source::{Shift, SourceParser};
+use binjs::specialized::es6::Enrich;
 
 use std::fs::{self, File};
 use std::path::Path;
@@ -18,7 +19,7 @@ use clap::*;
 
 struct Options<'a> {
     parser: &'a Shift,
-    lazification: u32,
+    enricher: Enrich,
     quiet: bool,
     show_ast: bool,
 }
@@ -82,12 +83,10 @@ fn handle_path_or_text<'a>(
         .parse_file(source)
         .expect("Could not parse source");
 
-    let enricher = binjs::specialized::es6::Enrich {
-        lazy_threshold: options.lazification,
-        scopes: true,
-        ..Default::default()
-    };
-    enricher.enrich(&mut ast).expect("Could not enrich AST");
+    options
+        .enricher
+        .enrich(&mut ast)
+        .expect("Could not enrich AST");
 
     if options.show_ast {
         serde_json::to_writer_pretty(std::io::stdout(), &ast).unwrap();
@@ -141,14 +140,6 @@ fn main_aux() {
             Arg::with_name("show-ast")
                 .long("show-ast")
                 .help("Show the AST of each source file before extracting the dictionary"),
-            Arg::with_name("lazify")
-                .long("lazify")
-                .takes_value(true)
-                .default_value("0")
-                .validator(|s| s.parse::<u32>()
-                    .map(|_| ())
-                    .map_err(|e| format!("Invalid number {}", e)))
-                .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
             Arg::with_name("quiet")
                 .long("quiet")
                 .short("q")
@@ -178,6 +169,10 @@ fn main_aux() {
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Prune from the dictionary all user-extensible values that appear in at most [threshold] files"),
         ])
+        .args(Enrich {
+            scopes: true,
+            ..Default::default()
+        }.args().as_slice())
         .get_matches();
 
     // Common options.
@@ -189,9 +184,6 @@ fn main_aux() {
 
     let quiet = matches.is_present("quiet");
 
-    let lazification =
-        str::parse(matches.value_of("lazify").expect("Missing lazify")).expect("Invalid number");
-
     let depth = str::parse(matches.value_of("depth").unwrap()).expect("Invalid number");
 
     let width = str::parse(matches.value_of("window-width").unwrap()).expect("Invalid number");
@@ -199,13 +191,7 @@ fn main_aux() {
     let threshold: usize =
         str::parse(matches.value_of("threshold").unwrap()).expect("Invalid number");
 
-    progress!(
-        quiet,
-        "Generating dictionary with lazification {lazification}, depth {depth}, width {width}",
-        lazification = lazification,
-        depth = depth,
-        width = width
-    );
+    let enricher = Enrich::from_matches(&matches);
 
     // Setup.
     let parser = Shift::try_new().expect("Could not launch Shift");
@@ -218,7 +204,7 @@ fn main_aux() {
 
     let mut options = Options {
         parser: &parser,
-        lazification,
+        enricher,
         quiet,
         show_ast: matches.is_present("show-ast"),
     };

@@ -76,41 +76,6 @@ use binjs_shared::SharedString;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// From a set of macro definitions, derive a module with a set of matching `&'static str`.
-///
-/// Example:
-/// ```rust,no_run
-/// const_with_str {
-///    const FOO: usize = 0;
-///    mod my_strings;
-/// }
-/// ```
-///
-/// will produce
-///
-/// ```rust,no_run
-///
-/// const FOO: usize = 0;
-/// mod my_strings {
-///   const FOO: &'static str = "0";
-/// }
-/// ```
-macro_rules! const_with_str {
-    (
-        $(#[$outer:meta])*
-        $(const $const_name: ident: $ty: ty = $init: expr;)*
-        mod $mod_name: ident;
-    ) => {
-        // Documentation comments are actually syntactic sugar for #[doc="Some documentation comment"].
-        // We capture them and insert them in the generated macro.
-        $(#[$outer])*
-        mod $mod_name {
-            $(pub const $const_name: &'static str = stringify!($init);)*
-        }
-        $(const $const_name: $ty = $init;)*
-    }
-}
-
 const_with_str! {
     /// The number of indices to reserve to recall
     /// recently used values in a content stream.

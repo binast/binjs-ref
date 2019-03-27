@@ -352,8 +352,7 @@ mod test {
     fn check(threshold: usize, source: Script, expected: Script) {
         // Rewrite.
         let mut injected = source.clone();
-        InjectVisitor::rewrite_script(threshold, &mut injected)
-            .unwrap();
+        InjectVisitor::rewrite_script(threshold, &mut injected).unwrap();
         assert_eq!(injected, expected);
 
         // Rewrite back.

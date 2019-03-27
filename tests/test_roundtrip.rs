@@ -106,8 +106,7 @@ fn main() {
                     scopes: false,
                     ..Default::default()
                 };
-                enricher.enrich(&mut ast)
-                    .expect("Could not enrich AST");
+                enricher.enrich(&mut ast).expect("Could not enrich AST");
                 progress();
 
                 let options = Targets {
