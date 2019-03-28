@@ -14,3 +14,15 @@ rust:
   - stable
 node_js:
   - node
+
+# Deploy documentation, only from master.
+deploy:
+  script:
+  - cargo +nightly --features unstable doc
+  provider: pages
+  skip_cleanup: true
+  github_token: $GITHUB_TOKEN  # Belongs to binast-bot. Set in the Travis settings page of the repo.
+  keep_history: false
+  local_dir: target/doc
+  on:
+    branch: master
