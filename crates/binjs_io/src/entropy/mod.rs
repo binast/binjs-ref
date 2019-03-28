@@ -1,52 +1,15 @@
-//! A format in which we adopt an arithmetic encoding per nature.
+//! A format based on Entropy coding
 //!
-//! # Overview
+//! We generate a table of probabilities that let us determine the probability of a given
+//! node appearing at a given position in the AST. We then use a mechanism of entropy coding
+//! to represent the actual AST as a combination of these probabilities.
 //!
-//! The general idea of arithmetic coding is that we can achieve a high
-//! density of information by encoding a sequence of symbols as a single
-//! rational number in [0, 1), with the actual number being determined
-//! from the probability of encountering each successive symbol in a
-//! given context.
-//!
-//! For instance, consider `BinaryOperation(op, left, right)` in a context C.
-//! For this example, let's assume that we are starting from the full segment
-//! [0, 1). In context C, we may encounter a number of subtrees labelled S_1,
-//! S_2, ..., S_n with probabilities p(C, S_1), p(C, S_2), ..., p(C, S_n).
-//! For simplicity, let's assume that label `BinaryOperation` is S_1
-//! (so, with probability p(C, S_1))
-//! Any number in [0, p(C, S_1)) may be used to represent `BinaryOperation`.
-//!
-//! Now, we proceed to encode `op` in a context C + `BinaryOperation`. Again,
-//! we have a number of possible values for `op`: op_1, ... op_n'. If `op`
-//! is `op_1`, any number of [0, p(C, S_1) * P(C + BinaryOperation, op_1))
-//! may be used to represent `op`.
-//!
-//! Similarly, we'll encode `left` and `right` in context C + `BinaryOperation`.
-//!
-//!
-//! # Random notes on the format
-//!
-//! - We don't want too many dependencies between the dictionaries of two lazy
-//!  functions, as we generally don't know in which order they will be loaded.
-//!  The exception is if each lazy function has its own header and this header
-//!  contains a dictionary, in which case we may easily load the headers and
-//!  dictionaries in reading order. I guess we should do that.
-//!
-//!
-//! # General structure
-//!
-//! ```md
-//! - Magic header
-//! - `[[prelude]]` (this section contains the extension of dictionaries used by this file)
-//! - the following streams may appear in any order and are all optional
-//!    - (TBD)
-//! - `[[content]]` (this section contains the content streams, which represent user-extensible values)
-//!    - (TBD)
-//! - `[[main]]` (this section contains the main stream, encoded with entropy)
-//!    - (TBD)
-//! ```
+//! See module `format` for details on the binary format.
+
+pub mod format;
 
 mod baseline;
+
 pub mod dictionary;
 
 /// Reading a compressed stream.

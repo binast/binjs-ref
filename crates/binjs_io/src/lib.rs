@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "unstable", feature(external_doc))]
+
 extern crate bincode; // Used to store dictionaries. This is a temporary format.
 extern crate binjs_meta;
 extern crate binjs_shared;

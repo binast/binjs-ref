@@ -25,3 +25,8 @@ xml-rs = "^0.8"
 [dev-dependencies]
 env_logger = "^0.6"
 tempdir = "^0.3"
+
+[features]
+# Activated if we're building with Rust unstable.
+# This has an impact only on generated documentation.
+unstable = []
