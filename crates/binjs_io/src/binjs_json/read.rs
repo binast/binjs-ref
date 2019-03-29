@@ -753,8 +753,4 @@ impl<R: Read> TokenReader for Decoder<R> {
             )),
         }
     }
-
-    fn enter_untagged_tuple_at(&mut self, __path: &Path) -> Result<(), TokenReaderError> {
-        unimplemented!()
-    }
 }

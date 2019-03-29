@@ -443,8 +443,4 @@ impl TokenReader for Decoder {
     fn offset_at(&mut self, _path: &Path) -> Result<u32, TokenReaderError> {
         unimplemented!()
     }
-
-    fn enter_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
-        unimplemented!()
-    }
 }
