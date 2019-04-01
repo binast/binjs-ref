@@ -182,7 +182,7 @@ test!(test_es6_paths, {
         scopes: true,
         ..Default::default()
     };
-    enricher.enrich(&mut ast);
+    enricher.enrich(&mut ast).expect("Could not enrich AST");
 
     println!("Walking paths");
     let mut serializer = binjs::specialized::es6::io::Serializer::new(writer);

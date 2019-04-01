@@ -6,9 +6,13 @@
 
 use ast::*;
 use binjs_shared::{SharedString, VisitMe};
+use EnrichError;
 
 use std::cell::RefCell;
 use std::rc::Rc;
+
+type EnterResult = Result<VisitMe<PropertiesGuard>, EnrichError>;
+type ExitResult<T> = Result<Option<T>, EnrichError>;
 
 /// The name of the dictionary used to represent pure data subtrees (aka "JSON").
 ///
@@ -144,9 +148,6 @@ impl WalkGuard<InjectVisitor> for PropertiesGuard {
     }
 }
 
-type EnterResult = Result<VisitMe<PropertiesGuard>, ()>;
-type ExitResult<T> = Result<Option<T>, ()>;
-
 impl InjectVisitor {
     pub fn new(pure_data_threshold: usize) -> Self {
         Self {
@@ -154,11 +155,13 @@ impl InjectVisitor {
             stack: Rc::new(RefCell::new(Vec::new())),
         }
     }
-    pub fn rewrite_script(pure_data_threshold: usize, script: &mut Script) {
+    pub fn rewrite_script(
+        pure_data_threshold: usize,
+        script: &mut Script,
+    ) -> Result<(), EnrichError> {
         let mut visitor = Self::new(pure_data_threshold);
-        script
-            .walk(&mut WalkPath::new(), &mut visitor)
-            .expect("Could not walk script");
+        script.walk(&mut WalkPath::new(), &mut visitor)?;
+        Ok(())
     }
 
     /// The properties of the current node.
@@ -176,7 +179,7 @@ impl InjectVisitor {
         }
     }
 }
-impl Visitor<(), PropertiesGuard> for InjectVisitor {
+impl Visitor<EnrichError, PropertiesGuard> for InjectVisitor {
     // --- Literals
 
     fn enter_literal<'a>(&mut self, path: &WalkPath, node: &mut ViewMutLiteral<'a>) -> EnterResult {
@@ -324,7 +327,7 @@ impl Visitor<()> for CleanupVisitor {
         &mut self,
         _path: &WalkPath,
         node: &mut ViewMutExpression<'a>,
-    ) -> ExitResult<Expression> {
+    ) -> Result<Option<Expression>, ()> {
         if let ViewMutExpression::BinASTExpressionWithProbabilityTable(_) = *node {
             if let Expression::BinASTExpressionWithProbabilityTable(scoped) = node.steal() {
                 Ok(Some(scoped.expression))
@@ -349,7 +352,7 @@ mod test {
     fn check(threshold: usize, source: Script, expected: Script) {
         // Rewrite.
         let mut injected = source.clone();
-        InjectVisitor::rewrite_script(threshold, &mut injected);
+        InjectVisitor::rewrite_script(threshold, &mut injected).unwrap();
         assert_eq!(injected, expected);
 
         // Rewrite back.
