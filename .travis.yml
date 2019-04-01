@@ -10,6 +10,8 @@ script:
     cargo fmt --all -- --check &&
     cargo build --verbose &&
     cargo test --all -- --nocapture
+  - if: branch = master
+    cargo +nightly --features unstable doc
 rust:
   - stable
 node_js:
@@ -17,8 +19,6 @@ node_js:
 
 # Deploy documentation, only from master.
 deploy:
-  script:
-  - cargo +nightly --features unstable doc
   provider: pages
   skip_cleanup: true
   github_token: $GITHUB_TOKEN  # Belongs to binast-bot. Set in the Travis settings page of the repo.
