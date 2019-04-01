@@ -164,12 +164,154 @@ NamedContentStream ::= "[floats]" ContentStream<f64?>
 If the same content name (`"[floats]"`, `"[unsigned_longs]"`, etc.) appears more than once, this
 is a syntax error.
 
+## Internal compression
 
-TBD
+All content streams have the same structure
+
+```
+ContentStream<T> ::= CompressionFormat ";" ByteLen CompressedContentStream<T>
+```
+
+Where:
+
+- the `CompressionFormat` is the name of the compression to use to decompress the `CompressedByteStream`;
+- the `ByteLen` is the number of bytes in the `CompressedByteStream`;
+
+Let us call `ExpandedContentStream<T>` the result of decompressing the `ByteLen` bytes of
+a `CompressedContentStream<T>` with the specified `CompressionFormat`.
+
+## Stream interpretation
+
+All expanded content streams have the same structure
+
+```
+ExpandedContentStream<T> ::= WindowLen ExpandedContentReferences<T>
+WindowLen ::= var_u32
+```
+
+Where `WindowLen` is the number of bytes in the LRU cache used to interpret `ExpandedContentReferences`. It may be 0.
+
+```
+ExpandedContentReferences<T> ::= ContentReferenceBytes<T>*
+ContentReferenceBytes<T> ::= var_u32
+```
+
+Interpreting a `ContentReferenceBytes<T>` requires the following information:
+- a per-stream value `prelude_latest`, initially set to `-1`;
+- a per-stream value `imported_len`, initially set to `0`.
+
+A `ContentReferenceBytes<T>` is interpreted into a `ContentReference<T>` through
+the following algorithm:
+
+```python
+prelude_latest = -1
+imported = []
+window = LRU(WindowLen)
+prelude_len = # Length of the matching Prelude stream
+def interpret(u32):
+    # 0 means "next in prelude"
+    if u32 == 0:
+        prelude_latest += 1
+        return PreludeReference(prelude_latest)
+    # [1, WindowLen] is a LRU cache
+    if 1 <= u32 and u32 <= len(window):
+        result = window.fetch(u32 - 1)
+        if result.isinstance(PreludeReference):
+            prelude_latest = result.index
+        return result
+    # [WindowLen + 1, WindowLen + PreludeLen] is a reference to the prelude
+    # dictionary.
+    if len(window) + 1 <= u32 and u32 <= len(window) + len(prelude):
+        prelude_latest = u32 - len(window) - 1
+        result = PreludeReference(prelude_latest)
+        window.insert(result)
+        return result
+    # [WindowLen + PreludeLen + 1, WindowLen + PreludeLen + len(imported)] is a reference
+    # to an already encountered value from the shared dictionary.
+    if len(window) + len(prelude) + 1 <= u32 and u32 <= len(window) + len(prelude) + len(imported):
+        result = imported[u32 - len(window) - len(prelude) - 1]
+        window.insert(result)
+        return result
+    # Any value above is a first-time reference into the shared dictionary.
+    if len(window) + len(prelude) + len(imported) < u32:
+        result = SharedReference(u32 - len(window) - len(prelude) - len(imported))
+        window.insert(result)
+        return result
+
+```
+
 
 # Main
 
-TBD
+The **main stream** encodes the structure of the AST using a probability table.
+
+```
+Main ::= "[[main]]" EntropyCompressionFormat MainData
+EntropyCompressionFormat ::= "entropy0.4"
+```
+
+## Stream interpretation
+
+The stream ```MainData``` is a stream of range-encoded numbers.
+Each number may only be interpreted within a
+probability table (specified through the linked shared dictionary)
+and a grammar (specified through the linked shared dictionary).
+Note that the probability table and the grammar themselves may
+change at any step, in a manner not specified by this document.
+
+Algorithm:
+
+```python
+# A list of pairs (node, child index)
+path = None
+range_decoder = RangeDecoder(MainData)
+def next_number(tables, grammar):
+    if path == None:
+        path = (grammar.root(), 0)
+    # The structure of the node we need to decode.
+    node = None
+    # The index of the child in the node we need to decode.
+    index = None
+    while True:
+        if len(path) == 0:
+            # Decoding is complete
+            return None
+        [node, index] = path[-1]
+        if index >= len(node.children):
+            # We have finished decoding the current node, return to parent node.
+            path.pop()
+            continue
+        # We are still decoding this node.
+        # Next time we attempt to decode this node, advance to next field.
+        path[-1][1] += 1
+        if node[index].is_encoded_as_content_stream():
+            # This field is encoded as a content stream, rather than the main
+            # stream, advance to next field or node.
+            continue
+        # At this stage, we have determined the field we need to decode.
+        break
+
+    # Pick the set of probability tables for this node
+    probability_table_by_kind = tables[path]
+    probability_table = None
+    if node[index].is_tagged_tuple():
+        probability_table = probability_table_by_kind.tagged_tuple
+    else if node[index].is_string_enum():
+        probability_table = probability_table_by_kind.string_enum
+    else if node[index].is_bool():
+        probability_table = probability_table_by_kind.bool
+    else:
+        # Not possible.
+
+    result = range_encoder.decode(probability_table)
+
+    # If the node is a tagged tuple, we need to recurse into its children
+    if node[index].is_tagged_tuple():
+        path.push(node[index], 0)
+
+    return result
+```
+
 
 # Footers
 
