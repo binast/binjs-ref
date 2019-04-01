@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["PrettyPrintVisitor","A visitor that can be used to convert an AST back into source code."]]});
