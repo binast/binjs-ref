@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["is_table_case","Determines if a `&str` is `table-case`"],["to_table_case","Converts a `&str` to `table-case` `String`"]]});

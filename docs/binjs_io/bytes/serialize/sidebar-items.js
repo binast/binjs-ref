@@ -1,1 +1,0 @@
-initSidebarItems({"trait":[["Deserializer","A value that may be deserialized from bytes, optionally decompressed."],["Serializer",""]]});
