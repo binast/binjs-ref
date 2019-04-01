@@ -245,14 +245,6 @@ where
         Ok(())
     }
 
-    /// Start reading an untagged tuple.
-    fn enter_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError>;
-
-    /// Finish reading an untagged tuple.
-    fn exit_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
-        Ok(())
-    }
-
     /// Signal that, from this point, reading is expected to use a specialized dictionary.
     /// Use of the specialized dictionary will stop at `exit_scoped_dictionary_at`.
     ///
