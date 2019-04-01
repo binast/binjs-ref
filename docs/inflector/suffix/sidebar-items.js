@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["foreignkey","Provides foreign key conversion for String."]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["bytes_of_float","Encode a f64 | null, little-endian"],["float_of_bytes","Decode a f64 | null, little-endian"]]});
