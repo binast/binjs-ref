@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["BrotliBuildMetaBlock",""],["BrotliBuildMetaBlockGreedy",""],["BrotliBuildMetaBlockGreedyInternal",""],["BrotliOptimizeHistograms",""]],"struct":[["BlockSplitter",""],["ContextBlockSplitter",""]]});
