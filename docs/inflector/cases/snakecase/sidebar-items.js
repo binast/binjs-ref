@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["is_snake_case","Determines of a `&str` is `snake_case`"],["to_snake_case","Converts a `&str` to `snake_case` `String`"]]});

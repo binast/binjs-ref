@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Deserializer","A structure used for deserialization purposes."],["Serializer","A structure used for deserialization purposes."]],"trait":[["Serialization",""],["TokenSerializer",""],["TokenWriter","Build an in-memory representation of a BinTree."]]});

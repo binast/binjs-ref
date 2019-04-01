@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["BrotliResult",""]],"fn":[["BrotliDecompressStream",""]],"struct":[["AllocatedStackMemory",""],["BrotliState",""],["Decompressor",""],["DecompressorCustomAlloc",""],["DecompressorCustomIo",""],["HeapAlloc",""],["HuffmanCode",""],["HuffmanTreeGroup",""],["StackAllocator",""]],"trait":[["Allocator",""],["SliceWrapper",""],["SliceWrapperMut",""]]});

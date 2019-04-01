@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["CommandCopyLen",""],["CommandDistanceContext",""],["CommandDistanceIndexAndOffset",""],["CommandRestoreDistanceCode",""],["ComputeDistanceCode",""],["GetCopyLengthCode",""],["GetInsertLengthCode",""],["GetLengthCode",""],["InitCommand",""],["NewCommand",""],["PrefixEncodeCopyDistance",""],["RecomputeDistancePrefixes",""]],"struct":[["Command",""]]});

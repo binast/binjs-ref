@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `enc` mod in crate `brotli`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, enc">
+
+    <title>brotli::enc - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module enc</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>brotli</a></p><script>window.sidebarCurrent = {name: 'enc', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>brotli</a>::<wbr><a class="mod" href=''>enc</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/brotli/enc/mod.rs.html#1-279' title='goto source code'>[src]</a></span></h1><h2 id='reexports' class='section-header'><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub use self::util::<a class="type" href="../../brotli/enc/util/type.floatX.html" title="type brotli::enc::util::floatX">floatX</a>;</code></td></tr><tr><td><code>pub use self::backward_references::<a class="struct" href="../../brotli/enc/backward_references/struct.BrotliEncoderParams.html" title="struct brotli::enc::backward_references::BrotliEncoderParams">BrotliEncoderParams</a>;</code></td></tr><tr><td><code>pub use self::encode::<a class="fn" href="../../brotli/enc/encode/fn.BrotliEncoderInitParams.html" title="fn brotli::enc::encode::BrotliEncoderInitParams">BrotliEncoderInitParams</a>;</code></td></tr><tr><td><code>pub use self::encode::<a class="fn" href="../../brotli/enc/encode/fn.BrotliEncoderSetParameter.html" title="fn brotli::enc::encode::BrotliEncoderSetParameter">BrotliEncoderSetParameter</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.v128.html" title="struct brotli::enc::vectorization::v128">v128</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.v128i.html" title="struct brotli::enc::vectorization::v128i">v128i</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.v256.html" title="struct brotli::enc::vectorization::v256">v256</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.v256i.html" title="struct brotli::enc::vectorization::v256i">v256i</a>;</code></td></tr><tr><td><code>pub use self::vectorization::<a class="struct" href="../../brotli/enc/vectorization/struct.Mem256f.html" title="struct brotli::enc::vectorization::Mem256f">Mem256f</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="backward_references/index.html"
+                                  title='mod brotli::enc::backward_references'>backward_references</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="bit_cost/index.html"
+                                  title='mod brotli::enc::bit_cost'>bit_cost</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="block_split/index.html"
+                                  title='mod brotli::enc::block_split'>block_split</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="block_splitter/index.html"
+                                  title='mod brotli::enc::block_splitter'>block_splitter</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="brotli_bit_stream/index.html"
+                                  title='mod brotli::enc::brotli_bit_stream'>brotli_bit_stream</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="cluster/index.html"
+                                  title='mod brotli::enc::cluster'>cluster</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="command/index.html"
+                                  title='mod brotli::enc::command'>command</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="compress_fragment/index.html"
+                                  title='mod brotli::enc::compress_fragment'>compress_fragment</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="compress_fragment_two_pass/index.html"
+                                  title='mod brotli::enc::compress_fragment_two_pass'>compress_fragment_two_pass</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="constants/index.html"
+                                  title='mod brotli::enc::constants'>constants</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="context_map_entropy/index.html"
+                                  title='mod brotli::enc::context_map_entropy'>context_map_entropy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="dictionary_hash/index.html"
+                                  title='mod brotli::enc::dictionary_hash'>dictionary_hash</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="encode/index.html"
+                                  title='mod brotli::enc::encode'>encode</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="entropy_encode/index.html"
+                                  title='mod brotli::enc::entropy_encode'>entropy_encode</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="fast_log/index.html"
+                                  title='mod brotli::enc::fast_log'>fast_log</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="find_stride/index.html"
+                                  title='mod brotli::enc::find_stride'>find_stride</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="histogram/index.html"
+                                  title='mod brotli::enc::histogram'>histogram</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="input_pair/index.html"
+                                  title='mod brotli::enc::input_pair'>input_pair</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="interface/index.html"
+                                  title='mod brotli::enc::interface'>interface</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="literal_cost/index.html"
+                                  title='mod brotli::enc::literal_cost'>literal_cost</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="metablock/index.html"
+                                  title='mod brotli::enc::metablock'>metablock</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="reader/index.html"
+                                  title='mod brotli::enc::reader'>reader</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="static_dict/index.html"
+                                  title='mod brotli::enc::static_dict'>static_dict</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="static_dict_lut/index.html"
+                                  title='mod brotli::enc::static_dict_lut'>static_dict_lut</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="utf8_util/index.html"
+                                  title='mod brotli::enc::utf8_util'>utf8_util</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="util/index.html"
+                                  title='mod brotli::enc::util'>util</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="vectorization/index.html"
+                                  title='mod brotli::enc::vectorization'>vectorization</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="writer/index.html"
+                                  title='mod brotli::enc::writer'>writer</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AllocatedStackMemory.html"
+                                  title='struct brotli::enc::AllocatedStackMemory'>AllocatedStackMemory</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.HeapAlloc.html"
+                                  title='struct brotli::enc::HeapAlloc'>HeapAlloc</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IntoIoReader.html"
+                                  title='struct brotli::enc::IntoIoReader'>IntoIoReader</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IoReaderWrapper.html"
+                                  title='struct brotli::enc::IoReaderWrapper'>IoReaderWrapper</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IoWriterWrapper.html"
+                                  title='struct brotli::enc::IoWriterWrapper'>IoWriterWrapper</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.StackAllocator.html"
+                                  title='struct brotli::enc::StackAllocator'>StackAllocator</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Allocator.html"
+                                  title='trait brotli::enc::Allocator'>Allocator</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.SliceWrapper.html"
+                                  title='trait brotli::enc::SliceWrapper'>SliceWrapper</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.SliceWrapperMut.html"
+                                  title='trait brotli::enc::SliceWrapperMut'>SliceWrapperMut</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.BrotliCompress.html"
+                                  title='fn brotli::enc::BrotliCompress'>BrotliCompress</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.BrotliCompressCustomAlloc.html"
+                                  title='fn brotli::enc::BrotliCompressCustomAlloc'>BrotliCompressCustomAlloc</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.BrotliCompressCustomIo.html"
+                                  title='fn brotli::enc::BrotliCompressCustomIo'>BrotliCompressCustomIo</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "brotli";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>
