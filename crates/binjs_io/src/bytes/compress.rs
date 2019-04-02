@@ -21,7 +21,7 @@ const LZW_MIN_CODE_SIZE: u8 = 8;
 /// The compression mechanisms supported by this encoder.
 /// They are designed to match HTTP's Accept-Encoding:
 /// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Compression {
     /// no compression (`identity;`)
     Identity,

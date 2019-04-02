@@ -1,0 +1,15 @@
+[package]
+name = "binjs_wasm"
+version = "0.1.0"
+authors = ["Ingvar Stepanyan <me@rreverser.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2.40"
+binjs_io = { path = "../binjs_io" }
+binjs_es6 = { path = "../binjs_es6" }
+js-sys = "0.3.17"
+serde-wasm-bindgen = { git = "https://github.com/cloudflare/serde-wasm-bindgen" }

@@ -178,11 +178,7 @@ impl ::FormatProvider for FormatProvider {
             })
             .unwrap_or(Compression::Identity);
         Ok(::Format::Multipart {
-            targets: Targets {
-                strings_table: ::CompressionTarget::new(compression.clone()),
-                grammar_table: ::CompressionTarget::new(compression.clone()),
-                tree: ::CompressionTarget::new(compression.clone()),
-            },
+            targets: Targets::new(compression),
             stats,
         })
     }

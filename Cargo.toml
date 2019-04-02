@@ -71,6 +71,7 @@ harness = false
 
 [workspace]
 members = ["crates/*"]
+exclude = ["crates/binjs_wasm"]
 
 [features]
 default = []

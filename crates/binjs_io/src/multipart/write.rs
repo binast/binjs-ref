@@ -20,13 +20,22 @@ use std::rc::Rc;
 use vec_map;
 use vec_map::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Targets {
     pub grammar_table: CompressionTarget,
     pub strings_table: CompressionTarget,
     pub tree: CompressionTarget,
 }
+
 impl Targets {
+    pub fn new(format: Compression) -> Self {
+        Targets {
+            strings_table: CompressionTarget::new(format),
+            grammar_table: CompressionTarget::new(format),
+            tree: CompressionTarget::new(format),
+        }
+    }
+
     pub fn reset(&mut self) {
         self.grammar_table.reset();
         self.strings_table.reset();
