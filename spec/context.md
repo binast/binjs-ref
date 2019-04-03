@@ -60,28 +60,40 @@ Data structures are separated even when they have the same underlying representa
 compression.
 
 ```
-Prelude ::= "[[prelude]]" NamedPreludeDictionary*
-NamedPreludeDictionary ::= "[floats]" PreludeStream<f64?>
-                         |  "[unsigned_longs]" PreludeStream<u32?>
-                         |  "[list_lengths]" PreludeStream<u32?>
-                         |  "[property_keys]" PreludeStream<String>
-                         |  "[identifier_names]" PreludeStream<String>
-                         |  "[string_literals]" PreludeStream<String>
-                         |  "[property_keys_len]" PreludeStream<StringLen>
-                         |  "[identifier_names_len]" PreludeStream<StringLen>
-                         |  "[string_literals_len]" PreludeStream<StringLen>
+Prelude ::= "PREL" NamedPreludeDictionary*
+NamedPreludeDictionary ::= "FLOA" PreludeStream<f64?>
+                         | "ULON" PreludeStream<u32?>
+                         | "LIST" PreludeStream<u32?>
+                         | "PROC" PreludeStream<String>
+                         | "IDEC" PreludeStream<String>
+                         | "STRC" PreludeStream<String>
+                         | "PROL" PreludeStream<StringLen>
+                         | "IDEL" PreludeStream<StringLen>
+                         | "STRL" PreludeStream<StringLen>
 ```
 
-If the same prelude name (`"[floats]"`, `"[unsigned_longs]"`, etc.) appears more than once, this
+| name | content |
+|---|---|
+| `FLOA` | the list of float values |
+| `ULON` | the list of unsigned long values |
+| `LIST` | the list of the length of list values |
+| `PROC` | the list of property key strings |
+| `IDEC` | the list of identifier name strings |
+| `STRC` | the list of string values |
+| `PROL` | the list of the length of property key string |
+| `IDEL` | the list of the length of identifier name strings |
+| `STRL` | the list of the list of string values |
+
+If the same prelude name (`"FLOA"`, `"ULON"`, etc.) appears more than once, this
 is a syntax error.
 
-If `["property_keys"]` exists and is not empty, `'["property_keys_len"]` must exist and be non-empty,
+If `"PROC"` exists and is not empty, `"PROL"` must exist and be non-empty,
 otherwise, this is a syntax error.
 
-If `["identifier_names"]` exists and is not empty, `'["identifier_names"]` must exist and be non-empty,
+If `"IDEC"` exists and is not empty, `"IDEL"` must exist and be non-empty,
 otherwise, this is a syntax error.
 
-If `["string_literals"]` exists and is not empty, `'["string_literals_len"]` must exist and be non-empty,
+If `"STRC"` exists and is not empty, `"STRL"` must exist and be non-empty,
 otherwise, this is a syntax error.
 
 ## Internal compression
@@ -89,8 +101,8 @@ otherwise, this is a syntax error.
 All prelude streams have the same structure
 
 ```
-PreludeStream<T> ::= CompressionFormat ";" ByteLen CompressedByteStream<T>
-CompressionFormat ::= "brotli" // The only compression format supported so far.
+PreludeStream<T> ::= CompressionFormat ByteLen CompressedByteStream<T>
+CompressionFormat ::= "BROT" // The only compression format supported so far.
 ByteLen := var_u32
 ```
 
@@ -152,16 +164,16 @@ The **content** defines streams of references to the dictionaries (both the prel
 if specified). These values are pulled from the content streams while reading the **main stream**.
 
 ```
-Content ::= "[[content]]" NamedContentStream*
-NamedContentStream ::= "[floats]" ContentStream<f64?>
-                     | "[unsigned_longs]" ContentStream<u32?>
-                     | "[list_lengths]" ContentStream<u32?>
-                     | "[property_keys]" ContentStream<String>
-                     | "[identifier_names]" ContentStream<String>
-                     | "[string_literals]" ContentStream<String>
+Content ::= "CONT" NamedContentStream*
+NamedContentStream ::= "FLOA" ContentStream<f64?>
+                     | "ULON" ContentStream<u32?>
+                     | "LIST" ContentStream<u32?>
+                     | "PROC" ContentStream<String>
+                     | "IDEC" ContentStream<String>
+                     | "STRC" ContentStream<String>
 ```
 
-If the same content name (`"[floats]"`, `"[unsigned_longs]"`, etc.) appears more than once, this
+If the same content name (`"FLOA"`, `"ULON"`, etc.) appears more than once, this
 is a syntax error.
 
 ## Internal compression
@@ -169,7 +181,7 @@ is a syntax error.
 All content streams have the same structure
 
 ```
-ContentStream<T> ::= CompressionFormat ";" ByteLen CompressedContentStream<T>
+ContentStream<T> ::= CompressionFormat ByteLen CompressedContentStream<T>
 ```
 
 Where:
@@ -246,8 +258,8 @@ def interpret(u32):
 The **main stream** encodes the structure of the AST using a probability table.
 
 ```
-Main ::= "[[main]]" EntropyCompressionFormat MainData
-EntropyCompressionFormat ::= "entropy0.4"
+Main ::= "MAIN" EntropyCompressionFormat MainData
+EntropyCompressionFormat ::= "CX02"
 ```
 
 ## Stream interpretation
