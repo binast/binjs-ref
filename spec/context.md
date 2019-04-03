@@ -2,6 +2,11 @@
 
 This is an attempt to document the context-0.2 compression format.
 
+WARNING: the content is almost just a copy of entropy.md and doesn't reflect
+the actual format.  They're about to be changed so much once we fixed the
+format.  The current content is here to clarify the difference between entropy
+in the future changes.
+
 # Global structure
 
 ```
