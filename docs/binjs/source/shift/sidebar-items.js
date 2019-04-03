@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Error",""]],"struct":[["Shift","Using a Node + Shift binary to parse an AST."]]});

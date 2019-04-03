@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["write_all",""]],"struct":[["IntoIoReader",""],["IntoIoWriter",""],["IoReaderWrapper",""],["IoWriterWrapper",""]],"trait":[["CustomRead","this trait does not allow for transient errors: they must be retried in the underlying layer"],["CustomWrite","this trait does not allow for transient errors: they must be retried in the underlying layer"]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["annotate",""],["es6","Generic instance of `Spec` representing the es6 AST."],["io","Serializing and deserializing."],["pick","Generating random ASTs (for fuzzing purposes)."],["syntax","Walkers, comparisons."],["util",""]]});
