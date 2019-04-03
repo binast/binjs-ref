@@ -1,6 +1,6 @@
 # About this file
 
-This is an attempt to document the Entropy 0.4 compression format.
+This is an attempt to document the context-0.2 compression format.
 
 # Global structure
 
