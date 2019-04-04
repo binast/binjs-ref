@@ -119,6 +119,9 @@ mod util;
 
 pub mod escaped_wtf8;
 
+/// An encoding using per-context Huffman tables.
+pub mod context;
+
 const ADVANCED_COMMAND: &str = "advanced";
 
 /// A strategy for placing the dictionary.
