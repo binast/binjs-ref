@@ -9,6 +9,7 @@ use super::probabilities::SymbolIndex;
 use super::rw::*;
 use super::util::*;
 
+use bytes::decoders::*;
 use io::{FileStructurePrinter, Path, TokenReader};
 use statistics::PerUserExtensibleKind;
 use TokenReaderError;
