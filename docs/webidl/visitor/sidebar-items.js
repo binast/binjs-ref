@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["pretty_print","Converts AST to a pretty printed source string."]],"struct":[["PrettyPrintVisitor","A visitor that can be used to convert an AST back into source code."]],"trait":[["ImmutableVisitor",""],["MutableVisitor",""]]});

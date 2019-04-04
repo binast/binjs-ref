@@ -10,19 +10,25 @@ script:
     cargo fmt --all -- --check &&
     cargo build --verbose &&
     cargo test --all -- --nocapture
-  - if: branch = master
-    cargo +nightly --features unstable doc
 rust:
   - stable
 node_js:
   - node
 
-# Deploy documentation, only from master.
 deploy:
-  provider: pages
-  skip_cleanup: true
-  github_token: $GITHUB_TOKEN  # Belongs to binast-bot. Set in the Travis settings page of the repo.
-  keep_history: false
-  local_dir: target/doc
-  on:
-    branch: master
+  # Generate documentation
+  - provider: script
+    script:
+      - >
+        rustup install nightly &&
+        cargo +nightly --features unstable doc
+    on:
+      branch: master
+  # Deploy documentation
+  - provider: pages
+    skip_cleanup: true
+    github_token: $GITHUB_TOKEN  # Belongs to binast-bot. Set in the Travis settings page of the repo.
+    keep_history: false
+    local_dir: target/doc
+    on:
+      branch: master

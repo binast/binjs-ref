@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Node",""]],"struct":[["NameSorter","A type used to sort names by length, then prefixes, to speed up lookups."]]});

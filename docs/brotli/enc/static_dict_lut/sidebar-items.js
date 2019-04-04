@@ -1,1 +1,0 @@
-initSidebarItems({"static":[["kDictHashMul32",""],["kDictNumBits",""],["kInvalidMatch",""],["kStaticDictionaryBuckets",""],["kStaticDictionaryWords",""]],"struct":[["DictWord",""]]});
