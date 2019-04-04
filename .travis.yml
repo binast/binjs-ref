@@ -21,7 +21,7 @@ deploy:
     script:
       - >
         rustup install nightly &&
-        cargo +nightly --features unstable doc
+        cargo +nightly doc --features unstable
     on:
       branch: master
   # Deploy documentation
