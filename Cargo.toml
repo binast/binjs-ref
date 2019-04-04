@@ -71,3 +71,11 @@ harness = false
 
 [workspace]
 members = ["crates/*"]
+
+[features]
+default = []
+
+# If specified, activate features that require Nightly only compiler features.
+#
+# At the time of this writing, this affects only documentation generation.
+unstable = ["binjs_io/unstable"]
