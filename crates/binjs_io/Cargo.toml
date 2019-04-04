@@ -27,6 +27,9 @@ env_logger = "^0.6"
 tempdir = "^0.3"
 
 [features]
-# Activated if we're building with Rust unstable.
-# This has an impact only on generated documentation.
+default = []
+
+# If specified, activate features that require Nightly only compiler features.
+#
+# At the time of this writing, this affects only documentation generation.
 unstable = []
