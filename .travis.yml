@@ -18,10 +18,9 @@ node_js:
 deploy:
   # Generate documentation
   - provider: script
+    skip_cleanup: true
     script:
-      - >
-        rustup install nightly &&
-        cargo +nightly doc --features unstable
+      - rustup install nightly && cargo +nightly doc --features "unstable"
     on:
       branch: master
   # Deploy documentation
