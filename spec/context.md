@@ -260,74 +260,7 @@ def interpret(u32):
 
 # Main
 
-The **main stream** encodes the structure of the AST using a probability table.
-
-```
-Main ::= "MAIN" EntropyCompressionFormat MainData
-EntropyCompressionFormat ::= "CX02"
-```
-
-## Stream interpretation
-
-The stream ```MainData``` is a stream of range-encoded numbers.
-Each number may only be interpreted within a
-probability table (specified through the linked shared dictionary)
-and a grammar (specified through the linked shared dictionary).
-Note that the probability table and the grammar themselves may
-change at any step, in a manner not specified by this document.
-
-Algorithm:
-
-```python
-# A list of pairs (node, child index)
-path = None
-range_decoder = RangeDecoder(MainData)
-def next_number(tables, grammar):
-    if path == None:
-        path = (grammar.root(), 0)
-    # The structure of the node we need to decode.
-    node = None
-    # The index of the child in the node we need to decode.
-    index = None
-    while True:
-        if len(path) == 0:
-            # Decoding is complete
-            return None
-        [node, index] = path[-1]
-        if index >= len(node.children):
-            # We have finished decoding the current node, return to parent node.
-            path.pop()
-            continue
-        # We are still decoding this node.
-        # Next time we attempt to decode this node, advance to next field.
-        path[-1][1] += 1
-        if node[index].is_encoded_as_content_stream():
-            # This field is encoded as a content stream, rather than the main
-            # stream, advance to next field or node.
-            continue
-        # At this stage, we have determined the field we need to decode.
-        break
-
-    # Pick the set of probability tables for this node
-    probability_table_by_kind = tables[path]
-    probability_table = None
-    if node[index].is_tagged_tuple():
-        probability_table = probability_table_by_kind.tagged_tuple
-    else if node[index].is_string_enum():
-        probability_table = probability_table_by_kind.string_enum
-    else if node[index].is_bool():
-        probability_table = probability_table_by_kind.bool
-    else:
-        # Not possible.
-
-    result = range_encoder.decode(probability_table)
-
-    # If the node is a tagged tuple, we need to recurse into its children
-    if node[index].is_tagged_tuple():
-        path.push(node[index], 0)
-
-    return result
-```
+TBD
 
 
 # Footers
