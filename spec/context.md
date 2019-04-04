@@ -10,10 +10,10 @@ in the future changes.
 # Global structure
 
 ```
-Stream ::= Headers Prelude? Content? Main Footers?
+Stream ::= GlobalHeaders Chunk*
 ```
 
-# Headers
+# Global Headers
 
 Headers identify the file, the version of the format used and the shared dictionary used, if any.
 
@@ -28,7 +28,7 @@ The shared dictionary provides:
 - well-known list lengths.
 
 ```
-Headers ::= MagicNumber FormatVersionNumber LinkToSharedDictionary
+GlobalHeaders ::= MagicNumber FormatVersionNumber LinkToSharedDictionary
 ```
 
 ## Magic number
@@ -56,10 +56,39 @@ The shared dictionary is optional.
 LinkToSharedDictionary ::= TBD
 ```
 
+# Chunk
+
+A file may contain one or more **Chunks**. Typically, the first **Chunk** will contain the code
+known to be executed during the startup, additional chunks may contain the definition of lazy
+functions. Additionally, if several source files are concatenated into one, there may be several
+**Chunks**, each with its own eager code.
+
+```
+Chunk  ::= ChunkHeader Prelude? Content? Main Footers?
+ChunkHeader ::= "CHNK" ByteLen ChunkIdentifier
+ChunkIdentifier ::= "EAGR" ChunkNum
+                 |  "LAZY" ChunkNum LazyNum
+ChunkNum ::= var_u32
+LazyNum ::= var_u32
+```
+
+A `ChunkIdentifier` may be:
+
+- `EAGR`, in which case the chunk contains toplevel code, meant to be parsed and executed immediately;
+- `LAZY`, in which case the chunk contains lazy function definitions, meant to be parsed/executed by-need.
+
+It is a syntax error for an `EAGR` chunk to appear after a `LAZY` chunk.
+
+A `ChunkNum` is an arbitrary number, used to identify that two chunks belong to the same source file. Two
+`ChunkIdentifier`s with the same `ChunkNum` belong to the same source file.
+
+A `LazyNum` is an arbitrary number, valid within a file, and used to identify the lazy function definitions.
+It is a syntax error for the same `"LAZY" ChunkNum LazyNum` value to appear more than once.
 
 # Prelude
 
-The **prelude** extends the shared dictionary with additional strings, numbers, keys, names, ...
+The **Prelude** extends the shared dictionary with additional strings, numbers, keys, names, ...
+Each **Chunk** may contain its own **Prelude**.
 
 Data structures are separated even when they have the same underlying representation, to improve
 compression.
@@ -260,74 +289,7 @@ def interpret(u32):
 
 # Main
 
-The **main stream** encodes the structure of the AST using a probability table.
-
-```
-Main ::= "MAIN" EntropyCompressionFormat MainData
-EntropyCompressionFormat ::= "CX02"
-```
-
-## Stream interpretation
-
-The stream ```MainData``` is a stream of range-encoded numbers.
-Each number may only be interpreted within a
-probability table (specified through the linked shared dictionary)
-and a grammar (specified through the linked shared dictionary).
-Note that the probability table and the grammar themselves may
-change at any step, in a manner not specified by this document.
-
-Algorithm:
-
-```python
-# A list of pairs (node, child index)
-path = None
-range_decoder = RangeDecoder(MainData)
-def next_number(tables, grammar):
-    if path == None:
-        path = (grammar.root(), 0)
-    # The structure of the node we need to decode.
-    node = None
-    # The index of the child in the node we need to decode.
-    index = None
-    while True:
-        if len(path) == 0:
-            # Decoding is complete
-            return None
-        [node, index] = path[-1]
-        if index >= len(node.children):
-            # We have finished decoding the current node, return to parent node.
-            path.pop()
-            continue
-        # We are still decoding this node.
-        # Next time we attempt to decode this node, advance to next field.
-        path[-1][1] += 1
-        if node[index].is_encoded_as_content_stream():
-            # This field is encoded as a content stream, rather than the main
-            # stream, advance to next field or node.
-            continue
-        # At this stage, we have determined the field we need to decode.
-        break
-
-    # Pick the set of probability tables for this node
-    probability_table_by_kind = tables[path]
-    probability_table = None
-    if node[index].is_tagged_tuple():
-        probability_table = probability_table_by_kind.tagged_tuple
-    else if node[index].is_string_enum():
-        probability_table = probability_table_by_kind.string_enum
-    else if node[index].is_bool():
-        probability_table = probability_table_by_kind.bool
-    else:
-        # Not possible.
-
-    result = range_encoder.decode(probability_table)
-
-    # If the node is a tagged tuple, we need to recurse into its children
-    if node[index].is_tagged_tuple():
-        path.push(node[index], 0)
-
-    return result
-```
+TBD
 
 
 # Footers
