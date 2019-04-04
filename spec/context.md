@@ -10,10 +10,10 @@ in the future changes.
 # Global structure
 
 ```
-Stream ::= Headers Prelude? Content? Main Footers?
+Stream ::= GlobalHeaders Chunk*
 ```
 
-# Headers
+# Global Headers
 
 Headers identify the file, the version of the format used and the shared dictionary used, if any.
 
@@ -28,7 +28,7 @@ The shared dictionary provides:
 - well-known list lengths.
 
 ```
-Headers ::= MagicNumber FormatVersionNumber LinkToSharedDictionary
+GlobalHeaders ::= MagicNumber FormatVersionNumber LinkToSharedDictionary
 ```
 
 ## Magic number
@@ -56,10 +56,39 @@ The shared dictionary is optional.
 LinkToSharedDictionary ::= TBD
 ```
 
+# Chunk
+
+A file may contain one or more **Chunks**. Typically, the first **Chunk** will contain the code
+known to be executed during the startup, additional chunks may contain the definition of lazy
+functions. Additionally, if several source files are concatenated into one, there may be several
+**Chunks**, each with its own eager code.
+
+```
+Chunk  ::= ChunkHeader Prelude? Content? Main Footers?
+ChunkHeader ::= "CHNK" ByteLen ChunkIdentifier
+ChunkIdentifier ::= "EAGR" ChunkNum
+                 |  "LAZY" ChunkNum LazyNum
+ChunkNum ::= var_u32
+LazyNum ::= var_u32
+```
+
+A `ChunkIdentifier` may be:
+
+- `EAGR`, in which case the chunk contains toplevel code, meant to be parsed and executed immediately;
+- `LAZY`, in which case the chunk contains lazy function definitions, meant to be parsed/executed by-need.
+
+It is a syntax error for an `EAGR` chunk to appear after a `LAZY` chunk.
+
+A `ChunkNum` is an arbitrary number, used to identify that two chunks belong to the same source file. Two
+`ChunkIdentifier`s with the same `ChunkNum` belong to the same source file.
+
+A `LazyNum` is an arbitrary number, valid within a file, and used to identify the lazy function definitions.
+It is a syntax error for the same `"LAZY" ChunkNum LazyNum` value to appear more than once.
 
 # Prelude
 
-The **prelude** extends the shared dictionary with additional strings, numbers, keys, names, ...
+The **Prelude** extends the shared dictionary with additional strings, numbers, keys, names, ...
+Each **Chunk** may contain its own **Prelude**.
 
 Data structures are separated even when they have the same underlying representation, to improve
 compression.
