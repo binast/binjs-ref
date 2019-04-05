@@ -63,13 +63,7 @@ fn main() {
     let mut all_options = {
         use self::Compression::*;
         let mut vec = vec![];
-        let compressions = [
-            Identity, Gzip,
-            /*Deflate seems broken upstream,*/ Brotli, /*Lzw doesn't work yet*/
-        ]
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
+        let compressions = vec![Identity, Brotli];
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {

@@ -10,7 +10,6 @@ extern crate brotli;
 extern crate clap;
 #[macro_use]
 extern crate derive_more;
-extern crate flate2;
 extern crate itertools;
 extern crate lzw;
 extern crate serde_json;

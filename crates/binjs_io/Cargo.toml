@@ -10,7 +10,6 @@ binjs_shared = { path = "../binjs_shared", version = "*" }
 brotli = "^3.0"
 clap = "^2.32"
 derive_more = "^0.13"
-flate2 = "^1.0"
 itertools = "^0.7"
 serde_json = { version = "^1.0.38", features = ["unbounded_depth"] }
 lzw = "^0.10"

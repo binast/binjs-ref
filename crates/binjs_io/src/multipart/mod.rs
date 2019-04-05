@@ -217,7 +217,7 @@ fn test_multipart_io() {
     let all_options = {
         use bytes::compress::Compression::*;
         let mut vec = vec![];
-        let compressions = [Identity, Gzip, Deflate /*Lzw, Brotli don't work yet*/];
+        let compressions = [Identity /*Brotli don't work yet*/];
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {

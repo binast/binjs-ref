@@ -25,24 +25,14 @@ const LZW_MIN_CODE_SIZE: u8 = 8;
 pub enum Compression {
     /// no compression (`identity;`)
     Identity,
-    /// gzip compression (`gzip;`)
-    Gzip,
-    /// zlib compression (`deflate;`)
-    Deflate,
     /// brotly compression (`br;`)
     Brotli,
-    /// Lwz compression (`compress;`)
-    Lzw,
 }
 
 impl Distribution<Compression> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Compression {
         use self::Compression::*;
-        let choices = [
-            Identity, Gzip,
-            /* Deflate is apprently broken https://github.com/alexcrichton/flate2-rs/issues/151 , */
-            Brotli, /*, Lzw doesn't work yet */
-        ];
+        let choices = [Identity, Brotli];
         choices.choose(rng).unwrap().clone()
     }
 }
@@ -59,10 +49,7 @@ impl Compression {
         use self::Compression::*;
         match *self {
             Identity => "Identity",
-            Gzip => "Gzip",
-            Deflate => "Deflate",
             Brotli => "Brotli",
-            Lzw => "Lzw",
         }
     }
 
@@ -70,20 +57,14 @@ impl Compression {
         use self::Compression::*;
         match *self {
             Identity => "identity",
-            Gzip => "gzip",
-            Deflate => "deflate",
             Brotli => "br",
-            Lzw => "lzw",
         }
     }
 
     pub fn parse(name: Option<&str>) -> Option<Compression> {
         let result = match name {
             None | Some("identity") => Compression::Identity,
-            Some("lzw") => Compression::Lzw,
             Some("br") => Compression::Brotli,
-            Some("gzip") => Compression::Gzip,
-            Some("deflate") => Compression::Deflate,
             Some("random") => thread_rng().gen(),
             Some(_) => {
                 return None;
@@ -94,9 +75,7 @@ impl Compression {
 
     pub fn values() -> Box<[Self]> {
         use self::Compression::*;
-        Box::new([
-            Identity, Gzip, Deflate, Brotli, /*, Lzw doesn't work yet*/
-        ])
+        Box::new([Identity, Brotli])
     }
 
     pub fn is_compressed(&self) -> bool {
@@ -124,34 +103,6 @@ impl Compression {
                 out.write_all(data)?;
                 data.len()
             }
-            Compression::Gzip => {
-                use flate2;
-                out.write_all(b"gzip;")?;
-                // Compress
-                let buffer = Vec::with_capacity(data.len());
-                let mut encoder =
-                    flate2::write::GzEncoder::new(buffer, flate2::Compression::best());
-                encoder.write_all(data)?;
-                let buffer = encoder.finish()?;
-                // Write
-                out.write_varnum(buffer.len() as u32)?;
-                out.write_all(&buffer)?;
-                buffer.len()
-            }
-            Compression::Deflate => {
-                use flate2;
-                out.write_all(b"deflate;")?;
-                // Compress
-                let buffer = Vec::with_capacity(data.len());
-                let mut encoder =
-                    flate2::write::ZlibEncoder::new(buffer, flate2::Compression::best());
-                encoder.write(data)?;
-                let buffer = encoder.finish()?;
-                // Write
-                out.write_varnum(buffer.len() as u32)?;
-                out.write_all(&buffer)?;
-                buffer.len()
-            }
             Compression::Brotli => {
                 use brotli;
                 out.write_all(b"br;")?;
@@ -165,21 +116,6 @@ impl Compression {
                         BROTLI_LG_WINDOW_SIZE,
                     );
                     encoder.write(data)?;
-                }
-                // Write
-                out.write_varnum(buffer.len() as u32)?;
-                out.write_all(&buffer)?;
-                buffer.len()
-            }
-            Compression::Lzw => {
-                use lzw;
-                out.write_all(b"compress;")?;
-                // Compress
-                let mut buffer = Vec::with_capacity(data.len());
-                {
-                    let writer = lzw::LsbWriter::new(&mut buffer);
-                    let mut encoder = lzw::Encoder::new(writer, LZW_MIN_CODE_SIZE)?;
-                    encoder.encode_bytes(data)?;
                 }
                 // Write
                 out.write_varnum(buffer.len() as u32)?;
@@ -226,14 +162,8 @@ impl Compression {
 
         let compression = if &header == b"identity" {
             Compression::Identity
-        } else if &header == b"gzip" {
-            Compression::Gzip
-        } else if &header == b"deflate" {
-            Compression::Deflate
         } else if &header == b"br" {
             Compression::Brotli
-        } else if &header == b"compress" {
-            Compression::Lzw
         } else {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -250,35 +180,12 @@ impl Compression {
 
         let decompressed_bytes = match compression {
             Compression::Identity => compressed_bytes,
-            Compression::Gzip => {
-                use flate2;
-                let mut decoder = flate2::read::GzDecoder::new(Cursor::new(&compressed_bytes));
-                let mut buf = Vec::with_capacity(1024);
-                decoder.read_to_end(&mut buf)?;
-                buf
-            }
-            Compression::Deflate => {
-                use flate2;
-                let mut decoder = flate2::read::ZlibDecoder::new(Cursor::new(&compressed_bytes));
-                let mut buf = Vec::with_capacity(1024);
-                decoder.read_to_end(&mut buf)?;
-                buf
-            }
             Compression::Brotli => {
                 use brotli;
                 let mut decoder =
                     brotli::Decompressor::new(Cursor::new(&compressed_bytes), BROTLI_BUFFER_SIZE);
                 let mut buf = Vec::with_capacity(1024);
                 decoder.read_to_end(&mut buf)?;
-                buf
-            }
-            Compression::Lzw => {
-                use lzw;
-                let reader = lzw::LsbReader::new();
-                let mut decoder = lzw::Decoder::new(reader, LZW_MIN_CODE_SIZE);
-                let (_, data) = decoder.decode_bytes(&compressed_bytes)?;
-                let mut buf = Vec::with_capacity(data.len());
-                buf.extend_from_slice(data);
                 buf
             }
         };
