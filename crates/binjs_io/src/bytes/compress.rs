@@ -26,13 +26,14 @@ pub enum Compression {
     /// no compression (`identity;`)
     Identity,
     /// brotly compression (`br;`)
+    #[cfg(feature = "brotli")]
     Brotli,
 }
 
 impl Distribution<Compression> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Compression {
         use self::Compression::*;
-        let choices = [Identity, Brotli];
+        let choices = [Identity, #[cfg(feature = "brotli")] Brotli];
         choices.choose(rng).unwrap().clone()
     }
 }
@@ -49,6 +50,7 @@ impl Compression {
         use self::Compression::*;
         match *self {
             Identity => "Identity",
+            #[cfg(feature = "brotli")]
             Brotli => "Brotli",
         }
     }
@@ -57,6 +59,7 @@ impl Compression {
         use self::Compression::*;
         match *self {
             Identity => "identity",
+            #[cfg(feature = "brotli")]
             Brotli => "br",
         }
     }
@@ -64,6 +67,7 @@ impl Compression {
     pub fn parse(name: Option<&str>) -> Option<Compression> {
         let result = match name {
             None | Some("identity") => Compression::Identity,
+            #[cfg(feature = "brotli")]
             Some("br") => Compression::Brotli,
             Some("random") => thread_rng().gen(),
             Some(_) => {
@@ -75,7 +79,7 @@ impl Compression {
 
     pub fn values() -> Box<[Self]> {
         use self::Compression::*;
-        Box::new([Identity, Brotli])
+        Box::new([Identity, #[cfg(feature = "brotli")] Brotli])
     }
 
     pub fn is_compressed(&self) -> bool {
@@ -103,8 +107,8 @@ impl Compression {
                 out.write_all(data)?;
                 data.len()
             }
+            #[cfg(feature = "brotli")]
             Compression::Brotli => {
-                use brotli;
                 out.write_all(b"br;")?;
                 // Compress
                 let mut buffer = Vec::with_capacity(data.len());
@@ -160,15 +164,14 @@ impl Compression {
             ));
         }
 
-        let compression = if &header == b"identity" {
-            Compression::Identity
-        } else if &header == b"br" {
-            Compression::Brotli
-        } else {
-            return Err(std::io::Error::new(
+        let compression = match &header[..] {
+            b"identity" => Compression::Identity,
+            #[cfg(feature = "brotli")]
+            b"br" => Compression::Brotli,
+            _ => return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Invalid compression header",
-            ));
+            ))
         };
 
         let mut byte_len = 0;
@@ -180,8 +183,8 @@ impl Compression {
 
         let decompressed_bytes = match compression {
             Compression::Identity => compressed_bytes,
+            #[cfg(feature = "brotli")]
             Compression::Brotli => {
-                use brotli;
                 let mut decoder =
                     brotli::Decompressor::new(Cursor::new(&compressed_bytes), BROTLI_BUFFER_SIZE);
                 let mut buf = Vec::with_capacity(1024);

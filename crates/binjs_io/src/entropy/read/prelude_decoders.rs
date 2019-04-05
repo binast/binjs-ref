@@ -114,12 +114,18 @@ where
         Ok(name)
     }
 
+    #[cfg(not(feature = "brotli"))]
+    fn read_stream(&mut self) -> Result<Option<Vec<u8>>, TokenReaderError> {
+        panic!("Entropy format can't be used without Brotli.");
+    }
+
     /// Read the next stream.
     ///
     /// A stream starts with a name `[foo_bar]`, followed by a number of compressed
     /// bytes, followed by the actual bytes. In case of success, this returns the
     /// buffer containing the decompressed bytes. To access the name of the stream,
     /// use `self.name()`.
+    #[cfg(feature = "brotli")]
     fn read_stream(&mut self) -> Result<Option<Vec<u8>>, TokenReaderError> {
         debug!(target: "read", "SectionDecoder::read_stream");
         self.input

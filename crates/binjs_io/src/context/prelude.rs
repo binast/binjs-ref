@@ -13,18 +13,21 @@ use std::path::PathBuf;
 ///
 /// Higher values provide better file size but slower compression.
 // FIXME: Should probably become a compression parameter.
+#[cfg(feature = "brotli")]
 const BROTLI_QUALITY: u32 = 11;
 
 /// An arbitrary window size for Brotli compression.
 ///
 /// Higher values provide better file size but slower compression.
 // FIXME: SHould probably become a compression parameter.
+#[cfg(feature = "brotli")]
 const BROTLI_LG_WINDOW_SIZE: u32 = 20;
 
 /// A compression format used in the prelude.
 #[derive(Clone, Copy, Debug)]
 pub enum Compression {
     /// The subsection is compressed using brotli.
+    #[cfg(feature = "brotli")]
     Brotli,
     /// The subsection is uncompressed.
     Identity,
@@ -33,6 +36,7 @@ impl Compression {
     /// Return the representation as a 4 bytes name.
     pub fn as_bytes(&self) -> &'static Name {
         match *self {
+            #[cfg(feature = "brotli")]
             Compression::Brotli => b"BROT",
             Compression::Identity => b"NONE",
         }
@@ -41,6 +45,7 @@ impl Compression {
     /// Parse the 4 bytes name.
     pub fn from_bytes(bytes: &Name) -> Option<Compression> {
         match bytes {
+            #[cfg(feature = "brotli")]
             b"BROT" => Some(Compression::Brotli),
             b"NONE" => Some(Compression::Identity),
             _ => None,
@@ -51,6 +56,7 @@ impl Compression {
     /// Used typically for dumping samples.
     pub fn extension(&self) -> &'static str {
         match *self {
+            #[cfg(feature = "brotli")]
             Compression::Brotli => "br",
             Compression::Identity => "raw",
         }
@@ -210,6 +216,7 @@ where
                     .map_err(TokenReaderError::ReadError)?;
                 result
             }
+            #[cfg(feature = "brotli")]
             Compression::Brotli => {
                 let mut result = Vec::new();
                 let mut slice = PosRead::new(self.reader.by_ref().take(byte_len as u64));
@@ -301,6 +308,7 @@ where
                     .write_all(data)
                     .map_err(TokenWriterError::WriteError)?;
             }
+            #[cfg(feature = "brotli")]
             Compression::Brotli => {
                 // Actually compress the data.
                 // Note that the only way I have found to ensure that the `CompressorWriter` completely

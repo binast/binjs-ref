@@ -43,7 +43,13 @@ impl LazyStream {
         self.buffer.len()
     }
 
+    #[cfg(not(feature = "brotli"))]
+    pub fn done(self) -> std::io::Result<Option<Vec<u8>>> {
+        panic!("Entropy format can't be used without Brotli.");
+    }
+
     /// Get the data that needs to be actually written to disk.
+    #[cfg(feature = "brotli")]
     pub fn done(mut self) -> std::io::Result<Option<Vec<u8>>> {
         if self.buffer.len() == 0 {
             return Ok(None);

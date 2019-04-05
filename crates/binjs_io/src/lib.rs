@@ -6,6 +6,7 @@ extern crate binjs_meta;
 #[macro_use]
 extern crate binjs_shared;
 
+#[cfg(feature = "brotli")]
 extern crate brotli;
 extern crate clap;
 #[macro_use]
