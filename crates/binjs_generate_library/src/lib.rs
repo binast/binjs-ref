@@ -409,7 +409,7 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                         "
 /// Implementation of interface sum {node_name}
 #[derive(PartialEq, Debug, Clone, Serialize)]
-#[serde(tag = \"type\")]
+#[serde(untagged)] // structs already serialize their own tags
 pub enum {name} {{
 {contents}
     /// An additional value used to mark that the node was stolen by a call to `steal()`.
