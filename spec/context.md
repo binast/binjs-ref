@@ -10,7 +10,7 @@ in the future changes.
 # Global structure
 
 ```
-Stream ::= GlobalHeaders Chunk*
+Stream ::= GlobalHeaders Chunk+
 ```
 
 # Global Headers
