@@ -20,36 +20,54 @@ TBD
 An AST is a **Node**, as defined below in pseudo-code:
 
 ```typescript
-type Node = LiteralString
-          | F64           // 64-bit floating-point number
-          | U32           // 32-bit unsigned integer
-          | PropertyKey
-          | IdentifierName
+type Node = LiteralString  // A literal string in the language.
+          | F64            // 64-bit floating-point number
+          | U32            // 32-bit unsigned integer
+          | Bool
+          | PropertyKey    // A property key (aka "field name") in the language.
+          | IdentifierName // An identifier in the language.
           | InterfaceNode
-          | Null
+          | Array
+          | Null           // An empty node.
+          
 class Null { }
+
 class LiteralString {
   value: String
 }
+
 class PropertyKey {
   value: String
 }
+
 class IdentifierName {
   value: String
 }
+
 class InterfaceNode {
   type: InterfaceName;
   fields: [Field]; // Order of fields is specified in the grammar
 }
+
 class Field {
   name: FieldName;
   value: Node;
 }
+
 class InterfaceName {
   value: String; // The list of valid values is specified in the grammar
 }
+
 class FieldName {
   value: String;
+}
+
+class Array {
+  values: [Node];
+}
+
+class Bool {
+  value: bool;
 }
 ```
 
@@ -87,12 +105,19 @@ function walk_node(node: Node, path: Path) {
      walker.visit_identifier_name(path, node);
    } else if (node instanceof InterfaceNode) {
      walker.visit_interface_node(path, node);
-     for (field of node.fields) {
+     for (let field of node.fields) {
        let sub_path = path.append(node.type, field.name.value);
        walk_node(field.value, sub_path);
      }
    } else if (node instanceof Null) {
      walker.visit_null(path, node);
+   } else if (node instanceof Bool) {
+     walker.visit_bool(path, node);
+   } else if (node instanceof Array) {
+     // Arrays do not influence paths.
+     for (let sub_node of node.values) {
+       walk_node(sub_node, path);
+     }
    }
 }
 ```
