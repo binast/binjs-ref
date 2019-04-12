@@ -7,6 +7,96 @@ the actual format.  They're about to be changed so much once we fixed the
 format.  The current content is here to clarify the difference between entropy
 in the future changes.
 
+# ASTs
+
+This document specifies how to compress an Abstract Syntax Tree (or AST) in a given **Grammar**.
+
+## Grammar
+
+TBD
+
+## Nodes
+
+An AST is a **Node**, as defined below in pseudo-code:
+
+```typescript
+type Node = LiteralString
+          | F64           // 64-bit floating-point number
+          | U32           // 32-bit unsigned integer
+          | PropertyKey
+          | IdentifierName
+          | InterfaceNode
+          | Null
+class Null { }
+class LiteralString {
+  value: String
+}
+class PropertyKey {
+  value: String
+}
+class IdentifierName {
+  value: String
+}
+class InterfaceNode {
+  type: InterfaceName;
+  fields: [Field]; // Order of fields is specified in the grammar
+}
+class Field {
+  name: FieldName;
+  value: Node;
+}
+class InterfaceName {
+  value: String; // The list of valid values is specified in the grammar
+}
+class FieldName {
+  value: String;
+}
+```
+
+## Paths
+
+Whenever we walk the AST, each node is assigned a Path, as follows:
+
+```typescript
+class Path {
+  items: [PathItem]
+  function append(interface: InterfaceName, field: FieldName) -> Path {
+    let copy = this.items.slice();
+    copy.push(new PathItem(interface, field));
+    return new Path(item);
+  }
+}
+class PathItem {
+  interface: InterfaceName,
+  field: FieldName,  
+}
+
+function walk_root(node: Node, walker: Walker) {
+  return walk_node(node, new Path());
+}
+function walk_node(node: Node, path: Path) {
+   if (node instanceof LiteralString) {
+     walker.visit_literal_string(path, node);
+   } else if (node instanceof F64) {
+     walker.visit_f64(path, node);
+   } else if (node instanceof U32) {
+     walker.visit_u32(path, node);
+   } else if (node instanceof PropertyKey) {
+     walker.visit_property_key(path, node);
+   } else if (node instanceof IdentifierName) {
+     walker.visit_identifier_name(path, node);
+   } else if (node instanceof InterfaceNode) {
+     walker.visit_interface_node(path, node);
+     for (field of node.fields) {
+       let sub_path = path.append(node.type, field.name.value);
+       walk_node(field.value, sub_path);
+     }
+   } else if (node instanceof Null) {
+     walker.visit_null(path, node);
+   }
+}
+```
+
 # Global structure
 
 ```
@@ -352,3 +442,4 @@ f64 ::= IEEE754 64 Floating Point encoding
 ```
 [char; N] ::= the next N bytes in the stream
 ```
+
