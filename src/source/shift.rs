@@ -30,7 +30,7 @@ pub struct NodeConfig {
     /// Paths to the Node executable.
     bin_path: PathBuf,
     /// Path to a directory with our Node.js scripts (same as this Rust file).
-    scripts_path: &'static Path,
+    scripts_path: PathBuf,
     /// Node.js flag to configure memory usage.
     memory: OsString,
 }
@@ -40,7 +40,11 @@ impl NodeConfig {
         Ok(Self {
             bin_path: which("node").map_err(Error::NodeNotFound)?,
 
-            scripts_path: Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/source")),
+            scripts_path: match env::var("SHIFT_ENCODER_PATH") {
+                Err(_) => PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/src/source")),
+                Ok(v) => PathBuf::from(v),
+            },
+
 
             memory: match env::var("NODE_MAX_OLD_SPACE_SIZE") {
                 Err(_) => String::from("--max_old_space_size=2048"),
