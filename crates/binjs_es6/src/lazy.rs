@@ -1,10 +1,14 @@
 use ast::*;
+use EnrichError;
 
 use binjs_shared::{Offset, VisitMe};
 
 use std;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+type EnterResult = Result<VisitMe<Option<LevelGuard>>, EnrichError>;
+type ExitResult<T> = Result<Option<T>, EnrichError>;
 
 /// Keep track of the number of nested levels of functions/methods/...
 /// we have crossed.
@@ -25,6 +29,13 @@ impl LevelGuard {
 impl Drop for LevelGuard {
     fn drop(&mut self) {
         *self.level.borrow_mut() -= 1;
+    }
+}
+
+/// Trivial implementation of the constructor for `Option<LevelGuard>`.
+impl WalkGuard<LazifierVisitor> for Option<LevelGuard> {
+    fn new(_: &LazifierVisitor, _: &WalkPath) -> Option<LevelGuard> {
+        None
     }
 }
 
@@ -51,16 +62,15 @@ impl LazifierVisitor {
             level: Rc::new(RefCell::new(0)),
         }
     }
-    pub fn annotate_script(&mut self, script: &mut Script) {
-        script
-            .walk(&mut WalkPath::new(), self)
-            .expect("Could not walk script");
+    pub fn annotate_script(&mut self, script: &mut Script) -> Result<(), EnrichError> {
+        script.walk(&mut WalkPath::new(), self)?;
+        Ok(())
     }
 }
 
 impl LazifierVisitor {
     /// Hack to steal a subtree from a `&mut`.
-    fn steal<T: Default, F, U>(source: &mut T, decorator: F) -> Result<Option<U>, ()>
+    fn steal<T: Default, F, U>(source: &mut T, decorator: F) -> ExitResult<U>
     where
         F: FnOnce(T) -> U,
     {
@@ -74,7 +84,7 @@ impl LazifierVisitor {
     /// Return `DoneHere` if we're beyond the threshold, hence skipping the subtree.
     /// Otherwise, acquire a `LevelGuard` that will be released once we're done
     /// with this subtree.
-    fn cut_at_threshold(&mut self) -> Result<VisitMe<Option<LevelGuard>>, ()> {
+    fn cut_at_threshold(&mut self) -> EnterResult {
         {
             if *self.level.borrow() >= self.threshold {
                 return Ok(VisitMe::DoneHere);
@@ -84,13 +94,13 @@ impl LazifierVisitor {
     }
 }
 
-impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
+impl Visitor<EnrichError, Option<LevelGuard>> for LazifierVisitor {
     /// Skip subtrees that are beyond the threshold.
     fn enter_method_definition(
         &mut self,
         _path: &WalkPath,
         _node: &mut ViewMutMethodDefinition,
-    ) -> Result<VisitMe<Option<LevelGuard>>, ()> {
+    ) -> EnterResult {
         self.cut_at_threshold()
     }
 
@@ -101,7 +111,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         &mut self,
         _path: &WalkPath,
         node: &mut ViewMutMethodDefinition,
-    ) -> Result<Option<MethodDefinition>, ()> {
+    ) -> ExitResult<MethodDefinition> {
         match *node {
             ViewMutMethodDefinition::EagerGetter(ref mut steal) => Self::steal(*steal, |stolen| {
                 LazyGetter {
@@ -143,7 +153,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         &mut self,
         _path: &WalkPath,
         _node: &mut ViewMutFunctionDeclaration,
-    ) -> Result<VisitMe<Option<LevelGuard>>, ()> {
+    ) -> EnterResult {
         self.cut_at_threshold()
     }
 
@@ -154,7 +164,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         &mut self,
         _path: &WalkPath,
         node: &mut ViewMutFunctionDeclaration,
-    ) -> Result<Option<FunctionDeclaration>, ()> {
+    ) -> ExitResult<FunctionDeclaration> {
         match *node {
             ViewMutFunctionDeclaration::EagerFunctionDeclaration(ref mut steal) => {
                 Self::steal(*steal, |stolen| {
@@ -179,7 +189,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         &mut self,
         _path: &WalkPath,
         _node: &mut ViewMutFunctionExpression,
-    ) -> Result<VisitMe<Option<LevelGuard>>, ()> {
+    ) -> EnterResult {
         self.cut_at_threshold()
     }
 
@@ -190,7 +200,7 @@ impl Visitor<(), Option<LevelGuard>> for LazifierVisitor {
         &mut self,
         path: &WalkPath,
         node: &mut ViewMutFunctionExpression,
-    ) -> Result<Option<FunctionExpression>, ()> {
+    ) -> ExitResult<FunctionExpression> {
         // Don't lazify code that's going to be used immediately.
         if let Some(WalkPathItem {
             interface: ASTNode::CallExpression,

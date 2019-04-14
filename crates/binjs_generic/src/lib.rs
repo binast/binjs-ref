@@ -2,11 +2,9 @@
 //! format.
 
 extern crate binjs_meta;
-extern crate binjs_shared;
 
-#[macro_use]
-extern crate json;
 extern crate rand;
+extern crate serde_json;
 
 /// Generic instance of `Spec` representing the es6 AST.
 pub mod es6;
@@ -15,5 +13,4 @@ pub mod es6;
 pub mod pick;
 
 /// Walkers, comparisons.
-pub mod syntax;
 pub mod util;

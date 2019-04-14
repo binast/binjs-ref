@@ -112,17 +112,41 @@ impl RustExporter {
         // Buffer used to generate the strongly-typed data structure.
         let mut ast_buffer = String::new();
         ast_buffer.push_str("
-use binjs_shared;
-use binjs_shared::{ FieldName, FromJSON, FromJSONError, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString, ToJSON, VisitMe };
+use binjs_shared::{ FieldName, IdentifierName, InterfaceName, Offset, PropertyKey, SharedString, VisitMe };
 use binjs_io::{ Deserialization, InnerDeserialization, Serialization, TokenReader, TokenReaderError, TokenWriter, TokenWriterError };
 
 use io::*;
 
-use std;
 use std::convert::{ From };
 
-use json;
-use json::JsonValue as JSON;
+/// Dummy type to deserialize only a string `type` and fail otherwise.
+struct TypeKey;
+
+impl<'de> serde::Deserialize<'de> for TypeKey {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = TypeKey;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str(\"a key `type` as the *first* item in the object\")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<TypeKey, E> {
+                match s {
+                    \"type\" => Ok(TypeKey),
+                    _ => Err(serde::de::Error::invalid_value(
+                        serde::de::Unexpected::Other(&format!(\"key `{}`\", s)),
+                        &self
+                    ))
+                }
+            }
+        }
+
+        de.deserialize_str(Visitor)
+    }
+}
 
 ");
 
@@ -188,7 +212,11 @@ use json::JsonValue as JSON;
                 let definition = format!(
                     "
 /// Implementation of string enum {name}
-#[derive(PartialEq, Debug, Clone)]\npub enum {rust_name} {{\n{values}\n}}\n",
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub enum {rust_name} {{
+{values}
+}}
+",
                     name = name,
                     rust_name = rust_name,
                     values = string_enum
@@ -196,7 +224,7 @@ use json::JsonValue as JSON;
                         .iter()
                         .map(|s| format!(
                             "
-    /// Implementation of variant \"{spec_variant_name}\"
+    #[serde(rename = \"{spec_variant_name}\")]
     {rust_variant_name}",
                             spec_variant_name = s,
                             rust_variant_name = ToCases::to_cpp_enum_case(s)
@@ -219,28 +247,6 @@ impl Default for {name} {{
 ",
                     name = name,
                     default = string_enum.strings()[0].to_cpp_enum_case()
-                );
-
-                let to_json = format!(
-                    "
-impl ToJSON for {name} {{
-    fn export(&self) -> JSON {{
-        json::from(match *self {{
-{cases}
-        }})
-    }}
-}}\n\n",
-                    cases = string_enum
-                        .strings()
-                        .iter()
-                        .map(|s| format!(
-                            "           {name}::{typed} => \"{string}\"",
-                            name = name,
-                            typed = s.to_cpp_enum_case(),
-                            string = s,
-                        ))
-                        .format(",\n"),
-                    name = name
                 );
 
                 let from_reader = format!("
@@ -279,32 +285,6 @@ impl<R> Deserialization<{name}> for Deserializer<R> where R: TokenReader {{
                         .format("\n")
                     );
 
-                let from_json = format!(
-                    "
-impl FromJSON for {name} {{
-    fn import(source: &JSON) -> Result<Self, FromJSONError > {{
-        match source.as_str() {{
-{cases},
-            _ => Err(FromJSONError {{
-                expected: \"Instance of {name}\".to_string(),
-                got: source.dump(),
-            }})
-        }}
-    }}
-}}\n\n",
-                    cases = string_enum
-                        .strings()
-                        .iter()
-                        .map(|s| format!(
-                            "           Some(\"{string}\") => Ok({name}::{typed})",
-                            name = name,
-                            typed = s.to_cpp_enum_case(),
-                            string = s,
-                        ))
-                        .format(",\n"),
-                    name = name
-                );
-
                 let to_writer = format!(
                     "
 impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
@@ -322,18 +302,18 @@ impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
                         .strings()
                         .iter()
                         .map(|s| format!(
-                            "            {name}::{typed} => \"{string}\"",
+                            "            {name}::{typed} => \"{string}\",\n",
                             name = name,
                             typed = s.to_cpp_enum_case(),
                             string = s,
                         ))
-                        .format(",\n")
+                        .format("")
                 );
 
                 let walker = format!("
 impl<'a> Walker<'a> for {name} where Self: 'a {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         Ok(None)
     }}
 }}\n",
@@ -341,8 +321,6 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
 
                 buffer.push_str(&definition);
                 buffer.push_str(&default);
-                buffer.push_str(&from_json);
-                buffer.push_str(&to_json);
                 buffer.push_str(&from_reader);
                 buffer.push_str(&to_writer);
                 buffer.push_str(&walker);
@@ -430,27 +408,83 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
                     let definition = format!(
                         "
 /// Implementation of interface sum {node_name}
-#[derive(PartialEq, Debug, Clone)]
-pub enum {name} {{\n{contents}\n}}\n
+#[derive(PartialEq, Debug, Clone, Serialize)]
+#[serde(untagged)] // structs already serialize their own tags
+pub enum {name} {{
+{contents}
+    /// An additional value used to mark that the node was stolen by a call to `steal()`.
+    BinASTStolen,
+}}\n
+
+// An optimised implementation of tagged deserialise that expects `type` to be the first key in the object.
+//
+// This does not strictly adhere to JSON spec, but gives ~2.5x better performance than generic
+// deserialistaion with arbitrary ordering.
+//
+// See https://github.com/serde-rs/serde/issues/1495 for details.
+impl<'de> serde::Deserialize<'de> for {name} {{
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {{
+        #[derive(Deserialize)]
+        enum VariantTag {{
+            {variant_tags}
+        }}
+
+        struct MapVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for MapVisitor {{
+            type Value = {name};
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {{
+                f.write_str(\"an object\")
+            }}
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<{name}, A::Error> {{
+                let (_, variant): (TypeKey, VariantTag) = map.next_entry()?.ok_or_else(|| serde::de::Error::invalid_length(0, &\"1 or more items\"))?;
+                let de = serde::de::value::MapAccessDeserializer::new(map);
+                match variant {{
+                    {value_variants}
+                }}
+            }}
+        }}
+
+        de.deserialize_map(MapVisitor)
+    }}
+}}
 
 /// A mechanism to view value as an instance of interface sum {node_name}
 ///
 /// Used to perform shallow cast between larger sums and smaller sums.
+#[derive(Debug)]
 pub enum ViewMut{name}<'a> {{\n{ref_mut_contents}\n}}\n",
                         name = name,
                         node_name = node_name,
                         contents = types
                             .iter()
                             .map(|case| format!(
-                                "    {name}(Box<{name}>)",
+                                "    {name}(Box<{name}>),\n",
                                 name = case.to_class_cases()
                             ))
-                            .format(",\n"),
+                            .format(""),
                         ref_mut_contents = types
                             .iter()
                             .map(|case| format!(
                                 "    {name}(&'a mut {name})",
                                 name = case.to_class_cases()
+                            ))
+                            .format(",\n"),
+                        variant_tags = types
+                            .iter()
+                            .map(|case| format!(
+                                "    {name}",
+                                name = case.to_class_cases()
+                            ))
+                            .format(",\n"),
+                        value_variants = types
+                            .iter()
+                            .map(|case| format!(
+                                "    VariantTag::{case} => serde::Deserialize::deserialize(de).map({name}::{case})",
+                                name = name,
+                                case = case.to_class_cases()
                             ))
                             .format(",\n"),
                     );
@@ -484,6 +518,7 @@ impl From<{subsum_name}> for {name} {{
     fn from(value: {subsum_name}) -> Self {{
         match value {{
 {cases}
+            {subsum_name}::BinASTStolen => panic!()
         }}
     }}
 }}
@@ -493,12 +528,12 @@ impl From<{subsum_name}> for {name} {{
                                         cases = typesums.get(subsum_name).unwrap()
                                             .iter()
                                             .map(|variant| {
-                                                format!("           {subsum_name}::{variant_name}(x) => {name}::{variant_name}(x)",
+                                                format!("           {subsum_name}::{variant_name}(x) => {name}::{variant_name}(x),\n",
                                                     subsum_name = subsum_name.to_class_cases(),
                                                     name = name,
                                                     variant_name = variant.to_class_cases())
                                             })
-                                            .format(",\n")
+                                            .format("")
                                     ))
                                     .format("\n")
                             )
@@ -515,10 +550,7 @@ impl Default for {name} {{
 
 ",
                         name = name,
-                        default = format!(
-                            "{variant}(Box::new(Default::default()))",
-                            variant = types[0].to_class_cases()
-                        ),
+                        default = "BinASTStolen",
                     );
 
                     let from_reader = format!("
@@ -597,50 +629,6 @@ impl<R> Deserialization<Option<{name}>> for Deserializer<R> where R: TokenReader
                                     null = null_name,
                                 );
 
-                    let from_json = format!("
-impl FromJSON for {name} {{
-    fn import(value: &JSON) -> Result<Self, FromJSONError> {{
-        match value[\"type\"].as_str() {{
-{cases},
-            _ => Err(FromJSONError {{
-                expected: \"Instance of {kind}\".to_string(),
-                got: value.dump()
-            }})
-        }}
-    }}
-}}\n\n",
-                                name = name,
-                                kind = name,
-                                cases = types.iter()
-                                    .map(|case| {
-                                        format!("           Some(\"{case}\") => Ok({name}::{constructor}(Box::new(FromJSON::import(value)?)))",
-                                            name = name,
-                                            case = case,
-                                            constructor = case.to_class_cases())
-                                    })
-                                    .format(",\n")
-                                );
-
-                    let to_json = format!(
-                        "
-impl ToJSON for {name} {{
-    fn export(&self) -> JSON {{
-        match *self {{
-{cases}
-        }}
-    }}
-}}\n\n",
-                        name = name,
-                        cases = types
-                            .iter()
-                            .map(|case| format!(
-                                "           {name}::{constructor}(ref value) => value.export()",
-                                name = name,
-                                constructor = case.to_class_cases()
-                            ))
-                            .format(",\n")
-                    );
-
                     let to_writer = format!("
 impl<W> Serialization<Option<{rust_name}>> for Serializer<W> where W: TokenWriter {{
     fn serialize(&mut self, value: &Option<{rust_name}>, path: &mut IOPath) -> Result<(), TokenWriterError> {{
@@ -661,6 +649,7 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
         debug!(target: \"serialize_es6\", \"Serializing sum {rust_name}\");
         match *value {{
 {variants}
+            {rust_name}::BinASTStolen => panic!()
         }}
     }}
 }}
@@ -675,24 +664,25 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
 "           {name}::{constructor}(ref value) => {{
                 // Path will be updated by the serializer for this tagged tuple.
                 self.serialize(value, path)
-            }}",
+            }}
+",
                                     name = name,
                                     constructor = case.to_class_cases())
                             })
-                            .format(",\n")
+                            .format("")
                         );
 
                     let walk = format!("
 impl<'a> Walker<'a> for {name} {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         let mut walker : ViewMut{name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         let me = self;
 {supers}
         match visitor.enter_{snake}(path, me)? {{
@@ -755,8 +745,6 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
                     buffer.push_str(&subsum_from);
                     buffer.push_str(&from_reader);
                     buffer.push_str(&to_writer);
-                    buffer.push_str(&from_json);
-                    buffer.push_str(&to_json);
                     // buffer.push_str(&into);
                     buffer.push_str(&walk);
 
@@ -764,20 +752,45 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> where Self: 'a {{
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(value: &'a mut {name}) -> ViewMut{name}<'a> {{
         match *value {{
-{variants}
+{variants_from}
+            {name}::BinASTStolen => panic!()
+        }}
+    }}
+}}
+
+impl<'a> ViewMut{name}<'a> {{
+    /// Convert a ViewMut{name} back into a {name},
+    /// stealing the contents of the sum.
+    pub fn steal(&mut self) -> {name} {{
+        match *self {{
+{variants_steal}
         }}
     }}
 }}
 ",
                         name = name.to_class_cases(),
-                        variants = types.iter()
+                        variants_from = types.iter()
                             .map(|variant| {
-                                format!("            {name}::{variant}(ref mut x) => ViewMut{name}::{variant}(x),",
+                                format!("            {name}::{variant}(ref mut x) => ViewMut{name}::{variant}(x),\n",
                                     name = name.to_class_cases(),
                                     variant = variant.to_class_cases(),
                                 )
                             })
-                            .format("\n")
+                            .format(""),
+                        variants_steal = types.iter()
+                            .map(|variant| {
+                                format!(
+"            ViewMut{name}::{variant}(ref mut source) => {{
+                let mut stolen = Default::default();
+                std::mem::swap(*source, &mut stolen);
+                {name}::{variant}(Box::new(stolen))
+            }}
+",
+                                    name = name.to_class_cases(),
+                                    variant = variant.to_class_cases(),
+                                )
+                            })
+                            .format(""),
                         )
                     );
 
@@ -824,7 +837,6 @@ impl<'a, 'b> From<&'a mut ViewMut{super_name}<'a>> for Result<ViewMut{name}<'b>,
             }
 
             buffer.push_str("\n\n// Aliases to primitive types (by lexicographical order)\n");
-            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in primitives.drain(..) {
                 let typedef = source.get(name).unwrap();
                 let source = format!(
@@ -832,6 +844,7 @@ impl<'a, 'b> From<&'a mut ViewMut{super_name}<'a>> for Result<ViewMut{name}<'b>,
 pub type {name} = {contents};
 
 /// Shallow casting mechanism for {name}.
+#[derive(Debug)]
 pub struct ViewMut{name}<'a>(&'a mut {name});
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(value: &'a mut {name}) -> Self {{
@@ -840,7 +853,7 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a primitive.
         Ok(None)
     }}
@@ -860,7 +873,6 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                 buffer.push_str(&source);
             }
             buffer.push_str("\n\n// Aliases to list types (by lexicographical order)\n");
-            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in lists.drain(..) {
                 let typedef = source.get(name).unwrap();
                 if let TypeSpec::Array {
@@ -895,6 +907,7 @@ pub type ViewMut{name}<'a> = ViewMutListOfStatement<'a>;
 {empty_check}pub type {name} = Vec<{contents}>;
 
 /// Shallow casting mechanism.
+#[derive(Debug)]
 pub struct ViewMut{name}<'a>(&'a mut {name});
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(value: &'a mut {name}) -> Self {{
@@ -903,14 +916,14 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for {name} {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{name}>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         let mut walker : ViewMut{name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not callback on the `Vec<>` itself, just on its contents.
         for iter in self.0.iter_mut() {{
             let rewrite = {{
@@ -953,7 +966,6 @@ impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
                 );
             }
             buffer.push_str("\n\n// Aliases to optional types (by lexicographical order)\n");
-            // FromJSON/ToJSON are already implemented in `binjs::utils`
             for name in options.drain(..) {
                 let typedef = source.get(name).unwrap();
                 if let TypeSpec::NamedType(ref contents) = *typedef.spec() {
@@ -962,6 +974,7 @@ impl<W> Serialization<{name}> for Serializer<W> where W: TokenWriter {{
 pub type {name} = Option<{contents}>;\n
 
 /// Shallow casting mechanism.
+#[derive(Debug)]
 pub struct ViewMut{name}<'a>(&'a mut {name});
 impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
     fn from(value: &'a mut {name}) -> Self {{
@@ -970,7 +983,7 @@ impl<'a> From<&'a mut {name}> for ViewMut{name}<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMut{name}<'a> {{
     type Output = {name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not callback on the `Option<>` itself, just on its contents.
         if let Some(ref mut contents) = self.0 {{
             let result =
@@ -1031,7 +1044,8 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
                 let definition = format!(
                     "
 /// Implementation of interface {spec_name}.
-#[derive(Default, PartialEq, Debug, Clone)]
+#[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = \"type\")]
 pub struct {rust_name} {{
 {fields}
 }}
@@ -1049,7 +1063,7 @@ impl binjs_shared::Node for {rust_name} {{
                     fields = field_specs
                         .iter()
                         .map(|(field_name, spec)| format!(
-                            "    /// Implementation of field {spec_name}
+                            "    #[serde(rename = \"{spec_name}\")]
     pub {rust_name}: {contents}",
                             rust_name = field_name.to_rust_identifier_case(),
                             spec_name = field_name.to_str(),
@@ -1282,7 +1296,9 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
                                             break Cow::from(format!(
 "
             // Switch dictionary to serialize other children of this node.
-            self.writer.enter_scoped_dictionary_at(&value.{rust_field_name}, path)?;
+            if let Err(err) = self.writer.enter_scoped_dictionary_at(&value.{rust_field_name}, path) {{
+                break Err(err); // Break with error
+            }}
 ",
                                         rust_field_name = field.name().to_rust_identifier_case()))
                                         }
@@ -1303,62 +1319,9 @@ impl<W> Serialization<{rust_name}> for Serializer<W> where W: TokenWriter {{
                         }
                     );
 
-                let from_json = format!(
-                    "
-impl FromJSON for {rust_name} {{
-    fn import(value: &JSON) -> Result<Self, FromJSONError> {{
-        match value[\"type\"].as_str() {{
-            Some(\"{kind}\") => {{ /* Good */ }},
-            _ => return Err(FromJSONError {{
-                expected: \"Instance of {kind}\".to_string(),
-                got: value.dump()
-            }})
-        }}
-        Ok({rust_name} {{
-{fields}
-        }})
-    }}
-}}\n\n",
-                    kind = name,
-                    rust_name = rust_name,
-                    fields = interface
-                        .contents()
-                        .fields()
-                        .iter()
-                        .map(|field| format!(
-                            "            {name}: FromJSON::import(&value[\"{key}\"])?,\n",
-                            key = field.name().to_str(),
-                            name = field.name().to_rust_identifier_case()
-                        ))
-                        .format("")
-                );
-
-                let to_json = format!(
-                    "
-impl ToJSON for {rust_name} {{
-    fn export(&self) -> JSON {{
-        object!{{
-            \"type\" => json::from(\"{kind}\"),
-{fields}
-        }}
-    }}
-}}\n\n",
-                    kind = name,
-                    rust_name = rust_name,
-                    fields = interface
-                        .contents()
-                        .fields()
-                        .iter()
-                        .map(|field| format!(
-                            "             \"{key}\" => self.{name}.export()",
-                            key = field.name().to_str(),
-                            name = field.name().to_rust_identifier_case()
-                        ))
-                        .format(",\n")
-                );
-
                 let walk = format!("
 /// Shallow casting mechanism.
+#[derive(Debug)]
 pub struct ViewMut{rust_name}<'a>(&'a mut {rust_name});
 impl<'a> From<&'a mut {rust_name}> for ViewMut{rust_name}<'a> {{
     fn from(value: &'a mut {rust_name}) -> Self {{
@@ -1367,14 +1330,14 @@ impl<'a> From<&'a mut {rust_name}> for ViewMut{rust_name}<'a> {{
 }}
 impl<'a> Walker<'a> for {rust_name} {{
     type Output = {rust_name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{rust_name}>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<{rust_name}>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         let mut walker : ViewMut{rust_name} = self.into();
         walker.walk(path, visitor)
     }}
 }}
 impl<'a> Walker<'a> for ViewMut{rust_name}<'a> where Self: 'a {{
     type Output = {rust_name};
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         path.enter_interface(ASTNode::{rust_name});
         match visitor.enter_{snake}(path, self.0)? {{
             VisitMe::DoneHere => Ok(None),
@@ -1415,8 +1378,6 @@ impl<'a> Walker<'a> for ViewMut{rust_name}<'a> where Self: 'a {{
                 buffer.push_str(&definition);
                 buffer.push_str(&from_reader);
                 buffer.push_str(&to_writer);
-                buffer.push_str(&from_json);
-                buffer.push_str(&to_json);
                 buffer.push_str(&walk);
                 buffer.push_str("\n\n\n");
             }
@@ -1479,17 +1440,29 @@ pub type IOPath = binjs_shared::ast::Path<binjs_shared::InterfaceName, ( /* chil
 /// using `Visitor`.
 ///
 /// Type argument `G` is a type of guards.
-pub trait Visitor<E, G=()> where G: Default {{
+pub trait Visitor<E, G=()> where G: WalkGuard<Self>, Self: Sized {{
 {interfaces}
 {sums}
-   fn visit_offset(&mut self, _path: &WalkPath, _node: &mut Offset) -> Result<(), E> {{
+    fn visit_offset(&mut self, _path: &WalkPath, _node: &mut Offset) -> Result<(), E> {{
         Ok(())
     }}
-}}\n
+}}
+
 pub trait Walker<'a>: Sized {{
     type Output;
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>;
-}}\n
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V>;
+}}
+
+pub trait WalkGuard<V> where Self: Sized {{
+    fn new(visitor: &V, path: &WalkPath) -> Self;
+}}
+
+/// Trivial implementation of `WalkGuard` for `()`.
+impl<V> WalkGuard<V> for () {{
+    fn new(_: &V, _: &WalkPath) -> () {{
+        ()
+    }}
+}}
 
 /// A structure that cannot be visited.
 #[derive(Default)]
@@ -1498,7 +1471,7 @@ struct ViewMutNothing<T> {{
 }}
 impl<'a, T> Walker<'a> for ViewMutNothing<T> {{
     type Output = T;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a nothing.
         Ok(None)
     }}
@@ -1512,7 +1485,7 @@ impl<'a> From<&'a mut bool> for ViewMutNothing<bool> {{
 }}
 impl<'a> Walker<'a> for bool {{
     type Output = Self;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a bool.
         Ok(None)
     }}
@@ -1525,7 +1498,7 @@ impl<'a> From<&'a mut f64> for ViewMutNothing<f64> {{
 }}
 impl<'a> Walker<'a> for f64 {{
     type Output = Self;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a f64.
         Ok(None)
     }}
@@ -1538,13 +1511,14 @@ impl<'a> From<&'a mut u32> for ViewMutNothing<u32> {{
 }}
 impl<'a> Walker<'a> for u32 {{
     type Output = Self;
-    fn walk<V, E, G: Default>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, _: &mut WalkPath, _: &mut V) -> Result<Option<Self>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         // Do not inspect the contents of a u32.
         Ok(None)
     }}
 }}
 
 // We actually use ViewMutOffset to reset offsets to 0 during tests.
+#[derive(Debug)]
 pub struct ViewMutOffset<'a>(&'a mut Offset);
 impl<'a> From<&'a mut Offset> for ViewMutOffset<'a> {{
     fn from(value: &'a mut Offset) -> Self {{
@@ -1553,7 +1527,7 @@ impl<'a> From<&'a mut Offset> for ViewMutOffset<'a> {{
 }}
 impl<'a> Walker<'a> for ViewMutOffset<'a> {{
     type Output = Offset;
-    fn walk<V, E, G: Default>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G> {{
+    fn walk<V, E, G>(&'a mut self, path: &mut WalkPath, visitor: &mut V) -> Result<Option<Self::Output>, E> where V: Visitor<E, G>, G: WalkGuard<V> {{
         visitor.visit_offset(path, &mut self.0)?;
         Ok(None)
     }}
@@ -1579,8 +1553,8 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
                     .map(|name| {
                         let interface = interfaces.get(&name).unwrap();
                         format!("
-    fn enter_{name}(&mut self, _path: &WalkPath, _node: &mut {node_name}) -> Result<VisitMe<G>, E> {{
-        Ok(VisitMe::HoldThis(G::default()))
+    fn enter_{name}(&mut self, path: &WalkPath, _node: &mut {node_name}) -> Result<VisitMe<G>, E> {{
+        Ok(VisitMe::HoldThis(G::new(self, path))) // interface
     }}
     fn exit_{name}(&mut self, _path: &WalkPath, _node: &mut {node_name}) -> Result<Option<{node_name}>, E> {{
         Ok(None)
@@ -1594,8 +1568,8 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
                     .drain(..)
                     .map(|name| {
                         format!("
-    fn enter_{name}<'a>(&mut self, _path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<VisitMe<G>, E> {{
-        Ok(VisitMe::HoldThis(G::default()))
+    fn enter_{name}<'a>(&mut self, path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<VisitMe<G>, E> {{
+        Ok(VisitMe::HoldThis(G::new(self, path))) // sum
     }}
     fn exit_{name}<'a>(&mut self, _path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<Option<{node_name}>, E> {{
         Ok(None)

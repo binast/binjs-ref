@@ -19,6 +19,7 @@ startJSONStream({
         let code = readFileSync(filename, 'utf-8');
         return parseScript(code, { earlyErrors: false });
     },
+
     // `toJSON` is a `JSON.stringify` replacer callback that converts Shift AST
     // to a BinaryAST JSON format on the fly.
     toJSON: require('./from-shift')

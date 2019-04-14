@@ -259,33 +259,6 @@ where
         })?;
         Ok(())
     }
-
-    fn enter_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
-        debug!(target: "simple_reader", "untagged tuple");
-        let mut owner = self.owner.borrow_mut();
-        owner.try(|state| {
-            state
-                .reader
-                .read_const(b"<tuple>")
-                .map_err(TokenReaderError::ReadError)
-        })?;
-        debug!(target: "simple_reader", "/untagged tuple");
-        Ok(())
-    }
-    fn exit_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
-        let mut owner = self.owner.borrow_mut();
-        if owner.is_poisoned() {
-            return Ok(());
-        }
-
-        owner.try(|state| {
-            state
-                .reader
-                .read_const(b"</tuple>")
-                .map_err(TokenReaderError::ReadError)
-        })?;
-        Ok(())
-    }
 }
 
 /// A trivial tree writer, without any kind of optimization.
@@ -295,7 +268,7 @@ pub struct TreeTokenWriter {
 impl TreeTokenWriter {
     pub fn new() -> Self {
         TreeTokenWriter {
-            root: Rc::new(TreeItem::Bytes(Vec::new())),
+            root: Rc::new(TreeItem::Bytes(Box::default())),
         }
     }
     pub fn data(&self) -> Option<&[u8]> {
@@ -306,22 +279,15 @@ impl TreeTokenWriter {
     }
 
     fn register(&mut self, data: Vec<u8>) -> AbstractTree {
-        let result = Rc::new(TreeItem::Bytes(data));
+        let result = Rc::new(TreeItem::Bytes(data.into()));
         self.root = result.clone();
         AbstractTree(result)
     }
 }
 
-pub struct Data(pub Rc<Vec<u8>>);
-impl AsRef<[u8]> for Data {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref().as_ref()
-    }
-}
-
 #[derive(Clone)]
 enum TreeItem {
-    Bytes(Vec<u8>),
+    Bytes(Box<[u8]>),
     Offset,
 }
 
@@ -378,7 +344,7 @@ impl TreeTokenWriter {
 }
 impl TokenWriterWithTree for TreeTokenWriter {
     type Tree = AbstractTree;
-    type Data = Vec<u8>;
+    type Data = Box<[u8]>;
 
     fn done(self) -> Result<Self::Data, TokenWriterError> {
         let unwrapped = Rc::try_unwrap(self.root).unwrap_or_else(|e| {
@@ -516,7 +482,7 @@ impl TokenWriterWithTree for TreeTokenWriter {
         prefix.extend_from_str("</head>");
 
         let mut untagged = Vec::new();
-        untagged.push(AbstractTree(Rc::new(TreeItem::Bytes(prefix))));
+        untagged.push(AbstractTree(Rc::new(TreeItem::Bytes(prefix.into()))));
         for &(_, ref child) in children.iter() {
             untagged.push(child.clone())
         }
@@ -609,58 +575,6 @@ fn test_simple_io() {
             .expect("Reading string with escapes")
             .expect("Non-null string");
         assert_eq!(escapes_string, data);
-    }
-
-    eprintln!("Testing untagged tuple I/O");
-
-    {
-        let mut writer = TreeTokenWriter::new();
-        writer
-            .untagged_tuple(&[])
-            .expect("Writing empty untagged tuple");
-
-        let data = writer.data().unwrap();
-        write_file("test-empty-untagged-tuple", data);
-
-        let mut reader = TreeTokenReader::new(Cursor::new(data));
-        reader
-            .enter_untagged_tuple_at(&path)
-            .expect("Reading empty untagged tuple");
-
-        reader
-            .exit_untagged_tuple_at(&path)
-            .expect("Empty untagged tuple read properly");
-    }
-
-    {
-        let mut writer = TreeTokenWriter::new();
-        let item_0 = writer.string(Some(&SharedString::from_str("foo"))).unwrap();
-        let item_1 = writer.string(Some(&SharedString::from_str("bar"))).unwrap();
-        writer
-            .untagged_tuple(&[item_0, item_1])
-            .expect("Writing trivial untagged tuple");
-
-        let data = writer.data().unwrap();
-        write_file("test-trivial-untagged-tuple", data);
-
-        let mut reader = TreeTokenReader::new(Cursor::new(data));
-        reader
-            .enter_untagged_tuple_at(&path)
-            .expect("Reading trivial untagged tuple");
-        let simple_string = reader
-            .string_at(&path)
-            .expect("Reading trivial tuple[0]")
-            .expect("Non-null string");
-        assert_eq!(&simple_string, "foo");
-        let simple_string = reader
-            .string_at(&path)
-            .expect("Reading trivial tuple[1]")
-            .expect("Non-null string");
-        assert_eq!(&simple_string, "bar");
-
-        reader
-            .exit_untagged_tuple_at(&path)
-            .expect("Untagged tuple read properly");
     }
 
     eprintln!("Testing tagged tuple I/O");

@@ -7,16 +7,17 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 extern crate rand;
+extern crate serde;
 
 const DEFAULT_TREE_SIZE: isize = 5;
 
 use binjs::generic::pick::{Pick, Picker};
-use binjs::generic::FromJSON;
 use binjs::source::Shift;
-use binjs::specialized::es6::ast::Walker;
 use binjs::specialized::es6::io::Encoder;
 
 use clap::*;
+use serde::Deserialize;
+
 use std::fs;
 
 fn main() {
@@ -102,21 +103,16 @@ Note that this tool does not attempt to make sure that the files are entirely co
         let json = Picker.random(&spec, &mut rng, size);
 
         let mut ast =
-            binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
+            binjs::specialized::es6::ast::Script::deserialize(&json).expect("Could not import AST");
 
-        if lazification > 0 {
-            let mut path = binjs::specialized::es6::ast::WalkPath::new();
-            let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(lazification);
-            ast.walk(&mut path, &mut visitor)
-                .expect("Could not introduce laziness");
-        }
+        let enricher = binjs::specialized::es6::Enrich {
+            lazy_threshold: lazification,
+            scopes: !random_metadata,
+            ..Default::default()
+        };
+        enricher.enrich(&mut ast).expect("Could not enrich AST");
 
-        if !random_metadata {
-            // Overwrite random annotations.
-            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
-        }
-
-        if let Ok(source) = parser.to_source(&spec, json) {
+        if let Ok(source) = parser.to_source(&ast) {
             i += 1;
 
             println!("Generated sample {}/{}", i, number);

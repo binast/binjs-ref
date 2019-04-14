@@ -4,11 +4,10 @@ extern crate binjs;
 extern crate clap;
 extern crate env_logger;
 
-use binjs::generic::FromJSON;
 use binjs::io::{CompressionTarget, Format};
 use binjs::source::{Shift, SourceParser};
-use binjs::specialized::es6::ast::Walker;
 use binjs::specialized::es6::io::Encoder;
+use binjs::specialized::es6::Enrich;
 
 use std::fs;
 use std::io::*;
@@ -36,7 +35,7 @@ struct Options<'a> {
     parser: &'a Shift,
     format: Format,
     dest_dir: Option<PathBuf>,
-    lazification: u32,
+    enricher: Enrich,
     show_ast: bool,
     quiet: bool,
 }
@@ -123,7 +122,7 @@ fn handle_path<'a>(options: &mut Options<'a>, source_path: &Path, sub_dir: &Path
 }
 
 fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
-    let (source_path, source_len, json) = match params.source {
+    let (source_path, source_len, mut ast) = match params.source {
         Source::FromFile { path } => (
             Some(path),
             fs::metadata(path).expect("Could not open source").len(),
@@ -144,22 +143,14 @@ fn handle_path_or_text<'a>(options: &mut Options<'a>, params: EncodeParams) {
     let dest_bin_path = params.dest_bin_path;
     let dest_txt_path = params.dest_txt_path;
 
-    let mut ast =
-        binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
-    binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
-
-    if options.lazification > 0 {
-        progress!(options.quiet, "Introducing laziness.");
-        let mut path = binjs::specialized::es6::ast::WalkPath::new();
-        let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(options.lazification);
-        ast.walk(&mut path, &mut visitor)
-            .expect("Could not introduce laziness");
-    }
+    options
+        .enricher
+        .enrich(&mut ast)
+        .expect("Could not enrich AST");
 
     if options.show_ast {
-        use binjs::generic::ToJSON;
-        let json = ast.export();
-        println!("{:#}", json);
+        serde_json::to_writer_pretty(std::io::stdout(), &ast).unwrap();
+        println!();
     }
 
     progress!(options.quiet, "Encoding.");
@@ -251,19 +242,15 @@ fn main_aux() {
             Arg::with_name("show-ast")
                 .long("show-ast")
                 .help("Show pos-processed ast"),
-            Arg::with_name("lazify")
-                .long("lazify")
-                .takes_value(true)
-                .default_value("0")
-                .validator(|s| s.parse::<u32>()
-                    .map(|_| ())
-                    .map_err(|e| format!("Invalid number {}", e)))
-                .help("Number of layers of functions to lazify. 0 = no lazification, 1 = functions at toplevel, 2 = also functions in functions at toplevel, etc."),
             Arg::with_name("quiet")
                 .long("quiet")
                 .short("q")
                 .help("Do not print progress"),
         ])
+        .args(Enrich {
+            scopes: true,
+            ..Default::default()
+        }.args().as_slice())
         .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 
@@ -293,19 +280,18 @@ fn main_aux() {
         binjs::io::Format::from_matches(&spec, &matches).expect("Could not parse encoding format");
     progress!(quiet, "Using format: {}", format.name());
 
+    let enricher = Enrich::from_matches(&matches);
+
     let show_stats = matches.is_present("statistics");
 
     // Setup.
     let parser = Shift::try_new().expect("Could not launch Shift");
 
-    let lazification =
-        str::parse(matches.value_of("lazify").expect("Missing lazify")).expect("Invalid number");
-
     let mut options = Options {
         parser: &parser,
         format,
         dest_dir,
-        lazification,
+        enricher,
         show_ast: matches.is_present("show-ast"),
         quiet,
     };

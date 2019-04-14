@@ -12,7 +12,7 @@ clap = "^2.32"
 derive_more = "^0.13"
 flate2 = "^1.0"
 itertools = "^0.7"
-json = "^0.11"
+serde_json = { version = "^1.0.38", features = ["unbounded_depth"] }
 lzw = "^0.10"
 log = "^0.4"
 rand = "^0.6"
@@ -25,3 +25,11 @@ xml-rs = "^0.8"
 [dev-dependencies]
 env_logger = "^0.6"
 tempdir = "^0.3"
+
+[features]
+default = []
+
+# If specified, activate features that require Nightly only compiler features.
+#
+# At the time of this writing, this affects only documentation generation.
+unstable = []

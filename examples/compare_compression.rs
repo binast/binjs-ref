@@ -9,7 +9,6 @@ extern crate glob;
 extern crate itertools;
 extern crate tempdir;
 
-use binjs::generic::FromJSON;
 use binjs::source::*;
 
 use clap::*;
@@ -129,12 +128,12 @@ fn main() {
             let from_text = get_compressed_sizes(&source_path);
 
             eprintln!("Compressing with binjs");
-            let json = parser
+            let mut ast = parser
                 .parse_file(source_path.clone())
                 .expect("Could not parse source");
-            let mut ast =
-                binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
-            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
+
+            let enricher = binjs::specialized::es6::Enrich::default();
+            enricher.enrich(&mut ast).expect("Could not enrich AST");
 
             let data = encoder
                 .encode(None, &mut format, &ast)

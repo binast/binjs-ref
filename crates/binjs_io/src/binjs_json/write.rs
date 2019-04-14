@@ -11,8 +11,7 @@ use binjs_shared::{FieldName, IdentifierName, InterfaceName, Node, PropertyKey, 
 
 use escaped_wtf8;
 
-use json;
-use json::JsonValue as JSON;
+use serde_json::Value as JSON;
 
 /// Context for either list or tagged tuple.
 enum Context {
@@ -72,7 +71,7 @@ impl TreeTokenWriter {
 }
 
 impl TokenWriter for TreeTokenWriter {
-    type Data = Vec<u8>;
+    type Data = Box<[u8]>;
 
     fn done(mut self) -> Result<Self::Data, TokenWriterError> {
         match self.contexts.pop() {
@@ -80,8 +79,8 @@ impl TokenWriter for TreeTokenWriter {
                 let top_level_item = items
                     .pop()
                     .expect("There should be only one item at the top level");
-                let source = json::stringify_pretty(top_level_item, 2);
-                let result = escaped_wtf8::to_unicode_escape(source).as_bytes().to_vec();
+                let source = format!("{:#}", top_level_item);
+                let result = escaped_wtf8::to_unicode_escape(source).into_bytes().into();
                 Ok(result)
             }
             _ => {
@@ -112,24 +111,30 @@ impl TokenWriter for TreeTokenWriter {
                 interface: tag,
                 field_values,
             }) => {
-                let mut obj = json::object::Object::with_capacity(2);
-                obj.insert("@TYPE", JSON::String("tagged tuple".to_string()));
-                obj.insert("@INTERFACE", JSON::String(tag.as_str().to_string()));
+                let mut obj = serde_json::Map::with_capacity(2);
+                obj.insert(
+                    "@TYPE".to_string(),
+                    JSON::String("tagged tuple".to_string()),
+                );
+                obj.insert(
+                    "@INTERFACE".to_string(),
+                    JSON::String(tag.as_str().to_string()),
+                );
 
                 let mut fields: Vec<JSON> = Vec::new();
                 assert!(children.len() == field_values.len());
                 let mut i = 0;
                 for field_value in field_values {
-                    let mut field = json::object::Object::with_capacity(2);
+                    let mut field = serde_json::Map::with_capacity(2);
                     field.insert(
-                        "@FIELD_NAME",
+                        "@FIELD_NAME".to_string(),
                         JSON::String(children[i].as_str().to_string()),
                     );
-                    field.insert("@FIELD_VALUE", field_value);
+                    field.insert("@FIELD_VALUE".to_string(), field_value);
                     fields.push(JSON::Object(field));
                     i += 1;
                 }
-                obj.insert("@FIELDS", JSON::Array(fields));
+                obj.insert("@FIELDS".to_string(), JSON::Array(fields));
 
                 self.push(JSON::Object(obj));
             }
@@ -147,9 +152,9 @@ impl TokenWriter for TreeTokenWriter {
     fn exit_list_at(&mut self, _path: &Path) -> Result<(), TokenWriterError> {
         match self.contexts.pop() {
             Some(Context::List { items }) => {
-                let mut obj = json::object::Object::with_capacity(2);
-                obj.insert("@TYPE", JSON::String("list".to_string()));
-                obj.insert("@VALUE", JSON::Array(items));
+                let mut obj = serde_json::Map::with_capacity(2);
+                obj.insert("@TYPE".to_string(), JSON::String("list".to_string()));
+                obj.insert("@VALUE".to_string(), JSON::Array(items));
                 self.push(JSON::Object(obj));
             }
             _ => {
@@ -165,14 +170,14 @@ impl TokenWriter for TreeTokenWriter {
         value: Option<&SharedString>,
         _path: &Path,
     ) -> Result<(), TokenWriterError> {
-        let mut obj = json::object::Object::with_capacity(2);
-        obj.insert("@TYPE", JSON::String("string".to_string()));
+        let mut obj = serde_json::Map::with_capacity(2);
+        obj.insert("@TYPE".to_string(), JSON::String("string".to_string()));
         match value {
             Some(v) => {
-                obj.insert("@VALUE", JSON::String(v.to_string()));
+                obj.insert("@VALUE".to_string(), JSON::String(v.to_string()));
             }
             None => {
-                obj.insert("@VALUE", JSON::Null);
+                obj.insert("@VALUE".to_string(), JSON::Null);
             }
         };
         self.push(JSON::Object(obj));
@@ -184,45 +189,47 @@ impl TokenWriter for TreeTokenWriter {
         value: &SharedString,
         _path: &Path,
     ) -> Result<(), TokenWriterError> {
-        let mut obj = json::object::Object::with_capacity(2);
-        obj.insert("@TYPE", JSON::String("enum".to_string()));
-        obj.insert("@VALUE", JSON::String(value.to_string()));
+        let mut obj = serde_json::Map::with_capacity(2);
+        obj.insert("@TYPE".to_string(), JSON::String("enum".to_string()));
+        obj.insert("@VALUE".to_string(), JSON::String(value.to_string()));
         self.push(JSON::Object(obj));
         Ok(())
     }
 
     fn float_at(&mut self, value: Option<f64>, _path: &Path) -> Result<(), TokenWriterError> {
-        let mut obj = json::object::Object::with_capacity(2);
-        obj.insert("@TYPE", JSON::String("float".to_string()));
-        match value {
-            Some(v) => {
-                obj.insert("@VALUE", JSON::Number(v.into()));
-            }
-            None => {
-                obj.insert("@VALUE", JSON::Null);
-            }
-        };
+        let mut obj = serde_json::Map::with_capacity(2);
+        obj.insert("@TYPE".to_string(), JSON::String("float".to_string()));
+        obj.insert(
+            "@VALUE".to_string(),
+            value
+                .and_then(serde_json::Number::from_f64)
+                .map(JSON::Number)
+                .unwrap_or(JSON::Null),
+        );
         self.push(JSON::Object(obj));
         Ok(())
     }
 
     fn unsigned_long_at(&mut self, value: u32, _path: &Path) -> Result<(), TokenWriterError> {
-        let mut obj = json::object::Object::with_capacity(2);
-        obj.insert("@TYPE", JSON::String("unsigned long".to_string()));
-        obj.insert("@VALUE", JSON::Number(value.into()));
+        let mut obj = serde_json::Map::with_capacity(2);
+        obj.insert(
+            "@TYPE".to_string(),
+            JSON::String("unsigned long".to_string()),
+        );
+        obj.insert("@VALUE".to_string(), JSON::Number(value.into()));
         self.push(JSON::Object(obj));
         Ok(())
     }
 
     fn bool_at(&mut self, value: Option<bool>, _path: &Path) -> Result<(), TokenWriterError> {
-        let mut obj = json::object::Object::with_capacity(2);
-        obj.insert("@TYPE", JSON::String("bool".to_string()));
+        let mut obj = serde_json::Map::with_capacity(2);
+        obj.insert("@TYPE".to_string(), JSON::String("bool".to_string()));
         match value {
             Some(v) => {
-                obj.insert("@VALUE", JSON::Boolean(v));
+                obj.insert("@VALUE".to_string(), JSON::Bool(v));
             }
             None => {
-                obj.insert("@VALUE", JSON::Null);
+                obj.insert("@VALUE".to_string(), JSON::Null);
             }
         };
         self.push(JSON::Object(obj));
@@ -238,14 +245,17 @@ impl TokenWriter for TreeTokenWriter {
         value: Option<&PropertyKey>,
         _path: &Path,
     ) -> Result<(), TokenWriterError> {
-        let mut obj = json::object::Object::with_capacity(2);
-        obj.insert("@TYPE", JSON::String("property key".to_string()));
+        let mut obj = serde_json::Map::with_capacity(2);
+        obj.insert(
+            "@TYPE".to_string(),
+            JSON::String("property key".to_string()),
+        );
         match value {
             Some(v) => {
-                obj.insert("@VALUE", JSON::String(v.as_str().to_string()));
+                obj.insert("@VALUE".to_string(), JSON::String(v.as_str().to_string()));
             }
             None => {
-                obj.insert("@VALUE", JSON::Null);
+                obj.insert("@VALUE".to_string(), JSON::Null);
             }
         };
         self.push(JSON::Object(obj));
@@ -257,14 +267,17 @@ impl TokenWriter for TreeTokenWriter {
         value: Option<&IdentifierName>,
         _path: &Path,
     ) -> Result<(), TokenWriterError> {
-        let mut obj = json::object::Object::with_capacity(2);
-        obj.insert("@TYPE", JSON::String("identifier name".to_string()));
+        let mut obj = serde_json::Map::with_capacity(2);
+        obj.insert(
+            "@TYPE".to_string(),
+            JSON::String("identifier name".to_string()),
+        );
         match value {
             Some(v) => {
-                obj.insert("@VALUE", JSON::String(v.as_str().to_string()));
+                obj.insert("@VALUE".to_string(), JSON::String(v.as_str().to_string()));
             }
             None => {
-                obj.insert("@VALUE", JSON::Null);
+                obj.insert("@VALUE".to_string(), JSON::Null);
             }
         };
         self.push(JSON::Object(obj));

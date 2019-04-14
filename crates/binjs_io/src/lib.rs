@@ -1,5 +1,9 @@
+#![cfg_attr(feature = "unstable", feature(external_doc))]
+
 extern crate bincode; // Used to store dictionaries. This is a temporary format.
 extern crate binjs_meta;
+
+#[macro_use]
 extern crate binjs_shared;
 
 extern crate brotli;
@@ -8,8 +12,8 @@ extern crate clap;
 extern crate derive_more;
 extern crate flate2;
 extern crate itertools;
-extern crate json;
 extern crate lzw;
+extern crate serde_json;
 #[macro_use]
 extern crate log;
 extern crate rand;
@@ -35,9 +39,11 @@ pub use bytes::compress::Compression;
 
 #[derive(Debug)]
 pub enum TokenWriterError {
+    DuplicateEntry(String),
     InvalidOffsetField,
     NotInDictionary(String),
     WriteError(std::io::Error),
+    DictionarySwitchingError(SharedString),
 }
 
 #[derive(Debug)]
@@ -77,6 +83,7 @@ pub enum TokenReaderError {
     EmptyNumber,
     BadEnumVariant,
     GenericError(String),
+    DictionarySwitchingError(SharedString),
 }
 impl TokenReaderError {
     pub fn invalid_value<T: std::fmt::Debug>(value: &T) -> Self {
@@ -112,6 +119,9 @@ pub mod binjs_json;
 mod util;
 
 pub mod escaped_wtf8;
+
+/// An encoding using per-context Huffman tables.
+pub mod context;
 
 const ADVANCED_COMMAND: &str = "advanced";
 

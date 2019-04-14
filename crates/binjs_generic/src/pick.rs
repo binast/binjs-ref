@@ -3,10 +3,9 @@ use util::pick;
 use binjs_meta::spec::*;
 use std::iter;
 
-use json;
-use json::JsonValue as JSON;
 use rand;
 use rand::distributions::Alphanumeric;
+use serde_json::Value as JSON;
 
 pub trait Pick {
     fn random<T: rand::Rng>(&self, syntax: &Spec, rng: &mut T, depth_limit: isize) -> JSON;
@@ -41,7 +40,7 @@ impl Pick for TypeSpec {
                 contents: ref type_,
             } => {
                 if supports_empty && depth_limit <= 0 {
-                    return array![];
+                    return JSON::Array(vec![]);
                 }
                 let min = if supports_empty { 0 } else { 1 };
                 let len = rng.gen_range(min, MAX_ARRAY_LEN);
@@ -62,7 +61,7 @@ impl Pick for TypeSpec {
                 let type_ = pick(rng, types.types());
                 type_.random(syntax, rng, depth_limit)
             }
-            TypeSpec::Boolean => JSON::Boolean(rng.gen()),
+            TypeSpec::Boolean => JSON::Bool(rng.gen()),
             TypeSpec::String | TypeSpec::PropertyKey | TypeSpec::IdentifierName => {
                 const MAX_STRING_LEN: usize = 10;
                 let len = rng.gen_range(0, MAX_STRING_LEN);
@@ -70,12 +69,12 @@ impl Pick for TypeSpec {
                     .map(|()| rng.sample(Alphanumeric))
                     .take(len)
                     .collect();
-                json::from(string)
+                JSON::from(string)
             }
-            TypeSpec::Number => json::from(rng.gen::<f64>()),
+            TypeSpec::Number => JSON::from(rng.gen::<f64>()),
             TypeSpec::Void => JSON::Null,
             TypeSpec::Offset | TypeSpec::UnsignedLong => {
-                json::from(rng.gen_range(0, u32::max_value()))
+                JSON::from(rng.gen_range(0, u32::max_value()))
             }
         }
     }
@@ -96,12 +95,12 @@ impl Pick for Type {
 impl Pick for Interface {
     /// Generate a random instance of this interface matching the syntax.
     fn random<T: rand::Rng>(&self, syntax: &Spec, rng: &mut T, depth_limit: isize) -> JSON {
-        let mut obj = json::object::Object::with_capacity(self.contents().fields().len());
+        let mut obj = serde_json::Map::with_capacity(self.contents().fields().len());
         for field in self.contents().fields() {
             let value = field.type_().random(syntax, rng, depth_limit - 1);
-            obj.insert(field.name().to_str(), value);
+            obj.insert(field.name().to_str().to_string(), value);
         }
-        json::JsonValue::Object(obj)
+        serde_json::Value::Object(obj)
     }
 }
 

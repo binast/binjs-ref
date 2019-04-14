@@ -7,7 +7,6 @@ extern crate binjs;
 #[macro_use]
 extern crate lazy_static;
 
-use binjs::generic::*;
 use binjs::source::*;
 
 const PATHS: &[&str] = &["tests/data/frameworks/angular.1.6.5.min.js"];
@@ -29,23 +28,23 @@ fn bench_parsing_reuse_parser(bencher: &mut bencher::Bencher) {
 }
 
 fn bench_parsing_aux(parser: Option<&Shift>, bencher: &mut bencher::Bencher) {
-    for &path in PATHS {
-        bencher.iter(move || {
+    bencher.iter(move || {
+        for &path in PATHS {
             let shift;
 
-            let json = match parser {
-                Some(parser) => parser,
-                None => {
-                    shift = launch_shift();
-                    &shift
+            bencher::black_box(
+                match parser {
+                    Some(parser) => parser,
+                    None => {
+                        shift = launch_shift();
+                        &shift
+                    }
                 }
-            }
-            .parse_file(path)
-            .expect("Could not parse source");
-
-            binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST")
-        });
-    }
+                .parse_file(path)
+                .expect("Could not parse source"),
+            );
+        }
+    });
 }
 
 benchmark_group!(

@@ -453,13 +453,6 @@ impl TokenReader for TreeTokenReader {
             Ok((tag, None))
         })
     }
-
-    /// Start reading an untagged tuple. The sub-extractor MUST
-    /// be consumed entirely.
-    fn enter_untagged_tuple_at(&mut self, _path: &Path) -> Result<(), TokenReaderError> {
-        debug!(target: "multipart", "Reading untagged tuple");
-        Ok(())
-    }
 }
 
 impl FileStructurePrinter for TreeTokenReader {

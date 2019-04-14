@@ -5,7 +5,6 @@ extern crate env_logger;
 extern crate glob;
 #[macro_use]
 extern crate log;
-extern crate rand;
 
 use binjs::generic::*;
 use binjs::io::bytes::compress::*;
@@ -17,28 +16,20 @@ use binjs::specialized::es6::ast::{IOPath, Script, Visitor, WalkPath, Walker};
 use std::io::Cursor;
 use std::thread;
 
-/// This test takes 1h+ on Travis, which is too long, so we need to
-/// reduce it. So each individual file + options combination has
-/// a `CHANCES_TO_SKIP` probability of being skipped.
-const CHANCES_TO_SKIP: f64 = 0.9;
-
-const PATHS: [&'static str; 2] = [
-    "tests/data/facebook/single/**/*.js",
-    "tests/data/frameworks/*.js",
+const PATHS: [&'static str; 5] = [
+    // Use only subset of the dataset to reduce the time taken by this test on
+    // automation.  Those files are chosen almost-randomly.
+    "tests/data/facebook/single/0FL4yAxztNI.js",
+    "tests/data/facebook/single/1vzDGthwISY.js",
+    "tests/data/frameworks/jquery.3.3.1.min.js",
+    "tests/data/frameworks/react-dom.production.16.3.2.min.js",
+    // Files below are for testing specific case. Run all of them.
+    "tests/data/misc/*.js",
 ];
 
 fn progress() {
     // Make sure that we see progress in the logs, without spamming these logs.
     eprint!(".");
-}
-
-/// `true` if we should skip this individual example, `false` otherwise.
-///
-/// Skipping is generally needed to avoid timeouts, because we
-/// are testing lots of files.
-fn should_skip<T: rand::Rng>(rng: &mut T) -> bool {
-    let float = rng.gen::<f64>();
-    float < CHANCES_TO_SKIP
 }
 
 /// A visitor designed to reset offsets to 0.
@@ -65,10 +56,6 @@ fn test_roundtrip() {
 
 fn main() {
     env_logger::init();
-
-    let may_skip = true;
-
-    let mut rng = rand::thread_rng();
 
     let parser = Shift::try_new().expect("Could not launch Shift");
 
@@ -103,31 +90,23 @@ fn main() {
         debug!(target: "test_roundtrip", "Starting laziness test_roundtrip from {}", path);
 
         'laziness_per_entry: for entry in glob::glob(&path).expect("Invalid glob pattern") {
-            // Randomly skip instances.
-            if may_skip && should_skip(&mut rng) {
-                continue 'laziness_per_entry;
-            }
-
             let mut path = binjs::specialized::es6::ast::WalkPath::new();
             let entry = entry.expect("Invalid entry");
             eprint!("\n{:?}.", entry);
 
-            // Parse and preprocess file.
-
-            let json = parser
+            // Immutable copy.
+            let reference_ast = parser
                 .parse_file(entry.clone())
                 .expect("Could not parse source");
-            let mut ast =
-                binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
-            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
-            // Immutable copy.
-            let reference_ast = ast;
             'per_level: for level in &[0, 1, 2, 3, 4, 5] {
                 let mut ast = reference_ast.clone();
-                let mut visitor = binjs::specialized::es6::lazy::LazifierVisitor::new(*level);
-                ast.walk(&mut path, &mut visitor)
-                    .expect("Could not introduce laziness");
+                let enricher = binjs::specialized::es6::Enrich {
+                    lazy_threshold: *level,
+                    scopes: false,
+                    ..Default::default()
+                };
+                enricher.enrich(&mut ast).expect("Could not enrich AST");
                 progress();
 
                 let options = Targets {
@@ -175,21 +154,14 @@ fn main() {
         debug!(target: "test_roundtrip", "Starting test_roundtrip from {}", path);
 
         'compression_per_entry: for entry in glob::glob(&path).expect("Invalid glob pattern") {
-            // Randomly skip instances.
-            if may_skip && should_skip(&mut rng) {
-                continue 'compression_per_entry;
-            }
             let entry = entry.expect("Invalid entry");
 
             // Parse and preprocess file.
 
             eprint!("\n{:?}.", entry);
-            let json = parser
+            let mut ast = parser
                 .parse_file(entry.clone())
                 .expect("Could not parse source");
-            let mut ast =
-                binjs::specialized::es6::ast::Script::import(&json).expect("Could not import AST");
-            binjs::specialized::es6::scopes::AnnotationVisitor::new().annotate_script(&mut ast);
 
             {
                 progress();
@@ -226,10 +198,6 @@ fn main() {
             // Roundtrip `multipart`
 
             'per_option: for options in &mut all_options {
-                // Randomly skip instances.
-                if may_skip && should_skip(&mut rng) {
-                    continue 'per_option;
-                }
                 progress();
                 debug!(target: "test_roundtrip", "Starting multipart round trip for {:?} with options {:?}", entry, options);
                 debug!(target: "test_roundtrip", "Encoding.");

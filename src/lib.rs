@@ -24,10 +24,8 @@ extern crate binjs_io;
 extern crate binjs_meta;
 extern crate binjs_shared;
 
-#[macro_use]
-extern crate json;
-#[macro_use]
-extern crate log;
+extern crate serde;
+extern crate serde_json;
 extern crate which;
 
 #[cfg(test)]
@@ -66,6 +64,3 @@ pub mod meta {
 
 /// Parsing source JavaScript.
 pub mod source;
-
-/// Misc utilities.
-pub mod util;

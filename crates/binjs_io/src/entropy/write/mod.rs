@@ -7,7 +7,7 @@ use super::dictionary::{Fetch, LinearTable, TableRef};
 use super::rw::*;
 use bytes::lengthwriter::LengthWriter;
 use bytes::varnum::WriteVarNum;
-use io::statistics::{Bytes, Instances, PerUserExtensibleKind};
+use io::statistics::{Bytes, Instances, PerUserExtensibleKind, Rational};
 use io::{Path, TokenWriter};
 use TokenWriterError;
 
@@ -103,12 +103,12 @@ impl Encoder {
 
         // We need to clone the instances of `LinearTable` as using them modifies
         // their content.
-        let unsigned_longs = options.probability_tables.unsigned_longs().clone();
-        let string_literals = options.probability_tables.string_literals().clone();
-        let identifier_names = options.probability_tables.identifier_names().clone();
-        let property_keys = options.probability_tables.property_keys().clone();
-        let list_lengths = options.probability_tables.list_lengths().clone();
-        let floats = options.probability_tables.floats().clone();
+        let unsigned_longs = options.dictionaries.current().unsigned_longs().clone();
+        let string_literals = options.dictionaries.current().string_literals().clone();
+        let identifier_names = options.dictionaries.current().identifier_names().clone();
+        let property_keys = options.dictionaries.current().property_keys().clone();
+        let list_lengths = options.dictionaries.current().list_lengths().clone();
+        let floats = options.dictionaries.current().floats().clone();
         Encoder {
             writer: opus::Writer::new(Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES)),
             dump_path: if split_streams {
@@ -160,7 +160,7 @@ impl Encoder {
 /// Usage:
 /// `emit_symbol_to_main_stream!(self, name_of_the_probability_table, "Description, used for debugging",  path_in_the_ast,  value_to_encode)`
 macro_rules! emit_symbol_to_main_stream {
-    ( $me: ident, $table: ident, $description: expr, $path: expr, $value: expr ) => {
+    ( $me: ident, $table: ident, $table_of_statistics: ident, $description: expr, $path: expr, $value: expr ) => {
         {
             use std::borrow::Borrow;
 
@@ -169,7 +169,8 @@ macro_rules! emit_symbol_to_main_stream {
             // 1. Locate the `SymbolInfo` information for this value given the
             // path information.
             let table = $me.options
-                .probability_tables
+                .dictionaries
+                .current()
                 .$table();
             let symbol =
                 table
@@ -187,6 +188,16 @@ macro_rules! emit_symbol_to_main_stream {
                 .borrow();
             $me.writer.symbol(symbol.index.into(), &distribution)
                 .map_err(TokenWriterError::WriteError)?;
+
+            // 3. Also update our table of statistics
+            let mut probability_stats = $me.options
+                .probability_stats
+                .borrow_mut();
+            let probability = Rational {
+                num: distribution.at_index(symbol.index.into()).unwrap().width() as usize,
+                den: distribution.width() as usize
+            };
+            probability_stats.$table_of_statistics.add_probability(probability);
 
             Ok(())
         }
@@ -397,7 +408,7 @@ impl Encoder {
 }
 
 impl TokenWriter for Encoder {
-    type Data = Vec<u8>;
+    type Data = Box<[u8]>;
 
     fn done(self) -> Result<Self::Data, TokenWriterError> {
         let mut data: Vec<u8> = Vec::with_capacity(INITIAL_BUFFER_SIZE_BYTES);
@@ -465,13 +476,13 @@ impl TokenWriter for Encoder {
 
         // Update number of instances
         *self.options.content_instances.borrow_mut() += self.content_instances;
-        Ok(data)
+        Ok(data.into())
     }
 
     // --- Fixed set
 
     fn bool_at(&mut self, value: Option<bool>, path: &Path) -> Result<(), TokenWriterError> {
-        emit_symbol_to_main_stream!(self, bool_by_path, "bool_by_path", path, value)
+        emit_symbol_to_main_stream!(self, bool_by_path, bools, "bool_by_path", path, value)
     }
 
     fn string_enum_at(
@@ -482,6 +493,7 @@ impl TokenWriter for Encoder {
         emit_symbol_to_main_stream!(
             self,
             string_enum_by_path,
+            string_enums,
             "string_enum_by_path",
             path,
             value
@@ -498,6 +510,7 @@ impl TokenWriter for Encoder {
         emit_symbol_to_main_stream!(
             self,
             interface_name_by_path,
+            interface_names,
             "interface_name_by_path",
             path,
             tag
@@ -588,6 +601,27 @@ impl TokenWriter for Encoder {
             &Some(len as u32),
             "enter_list_at"
         );
+        Ok(())
+    }
+
+    fn enter_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        self.options
+            .dictionaries
+            .enter_existing(name)
+            .map_err(|_| TokenWriterError::DictionarySwitchingError(name.clone()))?;
+        Ok(())
+    }
+
+    fn exit_scoped_dictionary_at(
+        &mut self,
+        name: &SharedString,
+        _path: &Path,
+    ) -> Result<(), TokenWriterError> {
+        self.options.dictionaries.exit(name);
         Ok(())
     }
 

@@ -1,14 +1,11 @@
 #[macro_use]
 extern crate downcast_rs;
 extern crate itertools;
-extern crate json;
+extern crate serde_json;
 #[macro_use]
 extern crate log;
 #[macro_use]
 extern crate serde;
-
-mod json_conversion;
-pub use json_conversion::*;
 
 pub mod ast;
 pub use ast::Node;
@@ -17,7 +14,7 @@ pub mod mru;
 mod shared_string;
 pub use shared_string::SharedString;
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Offset(pub u32);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,18 +28,26 @@ pub enum VisitMe<T> {
     DoneHere,
 }
 
-/// An identifier, inside the grammar.
-shared_string!(pub IdentifierName);
+shared_string!(
+    /// An identifier, inside the grammar.
+    pub IdentifierName
+);
 pub type Identifier = IdentifierName;
 
-/// A property, inside the grammar.
-shared_string!(pub PropertyKey);
+shared_string!(
+    /// A property, inside the grammar.
+    pub PropertyKey
+);
 
-/// An interface *of* the grammar.
-shared_string!(pub InterfaceName);
+shared_string!(
+    /// An interface *of* the grammar.
+    pub InterfaceName
+);
 
-/// A field name *of* the grammar.
-shared_string!(pub FieldName);
+shared_string!(
+    /// A field name *of* the grammar.
+    pub FieldName
+);
 
 /// A container for f64 values that implements an *arbitrary*
 /// total order, equality relation, hash.
@@ -101,3 +106,46 @@ pub type IOPathItem = ast::PathItem<
         /* field name */ FieldName,
     ),
 >;
+
+/// From a set of macro definitions, derive a module with a set of matching `&'static str`.
+///
+/// Example:
+///
+/// ```rust,no_run
+/// # #[macro_use]
+/// # extern crate binjs_shared;
+/// # fn main() {
+///
+/// const_with_str! {
+///    const FOO: usize = 0;
+///    mod my_strings;
+/// }
+///
+/// # }
+/// ```
+///
+/// will produce
+///
+/// ```rust,no_run
+///
+/// const FOO: usize = 0;
+/// mod my_strings {
+///   const FOO: &'static str = "0";
+/// }
+/// ```
+#[macro_export]
+macro_rules! const_with_str {
+    (
+        $(#[$outer:meta])*
+        $(const $const_name: ident: $ty: ty = $init: expr;)*
+        mod $mod_name: ident;
+    ) => {
+        // Documentation comments are actually syntactic sugar for #[doc="Some documentation comment"].
+        // We capture them and insert them in the generated macro.
+        $(#[$outer])*
+        mod $mod_name {
+            $(pub const $const_name: &'static str = stringify!($init);)*
+        }
+        $(const $const_name: $ty = $init;)*
+    }
+}

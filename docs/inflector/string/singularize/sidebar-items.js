@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["to_singular","Converts a `&str` to singularized `String`"]]});

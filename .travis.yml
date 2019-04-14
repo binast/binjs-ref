@@ -14,3 +14,20 @@ rust:
   - stable
 node_js:
   - node
+
+deploy:
+  # Generate documentation
+  - provider: script
+    skip_cleanup: true
+    script:
+      - rustup install nightly && cargo +nightly doc --features "unstable"
+    on:
+      branch: master
+  # Deploy documentation
+  - provider: pages
+    skip_cleanup: true
+    github_token: $GITHUB_TOKEN  # Belongs to binast-bot. Set in the Travis settings page of the repo.
+    keep_history: false
+    local_dir: target/doc
+    on:
+      branch: master
