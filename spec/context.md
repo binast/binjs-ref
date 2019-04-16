@@ -122,6 +122,8 @@ function walk_node(node: Node, path: Path) {
 }
 ```
 
+Note that, within a grammar, there is a simple bijection between the set of valid `(InterfaceName, FieldName)` and the set of `(InterfaceName, position)` where `position` is the index of the field named `FieldName` in the interface named `InterfaceName`. Similarly, if we assume that instances of `InterfaceName` are sorted by some well-known order, they can be represented as integers. Consequently, a `path` may easily be represented as an even-sized vector of integers.
+
 # Global structure
 
 ```
