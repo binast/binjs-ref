@@ -45,7 +45,6 @@ impl NodeConfig {
                 Ok(v) => PathBuf::from(v),
             },
 
-
             memory: match env::var("NODE_MAX_OLD_SPACE_SIZE") {
                 Err(_) => String::from("--max_old_space_size=2048"),
                 Ok(v) => format!("--max_old_space_size={}", v),
