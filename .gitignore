@@ -1,0 +1,8 @@
+*.py~
+__pycache__
+*.pyc
+*~
+\#*
+.\#*
+node_modules
+notebooks/.ipynb_checkpoints
