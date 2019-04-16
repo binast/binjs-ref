@@ -23,6 +23,7 @@ class Declaration {
   content: Content;
 };
 class Content {
+  // `true` if the value may be replaced with `null`.
   optional: bool;
   entry: Value;
 };
