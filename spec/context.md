@@ -13,7 +13,66 @@ This document specifies how to compress an Abstract Syntax Tree (or AST) in a gi
 
 ## Grammar
 
-TBD
+A **Grammar** specifies the data structure that we may compress. It may also serve as hints to improve compression.
+
+```typescript
+type Grammar = Set<Declaration>;
+
+class Declaration {
+  name: String;
+  content: Content;
+};
+class Content {
+  optional: bool;
+  entry: Value;
+};
+
+type Value = PrimitiveString
+           | PrimitiveF64
+           | PrimitiveU32
+           | PrimitiveBool
+           | PrimitivePropertyKey
+           | PrimitiveIdentifierName
+           | Array
+           | Sum
+           | Interface;
+
+class PrimitiveString { }
+class PrimitiveF64 { }
+class PrimitiveU32 { }
+class PrimitiveBool { }
+class PrimitivePropertyKey { }
+class PrimitiveIdentifierName { }
+class Array {
+  values: Definition
+}
+class Sum {
+  variants: [InterfaceName];
+}
+class Interface {
+  name: InterfaceName;
+  laziness: bool,
+  fields: [Field];
+}
+class Field {
+  name: FieldName;
+  content: Content;
+}
+```
+
+In the above, we expect that:
+
+- instances of `Declaration.name` are all distinct;
+- for every `Interface` `i`, there exists one declaration
+```
+Declaration {
+  name: i.name.value,
+  content: Content {
+    optional: false,
+    entry: i
+  }
+}
+```
 
 ## Nodes
 
