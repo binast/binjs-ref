@@ -519,6 +519,75 @@ impl AnnotationVisitor {
     fn pop_function_expression_name(&mut self) {
         self.function_expression_name_stack.pop();
     }
+
+    fn exit_lazy_or_eager_function_declaration<T>(
+        &mut self,
+        path: &WalkPath,
+        name: &BindingIdentifier,
+    ) -> ExitResult<T> {
+        // If a name declaration was specified, remove it from `unknown`.
+        let name = name.name.clone();
+
+        // Var scope is already committed in exit_function_or_method_contents.
+        // The function's name is not actually bound in the function; the outer var binding is used.
+        // Anything we do from this point affects the scope outside the function.
+
+        // 1. If the declaration is at the toplevel, the name is declared as a `var`.
+        // 2. If the declaration is in a function's toplevel block, the name is declared as a `var`.
+        // 3. Otherwise, the name is declared as a `let`.
+        debug!(target: "annotating", "exit_lazy_or_eager_function_declaration sees {:?} at {:?}", name, path.get(0));
+        match path.get(0).expect("Impossible AST walk") {
+            &WalkPathItem {
+                field: ASTField::Statements,
+                interface: ASTNode::Script,
+            }
+            | &WalkPathItem {
+                field: ASTField::Statements,
+                interface: ASTNode::Module,
+            } => {
+                // Case 1.
+                debug!(target: "annotating", "exit_lazy_or_eager_function_declaration says it's a var (case 1)");
+                self.var_names_stack.last_mut().unwrap().insert(name);
+            }
+            &WalkPathItem {
+                field: ASTField::Body,
+                interface: ASTNode::GetterContents,
+            }
+            | &WalkPathItem {
+                field: ASTField::Body,
+                interface: ASTNode::SetterContents,
+            }
+            | &WalkPathItem {
+                field: ASTField::Body,
+                interface: ASTNode::ArrowExpressionContentsWithFunctionBody,
+            }
+            | &WalkPathItem {
+                field: ASTField::Body,
+                interface: ASTNode::ArrowExpressionContentsWithExpression,
+            }
+            | &WalkPathItem {
+                field: ASTField::Body,
+                interface: ASTNode::FunctionExpressionContents,
+            }
+            | &WalkPathItem {
+                field: ASTField::Body,
+                interface: ASTNode::FunctionOrMethodContents,
+            } => {
+                // Case 2.
+                debug!(target: "annotating", "exit_eager_function_declaration says it's a var (case 2)");
+                self.var_names_stack.last_mut().unwrap().insert(name);
+            }
+            _ => {
+                // Case 3.
+                debug!(target: "annotating", "exit_lazy_or_eager_function_declaration says it's a non const lexical (case 3)");
+                self.non_const_lexical_names_stack
+                    .last_mut()
+                    .unwrap()
+                    .insert(name);
+            }
+        }
+        Ok(None)
+    }
 }
 
 fn is_positional_parameter(visitor: &AnnotationVisitor, path: &WalkPath) -> bool {
@@ -718,7 +787,15 @@ impl Visitor<ScopeError> for AnnotationVisitor {
                 field: ASTField::Name,
             })
             | Some(&WalkPathItem {
+                interface: ASTNode::LazyFunctionDeclaration,
+                field: ASTField::Name,
+            })
+            | Some(&WalkPathItem {
                 interface: ASTNode::EagerFunctionExpression,
+                field: ASTField::Name,
+            })
+            | Some(&WalkPathItem {
+                interface: ASTNode::LazyFunctionExpression,
                 field: ASTField::Name,
             })
             | Some(&WalkPathItem {
@@ -726,11 +803,23 @@ impl Visitor<ScopeError> for AnnotationVisitor {
                 field: ASTField::Name,
             })
             | Some(&WalkPathItem {
+                interface: ASTNode::LazyMethod,
+                field: ASTField::Name,
+            })
+            | Some(&WalkPathItem {
                 interface: ASTNode::EagerGetter,
                 field: ASTField::Name,
             })
             | Some(&WalkPathItem {
+                interface: ASTNode::LazyGetter,
+                field: ASTField::Name,
+            })
+            | Some(&WalkPathItem {
                 interface: ASTNode::EagerSetter,
+                field: ASTField::Name,
+            })
+            | Some(&WalkPathItem {
+                interface: ASTNode::LazySetter,
                 field: ASTField::Name,
             }) => {
                 // Function names are special.
@@ -739,18 +828,12 @@ impl Visitor<ScopeError> for AnnotationVisitor {
             }
             _ => {}
         }
-        debug!(target: "annotating", "exit_binding identifier – marking {name:?} as {kind:?} at {path:?}",
-            name = node.name,
-            kind = self.binding_kind_stack.last().unwrap(),
-            path = path);
-        match self.binding_kind_stack.last() {
-            None => {
-                debug!(target: "annotating", "exit_binding identifier – marking {name:?} at {path:?}",
-                       name = node.name,
-                       path = path);
-                return Err(ScopeError::MissingBindingKind);
-            }
-            _ => {}
+        debug!(target: "annotating", "exit_binding_identifier – marking {name:?} as {kind:?} at {path:?}",
+                name = node.name,
+                kind = self.binding_kind_stack.last(),
+                path = path);
+        if self.binding_kind_stack.last().is_none() {
+            return Err(ScopeError::MissingBindingKind);
         }
         let declaration = node.name.clone();
         match *self.binding_kind_stack.last().unwrap() {
@@ -952,17 +1035,6 @@ impl Visitor<ScopeError> for AnnotationVisitor {
         Ok(None)
     }
 
-    fn enter_eager_setter(&mut self, _path: &WalkPath, _node: &mut EagerSetter) -> EnterResult {
-        Ok(VisitMe::HoldThis(()))
-    }
-    fn exit_eager_setter(
-        &mut self,
-        _path: &WalkPath,
-        _node: &mut EagerSetter,
-    ) -> ExitResult<EagerSetter> {
-        Ok(None)
-    }
-
     fn enter_getter_contents(
         &mut self,
         path: &WalkPath,
@@ -982,18 +1054,6 @@ impl Visitor<ScopeError> for AnnotationVisitor {
         Ok(None)
     }
 
-    fn enter_eager_getter(&mut self, _path: &WalkPath, _node: &mut EagerGetter) -> EnterResult {
-        Ok(VisitMe::HoldThis(()))
-    }
-
-    fn exit_eager_getter(
-        &mut self,
-        _path: &WalkPath,
-        _node: &mut EagerGetter,
-    ) -> ExitResult<EagerGetter> {
-        Ok(None)
-    }
-
     fn enter_function_or_method_contents(
         &mut self,
         path: &WalkPath,
@@ -1009,23 +1069,13 @@ impl Visitor<ScopeError> for AnnotationVisitor {
         path: &WalkPath,
         node: &mut FunctionOrMethodContents,
     ) -> ExitResult<FunctionOrMethodContents> {
+        debug!(target: "annotating", "exit_function_or_method_contents at {:?}", path);
         node.is_this_captured = self.pop_this_captured();
 
         // Commit parameter scope and var scope.
         node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope)?;
         node.body_scope = self.pop_var_scope(path)?;
 
-        Ok(None)
-    }
-
-    fn enter_eager_method(&mut self, _path: &WalkPath, _node: &mut EagerMethod) -> EnterResult {
-        Ok(VisitMe::HoldThis(()))
-    }
-    fn exit_eager_method(
-        &mut self,
-        _path: &WalkPath,
-        _node: &mut EagerMethod,
-    ) -> ExitResult<EagerMethod> {
         Ok(None)
     }
 
@@ -1067,35 +1117,6 @@ impl Visitor<ScopeError> for AnnotationVisitor {
         node.parameter_scope = self.pop_param_scope(path, &node.parameter_scope)?;
         node.body_scope = self.pop_var_scope(path)?;
 
-        Ok(None)
-    }
-
-    fn enter_eager_arrow_expression_with_function_body(
-        &mut self,
-        _path: &WalkPath,
-        _node: &mut EagerArrowExpressionWithFunctionBody,
-    ) -> EnterResult {
-        Ok(VisitMe::HoldThis(()))
-    }
-    fn exit_eager_arrow_expression_with_function_body(
-        &mut self,
-        _path: &WalkPath,
-        _node: &mut EagerArrowExpressionWithFunctionBody,
-    ) -> ExitResult<EagerArrowExpressionWithFunctionBody> {
-        Ok(None)
-    }
-    fn enter_eager_arrow_expression_with_expression(
-        &mut self,
-        _path: &WalkPath,
-        _node: &mut EagerArrowExpressionWithExpression,
-    ) -> EnterResult {
-        Ok(VisitMe::HoldThis(()))
-    }
-    fn exit_eager_arrow_expression_with_expression(
-        &mut self,
-        _path: &WalkPath,
-        _node: &mut EagerArrowExpressionWithExpression,
-    ) -> ExitResult<EagerArrowExpressionWithExpression> {
         Ok(None)
     }
 
@@ -1153,82 +1174,38 @@ impl Visitor<ScopeError> for AnnotationVisitor {
         Ok(None)
     }
 
-    fn enter_eager_function_declaration(
+    fn enter_lazy_function_expression(
         &mut self,
         _path: &WalkPath,
-        _node: &mut EagerFunctionDeclaration,
+        node: &mut LazyFunctionExpression,
     ) -> EnterResult {
+        self.push_function_expression_name(node.name.clone());
         Ok(VisitMe::HoldThis(()))
     }
+    fn exit_lazy_function_expression(
+        &mut self,
+        _path: &WalkPath,
+        _node: &mut LazyFunctionExpression,
+    ) -> ExitResult<LazyFunctionExpression> {
+        self.pop_function_expression_name();
+        Ok(None)
+    }
+
     fn exit_eager_function_declaration(
         &mut self,
         path: &WalkPath,
         node: &mut EagerFunctionDeclaration,
     ) -> ExitResult<EagerFunctionDeclaration> {
         debug!(target: "annotating", "exit_eager_function_declaration {:?} at {:?}", node.name.name, path);
+        self.exit_lazy_or_eager_function_declaration(path, &node.name)
+    }
 
-        // If a name declaration was specified, remove it from `unknown`.
-        let name = node.name.name.clone();
-
-        // Var scope is already committed in exit_function_or_method_contents.
-        // The function's name is not actually bound in the function; the outer var binding is used.
-        // Anything we do from this point affects the scope outside the function.
-
-        // 1. If the declaration is at the toplevel, the name is declared as a `var`.
-        // 2. If the declaration is in a function's toplevel block, the name is declared as a `var`.
-        // 3. Otherwise, the name is declared as a `let`.
-        debug!(target: "annotating", "exit_eager_function_declaration sees {:?} at {:?}", node.name.name, path.get(0));
-        match path.get(0).expect("Impossible AST walk") {
-            &WalkPathItem {
-                field: ASTField::Statements,
-                interface: ASTNode::Script,
-            }
-            | &WalkPathItem {
-                field: ASTField::Statements,
-                interface: ASTNode::Module,
-            } => {
-                // Case 1.
-                debug!(target: "annotating", "exit_eager_function_declaration says it's a var (case 1)");
-                self.var_names_stack.last_mut().unwrap().insert(name);
-            }
-            &WalkPathItem {
-                field: ASTField::Body,
-                interface: ASTNode::GetterContents,
-            }
-            | &WalkPathItem {
-                field: ASTField::Body,
-                interface: ASTNode::SetterContents,
-            }
-            | &WalkPathItem {
-                field: ASTField::Body,
-                interface: ASTNode::ArrowExpressionContentsWithFunctionBody,
-            }
-            | &WalkPathItem {
-                field: ASTField::Body,
-                interface: ASTNode::ArrowExpressionContentsWithExpression,
-            }
-            | &WalkPathItem {
-                field: ASTField::Body,
-                interface: ASTNode::FunctionExpressionContents,
-            }
-            | &WalkPathItem {
-                field: ASTField::Body,
-                interface: ASTNode::FunctionOrMethodContents,
-            } => {
-                // Case 2.
-                debug!(target: "annotating", "exit_eager_function_declaration says it's a var (case 2)");
-                self.var_names_stack.last_mut().unwrap().insert(name);
-            }
-            _ => {
-                // Case 3.
-                debug!(target: "annotating", "exit_eager_function_declaration says it's a non const lexical (case 3)");
-                self.non_const_lexical_names_stack
-                    .last_mut()
-                    .unwrap()
-                    .insert(name);
-            }
-        }
-        Ok(None)
+    fn exit_lazy_function_declaration(
+        &mut self,
+        path: &WalkPath,
+        node: &mut LazyFunctionDeclaration,
+    ) -> ExitResult<LazyFunctionDeclaration> {
+        self.exit_lazy_or_eager_function_declaration(path, &node.name)
     }
 
     fn enter_formal_parameters(
