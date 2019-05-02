@@ -92,12 +92,10 @@ fn handle_path<'a>(options: &mut Options<'a>, source_path: &Path, sub_dir: &Path
                 .expect("Could not find or create destination directory");
 
             let mut bin_path = d.join(sub_dir);
-            bin_path.push(file_name);
-            bin_path.set_extension("binjs");
+            bin_path.push(file_name.to_string_lossy().to_string() + ".binjs");
 
             let mut txt_path = d.join(sub_dir);
-            txt_path.push(file_name);
-            txt_path.set_extension("js");
+            txt_path.push(file_name.to_string_lossy().to_string() + ".js");
 
             (Some(txt_path), Some(bin_path))
         }
