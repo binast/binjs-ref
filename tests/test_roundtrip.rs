@@ -100,10 +100,11 @@ fn main() {
                 .expect("Could not parse source");
 
             'per_level: for level in &[0, 1, 2, 3, 4, 5] {
+                debug!(target: "test_roundtrip", "Testing {:?} with laziness level {}", entry, level);
                 let mut ast = reference_ast.clone();
                 let enricher = binjs::specialized::es6::Enrich {
                     lazy_threshold: *level,
-                    scopes: false,
+                    scopes: true,
                     ..Default::default()
                 };
                 enricher.enrich(&mut ast).expect("Could not enrich AST");
