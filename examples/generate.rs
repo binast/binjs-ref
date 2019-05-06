@@ -42,9 +42,6 @@ Note that this tool does not attempt to make sure that the files are entirely co
                 .long("size")
                 .takes_value(true)
                 .help("Expected file size (in AST depth). Default: 5."),
-            Arg::with_name("random-ast-metadata")
-                .long("random-metadata")
-                .help("If specified, generate random ast metadata (declared variables, etc.)."),
             Arg::with_name("lazify")
                 .long("lazify")
                 .takes_value(true)
@@ -91,8 +88,6 @@ Note that this tool does not attempt to make sure that the files are entirely co
 
     let spec = binjs::generic::es6::Library::spec();
 
-    let random_metadata = matches.is_present("random-metadata");
-
     let parser = Shift::try_new().expect("Could not launch Shift");
 
     let mut i = 0;
@@ -107,7 +102,6 @@ Note that this tool does not attempt to make sure that the files are entirely co
 
         let enricher = binjs::specialized::es6::Enrich {
             lazy_threshold: lazification,
-            scopes: !random_metadata,
             ..Default::default()
         };
         enricher.enrich(&mut ast).expect("Could not enrich AST");

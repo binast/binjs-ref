@@ -178,10 +178,7 @@ test!(test_es6_paths, {
     let mut ast = parser.parse_str(source).expect("Could not parse source");
 
     println!("Annotating");
-    let enricher = binjs::specialized::es6::Enrich {
-        scopes: true,
-        ..Default::default()
-    };
+    let enricher = binjs::specialized::es6::Enrich::default();
     enricher.enrich(&mut ast).expect("Could not enrich AST");
 
     println!("Walking paths");
