@@ -41,11 +41,6 @@ impl From<scopes::ScopeError> for EnrichError {
 ///
 /// See the definition of fields for individual enrichments.
 pub struct Enrich {
-    /// If `true`, introduce `AssertedScope*` information.
-    ///
-    /// Default: `true`, as this is necessary for most tests and command-line tools.
-    pub scopes: bool,
-
     /// Introduce laziness for all functions strictly below level `t`.
     ///
     /// Default: 0 (deactivated), as this is an optional, WIP, optimization.
@@ -58,7 +53,6 @@ pub struct Enrich {
     pub pure_data_threshold: Option<usize>,
 }
 const_with_str! {
-    const DEFAULT_SCOPES: bool = true;
     const DEFAULT_LAZY_THRESHOLD: u32 = 0;
     const DEFAULT_PURE_DATA_THRESHOLD: Option<usize> = None;
     mod defaults_as_strings;
@@ -67,7 +61,6 @@ const_with_str! {
 impl Default for Enrich {
     fn default() -> Self {
         Enrich {
-            scopes: DEFAULT_SCOPES,
             lazy_threshold: DEFAULT_LAZY_THRESHOLD,
             pure_data_threshold: DEFAULT_PURE_DATA_THRESHOLD,
         }
@@ -84,12 +77,6 @@ impl Enrich {
                 .value_name("LEVEL")
                 .help("Rewrite the AST for all functions strictly below level LEVEL. Do nothing if LEVEL = 0")
                 .default_value(defaults_as_strings::DEFAULT_LAZY_THRESHOLD),
-            Arg::with_name("inject-scopes")
-                .long("inject-scopes")
-                .takes_value(true)
-                .help("Rewrite the AST to provide scope information.")
-                .default_value(defaults_as_strings::DEFAULT_SCOPES)
-                .possible_values(&["true", "false"]),
             Arg::with_name("inject-json-specialization")
                 .long("inject-json-specialization")
                 .value_name("SIZE")
@@ -101,11 +88,6 @@ impl Enrich {
 
     pub fn from_matches(matches: &clap::ArgMatches) -> Self {
         use std::str::FromStr;
-        let scopes = match matches.value_of("inject-scopes") {
-            Some("true") => true,
-            Some("false") => false,
-            other => panic!("Unexpected value for inject-scopes: {:?}", other),
-        };
         let lazy_threshold = u32::from_str(matches.value_of("inject-lazy").unwrap())
             .unwrap_or_else(|e| panic!("Error parsing inject-lazy: {:?}", e));
         let pure_data_threshold = match matches.value_of("inject-json-specialization").unwrap() {
@@ -116,7 +98,6 @@ impl Enrich {
             ),
         };
         Enrich {
-            scopes,
             lazy_threshold,
             pure_data_threshold,
         }
@@ -128,7 +109,7 @@ impl Enrich {
             let mut visitor = lazy::LazifierVisitor::new(self.lazy_threshold);
             visitor.annotate_script(script)?;
         }
-        if self.scopes {
+        {
             let mut visitor = scopes::AnnotationVisitor::new();
             visitor.annotate_script(script)?;
         }

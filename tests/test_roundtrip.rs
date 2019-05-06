@@ -104,7 +104,6 @@ fn main() {
                 let mut ast = reference_ast.clone();
                 let enricher = binjs::specialized::es6::Enrich {
                     lazy_threshold: *level,
-                    scopes: true,
                     ..Default::default()
                 };
                 enricher.enrich(&mut ast).expect("Could not enrich AST");

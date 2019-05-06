@@ -247,10 +247,7 @@ fn main_aux() {
                 .short("q")
                 .help("Do not print progress"),
         ])
-        .args(Enrich {
-            scopes: true,
-            ..Default::default()
-        }.args().as_slice())
+        .args(Enrich::default().args().as_slice())
         .subcommand(binjs::io::Format::subcommand())
         .get_matches();
 

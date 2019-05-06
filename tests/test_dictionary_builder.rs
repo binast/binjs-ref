@@ -52,10 +52,7 @@ test!(test_entropy_roundtrip, {
         let mut ast = parser.parse_str(source).expect("Could not parse source");
 
         println!("Annotating");
-        let enricher = binjs::specialized::es6::Enrich {
-            scopes: true,
-            ..Default::default()
-        };
+        let enricher = binjs::specialized::es6::Enrich::default();
         enricher.enrich(&mut ast).expect("Could not enrich AST");
 
         println!("Extracting dictionary");
@@ -192,10 +189,7 @@ where
     let mut reference = parser.parse_str(source).expect("Could not parse source");
 
     println!("Reannotating");
-    let enricher = binjs::specialized::es6::Enrich {
-        scopes: true,
-        ..Default::default()
-    };
+    let enricher = binjs::specialized::es6::Enrich::default();
     enricher
         .enrich(&mut reference)
         .expect("Could not enrich AST");

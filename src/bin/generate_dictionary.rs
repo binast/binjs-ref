@@ -169,10 +169,7 @@ fn main_aux() {
                     .map_err(|e| format!("Invalid number {}", e)))
                 .help("Prune from the dictionary all user-extensible values that appear in at most [threshold] files"),
         ])
-        .args(Enrich {
-            scopes: true,
-            ..Default::default()
-        }.args().as_slice())
+        .args(Enrich::default().args().as_slice())
         .get_matches();
 
     // Common options.
