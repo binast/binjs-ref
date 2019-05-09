@@ -1,5 +1,7 @@
 # Facebook Semi-structured Data Compression (FBSSDC)
 
+[![Build Status](https://travis-ci.com/facebookexperimental/fbssdc.svg?branch=master)](https://travis-ci.com/facebookexperimental/fbssdc)
+
 This is a prototype compressor for typed, semi-structured data.
 
 The first application was compressing BinAST, which are JavaScript
