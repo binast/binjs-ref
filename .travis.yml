@@ -1,0 +1,7 @@
+# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
+language: python
+dist: xenial
+python:
+  - "3.7"
+script: ./test.py && ./test.sh
