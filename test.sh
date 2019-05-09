@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 set -e
 
 # Integration test for round-tripping a file.
