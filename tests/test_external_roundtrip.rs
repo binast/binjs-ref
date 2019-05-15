@@ -160,3 +160,27 @@ fn test_external_roundtrip() {
         Some(&dictionary_path),
     );
 }
+
+#[test]
+fn test_external_roundtrip_dots_in_name() {
+    let tmp_dir = TempDir::new("test_external_roundtrip_dots_in_name")
+        .expect("Could not create test directory");
+    let path_in_source = std::path::Path::new("tests/data/misc/test.a.b.c.d.js");
+    let path_tmp_source = tmp_dir.path().join("test.a.b.c.d.js");
+    let path_out_encoded = tmp_dir.path().join("encoded_1");
+
+    fs::copy(&path_in_source, &path_tmp_source).unwrap();
+
+    debug!(target: "test", "Encoding to encoded_1/test.a.b.c.d.binjs");
+    let mut command = Command::new("target/debug/binjs_encode");
+    command
+        .arg("--in")
+        .arg(&path_tmp_source)
+        .arg("--out")
+        .arg(&path_out_encoded);
+    run(command).unwrap();
+
+    assert!(path_out_encoded.join("test.a.b.c.d.binjs").exists());
+    assert!(path_out_encoded.join("test.a.b.c.d.grammar").exists());
+    assert!(path_out_encoded.join("test.a.b.c.d.strings").exists());
+}
