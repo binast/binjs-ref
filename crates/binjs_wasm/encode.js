@@ -6,6 +6,7 @@ import initWASM, { encodeMultipart } from './pkg';
 
 const initialisedWASM = initWASM(BINJS_WASM);
 
+const CONTENT_TYPE = 'application/javascript-binast';
 const VERSION = 'binjs-18';
 
 function transformLikeToJSON(obj, callback) {
@@ -29,7 +30,7 @@ addEventListener('fetch', event => {
 	if (!url.pathname.endsWith('.js')) return;
 
 	let accept = event.request.headers.get('Accept') || '';
-	if (!accept.startsWith('application/javascript-binast')) return;
+	if (!accept.startsWith(CONTENT_TYPE)) return;
 
 	event.passThroughOnException();
 	event.respondWith(handleBinJS(event));
@@ -87,7 +88,7 @@ async function handleBinJS(event) {
 
 					const bastRes = new Response(encoded, origRes);
 					bastRes.headers.delete('Content-Encoding');
-					bastRes.headers.set('Content-Type', 'application/javascript-binast');
+					bastRes.headers.set('Content-Type', CONTENT_TYPE);
 					bastRes.headers.append('Vary', 'Accept');
 					log('created response');
 
