@@ -7,7 +7,7 @@ import initWASM, { encodeMultipart } from './pkg';
 const initialisedWASM = initWASM(BINJS_WASM);
 
 const CONTENT_TYPE = 'application/javascript-binast';
-const VERSION = 'binjs-18';
+const VERSION = 'binjs-19';
 
 function transformLikeToJSON(obj, callback) {
 	return (function transform(obj, k, v) {
@@ -57,7 +57,7 @@ async function handleBinJS(event) {
 
 		{
 			let cacheRes = await cache.match(req);
-			log('cache match', !!cacheRes);
+			log('cache match', cacheRes ? `Content-Type: ${cacheRes.headers.get('Content-Type')}` : false);
 			if (cacheRes) return cacheRes;
 		}
 
@@ -66,15 +66,18 @@ async function handleBinJS(event) {
 			let origReq = new Request(req);
 			origReq.headers.set('Accept', '*/*');
 			origRes = await fetch(origReq);
-			log('original response', origRes && origRes.statusText);
+			log('original response status', origRes.statusText || origRes.status);
 			if (!origRes.ok) return origRes;
+			event.waitUntil(cache.put(req, origRes.clone()).then(() => {
+				log('cached original response');
+			}));
 		}
 
 		event.waitUntil(
 			(async function transformAndCache() {
 				try {
 					let js = await origRes.clone().text();
-					log('original response text', js.length);
+					log('original text length', js.length);
 
 					const shiftAST = parseScript(js, { earlyErrors: false });
 					log('parsed');
@@ -90,10 +93,10 @@ async function handleBinJS(event) {
 					bastRes.headers.delete('Content-Encoding');
 					bastRes.headers.set('Content-Type', CONTENT_TYPE);
 					bastRes.headers.append('Vary', 'Accept');
-					log('created response');
+					log('created bast response');
 
 					await cache.put(req, bastRes);
-					log('cached');
+					log('cached bast');
 				} catch (e) {
 					log('error', e.stack);
 				}
