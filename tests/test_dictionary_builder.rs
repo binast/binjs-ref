@@ -231,11 +231,13 @@ where
     let found = found
         .iter()
         .map(|(name, instances)| ((*name).clone(), *instances))
-        .sorted();
+        .sorted()
+        .collect::<Vec<_>>();
     let expected = expected
         .into_iter()
         .map(|(name, instances)| (f(name), FilesContaining(instances)))
-        .sorted();
+        .sorted()
+        .collect::<Vec<_>>();
     assert_eq!(found, expected);
 }
 

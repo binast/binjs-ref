@@ -166,7 +166,10 @@ fn main() {
 
     eprintln!("*** Done");
 
-    let all_stats = all_stats.into_iter().sorted_by(|a, b| Ord::cmp(&a.0, &b.0));
+    let all_stats = all_stats
+        .into_iter()
+        .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
+        .collect::<Vec<_>>();
     println!("File, Source (b), BinAST/Source+Brotli");
     let mut sum_stats = FileStats::default();
     for (_, file_stats) in &all_stats {
