@@ -172,7 +172,8 @@ mod context_information {
             let stats_by_node_value = self
                 .stats_by_node_value
                 .iter()
-                .sorted_by(|(value_1, _), (value_2, _)| Ord::cmp(value_1, value_2)); // We need to ensure that the order remains stable across process restarts.
+                .sorted_by(|(value_1, _), (value_2, _)| Ord::cmp(value_1, value_2)) // We need to ensure that the order remains stable across process restarts.
+                .collect::<Vec<_>>();
 
             let instances = stats_by_node_value
                 .iter()

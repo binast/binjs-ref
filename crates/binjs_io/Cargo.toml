@@ -11,7 +11,7 @@ brotli = "^3.0"
 clap = "^2.32"
 derive_more = "^0.13"
 flate2 = "^1.0"
-itertools = "^0.7"
+itertools = "^0.8"
 serde_json = { version = "^1.0.38", features = ["unbounded_depth"] }
 lzw = "^0.10"
 log = "^0.4"

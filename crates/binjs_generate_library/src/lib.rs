@@ -347,9 +347,8 @@ impl<'a> Walker<'a> for {name} where Self: 'a {{
             let mut options = vec![];
             let mut lists = vec![];
             let mut primitives = vec![];
-            let names: Vec<_> = source.keys().sorted();
 
-            for name in names.into_iter() {
+            for name in source.keys().sorted() {
                 // Since the source is deanonymized, all type definitions are just one layer deep.
                 let typedef = source.get(name).unwrap();
                 if typedef.is_optional() {
@@ -1013,7 +1012,7 @@ impl<'a> Walker<'a> for ViewMut{name}<'a> {{
             source: &HashMap<NodeName, Rc<Interface>>,
             null_name: &str,
         ) {
-            let names: Vec<_> = source.keys().sorted();
+            let names = source.keys().sorted().collect::<Vec<_>>();
             for name in &names {
                 let interface = source.get(name).unwrap();
                 let rust_name = name.to_class_cases();
@@ -1416,8 +1415,8 @@ pub type WalkPath = binjs_shared::ast::Path<ASTNode, ASTField>;
 /// A Path, used when walking the tree with more weakly-typed APIs, e.g. TokenReader/TokenWriter.
 pub type IOPath = binjs_shared::ast::Path<binjs_shared::InterfaceName, ( /* child index */ usize, /* field name */ binjs_shared::FieldName)>;
 ";
-            let mut interface_names = interfaces.keys().sorted();
-            let mut sum_names = typedefs
+            let interface_names = interfaces.keys().sorted();
+            let sum_names = typedefs
                 .iter()
                 .filter_map(|(name, typedef)| {
                     if typedef.is_optional() {
@@ -1549,7 +1548,6 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
 }}
 \n\n\n",
                 interfaces = interface_names
-                    .drain(..)
                     .map(|name| {
                         let interface = interfaces.get(&name).unwrap();
                         format!("
@@ -1565,7 +1563,6 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
                     })
                     .format("\n"),
                 sums = sum_names
-                    .drain(..)
                     .map(|name| {
                         format!("
     fn enter_{name}<'a>(&mut self, path: &WalkPath, _node: &mut ViewMut{node_name}<'a>) -> Result<VisitMe<G>, E> {{
@@ -1664,8 +1661,7 @@ impl<'a> From<&'a mut PropertyKey> for ViewMutNothing<PropertyKey> {{
                 }
             }
         }
-        let fields: Vec<_> = fields.drain().sorted();
-        for name in fields {
+        for name in fields.drain().sorted() {
             let snake = name.to_rust_identifier_case();
             let struct_source = format!("    pub field_{snake}: FieldName,\n", snake = snake);
             struct_buffer.push_str(&struct_source);
