@@ -22,30 +22,30 @@ import model
 class ModelExplorer(object):
   def __init__(self, types):
     self.types = types
-    self.queue = []
+    self.stack = []
     self.visited = set()
     self.tables = {}
     self.nonempty_arrays = set()
 
   def roam(self, root_ty):
-    self.enqueue_fields(root_ty)
-    while self.queue:
-      #for i, item in enumerate(self.queue):
+    self.push_fields(root_ty)
+    while self.stack:
+      #for i, item in enumerate(self.stack):
       #  print(i, item)
-      k = self.queue.pop()
+      k = self.stack.pop()
       self.processed(k, self.process(k))
 
-  def enqueue_sym(self, sym):
+  def push_sym(self, sym):
     if type(sym) is idl.TyInterface:
-      self.enqueue_fields(sym)
+      self.push_fields(sym)
     # Primitives, arrays, none, etc. are keys for fields' probability
     # tables; we don't need tables for them specifically.
 
-  def enqueue_fields(self, struct_ty):
+  def push_fields(self, struct_ty):
     for attr in struct_ty.attrs:
-      self.enqueue((struct_ty, attr.name))
+      self.push((struct_ty, attr.name))
 
-  def enqueue(self, k):
+  def push(self, k):
     k = model.map_model_key(self.types, k)
     if k in self.visited:
       return
@@ -71,7 +71,7 @@ class ModelExplorer(object):
     if type(ty) is idl.TyInterface:
       self.processed(k, self.trivial(k, ty))
     else:
-      self.queue.append(k)
+      self.stack.append(k)
 
   def processed(self, k, m):
     assert k not in self.tables, 'FIXME: may need to loosen this to allow equal trivial models'
@@ -80,7 +80,7 @@ class ModelExplorer(object):
       return
     # Now we only explore things with non-zero probability
     for sym in m.in_use_syms():
-      self.enqueue_sym(sym)
+      self.push_sym(sym)
 
   def trivial(self, k, ty):
     return model.TrivialModel(ty)
