@@ -7,6 +7,7 @@ import initWASM, { encodeMultipart } from './pkg';
 const initialisedWASM = initWASM(BINJS_WASM);
 
 const CONTENT_TYPE = 'application/javascript-binast';
+const CONTENT_TYPE_RE = /^application\/javascript-binast(?:,|$)/;
 const MAX_JS_SIZE = 1 << 20; // 1 MB = 2 ^ 20 bytes
 const VERSION = 'binjs-19';
 
@@ -31,7 +32,7 @@ addEventListener('fetch', event => {
 	if (!url.pathname.endsWith('.js')) return;
 
 	let accept = event.request.headers.get('Accept') || '';
-	if (!accept.startsWith(CONTENT_TYPE)) return;
+	if (!CONTENT_TYPE_RE.test(accept)) return;
 
 	let contentLength = event.request.headers.get('Content-Length') | 0;
 	if (!contentLength || contentLength > MAX_JS_SIZE) return;
