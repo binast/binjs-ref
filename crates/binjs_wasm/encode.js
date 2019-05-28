@@ -7,10 +7,12 @@ import initWASM, { encodeMultipart } from './pkg';
 const initialisedWASM = initWASM(BINJS_WASM);
 
 const CONTENT_TYPE = 'application/javascript-binast';
-const CONTENT_TYPE_RE = /^application\/javascript-binast(?:,|$)/;
+const CONTENT_TYPE_RE = /^application\/javascript-binast(?:,|$)/; // strict check for the following char
+const JS_CONTENT_TYPE_RE = /^(?:text|application)\/javascript$/;
 const MAX_JS_SIZE = 1 << 20; // 1 MB = 2 ^ 20 bytes
-const VERSION = 'binjs-19';
+const VERSION = 'binjs-20'; // cache buster
 
+// Performs recursive transformation using the same strategy as JSON.stringify.
 function transformLikeToJSON(obj, callback) {
 	return (function transform(obj, k, v) {
 		obj[k] = v = callback.call(obj, k, v);
@@ -33,9 +35,6 @@ addEventListener('fetch', event => {
 
 	let accept = event.request.headers.get('Accept') || '';
 	if (!CONTENT_TYPE_RE.test(accept)) return;
-
-	let contentLength = event.request.headers.get('Content-Length') | 0;
-	if (!contentLength || contentLength > MAX_JS_SIZE) return;
 
 	event.passThroughOnException();
 	event.respondWith(handleBinJS(event));
@@ -69,10 +68,24 @@ async function handleBinJS(event) {
 		let origRes;
 		{
 			let origReq = new Request(req);
+			// Request to the origin shouldn't ask for BinaryAST.
 			origReq.headers.set('Accept', '*/*');
 			origRes = await fetch(origReq);
-			log('original response status', origRes.statusText || origRes.status);
+			log('original response', `Status: ${origRes.statusText || origRes.status}; Content-Type: ${origRes.headers.get('Content-Type')}; Content-Length: ${origRes.headers.get('Content-Length')}`);
 			if (!origRes.ok) return origRes;
+
+			// Make sure we don't accidentally perform mime sniffing on non-JS responses.
+			let contentType = origRes.headers.get('Content-Type') || '';
+			if (!JS_CONTENT_TYPE_RE.test(contentType)) return;
+
+			// Check Content-Length if it exists.
+			let contentLength = +origRes.headers.get('Content-Length');
+			if (contentLength > MAX_JS_SIZE) return;
+
+			// First, store the JS into the cache. If transformation fails
+			// or takes a long time, other requests will take and return this
+			// unmodified responses instead of attempting to spawn new
+			// transformations for the same resource.
 			event.waitUntil(cache.put(req, origRes.clone()).then(() => {
 				log('cached original response');
 			}));
@@ -83,6 +96,9 @@ async function handleBinJS(event) {
 				try {
 					let js = await origRes.clone().text();
 					log('original text length', js.length);
+
+					// In case we didn't have Content-Length, check the actual size too.
+					if (js.length > MAX_JS_SIZE) return;
 
 					const shiftAST = parseScript(js, { earlyErrors: false });
 					log('parsed');
