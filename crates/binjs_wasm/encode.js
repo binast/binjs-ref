@@ -8,9 +8,9 @@ const initialisedWASM = initWASM(BINJS_WASM);
 
 const CONTENT_TYPE = 'application/javascript-binast';
 const CONTENT_TYPE_RE = /^application\/javascript-binast(?:,|$)/; // strict check for the following char
-const JS_CONTENT_TYPE_RE = /^(?:text|application)\/javascript$/;
+const JS_CONTENT_TYPE_RE = /^(?:text|application)\/javascript(?:;|$)/;
 const MAX_JS_SIZE = 1 << 20; // 1 MB = 2 ^ 20 bytes
-const VERSION = 'binjs-20'; // cache buster
+const VERSION = 'binjs-21'; // cache buster
 
 // Performs recursive transformation using the same strategy as JSON.stringify.
 function transformLikeToJSON(obj, callback) {
@@ -71,7 +71,7 @@ async function handleBinJS(event) {
 			// Request to the origin shouldn't ask for BinaryAST.
 			origReq.headers.set('Accept', '*/*');
 			origRes = await fetch(origReq);
-			log('original response', `Status: ${origRes.statusText || origRes.status}; Content-Type: ${origRes.headers.get('Content-Type')}; Content-Length: ${origRes.headers.get('Content-Length')}`);
+			log('original response', `Status: ${origRes.status} ${origRes.statusText}; Content-Type: ${origRes.headers.get('Content-Type')}; Content-Length: ${origRes.headers.get('Content-Length')}`);
 			if (!origRes.ok) return origRes;
 
 			// Make sure we don't accidentally perform mime sniffing on non-JS responses.
