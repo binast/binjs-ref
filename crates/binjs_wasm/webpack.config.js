@@ -18,7 +18,7 @@ module.exports = {
 	plugins: [
 		new WasmPackPlugin({
 			crateDirectory: __dirname,
-			extraArgs: '--target web -- -Z config-profile'
+			extraArgs: '--target web'
 		})
 	]
 };
