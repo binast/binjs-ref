@@ -33,7 +33,11 @@ pub enum Compression {
 impl Distribution<Compression> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Compression {
         use self::Compression::*;
-        let choices = [Identity, #[cfg(feature = "brotli")] Brotli];
+        let choices = [
+            Identity,
+            #[cfg(feature = "brotli")]
+            Brotli,
+        ];
         choices.choose(rng).unwrap().clone()
     }
 }
@@ -79,7 +83,11 @@ impl Compression {
 
     pub fn values() -> Box<[Self]> {
         use self::Compression::*;
-        Box::new([Identity, #[cfg(feature = "brotli")] Brotli])
+        Box::new([
+            Identity,
+            #[cfg(feature = "brotli")]
+            Brotli,
+        ])
     }
 
     pub fn is_compressed(&self) -> bool {
@@ -168,10 +176,12 @@ impl Compression {
             b"identity" => Compression::Identity,
             #[cfg(feature = "brotli")]
             b"br" => Compression::Brotli,
-            _ => return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid compression header",
-            ))
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Invalid compression header",
+                ))
+            }
         };
 
         let mut byte_len = 0;
