@@ -63,7 +63,11 @@ fn main() {
     let mut all_options = {
         use self::Compression::*;
         let mut vec = vec![];
-        let compressions = vec![Identity, Brotli];
+        let compressions = vec![
+            Identity,
+            #[cfg(feature = "brotli")]
+            Brotli,
+        ];
         for grammar_table in &compressions {
             for strings_table in &compressions {
                 for tree in &compressions {
