@@ -67,16 +67,13 @@ async function handleBinJS(event) {
 
 		let origRes;
 		{
-			let origReq = new Request(req);
-			// Request to the origin shouldn't ask for BinaryAST.
-			origReq.headers.set('Accept', '*/*');
-			origRes = await fetch(origReq);
+			origRes = await fetch(req);
 			log('original response', `Status: ${origRes.status} ${origRes.statusText}; Content-Type: ${origRes.headers.get('Content-Type')}; Content-Length: ${origRes.headers.get('Content-Length')}`);
 			if (!origRes.ok) return origRes;
 
 			// Make sure we don't accidentally perform mime sniffing on non-JS responses.
 			let contentType = origRes.headers.get('Content-Type') || '';
-			if (!JS_CONTENT_TYPE_RE.test(contentType)) return;
+			if (!JS_CONTENT_TYPE_RE.test(contentType)) return origRes;
 
 			// Check Content-Length if it exists.
 			let contentLength = +origRes.headers.get('Content-Length');
