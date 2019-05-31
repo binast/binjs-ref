@@ -9,7 +9,7 @@ script:
   - >
     cargo fmt --all -- --check &&
     cargo build --verbose &&
-    cargo test --all -- --nocapture
+    cargo test --all --features binjs_io/brotli -- --nocapture
 rust:
   - stable
 node_js:
