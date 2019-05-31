@@ -77,7 +77,7 @@ async function handleBinJS(event) {
 
 			// Check Content-Length if it exists.
 			let contentLength = +origRes.headers.get('Content-Length');
-			if (contentLength > MAX_JS_SIZE) return;
+			if (contentLength > MAX_JS_SIZE) return origRes;
 
 			// First, store the JS into the cache. If transformation fails
 			// or takes a long time, other requests will take and return this
