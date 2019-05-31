@@ -126,7 +126,7 @@ fn self_init() {
         "binjs_generate_prediction_tables",
     ] {
         let mut command = Command::new("cargo");
-        command.args(&["build", "--bin", name]);
+        command.args(&["build", "--bin", name, "--features", "binjs_io/brotli"]);
         run(command).unwrap_or_else(|e| panic!("Could not build {}: {:?}", name, e));
     }
 }
