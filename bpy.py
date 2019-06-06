@@ -80,6 +80,10 @@ def fix_types(in_file):
 
 
 def main():
+  # We get waaay past the 1000 limit even on relatively simple examples.
+  sys.setrecursionlimit(10000)
+
+
   parser = argparse.ArgumentParser()
   parser.set_defaults(func=lambda args: print('use --help to see commands'))
 
