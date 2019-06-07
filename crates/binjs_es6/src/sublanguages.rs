@@ -239,10 +239,10 @@ impl Visitor<EnrichError, PropertiesGuard> for InjectVisitor {
 
     // --- Arrays
 
-    fn enter_spread_element_or_expression<'a>(
+    fn enter_expression_or_spread_element<'a>(
         &mut self,
         path: &WalkPath,
-        _node: &mut ViewMutSpreadElementOrExpression<'a>,
+        _node: &mut ViewMutExpressionOrSpreadElement<'a>,
     ) -> EnterResult {
         // Pure data so far.
         Ok(VisitMe::HoldThis(PropertiesGuard::pure_data(self, 1, path)))
