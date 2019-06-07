@@ -121,6 +121,7 @@ mod util;
 pub mod escaped_wtf8;
 
 /// An encoding using per-context Huffman tables.
+#[cfg(build_context)]
 pub mod context;
 
 const ADVANCED_COMMAND: &str = "advanced";
