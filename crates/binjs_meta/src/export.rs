@@ -362,9 +362,10 @@ impl TypeDeanonymizer {
                     }
                 }
                 let my_name = match public_name {
-                    None => self
-                        .builder
-                        .node_name(&format!("{}", names.drain(..).format("Or"))),
+                    None => self.builder.node_name(&format!(
+                        "{}",
+                        names.into_iter().sorted().into_iter().format("Or")
+                    )),
                     Some(ref name) => name.clone(),
                 };
                 for subsum_name in subsums {
@@ -420,9 +421,15 @@ impl TypeName {
             TypeSpec::Void => "_Void".to_string(),
             TypeSpec::IdentifierName => "IdentifierName".to_string(),
             TypeSpec::PropertyKey => "PropertyKey".to_string(),
-            TypeSpec::TypeSum(ref sum) => {
-                format!("{}", sum.types().iter().map(Self::type_spec).format("Or"))
-            }
+            TypeSpec::TypeSum(ref sum) => format!(
+                "{}",
+                sum.types()
+                    .iter()
+                    .map(Self::type_spec)
+                    .sorted()
+                    .into_iter()
+                    .format("Or")
+            ),
         }
     }
 }
