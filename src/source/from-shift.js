@@ -51,8 +51,47 @@ function dummyBoundNamesScope() {
     };
 }
 
+// Checks for nodes that are currently not supported on the Firefox side.
+function isSupportedNode(node) {
+    switch (node.type) {
+        case 'ArrayBinding':
+        case 'ObjectBinding':
+        case 'ArrayAssignmentTarget':
+        case 'BindingWithDefault':
+        case 'ClassDeclaration':
+        case 'ClassExpression':
+        case 'ComputedPropertyName':
+        case 'DebuggerStatement':
+        case 'ArrowExpression':
+        case 'ForOfStatement':
+        case 'Getter':
+        case 'Method':
+        case 'Setter':
+        case 'LiteralInfinityExpression':
+        case 'NewTargetExpression':
+        case 'ObjectAssignmentTarget':
+        case 'SpreadElement':
+        case 'Super':
+        case 'TemplateExpression':
+            return false;
+        case 'VariableDeclaration':
+            return node.kind === 'var';
+        case 'FunctionDeclaration':
+        case 'FunctionExpression':
+            return !node.isGenerator;
+        case 'FormalParameters':
+            return !node.rest;
+        default:
+            return true;
+    }
+}
+
 function createFunctionContents(obj) {
     let kind = obj.type;
+
+    if (!isSupportedNode(obj)) {
+        throw new Error(`Unsupported node type ${obj.type}`);
+    }
 
     let directives = obj.body.directives || [];
     delete obj.body.directives;
