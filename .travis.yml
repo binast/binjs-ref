@@ -37,4 +37,4 @@ matrix:
       dist: xenial
       python:
         - "3.7"
-      script: ./test.py && ./test.sh
+      script: cd ./fbssdc && ./test.py && ./test.sh
