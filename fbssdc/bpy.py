@@ -8,13 +8,47 @@
 import format
 import idl
 import opt
+import os
 import strings
+import subprocess
+import tempfile
 import tycheck
 import types
 
 import argparse
 import json
 import sys
+
+def encode_dir(dict_file, binjs_encode, in_path, out_path):
+  types = idl.parse_es6_idl()
+  ty_script = types.interfaces['Script']
+  string_dict = strings.read_dict(dict_file, with_signature=True)
+  in_path = os.path.abspath(in_path)
+  out_path = os.path.abspath(out_path)
+  ignored_out_directory = tempfile.TemporaryDirectory()
+  for root, _, sources in os.walk(in_path):
+    # 1. Prepare destination directory
+    suffix = os.path.relpath(root, in_path)
+    dest_root = os.path.join(out_path, suffix)
+    print ('Encoding from {root} to {dest_root}'.format(root=root, dest_root=dest_root))
+    os.makedirs(dest_root, exist_ok=True)
+
+    for source in sources:
+      source_path = os.path.join(root, source)
+      if not source[-3:] == '.js':
+        print ('...skipping {}'.format(source_path))
+        continue
+
+      # 2. Extract AST
+      print ('Preprocessing {}'.format(source_path))
+      process = subprocess.run([binjs_encode, '--quiet', '--show-ast', '--in', source_path, '--out', ignored_out_directory.name], capture_output=True)
+      proggy = json.loads(process.stdout.decode('utf-8'))
+
+      # 3. Encode
+      dest_path = os.path.join(dest_root,source[:-3] + '.binjs')
+      print ('Encoding {source_path} => {dest_path}'.format(source_path=source_path, dest_path=dest_path))
+      dest_file = open(dest_path, 'wb')
+      format.write(types, string_dict, ty_script, proggy, dest_file)
 
 
 def encode(dict_file, in_file, out_file):
@@ -88,6 +122,23 @@ def main():
   parser.set_defaults(func=lambda args: print('use --help to see commands'))
 
   subs = parser.add_subparsers(title='subcommands')
+
+
+  encode_dir_parser = subs.add_parser('encode-dir', help='Encode a full directory (from .js).',
+                                  description='''Caveats:
+(1) dictionary misses are not supported yet
+(2) not all file sections are compressed natively yet;
+    the output should be compressed with Brotli
+''')
+  encode_dir_parser.add_argument('binjs_encode',
+                             help='path to the binjs_encode binary')
+  encode_dir_parser.add_argument('dictionary', type=argparse.FileType('rb'),
+                             help='the dictionary file to read from')
+  encode_dir_parser.add_argument('indir',
+                             help='the path from which to read *.js files')
+  encode_dir_parser.add_argument('outdir',
+                             help='the path to which to write *.binjs files')
+  encode_dir_parser.set_defaults(func=lambda args: encode_dir(args.dictionary, args.binjs_encode, args.indir, args.outdir))
 
   encode_parser = subs.add_parser('encode-ast', help='AST JSON to binary.',
                                   description='''Caveats:
