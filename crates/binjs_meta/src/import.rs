@@ -258,7 +258,7 @@ impl Importer {
                 .builder
                 .get_typedef_mut(&node_name)
                 .unwrap_or_else(|| panic!("Could not find typedef {}", extended));
-            let mut typespec = typedef.spec_mut();
+            let typespec = typedef.spec_mut();
             let typesum = if let TypeSpec::TypeSum(ref mut typesum) = *typespec {
                 typesum
             } else {
