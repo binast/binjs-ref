@@ -157,7 +157,7 @@ impl AnnotationVisitor {
                 //   This scope: is_leaving_function_scope
                 //   Or, it could have already been in the parent scope from a sibling block.
                 // Or everything together, so we don't forget if the binding was closed over.
-                if let Some(mut parent_free) = self.free_names_in_block_stack.last_mut() {
+                if let Some(parent_free) = self.free_names_in_block_stack.last_mut() {
                     let my_contribution = old_cross_function || is_leaving_function_scope;
                     parent_free
                         .entry(name)

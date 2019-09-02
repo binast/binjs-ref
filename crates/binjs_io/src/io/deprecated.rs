@@ -136,7 +136,7 @@ where
 
     fn enter_tagged_tuple_at(
         &mut self,
-        _node: &Node,
+        _node: &dyn Node,
         _tag: &InterfaceName,
         _children: &[&FieldName],
         _path: &Path,
@@ -147,7 +147,7 @@ where
 
     fn exit_tagged_tuple_at(
         &mut self,
-        _node: &Node,
+        _node: &dyn Node,
         tag: &InterfaceName,
         children: &[&FieldName],
         _path: &Path,

@@ -91,7 +91,7 @@ impl TokenWriter for TreeTokenWriter {
 
     fn enter_tagged_tuple_at(
         &mut self,
-        _node: &Node,
+        _node: &dyn Node,
         tag: &InterfaceName,
         _children: &[&FieldName],
         _path: &Path,
@@ -101,7 +101,7 @@ impl TokenWriter for TreeTokenWriter {
     }
     fn exit_tagged_tuple_at(
         &mut self,
-        _node: &Node,
+        _node: &dyn Node,
         _tag: &InterfaceName,
         children: &[&FieldName],
         _path: &Path,
