@@ -125,7 +125,6 @@ impl Compression {
                 data.len()
             }
             Compression::Gzip => {
-                use flate2;
                 out.write_all(b"gzip;")?;
                 // Compress
                 let buffer = Vec::with_capacity(data.len());
@@ -139,7 +138,6 @@ impl Compression {
                 buffer.len()
             }
             Compression::Deflate => {
-                use flate2;
                 out.write_all(b"deflate;")?;
                 // Compress
                 let buffer = Vec::with_capacity(data.len());
@@ -153,7 +151,6 @@ impl Compression {
                 buffer.len()
             }
             Compression::Brotli => {
-                use brotli;
                 out.write_all(b"br;")?;
                 // Compress
                 let mut buffer = Vec::with_capacity(data.len());
@@ -172,7 +169,6 @@ impl Compression {
                 buffer.len()
             }
             Compression::Lzw => {
-                use lzw;
                 out.write_all(b"compress;")?;
                 // Compress
                 let mut buffer = Vec::with_capacity(data.len());
@@ -251,21 +247,18 @@ impl Compression {
         let decompressed_bytes = match compression {
             Compression::Identity => compressed_bytes,
             Compression::Gzip => {
-                use flate2;
                 let mut decoder = flate2::read::GzDecoder::new(Cursor::new(&compressed_bytes));
                 let mut buf = Vec::with_capacity(1024);
                 decoder.read_to_end(&mut buf)?;
                 buf
             }
             Compression::Deflate => {
-                use flate2;
                 let mut decoder = flate2::read::ZlibDecoder::new(Cursor::new(&compressed_bytes));
                 let mut buf = Vec::with_capacity(1024);
                 decoder.read_to_end(&mut buf)?;
                 buf
             }
             Compression::Brotli => {
-                use brotli;
                 let mut decoder =
                     brotli::Decompressor::new(Cursor::new(&compressed_bytes), BROTLI_BUFFER_SIZE);
                 let mut buf = Vec::with_capacity(1024);
@@ -273,7 +266,6 @@ impl Compression {
                 buf
             }
             Compression::Lzw => {
-                use lzw;
                 let reader = lzw::LsbReader::new();
                 let mut decoder = lzw::Decoder::new(reader, LZW_MIN_CODE_SIZE);
                 let (_, data) = decoder.decode_bytes(&compressed_bytes)?;

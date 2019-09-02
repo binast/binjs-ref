@@ -140,7 +140,7 @@ fn main_aux() {
 }
 
 fn parse_tree<R: Read + Seek>(
-    get_stream: &Fn() -> R,
+    get_stream: &dyn Fn() -> R,
     options: &mut Options,
 ) -> binjs::specialized::es6::ast::Script {
     let decoder = Decoder::new();

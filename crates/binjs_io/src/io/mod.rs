@@ -300,14 +300,14 @@ pub trait TokenWriter {
     /// with no children.
     fn enter_tagged_tuple_at(
         &mut self,
-        _node: &Node,
+        _node: &dyn Node,
         _tag: &InterfaceName,
         _children: &[&FieldName],
         _path: &Path,
     ) -> Result<(), TokenWriterError>;
     fn exit_tagged_tuple_at(
         &mut self,
-        _node: &Node,
+        _node: &dyn Node,
         _tag: &InterfaceName,
         _children: &[&FieldName],
         _path: &Path,
@@ -422,7 +422,7 @@ where
 {
 }
 pub trait TokenSerializerFamily<T> {
-    fn make<W>(&self, writer: W) -> Box<RootedTokenSerializer<W, T>>
+    fn make<W>(&self, writer: W) -> Box<dyn RootedTokenSerializer<W, T>>
     where
         W: TokenWriter;
 }

@@ -42,8 +42,8 @@ fn is_trail_surrogate(n: u16) -> bool {
 /// Convert 0-F number to ASCII char.
 fn encode_hex_char(n: u8) -> u8 {
     match n {
-        0...9 => b'0' + n,
-        0xa...0xf => b'A' + (n - 10),
+        0..=9 => b'0' + n,
+        0xa..=0xf => b'A' + (n - 10),
         _ => panic!("unexpected input"),
     }
 }
@@ -51,9 +51,9 @@ fn encode_hex_char(n: u8) -> u8 {
 /// Convert 0-9A-Fa-f chars to number.
 fn decode_hex_char(n: u8) -> u16 {
     match n {
-        b'0'...b'9' => (n - b'0') as u16,
-        b'A'...b'F' => (n - b'A' + 10) as u16,
-        b'a'...b'f' => (n - b'a' + 10) as u16,
+        b'0'..=b'9' => (n - b'0') as u16,
+        b'A'..=b'F' => (n - b'A' + 10) as u16,
+        b'a'..=b'f' => (n - b'a' + 10) as u16,
         _ => panic!("unexpected char"),
     }
 }

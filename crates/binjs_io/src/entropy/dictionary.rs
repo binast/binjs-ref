@@ -767,9 +767,6 @@ where
     type AsProbabilities = HashMap<K, SymbolInfo>;
 
     fn instances_to_probabilities(&self, _description: &str) -> HashMap<K, SymbolInfo> {
-        use std::cell::RefCell;
-        use std::rc::Rc;
-
         let instances = self
             .values()
             .map(|x| {
@@ -1161,7 +1158,7 @@ impl<'a> TokenWriter for &'a mut DictionaryBuilder {
 
     fn enter_tagged_tuple_at(
         &mut self,
-        node: &Node,
+        node: &dyn Node,
         tag: &InterfaceName,
         children: &[&FieldName],
         path: &IOPath,
@@ -1303,7 +1300,7 @@ impl TokenWriter for DictionaryBuilder {
 
     fn enter_tagged_tuple_at(
         &mut self,
-        _node: &Node,
+        _node: &dyn Node,
         tag: &InterfaceName,
         _children: &[&FieldName],
         path: &IOPath,

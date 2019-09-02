@@ -273,8 +273,6 @@ impl ::FormatProvider for FormatProvider {
         spec: &binjs_meta::spec::Spec,
         matches: Option<&clap::ArgMatches>,
     ) -> Result<::Format, ::std::io::Error> {
-        use bincode;
-
         let matches = matches.unwrap();
 
         let dictionaries = match matches.value_of("dictionary") {

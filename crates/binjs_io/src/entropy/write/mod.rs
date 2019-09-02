@@ -345,7 +345,7 @@ impl Encoder {
             let maybe_dump_path = match maybe_path {
                 None => None,
                 Some(path) => {
-                    let mut buf = path
+                    let buf = path
                         .with_extension("streams")
                         .join(name)
                         .with_extension("content");
@@ -502,7 +502,7 @@ impl TokenWriter for Encoder {
 
     fn enter_tagged_tuple_at(
         &mut self,
-        _node: &Node,
+        _node: &dyn Node,
         tag: &InterfaceName,
         _children: &[&FieldName],
         path: &Path,

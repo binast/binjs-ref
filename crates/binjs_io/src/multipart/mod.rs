@@ -166,7 +166,6 @@ impl ::FormatProvider for FormatProvider {
         matches: Option<&clap::ArgMatches>,
     ) -> Result<::Format, ::std::io::Error> {
         use bytes::compress::Compression;
-        use multipart::{Statistics, Targets};
 
         use std::cell::RefCell;
         use std::rc::Rc;

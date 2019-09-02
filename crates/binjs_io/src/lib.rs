@@ -255,7 +255,7 @@ pub enum Format {
 impl Distribution<Format> for Standard {
     fn sample<'a, R: Rng + ?Sized>(&self, rng: &'a mut R) -> Format {
         let generators = [
-            Rc::new(|_| Format::simple()) as Rc<Fn(&'a mut R) -> Format>,
+            Rc::new(|_| Format::simple()) as Rc<dyn Fn(&'a mut R) -> Format>,
             Rc::new(|rng| {
                 use multipart::{Statistics, Targets};
                 let stats = Rc::new(RefCell::new(Statistics::default().with_source_bytes(0)));
@@ -272,7 +272,7 @@ impl Distribution<Format> for Standard {
             Rc::new(|_| Format::XML),
             Rc::new(|_| Format::JSON),
         ];
-        let pick: Rc<Fn(&'a mut R) -> Format> = generators.choose(rng).map(Rc::clone).unwrap(); // Never empty
+        let pick: Rc<dyn Fn(&'a mut R) -> Format> = generators.choose(rng).map(Rc::clone).unwrap(); // Never empty
         pick(rng)
     }
 }
@@ -348,7 +348,7 @@ impl Format {
 
     /// Return all existing format providers, to manage
     /// command-line arguments.
-    fn providers() -> [&'static FormatProvider; 5] {
+    fn providers() -> [&'static dyn FormatProvider; 5] {
         [
             &multipart::FormatProvider,
             &simple::FormatProvider,
@@ -360,7 +360,7 @@ impl Format {
 
     /// The format provider to use if no format provider
     /// has been specified on the command-line.
-    fn default_provider() -> &'static FormatProvider {
+    fn default_provider() -> &'static dyn FormatProvider {
         &multipart::FormatProvider
     }
 
