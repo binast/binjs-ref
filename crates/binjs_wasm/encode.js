@@ -1,5 +1,7 @@
 'use strict';
 
+import {Counter} from "promjs/counter"
+import {Registry} from "promjs/registry";
 import fromShift from '../../src/source/from-shift';
 import { parseScript } from 'shift-parser';
 import initWASM, { encodeMultipart } from './pkg';
@@ -41,6 +43,15 @@ addEventListener('fetch', event => {
 });
 
 async function handleBinJS(event) {
+    const {
+        registry,
+        cf_binaryast_processed_input_bytes,
+        cf_binaryast_emited_output_bytes,
+        cf_binaryast_input_size_errors,
+        cf_binaryast_cache_hits,
+        cf_binaryast_js_errors
+    } = setupMetrics();
+
 	const req = event.request;
 
 	function log(...args) {
@@ -62,7 +73,11 @@ async function handleBinJS(event) {
 		{
 			let cacheRes = await cache.match(req);
 			log('cache match', cacheRes ? `Content-Type: ${cacheRes.headers.get('Content-Type')}` : false);
-			if (cacheRes) return cacheRes;
+			if (cacheRes) {
+              cf_binaryast_cache_hits.inc();
+              await sendMetrics(registry);
+              return cacheRes;
+            }
 		}
 
 		let origRes;
@@ -95,7 +110,11 @@ async function handleBinJS(event) {
 					log('original text length', js.length);
 
 					// In case we didn't have Content-Length, check the actual size too.
-					if (js.length > MAX_JS_SIZE) return;
+					if (js.length > MAX_JS_SIZE) {
+                        cf_binaryast_input_size_errors.inc();
+                        await sendMetrics(registry);
+                        return;
+                    };
 
 					const shiftAST = parseScript(js, { earlyErrors: false });
 					log('parsed');
@@ -115,15 +134,75 @@ async function handleBinJS(event) {
 
 					await cache.put(req, bastRes);
 					log('cached bast');
+                    cf_binaryast_processed_input_bytes.add(js.length);
+                    cf_binaryast_emited_output_bytes.add(encoded.length);
 				} catch (e) {
 					log('error', e.stack);
+                    cf_binaryast_js_errors.inc();
 				}
+
+                await sendMetrics(registry);
 			})()
 		);
 
 		return origRes;
 	} catch (e) {
 		log('error', e.stack);
+        cf_binaryast_js_errors.inc();
+        await sendMetrics(registry);
 		throw e;
 	}
+}
+
+function sendMetrics(registry) {
+  if (typeof METRICS_URL === "undefined") {
+    return Promise.resolve();
+  }
+  return fetch(METRICS_URL, {
+    method: 'POST',
+    headers: {
+      'CF-Access-Client-Id': METRICS_CLIENT_ID,
+      'CF-Access-Client-Secret': METRICS_CLIENT_SECRET,
+    },
+    body: registry.metrics(),
+  });
+}
+
+function setupMetrics() {
+  const registry = new Registry();
+
+  const cf_binaryast_processed_input_bytes = registry.create(
+    "counter",
+    "cf_binaryast_processed_input_bytes",
+    "Size of the input JavaScript processed by the worker",
+  );
+  const cf_binaryast_emited_output_bytes = registry.create(
+    "counter",
+    "cf_binaryast_emited_output_bytes",
+    "Size of the output BinAST emited by the worker",
+  );
+  const cf_binaryast_input_size_errors = registry.create(
+    "counter",
+    "cf_binaryast_input_size_errors",
+    "When the input size is too big",
+  );
+  const cf_binaryast_cache_hits = registry.create(
+    "counter",
+    "cf_binaryast_cache_hits",
+    "Cache hits",
+  );
+  const cf_binaryast_js_errors = registry.create(
+    "counter",
+    "cf_binaryast_js_errors",
+    "JavaScript errors",
+  );
+
+  return {
+    registry,
+    cf_binaryast_processed_input_bytes,
+    cf_binaryast_emited_output_bytes,
+    cf_binaryast_input_size_errors,
+    cf_binaryast_js_errors,
+    cf_binaryast_cache_hits,
+  }
 }

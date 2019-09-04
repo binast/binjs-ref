@@ -8,7 +8,7 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasm-bindgen = "0.2.40"
+wasm-bindgen = "=0.2.43"
 binjs_io = { path = "../binjs_io" }
 binjs_es6 = { path = "../binjs_es6" }
 js-sys = "0.3.17"

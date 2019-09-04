@@ -4,6 +4,7 @@ const path = require('path');
 const WasmPackPlugin = require('@wasm-tool/wasm-pack-plugin');
 
 module.exports = {
+    target: "webworker",
 	mode: 'none',
 	entry: './encode.js',
 	output: {

@@ -10,11 +10,12 @@
   "author": "Ingvar Stepanyan <me@rreverser.com> (https://rreverser.com/)",
   "license": "MIT",
   "dependencies": {
+    "promjs": "^0.4.0",
     "shift-parser": "^5.2.3"
   },
   "devDependencies": {
     "@wasm-tool/wasm-pack-plugin": "^0.4.2",
     "webpack": "^4.32.2",
-    "webpack-cli": "^3.3.2"
+    "webpack-cli": "^3.3.7"
   }
 }
