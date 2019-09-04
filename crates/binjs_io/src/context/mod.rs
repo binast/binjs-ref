@@ -1,6 +1,6 @@
 //! Encoding/decoding based on Huffman tables.
 
-mod prelude;
+mod strings;
 mod varnum;
 
 /// A four-char name embedded in the binary.

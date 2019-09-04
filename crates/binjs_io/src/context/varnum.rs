@@ -20,10 +20,10 @@ use std::io::{self, Error, Read, Result, Write};
 #[derive(Debug, Clone)]
 pub struct ByteValue<T> {
     /// The value read.
-    value: T,
+    pub value: T,
 
     /// The number of bytes consumed.
-    byte_len: usize,
+    pub byte_len: usize,
 }
 
 /// A reader that may read varu32-encoded u32 values from a stream.
