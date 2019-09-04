@@ -1,6 +1,7 @@
-//! WIP: Context encoding/decoding.
+//! Encoding/decoding based on Huffman tables.
 
 mod prelude;
+mod varnum;
 
 /// A four-char name embedded in the binary.
 ///
