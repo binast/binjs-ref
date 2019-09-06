@@ -3,7 +3,6 @@ matrix:
     - language: rust
       cache:
         - npm
-        - yarn
         - cargo
       before_script:
         - rustup component add rustfmt
