@@ -18,8 +18,9 @@ import types
 import argparse
 import json
 import sys
+import shutil
 
-def encode_dir(dict_file, binjs_encode, in_path, out_path):
+def encode_dir(dict_file, binjs_encode, in_path, out_path, skip_errors=True, copy_source=True):
   types = idl.parse_es6_idl()
   ty_script = types.interfaces['Script']
   string_dict = strings.read_dict(dict_file, with_signature=True)
@@ -42,13 +43,23 @@ def encode_dir(dict_file, binjs_encode, in_path, out_path):
       # 2. Extract AST
       print ('Preprocessing {}'.format(source_path))
       process = subprocess.run([binjs_encode, '--quiet', '--show-ast', '--in', source_path, '--out', ignored_out_directory.name], capture_output=True)
-      proggy = json.loads(process.stdout.decode('utf-8'))
+      try:
+        proggy = json.loads(process.stdout.decode('utf-8'))
 
-      # 3. Encode
-      dest_path = os.path.join(dest_root,source[:-3] + '.binjs')
-      print ('Encoding {source_path} => {dest_path}'.format(source_path=source_path, dest_path=dest_path))
-      dest_file = open(dest_path, 'wb')
-      format.write(types, string_dict, ty_script, proggy, dest_file)
+        # 3. Encode
+        dest_path = os.path.join(dest_root,source[:-3] + '.binjs')
+        print ('Encoding {source_path} => {dest_path}'.format(source_path=source_path, dest_path=dest_path))
+        dest_file = open(dest_path, 'wb')
+        format.write(types, string_dict, ty_script, proggy, dest_file)
+
+        # 4. Copy source file
+        if copy_source:
+          shutil.copy(source_path, dest_root)
+      except:
+        if skip_errors:
+          print ('...does not parse')
+        else:
+          raise
 
 
 def encode(dict_file, in_file, out_file):
@@ -138,7 +149,11 @@ def main():
                              help='the path from which to read *.js files')
   encode_dir_parser.add_argument('outdir',
                              help='the path to which to write *.binjs files')
-  encode_dir_parser.set_defaults(func=lambda args: encode_dir(args.dictionary, args.binjs_encode, args.indir, args.outdir))
+  encode_dir_parser.add_argument('--ignore-errors', nargs='?', const=True, default=False,
+                             help='if specified, skip files that cannot be encoded'),
+  encode_dir_parser.add_argument('--copy-source-files', nargs='?', const=True, default=False,
+                             help='if specified, copy .js source files to the target directory after encoding them'),
+  encode_dir_parser.set_defaults(func=lambda args: encode_dir(args.dictionary, args.binjs_encode, args.indir, args.outdir, args.skip_errors, args.copy_source_files))
 
   encode_parser = subs.add_parser('encode-ast', help='AST JSON to binary.',
                                   description='''Caveats:
