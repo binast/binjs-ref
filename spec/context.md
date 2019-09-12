@@ -1,472 +1,316 @@
-# About this file
+# BinAST "v2" Format
 
-This is an attempt to document the context-0.2 compression format.
+- Dominic Cooney (dpc) 2019-06-27
+- Reformated for markdown David Teller (yoric) 2019-09-02
 
-WARNING: the content is almost just a copy of entropy.md and doesn't reflect
-the actual format.  They're about to be changed so much once we fixed the
-format.  The current content is here to clarify the difference between entropy
-in the future changes.
 
-# ASTs
+# Overview
 
-This document specifies how to compress an Abstract Syntax Tree (or AST) in a given **Grammar**.
+BinAST is a format for JavaScript programs designed for compact transfer and fast, streaming startup. This document describes the format of the files on disk.
 
-## Grammar
+The goals of this iteration of the BinAST format are to:
+ -  Represent JavaScript syntax trees and metadata about variable capture, etc.
+ -  Be compact when compressed with Brotli.
+ -  Support random access to the content of lazy functions within the decompressed stream.
 
-TBD
+The syntax trees and metadata are described in this IDL file: https://github.com/facebookexperimental/fbssdc/blob/master/es6.webidl which can be produced using the `binjs_encode` tool’s `--show-ast` option; see https://github.com/binast/binjs-ref/. You should have a copy of the IDL handy when reading this document.
 
-## Nodes
+This document describes the structure of the files on disk at the bit level. This document includes commentary about design choices in the format, but not in the AST/IDL structure.
+The BinAST v2 format consists of the following items, in order:
 
-An AST is a **Node**, as defined below in pseudo-code:
+1. A signature, the bytes `89h`, `42h`, `4ah`, `53h` (these three bytes `"BJS"`) `dh` `ah` `0h` `ah` `2h`
+2. A table of strings.
+3. A set of tables for constructing codes used to decode the AST
+4. An encoded Script AST node
 
-```typescript
-type Node = LiteralString  // A literal string in the language.
-          | F64            // 64-bit floating-point number
-          | U32            // 32-bit unsigned integer
-          | Bool
-          | PropertyKey    // A property key (aka "field name") in the language.
-          | IdentifierName // An identifier in the language.
-          | InterfaceNode
-          | Array
-          | Null           // An empty node.
-          
-class Null { }
+The subsequent sections describe each of these items in detail.
 
-class LiteralString {
-  value: String
-}
+To ease skimming, the format is summarized in BNF in green. The previous list can be written this way:
 
-class PropertyKey {
-  value: String
-}
-
-class IdentifierName {
-  value: String
-}
-
-class InterfaceNode {
-  type: InterfaceName;
-  fields: [Field]; // Order of fields is specified in the grammar
-}
-
-class Field {
-  name: FieldName;
-  value: Node;
-}
-
-class InterfaceName {
-  value: String; // The list of valid values is specified in the grammar
-}
-
-class FieldName {
-  value: String;
-}
-
-class Array {
-  values: [Node];
-}
-
-class Bool {
-  value: bool;
-}
-```
-
-## Paths
-
-Whenever we walk the AST, each node is assigned a Path, as follows:
-
-```typescript
-class Path {
-  items: [PathItem]
-  function append(interface: InterfaceName, field: FieldName) -> Path {
-    let copy = this.items.slice();
-    copy.push(new PathItem(interface, field));
-    return new Path(item);
-  }
-}
-class PathItem {
-  interface: InterfaceName,
-  field: FieldName,  
-}
-
-function walk_root(node: Node, walker: Walker) {
-  return walk_node(node, new Path());
-}
-function walk_node(node: Node, path: Path) {
-   if (node instanceof LiteralString) {
-     walker.visit_literal_string(path, node);
-   } else if (node instanceof F64) {
-     walker.visit_f64(path, node);
-   } else if (node instanceof U32) {
-     walker.visit_u32(path, node);
-   } else if (node instanceof PropertyKey) {
-     walker.visit_property_key(path, node);
-   } else if (node instanceof IdentifierName) {
-     walker.visit_identifier_name(path, node);
-   } else if (node instanceof InterfaceNode) {
-     walker.visit_interface_node(path, node);
-     for (let field of node.fields) {
-       let sub_path = path.append(node.type, field.name.value);
-       walk_node(field.value, sub_path);
-     }
-   } else if (node instanceof Null) {
-     walker.visit_null(path, node);
-   } else if (node instanceof Bool) {
-     walker.visit_bool(path, node);
-   } else if (node instanceof Array) {
-     // Arrays do not influence paths.
-     for (let sub_node of node.values) {
-       walk_node(sub_node, path);
-     }
-   }
-}
-```
-
-Note that, within a grammar, there is a simple bijection between the set of valid `(InterfaceName, FieldName)` and the set of `(InterfaceName, position)` where `position` is the index of the field named `FieldName` in the interface named `InterfaceName`. Similarly, if we assume that instances of `InterfaceName` are sorted by some well-known order, they can be represented as integers. Consequently, a `path` may easily be represented as an even-sized vector of integers.
-
-# Global structure
 
 ```
-Stream ::= GlobalHeaders Chunk+
+File ::= Signature StringTable
+         CodeTables Node
 ```
 
-# Global Headers
+Repeated items will be written between square brackets with braces indicating the number of items. Literal bytes will be written in hexadecimal with a trailing `h`.
 
-Headers identify the file, the version of the format used and the shared dictionary used, if any.
+# Signature
 
-The shared dictionary provides:
-
-- a family of context-based prediction tables;
-- well-known literal strings;
-- well-known floating-point numbers;
-- well-known unsigned long numbers;
-- well-known property keys;
-- well-known identifier names;
-- well-known list lengths.
+The file starts with these bytes: `89h`, `42h`, `4ah`, `53h` (these three bytes `"BJS"`) `dh` `ah` `0h` `ah` `2h`. I believe the final byte is intended as a version number which is why this document casually refers to this iteration of the format as "v2."
 
 ```
-GlobalHeaders ::= MagicNumber FormatVersionNumber LinkToSharedDictionary
+Signature ::= 89h 42h 4ah 53h 0dh 0ah 00h 0ah 02h
 ```
 
-## Magic number
+# String Table
+
+JavaScript programs contain a lot of text data, not only in string literals, but also in property names, variable names, etc. The format lifts string data into a header section and refers to strings by index.
+
+This has a couple of benefits: First, property names can be relatively long and are referred to repetitively, so using an index is more succinct. Second, there is a lot of redundancy between strings and Brotli compresses these more effectively if they are close together (although the benefit only scales ~logarithmically.)
+
+## String Table Format
+
+The string table consists of:
+ -  The number of strings, n, in varuint encoding.
+ -  n strings.
+
+
+Each string consists of the literal bytes of string content, with a null terminator. Because strings may contain embedded nulls, nulls are escaped as `01h 00h`, which means `01h` bytes must be escaped too; they’re escaped as `01h 01h`.
+
+The format does not do any semantically impactful string mangling, for example, if a string literal has an escape sequence, the escape sequence will be represented in the string data.
 
 ```
-MagicNumber ::= "\x89BJS\r\n\0\n"
+StringTable ::= StringCount [String]{StringCount}
+StringCount ::= VarUint
+String ::= [StringByte] 00h
+StringBytes ::= 02h .. ffh   (a literal byte)
+              | 01 00h       (the byte 00h)
+              | 01 01h       (the byte 01h)
 ```
 
+## External String Tables
 
-## Version number
+The format can optionally refer to strings from an external string table. External string tables make it possible to produce very small files because strings can often be cached, reused, and shared between files (for example a library function and its caller will both refer to that method’s name.) These strings are assigned indices starting after the last intrinsic string.
+The external string table is specified out-of-band and a decoder has limited capacity to detect a missing external string table -- when it encounters an out-of-bounds string table reference.
 
-Not specified/implemented yet.
-
-```
-VersionNumber ::= TBD
-```
-
-## Link to shared dictionary
-
-Not specified/implemented yet.
-
-The shared dictionary is optional.
+External string tables start with the ASCII bytes `astdict`. The following bytes are in the same format as the intrinsic string table.
 
 ```
-LinkToSharedDictionary ::= TBD
+StringFile ::= StringSignature StringTable
+StringSignature ::= 61h 73h 74h 64h 69h 63h 74h
 ```
 
-# Chunk
+# Code Tables
 
-A file may contain one or more **Chunks**. Typically, the first **Chunk** will contain the code
-known to be executed during the startup, additional chunks may contain the definition of lazy
-functions. Additionally, if several source files are concatenated into one, there may be several
-**Chunks**, each with its own eager code.
+In general the AST is serialized by traversing the AST writing the symbols encountered into the file. (There is an exception to this supporting random access to lazy function bodies described later.) Because the content of files can vary a lot, the format does not use a fixed set of codes but instead the file contains tables of codes used in the file.
 
-```
-Chunk  ::= ChunkHeader Prelude? Content? Main Footers?
-ChunkHeader ::= "CHNK" ByteLen ChunkIdentifier
-ChunkIdentifier ::= "EAGR" ChunkNum
-                 |  "LAZY" ChunkNum LazyNum
-ChunkNum ::= var_u32
-LazyNum ::= var_u32
-```
+## Symbols
 
-A `ChunkIdentifier` may be:
+ASTs contain the following kinds of symbols:
 
-- `EAGR`, in which case the chunk contains toplevel code, meant to be parsed and executed immediately;
-- `LAZY`, in which case the chunk contains lazy function definitions, meant to be parsed/executed by-need.
+ -  Primitive values: Booleans, unsigned integers, JavaScript numbers (IEEE 754 64-bit floating point numbers), strings, and optional strings.
+ -  Enumeration values. (These are described using strings in es6.webidl, but the format treats enums as a distinct kind of value.)
+ -  Interface type tags. For example, Script and Block are interface type tags. Note that typedefs in es6.webidl are for convenience when reading but the format deals with desugared interface definitions without typedefs.
+ -  None, a special symbol which represents an absent interface.
 
-It is a syntax error for an `EAGR` chunk to appear after a `LAZY` chunk.
+Symbols can appear in the file in two ways: literally; or encoded with a code. The format makes it clear when each form is used and the two forms are never mixed.
 
-A `ChunkNum` is an arbitrary number, used to identify that two chunks belong to the same source file. Two
-`ChunkIdentifier`s with the same `ChunkNum` belong to the same source file.
+## Symbol Context Modeling
 
-A `LazyNum` is an arbitrary number, valid within a file, and used to identify the lazy function definitions.
-It is a syntax error for the same `"LAZY" ChunkNum LazyNum` value to appear more than once.
+The BinAST v2 format saves space by using different symbol → code mappings depending on the part of the AST being encoded. For example, when encoding a Boolean value, only two symbols are valid so the BinAST v2 format can use a code which is at most 1 bit long, even though that overlaps with codes in other contexts.
 
-# Prelude
+There are two kinds of contexts:
 
-The **Prelude** extends the shared dictionary with additional strings, numbers, keys, names, ...
-Each **Chunk** may contain its own **Prelude**.
+1. Fields, for example `AssertedBoundName.isCaptured`.
+2. Array lengths of a given array type, for example a `FrozenArray<(Spread or Expression)>` length
 
-Data structures are separated even when they have the same underlying representation, to improve
-compression.
+The set of symbols which are allowed depend on the type associated with the context:
 
-```
-Prelude ::= "PREL" NamedPreludeDictionary*
-NamedPreludeDictionary ::= "FLOA" PreludeStream<f64?>
-                         | "ULON" PreludeStream<u32?>
-                         | "LIST" PreludeStream<u32?>
-                         | "PROC" PreludeStream<String>
-                         | "IDEC" PreludeStream<String>
-                         | "STRC" PreludeStream<String>
-                         | "PROL" PreludeStream<StringLen>
-                         | "IDEL" PreludeStream<StringLen>
-                         | "STRL" PreludeStream<StringLen>
-```
+ -  For a field with an array type, the associated type is the element type of the array.
+ -  For other fields, the associated type is the type of the field.
+ -  For an array length, the associated type is unsigned long.
 
-| name | content |
-|---|---|
-| `FLOA` | the list of float values |
-| `ULON` | the list of unsigned long values |
-| `LIST` | the list of the length of list values |
-| `PROC` | the list of property key strings |
-| `IDEC` | the list of identifier name strings |
-| `STRC` | the list of string values |
-| `PROL` | the list of the length of property key string |
-| `IDEL` | the list of the length of identifier name strings |
-| `STRL` | the list of the list of string values |
+Given an associated type, the allowable symbols are:
+ -  For a primitive type, the allowed symbols are values of that type.
+ -  For an enum type, the allowed symbols are the members of the enum.
+ -  For a set of interface type tags, possibly including `None`, the allowed symbols are those type tags, and `None` if applicable.
 
-If the same prelude name (`"FLOA"`, `"ULON"`, etc.) appears more than once, this
-is a syntax error.
+Each context which appears in the AST will have a code table, with two exceptions:
 
-If `"PROC"` exists and is not empty, `"PROL"` must exist and be non-empty,
-otherwise, this is a syntax error.
+1. Fields with a monomorphic interface type or a `FrozenArray` of a monomorphic interface element type must always produce that interface type tag. It is redundant to produce tables for these and the format prevents that.
 
-If `"IDEC"` exists and is not empty, `"IDEL"` must exist and be non-empty,
-otherwise, this is a syntax error.
+2. The `StaticMemberAssignmentTarget.property` field and `StaticMemberExpression.property` field are treated as the same context. These fields usually have large tables of property names with similar lengths, so they are combined to save space. Algorithms which talk about enumerating the fields of an interface should treat these two interfaces as sharing one property field.
 
-If `"STRC"` exists and is not empty, `"STRL"` must exist and be non-empty,
-otherwise, this is a syntax error.
+## Code Table Encoding
+Each code table does not specify the codes directly, but instead specifies the length of each symbol’s code. How codes are assigned based on length is described later.
 
-## Internal compression
-
-All prelude streams have the same structure
+Code tables can be encoded multiple ways:
 
 ```
-PreludeStream<T> ::= CompressionFormat ByteLen CompressedByteStream<T>
-CompressionFormat ::= "BROT" // The only compression format supported so far.
-ByteLen := var_u32
+CodeTable ::= UnitCodeTable
+            | MultiCodeTableImplicit
+            | MultiCodeTableExplicit
+            | EmptyCodeTable
+
+UnitCodeTable ::= 00h LiteralSymbol
+MultiCodeTableExplicit ::= 01h CodeCount [CodeLength]{CodeCount} [LiteralSymbol]{CodeCount}
+CodeLength ::= 00h .. 14h
+MultiCodeTableExplicit ::= 01h [CodeLength]{SymbolCount}
+EmptyCodeTable ::= 02h
 ```
 
-Where:
+The `UnitCodeTable` is a table with a single symbol. This symbol is assigned given a zero-length code. As a consequence when that table is used to encode a symbol in the tree, it generates no bits in the output.
 
-- the `CompressionFormat` is the name of the compression to use to decompress the `CompressedByteStream`;
-- the `ByteLen` is the number of bytes in the `CompressedByteStream`;
+Because modern minified JavaScript tends to be very regular `UnitCodeTables` occur a lot in practice and are a large contributor to the size reduction of BinAST encoded tree sizes. For example, BinAST tracks whether each scope uses `eval` (see `hasDirectEval` in `es6.webidl`.) However modern JavaScript practice avoids using `eval`. Encoding a unit code table for `false` takes two bytes, `00h 00h`, so BinAST v2 can represent an unlimited number of block scope’s lack of `eval` with a fixed overhead of two bytes -- fewer after Brotli compression.
 
-Let us call `ExpandedByteStream<T>` the result of decompressing the `ByteLen` bytes of
-a `CompressedByteStream<T>` with the specified `CompressionFormat`.
+Note that a unit code table is the only way to produce a zero-length code. `MultiCodeTableImplicit` may mention symbols with zero length, but these are skipped during code assignment.
+The `MultiCodeTable` is a table with multiple symbols. There are two variants of the encoding depending on the type of symbol being encoded.
 
-## Stream interpretation
+The implicit table is for symbols which form a small, closed set. The lengths of all symbols are enumerated. Unused symbols are denoted with zero length and are skipped during code assignment.
 
-### Integers
+The explicit table is for symbols which form an effectively open set. The table includes a symbol count, then the lengths of all symbols, then the literal symbols.
 
-```
-ExpandedByteStream<u32?> ::= ExpandedByteStreamItem<u32?>*
-ExpandedByteStreamItem<u32?> ::= var_u32         // Some(value)
-                               | var_u32_invalid_1  // None
-```
+Type                         | Table Type | Ordering
+-----------------------------|------------|------------------
+Boolean                      | Implicit   | `false`, `true`
+Unsigned integers            | Explicit   | Encoder determined
+JavaScript numbers           | Explicit   | Encoder determined
+Strings                      | Explicit   | Encoder determined
+Optional strings             | Explicit   | Encoder determined
+Enumeration values           | Implicit   | IDL declaration order
+Interface type tags & `None` | Implicit   | `None` first; then lexical order of interface names
 
-- `var_u32_invalid_1` is interpreted as the `null` value for unsigned numbers;
-- All valid `var_u32` values are interpreted as numbers.
+
+Finally, the `EmptyCodeTable` represents a set of unused codes. How empty code tables arise is described later.
+
+## Symbol Literal Encoding
+
+Symbols appear literally in the `UnitCodeTable` and `MultiCodeTableExplicit`. When a symbol appears literally, it is encoded this way:
+
+Type                         | Literal Encoding
+-----------------------------|-----------------
+Booleans                     | One byte. `false`, `00h`; `true`, `01h`.
+Unsigned integers            | 4-byte big-endian integer
+JavaScript numbers           | 8-byte big-endian IEEE-754
+Strings                      | `Varuint` string table index
+Optional string              | If `None`, `00h`, otherwise `Varuint` 1 + string table index
+Enumeration value            | Varuint index of IDL declaration order
+Interface type tag & `None`  | Given a set of relevant interface type tags, and None if relevant, sorted by symbol ordering (see below), `varuint` index of the symbol in the set
 
 
-### Floating-point
+## Code Assignment: From Symbol Lengths to Codes
 
-```
-ExpandedByteStream<f64?> ::= ExpandedByteStreamItem<f64?>
-ExpandedByteStreamItem<f64?> ::= var_i32            // Some(integer value)
-                               | var_i32_invalid_1 f64 // Some(floating-point value)
-                               | var_i32_invalid_2     // None
-```
+To encode or decode a file, each symbol must be assigned not just a code length but a specific sequence of bits. The format uses a canonical Huffman code for this purpose.
 
-- All valid `var_i32` values are interpreted as `i32` numbers, which are then converted to `f64`. This has the advantage that
-    most numbers actually used in practice fit within `i32`.
-- `var_i32_invalid_1` is used as a prefix for floating-point values that do not fit in `i32`;
-- `var_i32_invalid_2` is used to represent the `null` value for floating-point numbers.
+Given a set `S` of length, symbol pairs, canonical Huffman codes can be assigned this way:
 
-### Strings
+1. Sort `S` by length. For pairs with the same length, sort them by the symbol. (Symbol ordering is defined below.)
+2. Initialize `code = 0`, `last_length = 0`
+3. For i ∈ 1...|S|
+   1. `next_length` = length associated with `S[i]`
+   2. Assign code of length `next_length` to symbol `S[i]`
+   3. `code = (code + 1) × 2^(next_length - last_length)`
+   4. last_length = next_length
 
-To interpret a string stream, it is necessary to interpret both the `PreludeStream<String>` and the `PreludeStream<StringLen>`.
+The codes constructed by this algorithm begin in the high-order bit, so when these codes are written into the file the high-order bit must appear first. That is, codes are written as bitwise big-endian, variable-length numbers.
 
-If the `PreludeStream<String>` and the `PreludeStream<StringLen>` do not have the same number of elements, this is a syntax error.
+A decoder should check codes fit in their prescribed length; a file which produced codes longer than their length is invalid. Codes have a maximum length of 20 bits, which in practice limits JavaScript files to roughly a million strings and a million numbers.
 
-```
-ExpandedByteStream<StringLen> ::= varu32?
-ExpandedByteStream<String> ::= [char; len_0], [char; len_1], ... [char; len_k]
-                             // where len_0, len_1, ..., len_k are the values of the ExpandedByteStream<StringLen>
-```
+## Symbol Ordering for Code Assignment
 
-If `len_0 + len_1 + ... + len_k` is not equal to the `ByteLen` attached to the `ExpandedByteStream<String>`, this is a syntax error.
 
-Strings are interpreted as WTF-8 (NOT UTF-8).
+To briefly recap, BinAST v2 files contain tables specifying the code lengths (but not the codes themselves) of symbols which appear in the serialized AST. The encoder and decoder must agree on the order different symbols with the same code length are assigned codes using the algorithm above. Here is the order:
 
-# Content
+Type                         | Order for Code Assignment
+-----------------------------|-------------------------------
+Boolean                      | `false`, `true`
+Unsigned integers            | Order literals appear in the code table
+JavaScript numbers           | Order literals appear in the code table
+Strings                      | String table index
+Optional strings             | `None`, then string table index
+Enumeration values           | Lexicographic order of IDL string constant
+Interface type tags & `None` | `None`, then lexicographic order of name
 
-The **content** defines streams of references to the dictionaries (both the prelude dictionary and the shared dictionary,
-if specified). These values are pulled from the content streams while reading the **main stream**.
+Note, this order is for assigning codes. This ordering is not related to the ordering values like strings and numbers might usually have, although that situation could arise coincidentally as in implementation detail of an encoder. As you have seen, enumeration values use a different ordering in enumerating lengths in `MultiCodeImplicitTables`. (This was an oversight but a harmless one.)
 
-```
-Content ::= "CONT" NamedContentStream*
-NamedContentStream ::= "FLOA" ContentStream<f64?>
-                     | "ULON" ContentStream<u32?>
-                     | "LIST" ContentStream<u32?>
-                     | "PROC" ContentStream<String>
-                     | "IDEC" ContentStream<String>
-                     | "STRC" ContentStream<String>
-```
+## Code Table Set Encoding
 
-If the same content name (`"FLOA"`, `"ULON"`, etc.) appears more than once, this
-is a syntax error.
+BinAST v2 can model hundreds of contexts. Most files use far fewer contexts than this. To keep the file compact, the code table set only encodes tables used by the file. It does this by doing a depth-first walk through the fields of the IDL, starting with the fields of the Script interface. The walk is pruned in two ways: when it encounters array length contexts with code tables which only contain the symbol zero; when interface type tags are not present in a set of allowable symbols.
 
-## Internal compression
+To decode models:
 
-All content streams have the same structure
+1. Initialize the set of visited contexts to empty
+2. Initialize the set of empty array types to empty
+3. Push all of the fields of the Script interface
+4. While the stack of fields is not empty
+  1. Pop a field
+  2. Decode a code table for the effective type of the field.
+  3. For each of the code table’s symbols that are interface type tags:
+      1. Push all of the fields of the interface
 
-```
-ContentStream<T> ::= CompressionFormat ByteLen CompressedContentStream<T>
-```
+To push a field:
 
-Where:
+1. If the field is in the set of visited contexts, stop
+2. Add the field to the set of visited fields
+3. If the field has a FrozenArray type
+  1. Determine if the array type is always empty
+  2. If so, stop
+4. If the effective type is a monomorphic interface, push all of the interface’s fields
+5. Otherwise, push the field onto the stack
 
-- the `CompressionFormat` is the name of the compression to use to decompress the `CompressedByteStream`;
-- the `ByteLen` is the number of bytes in the `CompressedByteStream`;
+To determine a field’s effective type:
 
-Let us call `ExpandedContentStream<T>` the result of decompressing the `ByteLen` bytes of
-a `CompressedContentStream<T>` with the specified `CompressionFormat`.
+1. If the field’s type is an array type, the effective type is the array element type. Stop.
+2. Otherwise, the effective type is the field’s type. Stop.
 
-## Stream interpretation
+To determine if an array type is always empty:
 
-All expanded content streams have the same structure
+1. If the array type is in the set of empty arrays types, it is always empty. Stop.
+2. If the array type is in the set of visited contexts, it is not always empty. Stop.
+3. Decode a code table for unsigned longs. This is the code table for this array type.
+4. Add the array type to the set of visited contexts.
+5. If the code table has any non-zero symbols, the array type is not always empty. Stop.
+6. Otherwise, add the array type to the set of empty array types. It is always empty. Stop.
 
-```
-ExpandedContentStream<T> ::= WindowLen ExpandedContentReferences<T>
-WindowLen ::= var_u32
-```
+The sharing of array length models by array type, instead of specific fields, explains the need for `EmptyCodeTables`: A situation can arise where an array length model includes zero and non-zero values, but within the context of a specific field the array length is always zero in practice.
 
-Where `WindowLen` is the number of bytes in the LRU cache used to interpret `ExpandedContentReferences`. It may be 0.
+## Node Encoding
 
-```
-ExpandedContentReferences<T> ::= ContentReferenceBytes<T>*
-ContentReferenceBytes<T> ::= var_u32
-```
-
-Interpreting a `ContentReferenceBytes<T>` requires the following information:
-- a per-stream value `prelude_latest`, initially set to `-1`;
-- a per-stream value `imported_len`, initially set to `0`.
-
-A `ContentReferenceBytes<T>` is interpreted into a `ContentReference<T>` through
-the following algorithm:
-
-```python
-prelude_latest = -1
-imported = []
-window = LRU(WindowLen)
-prelude_len = # Length of the matching Prelude stream
-def interpret(u32):
-    # 0 means "next in prelude"
-    if u32 == 0:
-        prelude_latest += 1
-        return PreludeReference(prelude_latest)
-    # [1, WindowLen] is a LRU cache
-    if 1 <= u32 and u32 <= len(window):
-        result = window.fetch(u32 - 1)
-        if result.isinstance(PreludeReference):
-            prelude_latest = result.index
-        return result
-    # [WindowLen + 1, WindowLen + PreludeLen] is a reference to the prelude
-    # dictionary.
-    if len(window) + 1 <= u32 and u32 <= len(window) + len(prelude):
-        prelude_latest = u32 - len(window) - 1
-        result = PreludeReference(prelude_latest)
-        window.insert(result)
-        return result
-    # [WindowLen + PreludeLen + 1, WindowLen + PreludeLen + len(imported)] is a reference
-    # to an already encountered value from the shared dictionary.
-    if len(window) + len(prelude) + 1 <= u32 and u32 <= len(window) + len(prelude) + len(imported):
-        result = imported[u32 - len(window) - len(prelude) - 1]
-        window.insert(result)
-        return result
-    # Any value above is a first-time reference into the shared dictionary.
-    if len(window) + len(prelude) + len(imported) < u32:
-        result = SharedReference(u32 - len(window) - len(prelude) - len(imported))
-        window.insert(result)
-        return result
+With a complete string table and set of codes in hand, encoding and decoding nodes is straightforward:
 
 ```
-
-
-# Main
-
-TBD
-
-
-# Footers
-
-Not specified/implemented yet.
-
-# Primitive values
-
-## Variable-length numbers (unsigned)
-
-We use `var_u32` to denote a variable-length representation of 32 bit unsigned integers.
-
-```
-var_u32 ::= var_u32_non_terminal_byte* var_u32_terminal_byte
-var_u32_non_terminal_byte ::= Any byte b such that b & 1 == 1
-var_u32_terminal_byte     ::= Any byte b such that b & 1 == 0
-var_u32_invalid_1 ::= 0x00000001 0x00000000
-var_u32_invalid_2 ::= 0x00000001 0x00000001 0x00000000
-var_u32_invalid_3 ::= 0x00000001 0x00000001 0x00000001 0x00000000
+Node ::= [Symbol] <pad to byte boundary> LazyItemCount [LazyItemLength]{LazyItemCount} [Node]{LazyItemCount}
+LazyItemCount ::= varuint
+LazyItemLength ::= varuint
 ```
 
-TBD
+To deserialize an interface I:
+1. For each field f in I:
+  1. If f’s type is an array:
+    1. Decode an array length, n, using the code table for the array type consuming the prefix of the input bit stream.
+    2. For 1 ... n:
+      1. Deserialize a value in context f.
+  2. Deserialize a value in context f.
 
+To deserialize a value in a field context f:
+1. If f has a Lazy attribute, add the effective type of f to the lazy item list. (Currently, these are always monomorphic interface types.)
+2. If f’s effective type is a monomorphic interface type, deserialize an interface of f’s effective type. Note, this does not consume the bit stream or consult any code table.
+3. If f’s effective type includes interface type tags:
+  1. Decode an interface type tag J, or None, using the code table for f consuming the prefix of the input bitstream.
+  2. If J is not none, deserialize an interface J.
+4. Otherwise, decode a symbol using the code table for f consuming the prefix of the input bitstream.
 
-As an exception, the following sequence of `var_u32_non_terminal_byte* var_non_terminal_byte` is *not* a `var_u32`:
-- it consists in at least two bytes;
-- all `var_u32_non_terminal_byte` are `1`;
-- the `var_u32_terminal_byte` is `0`.
+An AST subtree may contain lazy sections; these are tagged `[Lazy]` in es6.webidl. A tree or subtree has postamble 0-padding to a byte boundary, a redundant count of lazy items, and a list of byte lengths which refer to the following serialized lazy nodes. This arrangement supports random access to lazy fields, once the subtree containing the field has been deserialized to discover the types of those fields.
 
-Such sequences are used to represent exceptional cases (e.g. `null` values).
+The encoding is recursive -- the script’s lazy nodes may themselves have lazy nodes which are written at the end of that node’s serialization.
 
-## Variable-length numbers (signed)
+# Variable-length Unsigned Integers (varuint)
+## Encoding
 
-```
-var_i32 ::= var_u32
-var_i32_invalid_1 ::= 0x00000001 0x00000000 // Aliased for convenience
-var_i32_invalid_2 ::= 0x00000001 0x00000001 0x00000000 // Aliased for convenience
-var_i32_invalid_3 ::= 0x00000001 0x00000001 0x00000001 0x00000000 // Aliased for convenience
-```
-
-Signed variable-length numbers are stored as unsigned, using the following algorithm:
-- if `signed_value` is a `var_u32` used to store a `var_i32`
-    - if `signed_value % 2` == 0
-        - the unsigned value is `signed_value >> 1`
-    - else
-        - the unsigned value is `-((signed_value - 1) >> 1)`
-
-
-TBD
-
-## Floating-point
-
-We use `f64` to denote 64-bit floating point numbers.
+Unsigned integers appear in various places in the format. These are encoded using a byte-oriented format of 7 bits of little-endian data and the high order bit indicating continuation. These should not exceed 5 bytes containing up to 32 bits and 3 zero bits.
 
 ```
-f64 ::= IEEE754 64 Floating Point encoding
+Varuint ::= [1nnnnnnn]{0..4} 0nnnnnnn
 ```
 
-## Raw data
-```
-[char; N] ::= the next N bytes in the stream
-```
+# Suggested improvements to this format
 
+Having implemented multiple encoders and decoders for this format in multiple languages, here is some brief commentary on areas which could be improved:
+
+ -  There is no mechanism to detect when a file is paired with the wrong external string table, which would be useful for reporting errors.
+ -  This document assumes the encoded content is a script. Encoding a module is straightforward but a decoder must rely on an out-of-band signal about whether the file contains a script or a module. The file should include this flag.
+ -  The format only supports seeking within the decompressed stream. With better native compression, the Brotli "wrapper" would not be necessary and the format could seek instead within the compressed stream. I believe the primary problem with sizes today is the verbose encoding of code tables.
+ -  The presence of an EmptyCodeTable could suppress encoding the length for a given array, which must be zero at that point.
+ -  The input AST structure has a number of redundancies which the compressor does not exploit, but could exploit, for smaller file sizes. For example there is a lot of overlap between parameter lists and declared names.
+ -  The format only shares codes between StaticMemberAssignmentTarget.property and StaticMemberExpression.property; more sharing or imputing is probably beneficial.
+ -  There is rarely overlap between property names and other strings. It may be beneficial to treat them as distinct types of values.
+
+  -  The format uses a fixed code for a given field; having multiple codes and switching between them is probably beneficial.
+ -  Huffman codes do not model some practical probability distributions well. Encodings like ANS would be better. Alternatively, model switching may address this problem.
+
+# Revision History
+
+2019-06-27 First version.
+2019-06-28 Removed a level of headings.
+2019-09-02 Reformated for markdown.
