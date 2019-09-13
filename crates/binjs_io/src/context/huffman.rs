@@ -1,4 +1,3 @@
-#[allow(dead_code)] // Let's get rid of dead code warnings until they make sense.
 use io::statistics::Instances;
 
 use std::cmp::Ordering;
@@ -113,11 +112,20 @@ where
 {
     /// Compute a `Keys` from a sequence of values.
     ///
+    /// Optionally, `max_bit_len` may specify a largest acceptable bit length.
+    /// If `Keys` may not be computed without exceeding this bit length,
+    /// fail with `Err(problemantic_bit_length)`.
+    ///
+    /// The current implementation only attempts to produce the best compression
+    /// level. This may cause us to exceed `max_bit_length` even though an
+    /// alternative table, with a lower compression level, would let us
+    /// proceed without exceeding `max_bit_length`.
+    ///
     /// # Performance
     ///
     /// Values (type `T`) will be cloned regularly, so you should make
     /// sure that their cloning is reasonably cheap.
-    pub fn from_sequence<S>(source: S) -> Self
+    pub fn from_sequence<S>(source: S, max_bit_len: u8) -> Result<Self, u8>
     where
         S: IntoIterator<Item = T>,
         T: PartialEq + Hash,
@@ -129,20 +137,25 @@ where
             *counter += 1.into();
         }
         // Then compute the `Keys`.
-        Self::from_instances(map)
+        Self::from_instances(map, max_bit_len)
     }
 
     /// Compute a `Keys` from a sequence of values
     /// with a number of instances already attached.
     ///
+    /// The current implementation only attempts to produce the best compression
+    /// level. This may cause us to exceed `max_bit_length` even though an
+    /// alternative table, with a lower compression level, would let us
+    /// proceed without exceeding `max_bit_length`.
+    ///
     /// # Requirement
     ///
     /// Values of `T` in the source MUST be distinct.
-    pub fn from_instances<S>(source: S) -> Self
+    pub fn from_instances<S>(source: S, max_bit_len: u8) -> Result<Self, u8>
     where
         S: IntoIterator<Item = (T, Instances)>,
     {
-        let mut bit_lengths = Self::compute_bit_lengths(source);
+        let mut bit_lengths = Self::compute_bit_lengths(source, max_bit_len)?;
 
         // Canonicalize order: (BitLen, T)
         // As values of `T` are
@@ -165,7 +178,7 @@ where
         let (ref symbol, bit_len) = bit_lengths[bit_lengths.len() - 1];
         keys.push((symbol.clone(), Key { bits, bit_len }));
 
-        return Self { keys };
+        return Ok(Self { keys });
     }
 
     /// Convert a sequence of values labelled by their number of instances
@@ -173,7 +186,7 @@ where
     /// in the Huffman tree, aka the bitlength of their Huffman key.
     ///
     /// Values that have 0 instances are skipped.
-    pub fn compute_bit_lengths<S>(source: S) -> Vec<(T, BitLen)>
+    pub fn compute_bit_lengths<S>(source: S, max_bit_len: u8) -> Result<Vec<(T, BitLen)>, u8>
     where
         S: IntoIterator<Item = (T, Instances)>,
     {
@@ -194,7 +207,7 @@ where
         let len = heap.len();
         if len == 0 {
             // Special case: no tree to build.
-            return vec![];
+            return Ok(vec![]);
         }
 
         // Take the two rarest nodes, merge them behind a prefix,
@@ -215,31 +228,43 @@ where
         // Convert tree into bit lengths
         let root = heap.pop().unwrap(); // We have checked above that there is at least one value.
         let mut bit_lengths = Vec::with_capacity(len);
-        fn aux<T>(bit_lengths: &mut Vec<(T, BitLen)>, depth: u8, node: &NodeContent<T>)
+        fn aux<T>(
+            bit_lengths: &mut Vec<(T, BitLen)>,
+            max_bit_len: u8,
+            depth: u8,
+            node: &NodeContent<T>,
+        ) -> Result<(), u8>
         where
             T: Clone,
         {
             match *node {
-                NodeContent::Leaf(ref value) => bit_lengths.push((value.clone(), BitLen(depth))),
+                NodeContent::Leaf(ref value) => {
+                    if depth > max_bit_len {
+                        return Err(depth);
+                    }
+                    bit_lengths.push((value.clone(), BitLen(depth)));
+                    Ok(())
+                }
                 NodeContent::Internal {
                     ref left,
                     ref right,
                 } => {
-                    aux(bit_lengths, depth + 1, left);
-                    aux(bit_lengths, depth + 1, right)
+                    aux(bit_lengths, max_bit_len, depth + 1, left)?;
+                    aux(bit_lengths, max_bit_len, depth + 1, right)?;
+                    Ok(())
                 }
             }
         }
-        aux(&mut bit_lengths, 0, &root.0.content);
+        aux(&mut bit_lengths, max_bit_len, 0, &root.0.content)?;
 
-        bit_lengths
+        Ok(bit_lengths)
     }
 }
 
 #[test]
 fn test_coded_from_sequence() {
     let sample = "appl";
-    let coded = Keys::from_sequence(sample.chars());
+    let coded = Keys::from_sequence(sample.chars(), std::u8::MAX).unwrap();
 
     // Symbol 'p' appears twice, we should see 3 codes.
     assert_eq!(coded.keys.len(), 3);
@@ -258,4 +283,7 @@ fn test_coded_from_sequence() {
     assert_eq!(coded.keys[0].1.bits, 0b00);
     assert_eq!(coded.keys[1].1.bits, 0b10);
     assert_eq!(coded.keys[2].1.bits, 0b11);
+
+    // Let's try again with a limit to 1 bit paths.
+    assert_eq!(Keys::from_sequence(sample.chars(), 1).unwrap_err(), 2);
 }
