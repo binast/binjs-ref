@@ -1,7 +1,7 @@
 //! Encoding/decoding based on Huffman tables.
 
 /// Format documentation.
-mod format;
+pub mod format;
 mod prelude;
 mod varnum;
 
