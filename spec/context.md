@@ -1,4 +1,4 @@
-# BinAST "v2" Format
+# Context 0.1 Format (née "fbssdc")
 
 - Dominic Cooney (dpc) 2019-06-27
 - Reformated for markdown David Teller (yoric) 2019-09-02
@@ -6,19 +6,19 @@
 
 # Overview
 
-BinAST is a format for JavaScript programs designed for compact transfer and fast, streaming startup. This document describes the format of the files on disk.
+BinAST is a Work In Progress format for JavaScript programs designed for compact transfer and fast, streaming startup. This document describes the "Context 0.1" format of files on disk.
 
 The goals of this iteration of the BinAST format are to:
  -  Represent JavaScript syntax trees and metadata about variable capture, etc.
  -  Be compact when compressed with Brotli.
  -  Support random access to the content of lazy functions within the decompressed stream.
 
-The syntax trees and metadata are described in this IDL file: https://github.com/facebookexperimental/fbssdc/blob/master/es6.webidl which can be produced using the `binjs_encode` tool’s `--show-ast` option; see https://github.com/binast/binjs-ref/. You should have a copy of the IDL handy when reading this document.
+The syntax trees and metadata are described in this IDL file: https://github.com/binast/binjs-ref/spec/es6.webidl and can be produced using the `binjs_encode` tool’s `--show-ast` option; see https://github.com/binast/binjs-ref/. You should have a copy of the IDL handy when reading this document.
 
 This document describes the structure of the files on disk at the bit level. This document includes commentary about design choices in the format, but not in the AST/IDL structure.
-The BinAST v2 format consists of the following items, in order:
+The Context 0.1 format consists of the following items, in order:
 
-1. A signature, the bytes `89h`, `42h`, `4ah`, `53h` (these three bytes `"BJS"`) `dh` `ah` `0h` `ah` `2h`
+1. A signature, the bytes `89h`, `42h`, `4ah`, `53h` (these three bytes `"BJS"`) `dh` `ah` `0h` `ah` `2h` (NOTE: Currently not implemented!)
 2. A table of strings.
 3. A set of tables for constructing codes used to decode the AST
 4. An encoded Script AST node
@@ -37,10 +37,11 @@ Repeated items will be written between square brackets with braces indicating th
 
 # Signature
 
-The file starts with these bytes: `89h`, `42h`, `4ah`, `53h` (these three bytes `"BJS"`) `dh` `ah` `0h` `ah` `2h`. I believe the final byte is intended as a version number which is why this document casually refers to this iteration of the format as "v2."
+The file starts with these bytes: `89h`, `42h`, `4ah`, `53h` (these three bytes `"BJS"`) `dh` `ah` `0h` `ah` followed by a version number.
 
 ```
-Signature ::= 89h 42h 4ah 53h 0dh 0ah 00h 0ah 02h
+Signature ::= 89h 42h 4ah 53h 0dh 0ah 00h 0ah VersionNumber
+VersionNumber ::= 02h
 ```
 
 # String Table
@@ -98,7 +99,7 @@ Symbols can appear in the file in two ways: literally; or encoded with a code. T
 
 ## Symbol Context Modeling
 
-The BinAST v2 format saves space by using different symbol → code mappings depending on the part of the AST being encoded. For example, when encoding a Boolean value, only two symbols are valid so the BinAST v2 format can use a code which is at most 1 bit long, even though that overlaps with codes in other contexts.
+The Context 0.1 format saves space by using different symbol → code mappings depending on the part of the AST being encoded. For example, when encoding a Boolean value, only two symbols are valid so the format can use a code which is at most 1 bit long, even though that overlaps with codes in other contexts.
 
 There are two kinds of contexts:
 
@@ -142,7 +143,7 @@ EmptyCodeTable ::= 02h
 
 The `UnitCodeTable` is a table with a single symbol. This symbol is assigned given a zero-length code. As a consequence when that table is used to encode a symbol in the tree, it generates no bits in the output.
 
-Because modern minified JavaScript tends to be very regular `UnitCodeTables` occur a lot in practice and are a large contributor to the size reduction of BinAST encoded tree sizes. For example, BinAST tracks whether each scope uses `eval` (see `hasDirectEval` in `es6.webidl`.) However modern JavaScript practice avoids using `eval`. Encoding a unit code table for `false` takes two bytes, `00h 00h`, so BinAST v2 can represent an unlimited number of block scope’s lack of `eval` with a fixed overhead of two bytes -- fewer after Brotli compression.
+Because modern minified JavaScript tends to be very regular `UnitCodeTables` occur a lot in practice and are a large contributor to the size reduction of BinAST encoded tree sizes. For example, BinAST tracks whether each scope uses `eval` (see `hasDirectEval` in `es6.webidl`.) However modern JavaScript practice avoids using `eval`. Encoding a unit code table for `false` takes two bytes, `00h 00h`, so the format can represent an unlimited number of block scope’s lack of `eval` with a fixed overhead of two bytes -- fewer after Brotli compression.
 
 Note that a unit code table is the only way to produce a zero-length code. `MultiCodeTableImplicit` may mention symbols with zero length, but these are skipped during code assignment.
 The `MultiCodeTable` is a table with multiple symbols. There are two variants of the encoding depending on the type of symbol being encoded.
@@ -200,7 +201,7 @@ A decoder should check codes fit in their prescribed length; a file which produc
 ## Symbol Ordering for Code Assignment
 
 
-To briefly recap, BinAST v2 files contain tables specifying the code lengths (but not the codes themselves) of symbols which appear in the serialized AST. The encoder and decoder must agree on the order different symbols with the same code length are assigned codes using the algorithm above. Here is the order:
+To briefly recap, files contain tables specifying the code lengths (but not the codes themselves) of symbols which appear in the serialized AST. The encoder and decoder must agree on the order different symbols with the same code length are assigned codes using the algorithm above. Here is the order:
 
 Type                         | Order for Code Assignment
 -----------------------------|-------------------------------
@@ -216,7 +217,7 @@ Note, this order is for assigning codes. This ordering is not related to the ord
 
 ## Code Table Set Encoding
 
-BinAST v2 can model hundreds of contexts. Most files use far fewer contexts than this. To keep the file compact, the code table set only encodes tables used by the file. It does this by doing a depth-first walk through the fields of the IDL, starting with the fields of the Script interface. The walk is pruned in two ways: when it encounters array length contexts with code tables which only contain the symbol zero; when interface type tags are not present in a set of allowable symbols.
+The format can model hundreds of contexts. Most files use far fewer contexts than this. To keep the file compact, the code table set only encodes tables used by the file. It does this by doing a depth-first walk through the fields of the IDL, starting with the fields of the Script interface. The walk is pruned in two ways: when it encounters array length contexts with code tables which only contain the symbol zero; when interface type tags are not present in a set of allowable symbols.
 
 To decode models:
 
@@ -293,24 +294,3 @@ Unsigned integers appear in various places in the format. These are encoded usin
 ```
 Varuint ::= [1nnnnnnn]{0..4} 0nnnnnnn
 ```
-
-# Suggested improvements to this format
-
-Having implemented multiple encoders and decoders for this format in multiple languages, here is some brief commentary on areas which could be improved:
-
- -  There is no mechanism to detect when a file is paired with the wrong external string table, which would be useful for reporting errors.
- -  This document assumes the encoded content is a script. Encoding a module is straightforward but a decoder must rely on an out-of-band signal about whether the file contains a script or a module. The file should include this flag.
- -  The format only supports seeking within the decompressed stream. With better native compression, the Brotli "wrapper" would not be necessary and the format could seek instead within the compressed stream. I believe the primary problem with sizes today is the verbose encoding of code tables.
- -  The presence of an EmptyCodeTable could suppress encoding the length for a given array, which must be zero at that point.
- -  The input AST structure has a number of redundancies which the compressor does not exploit, but could exploit, for smaller file sizes. For example there is a lot of overlap between parameter lists and declared names.
- -  The format only shares codes between StaticMemberAssignmentTarget.property and StaticMemberExpression.property; more sharing or imputing is probably beneficial.
- -  There is rarely overlap between property names and other strings. It may be beneficial to treat them as distinct types of values.
-
-  -  The format uses a fixed code for a given field; having multiple codes and switching between them is probably beneficial.
- -  Huffman codes do not model some practical probability distributions well. Encodings like ANS would be better. Alternatively, model switching may address this problem.
-
-# Revision History
-
-2019-06-27 First version.
-2019-06-28 Removed a level of headings.
-2019-09-02 Reformated for markdown.
