@@ -35,23 +35,64 @@ impl std::ops::Shl<BitLen> for u32 {
     }
 }
 
+/// Convenience implementation of operator `>>` in
+/// `bits >> bit_len`
+impl std::ops::Shr<BitLen> for u32 {
+    type Output = u32;
+    fn shr(self, rhs: BitLen) -> u32 {
+        self >> Into::<u8>::into(rhs)
+    }
+}
+
 /// The largerst acceptable length for a key.
 ///
 /// Hardcoded in the format.
 const MAX_CODE_BIT_LENGTH: u8 = 20;
 
+// privacy barrier
+mod key {
+    use context::huffman::BitLen;
+
 /// A Huffman key
 #[derive(Debug)]
-struct Key {
+pub struct Key {
     /// The bits in the key.
     ///
     /// Note that we only use the `bit_len` lowest-weight bits.
-    /// Any other bit is ignored.
+    /// Any other bit MUST BE 0.
     bits: u32,
 
     /// The number of bits of `bits` to use.
     bit_len: BitLen,
 }
+impl Key {
+    /// Create a new Key.
+    pub fn new(bits: u32, bit_len: BitLen) -> Self {
+        debug_assert!({let bit_len : u8 = bit_len.into(); bit_len <= 32});
+        debug_assert!({let bit_len : u8 = bit_len.into(); if bit_len < 32 { bits >> bit_len == 0 } else { true }});
+        Key {
+            bits,
+            bit_len,
+        }
+    }
+
+    /// The bits in the key.
+    ///
+    /// Note that we only use the `bit_len` lowest-weight bits.
+    /// Any other bit is guaranteed to be 0.
+    pub fn bits(&self) -> u32 {
+        self.bits
+    }
+
+    /// The number of bits of `bits` to use.
+    pub fn bit_len(&self) -> BitLen {
+        self.bit_len
+    }
+}
+
+} // mod key
+
+use self::key::Key;
 
 /// A node in the Huffman tree.
 struct Node<T> {
@@ -171,12 +212,12 @@ where
                 bit_lengths[i].0.clone(),
                 bit_lengths[i + 1].1,
             );
-            keys.push((symbol.clone(), Key { bits, bit_len }));
+            keys.push((symbol.clone(), Key::new(bits, bit_len)));
             bits = (bits + 1) << (next_bit_len - bit_len);
         }
         // Handle the last element.
         let (ref symbol, bit_len) = bit_lengths[bit_lengths.len() - 1];
-        keys.push((symbol.clone(), Key { bits, bit_len }));
+        keys.push((symbol.clone(), Key::new(bits, bit_len)));
 
         return Ok(Self { keys });
     }
@@ -275,14 +316,14 @@ fn test_coded_from_sequence() {
     assert_eq!(coded.keys[2].0, 'l');
 
     // Check bit length of symbols.
-    assert_eq!(coded.keys[0].1.bit_len, 1.into());
-    assert_eq!(coded.keys[1].1.bit_len, 2.into());
-    assert_eq!(coded.keys[2].1.bit_len, 2.into());
+    assert_eq!(coded.keys[0].1.bit_len(), 1.into());
+    assert_eq!(coded.keys[1].1.bit_len(), 2.into());
+    assert_eq!(coded.keys[2].1.bit_len(), 2.into());
 
     // Check code of symbols.
-    assert_eq!(coded.keys[0].1.bits, 0b00);
-    assert_eq!(coded.keys[1].1.bits, 0b10);
-    assert_eq!(coded.keys[2].1.bits, 0b11);
+    assert_eq!(coded.keys[0].1.bits(), 0b00);
+    assert_eq!(coded.keys[1].1.bits(), 0b10);
+    assert_eq!(coded.keys[2].1.bits(), 0b11);
 
     // Let's try again with a limit to 1 bit paths.
     assert_eq!(Keys::from_sequence(sample.chars(), 1).unwrap_err(), 2);
