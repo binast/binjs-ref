@@ -1,8 +1,9 @@
 //! Encoding/decoding based on Huffman tables.
+#![allow(dead_code)] // Silence dead code warnings until they make sense.
 
 /// Format documentation.
 mod format;
-mod prelude;
+mod huffman;
 mod varnum;
 
 /// A four-char name embedded in the binary.
