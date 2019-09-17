@@ -10,6 +10,7 @@ pub mod read;
 
 /// A newtype for `u8` used to count the length of a key in bits.
 #[derive(
+    Constructor,
     Debug,
     Default,
     Display,
@@ -82,30 +83,63 @@ impl BitSequence {
     pub fn new(bits: u32, bit_len: BitLen) -> Self {
         Self { bits, bit_len }
     }
+
     pub fn bits(&self) -> u32 {
         self.bits
     }
+
     /// The number of bits of `bits` to use.
     pub fn bit_len(&self) -> BitLen {
         self.bit_len
     }
+
+    /// Split the bits into a prefix of `bit_len` bits and a suffix containing the
+    /// remaining bits.
+    ///
+    /// If `bit_len` is larger than the number of bits, the prefix is padded with
+    /// lower-weight bits into `bit_len` bits.
+    pub fn split_bits(&self, bit_len: BitLen) -> (u32, u32) {
+        debug_assert!(bit_len.as_u8() <= 32);
+        if self.bit_len <= bit_len {
+            let padding = bit_len - self.bit_len;
+            (self.bits << padding, 0)
+        } else {
+            let shift = self.bit_len - bit_len;
+            match shift.into() {
+                32u8 => (0, self.bits), // Special case: cannot >> 32
+                shift => (
+                    self.bits >> shift,
+                    self.bits & (std::u32::MAX >> 32 - shift),
+                ),
+            }
+        }
+    }
+
     /// Split the bits into a prefix of `bit_len` bits and a suffix of `self.bit_len - bit_len`
     /// bits.
     ///
     /// # Failure
     ///
     /// This function panics if `bit_len > self.bit_len`.
-    pub fn split(&self, bit_len: BitLen) -> (u32, u32) {
-        let shift = self.bit_len - bit_len;
-        match shift.into() {
-            0u8 => (self.bits, 0),  // Special case: cannot >> 32
-            32u8 => (0, self.bits), // Special case: cannot >> 32
-            shift => (
-                self.bits >> shift,
-                self.bits & (std::u32::MAX >> 32 - shift),
+    pub fn split(&self, bit_len: BitLen) -> (BitSequence, BitSequence) {
+        let (prefix, suffix) = self.split_bits(bit_len);
+        (
+            BitSequence::new(prefix, bit_len),
+            BitSequence::new(
+                suffix,
+                if self.bit_len >= bit_len {
+                    self.bit_len - bit_len
+                } else {
+                    BitLen::new(0)
+                },
             ),
-        }
+        )
     }
+
+    /// Add lowest-weight to this bit sequence bits until it reaches
+    /// a sufficient bit length.
+    ///
+    /// Does nothing if the bit sequence already has a sufficient bitlength.
     pub fn pad_lowest_to(&self, total_bit_len: BitLen) -> Cow<BitSequence> {
         assert!(total_bit_len.0 <= 32u8);
         if total_bit_len <= self.bit_len {
@@ -117,21 +151,93 @@ impl BitSequence {
         }
         Cow::Owned(BitSequence::new(self.bits << shift, total_bit_len))
     }
+
+    /// Prepend a sequence of bits to a sequencce.s
+    pub fn with_prefix(&self, prefix: &BitSequence) -> Self {
+        assert!((prefix.bit_len() + self.bit_len()).as_u8() <= 32);
+        let bits = self.bits | (prefix.bits() << self.bit_len);
+        let bit_len = self.bit_len + prefix.bit_len;
+        BitSequence::new(bits, bit_len)
+    }
+
+    /// Return a range representing all possible suffixes of this `BitSequence`
+    /// containing exactly `bit_len` bits.
+    ///
+    /// If this `BitSequence` is already at least `bit_len` bits long, we
+    /// truncate the `BitSequence` to `bit_len` bits by removing the
+    /// lower-weight bits and there is only one such suffix.
+    ///
+    /// ```
+    /// use binjs_io::context::huffman::{ BitLen, BitSequence };
+    ///
+    /// let zero = BitSequence::new(0, BitLen::new(0));
+    ///
+    /// let range = zero.suffixes(BitLen::new(0));
+    /// assert_eq!(range, 0..1);
+    ///
+    /// let range = zero.suffixes(BitLen::new(2));
+    /// assert_eq!(range, 0..4);
+    ///
+    /// let range = zero.suffixes(BitLen::new(3));
+    /// assert_eq!(range, 0..8);
+    ///
+    /// let range = zero.suffixes(BitLen::new(4));
+    /// assert_eq!(range, 0..16);
+    ///
+    /// let sequence = BitSequence::new(0b00000100, BitLen::new(3));
+    ///
+    /// let range = sequence.suffixes(BitLen::new(0));
+    /// assert_eq!(range, 0..1);
+    ///
+    /// let range = sequence.suffixes(BitLen::new(2));
+    /// assert_eq!(range, 2..3);
+    ///
+    /// let range = sequence.suffixes(BitLen::new(3));
+    /// assert_eq!(range, 4..5);
+    ///
+    /// let range = sequence.suffixes(BitLen::new(4));
+    /// assert_eq!(range, 8..10); // 0b000001000 to 0b00001001 included
+    /// ```
+    pub fn suffixes(&self, bit_len: BitLen) -> std::ops::Range<u32> {
+        debug_assert!(bit_len.as_u8() as usize <= 8 * std::mem::size_of_val(&self.bits()));
+        debug_assert!(
+            std::mem::size_of_val(&self.bits()) == std::mem::size_of::<u32>(),
+            "The arithmetics relies upon the fact that we're only using `u32` for Huffman keys"
+        );
+        let (first, last) = if bit_len <= self.bit_len() {
+            // We have too many bits, we need to truncate the bits,
+            // then return a single element.
+            let shearing: u8 = (self.bit_len() - bit_len).as_u8();
+            let first = if shearing == 32 {
+                0
+            } else {
+                self.bits() >> shearing
+            };
+            (first, first)
+        } else {
+            // We need to pad with lower-weight 0s.
+            let padding: u8 = (bit_len - self.bit_len()).as_u8();
+            let first = self.bits() << padding;
+            let len = std::u32::MAX >> (8 * std::mem::size_of::<u32>() as u8 - padding);
+            (first, first + len)
+        };
+        first..(last + 1)
+    }
 }
 
 #[test]
 fn test_bit_sequence_split() {
     let bits = 0b11111111_11111111_00000000_00000000;
     let key = BitSequence::new(bits, BitLen(32));
-    assert_eq!(key.split(BitLen(0)), (0, bits));
-    assert_eq!(key.split(BitLen(32)), (bits, 0));
-    assert_eq!(key.split(BitLen(16)), (0b11111111_11111111, 0));
+    assert_eq!(key.split_bits(BitLen(0)), (0, bits));
+    assert_eq!(key.split_bits(BitLen(32)), (bits, 0));
+    assert_eq!(key.split_bits(BitLen(16)), (0b11111111_11111111, 0));
 
     let bits = 0b00000000_00000000_00000000_11111111;
     let key = BitSequence::new(bits, BitLen(16));
-    assert_eq!(key.split(BitLen(0)), (0, bits));
-    assert_eq!(key.split(BitLen(16)), (bits, 0));
-    assert_eq!(key.split(BitLen(8)), (0, 0b11111111));
+    assert_eq!(key.split_bits(BitLen(0)), (0, bits));
+    assert_eq!(key.split_bits(BitLen(16)), (bits, 0));
+    assert_eq!(key.split_bits(BitLen(8)), (0, 0b11111111));
 }
 
 /// A Huffman key
@@ -159,6 +265,10 @@ impl Key {
         Key(BitSequence { bits, bit_len })
     }
 
+    pub fn from_bit_sequence(sequence: BitSequence) -> Self {
+        Self::new(sequence.bits, sequence.bit_len)
+    }
+
     /// The bits in this Key.
     ///
     /// # Invariant
@@ -175,6 +285,11 @@ impl Key {
 
     pub fn as_bit_sequence(&self) -> &BitSequence {
         &self.0
+    }
+
+    pub fn with_prefix(&self, prefix: &BitSequence) -> Self {
+        let sequence = self.0.with_prefix(prefix);
+        Key::from_bit_sequence(sequence)
     }
 }
 
@@ -219,43 +334,46 @@ impl<T> PartialEq for Node<T> {
 }
 impl<T> Eq for Node<T> {}
 
-/// Keys associated to a sequence of values.
+/// Codebook associated to a sequence of values.
 #[derive(Clone, Debug)]
-pub struct Keys<T> {
-    /// The longest bit length that actually appears in `keys`.
+pub struct Codebook<T> {
+    /// The longest bit length that actually appears in `mappings`.
     highest_bit_len: BitLen,
 
     /// The sequence of keys.
     ///
     /// Order is meaningful.
-    keys: Vec<(T, Key)>,
+    mappings: Vec<(T, Key)>,
 }
 
-impl<T> Keys<T> {
+impl<T> Codebook<T> {
+    /// The number of elements in this Codebook.
     pub fn len(&self) -> usize {
-        self.keys.len()
+        self.mappings.len()
     }
+
+    /// The longest bit length that acctually appears in this Codebook.
     pub fn highest_bit_len(&self) -> BitLen {
         self.highest_bit_len
     }
 }
 
-impl<T> IntoIterator for Keys<T> {
+impl<T> IntoIterator for Codebook<T> {
     type Item = (T, Key);
     type IntoIter = std::vec::IntoIter<(T, Key)>;
     fn into_iter(self) -> Self::IntoIter {
-        self.keys.into_iter()
+        self.mappings.into_iter()
     }
 }
 
-impl<T> Keys<T>
+impl<T> Codebook<T>
 where
     T: Ord + Clone,
 {
-    /// Compute a `Keys` from a sequence of values.
+    /// Compute a `Codebook` from a sequence of values.
     ///
     /// Optionally, `max_bit_len` may specify a largest acceptable bit length.
-    /// If `Keys` may not be computed without exceeding this bit length,
+    /// If the `Codebook` may not be computed without exceeding this bit length,
     /// fail with `Err(problemantic_bit_len)`.
     ///
     /// The current implementation only attempts to produce the best compression
@@ -278,11 +396,11 @@ where
             let counter = map.entry(item).or_insert(0.into());
             *counter += 1.into();
         }
-        // Then compute the `Keys`.
+        // Then compute the `Codebook`.
         Self::from_instances(map, max_bit_len)
     }
 
-    /// Compute a `Keys` from a sequence of values
+    /// Compute a `Codebook` from a sequence of values
     /// with a number of instances already attached.
     ///
     /// The current implementation only attempts to produce the best compression
@@ -305,7 +423,7 @@ where
 
         // The bits associated to the next value.
         let mut bits = 0;
-        let mut keys = Vec::with_capacity(bit_lengths.len());
+        let mut mappings = Vec::with_capacity(bit_lengths.len());
 
         for i in 0..bit_lengths.len() - 1 {
             let (bit_len, symbol, next_bit_len) = (
@@ -313,7 +431,7 @@ where
                 bit_lengths[i].0.clone(),
                 bit_lengths[i + 1].1,
             );
-            keys.push((symbol.clone(), Key::new(bits, bit_len)));
+            mappings.push((symbol.clone(), Key::new(bits, bit_len)));
             bits = (bits + 1) << (next_bit_len - bit_len);
             if bit_len > highest_bit_len {
                 highest_bit_len = bit_len;
@@ -321,11 +439,11 @@ where
         }
         // Handle the last element.
         let (ref symbol, bit_len) = bit_lengths[bit_lengths.len() - 1];
-        keys.push((symbol.clone(), Key::new(bits, bit_len)));
+        mappings.push((symbol.clone(), Key::new(bits, bit_len)));
 
         return Ok(Self {
             highest_bit_len,
-            keys,
+            mappings,
         });
     }
 
@@ -412,26 +530,73 @@ where
 #[test]
 fn test_coded_from_sequence() {
     let sample = "appl";
-    let coded = Keys::from_sequence(sample.chars(), std::u8::MAX).unwrap();
+    let coded = Codebook::from_sequence(sample.chars(), std::u8::MAX).unwrap();
 
     // Symbol 'p' appears twice, we should see 3 codes.
-    assert_eq!(coded.keys.len(), 3);
+    assert_eq!(coded.mappings.len(), 3);
 
     // Check order of symbols.
-    assert_eq!(coded.keys[0].0, 'p');
-    assert_eq!(coded.keys[1].0, 'a');
-    assert_eq!(coded.keys[2].0, 'l');
+    assert_eq!(coded.mappings[0].0, 'p');
+    assert_eq!(coded.mappings[1].0, 'a');
+    assert_eq!(coded.mappings[2].0, 'l');
 
     // Check bit length of symbols.
-    assert_eq!(coded.keys[0].1.bit_len(), 1.into());
-    assert_eq!(coded.keys[1].1.bit_len(), 2.into());
-    assert_eq!(coded.keys[2].1.bit_len(), 2.into());
+    assert_eq!(coded.mappings[0].1.bit_len(), 1.into());
+    assert_eq!(coded.mappings[1].1.bit_len(), 2.into());
+    assert_eq!(coded.mappings[2].1.bit_len(), 2.into());
 
     // Check code of symbols.
-    assert_eq!(coded.keys[0].1.bits(), 0b00);
-    assert_eq!(coded.keys[1].1.bits(), 0b10);
-    assert_eq!(coded.keys[2].1.bits(), 0b11);
+    assert_eq!(coded.mappings[0].1.bits(), 0b00);
+    assert_eq!(coded.mappings[1].1.bits(), 0b10);
+    assert_eq!(coded.mappings[2].1.bits(), 0b11);
 
     // Let's try again with a limit to 1 bit paths.
-    assert_eq!(Keys::from_sequence(sample.chars(), 1).unwrap_err(), 2);
+    assert_eq!(Codebook::from_sequence(sample.chars(), 1).unwrap_err(), 2);
+}
+
+impl<T> Codebook<T> {
+    /// Create an empty Codebook
+    pub fn new() -> Self {
+        Self {
+            highest_bit_len: BitLen::new(0),
+            mappings: vec![],
+        }
+    }
+
+    /// Create an empty Codebook
+    pub fn with_capacity(len: usize) -> Self {
+        Self {
+            highest_bit_len: BitLen::new(0),
+            mappings: Vec::with_capacity(len),
+        }
+    }
+
+    /// Add a mapping to a Codebook.
+    ///
+    /// This method does **not** check that the resulting Codebook is correct.
+    pub unsafe fn add_mapping(&mut self, value: T, key: Key) {
+        if key.bit_len() > self.highest_bit_len {
+            self.highest_bit_len = key.bit_len();
+        }
+        self.mappings.push((value, key));
+    }
+
+    /// Return the mappings of a Codebook.
+    pub fn mappings(self) -> Vec<(T, Key)> {
+        self.mappings
+    }
+
+    pub fn map<F, U>(self, mut f: F) -> Codebook<U>
+    where
+        F: FnMut(T) -> U,
+    {
+        Codebook {
+            highest_bit_len: self.highest_bit_len,
+            mappings: self
+                .mappings
+                .into_iter()
+                .map(|(value, key)| (f(value), key))
+                .collect(),
+        }
+    }
 }

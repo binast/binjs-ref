@@ -3,7 +3,7 @@
 
 /// Format documentation.
 mod format;
-mod huffman;
+pub mod huffman;
 mod varnum;
 
 /// A four-char name embedded in the binary.
