@@ -11,8 +11,28 @@ impl std::iter::Sum for Bytes {
 }
 
 /// A newtype for `usize` used to count the number of instances of some item.
-#[derive(Default, Display, Serialize, Deserialize, From, Into, Add, AddAssign, Clone, Copy)]
+#[derive(
+    Default,
+    Display,
+    Serialize,
+    Deserialize,
+    From,
+    Into,
+    Add,
+    AddAssign,
+    Clone,
+    Copy,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+)]
 pub struct Instances(usize);
+impl Instances {
+    pub fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+}
 
 impl std::iter::Sum for Instances {
     fn sum<I>(iter: I) -> Self
