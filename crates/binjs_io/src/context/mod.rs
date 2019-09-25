@@ -2,8 +2,9 @@
 #![allow(dead_code)] // Silence dead code warnings until they make sense.
 
 /// Format documentation.
-mod format;
+pub mod format;
 mod huffman;
+mod prelude;
 mod varnum;
 
 /// A four-char name embedded in the binary.
