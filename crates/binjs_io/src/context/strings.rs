@@ -1,6 +1,6 @@
-use context::varnum::ReadVaru32;
+use context::varnum::{ReadVaru32, WriteVaru32};
 
-use std::io::{Error, ErrorKind, Read};
+use std::io::{Error, ErrorKind, Read, Write};
 
 /// The magic header for external strings dictionaries.
 const DICTIONARY_MAGIC_HEADER: &'static [u8; 7] = b"astdict";
@@ -10,12 +10,14 @@ const DICTIONARY_MAGIC_HEADER: &'static [u8; 7] = b"astdict";
 /// Generally wrapped either in a StringPrelude (if read as part of a compressed binast
 /// file) or in an external `StringDictionary`.
 pub struct StringTable {
-    strings: Vec<String>,
+    strings: Vec<Vec<u8>>,
 }
+
+// ---- Reading
 
 impl StringTable {
     /// The strings in the table, in the order in which they appear in the stream.
-    pub fn strings(&self) -> &[String] {
+    pub fn strings(&self) -> &[Vec<u8>] {
         self.strings.as_ref()
     }
 
@@ -54,9 +56,7 @@ impl StringTable {
                 chars.push(byte);
             }
             // Attempt to decode string as UTF-8.
-            let string = String::from_utf8(chars)
-                .or_else(|_| Err(Error::new(ErrorKind::InvalidData, "Invalid utf-8")))?;
-            strings.push(string);
+            strings.push(chars);
         }
 
         Ok(StringTable { strings })
@@ -69,7 +69,7 @@ pub struct ExternalStringDictionary {
 
 impl ExternalStringDictionary {
     /// The strings in this dictionary, in the order in which they appear in the stream.
-    pub fn strings(&self) -> &[String] {
+    pub fn strings(&self) -> &[Vec<u8>] {
         self.strings.strings()
     }
 
@@ -93,4 +93,76 @@ impl ExternalStringDictionary {
         let strings = StringTable::read(input)?;
         Ok(ExternalStringDictionary { strings })
     }
+}
+
+#[test]
+fn test_empty_external_string_dictionary() {
+    let bytes = b"astdict\0";
+    let mut input = std::io::Cursor::new(&bytes);
+    let dictionary = ExternalStringDictionary::read(&mut input).unwrap();
+    assert_eq!(dictionary.strings().len(), 0);
+}
+
+// ----- Writing
+
+impl StringTable {
+    pub fn new() -> Self {
+        StringTable {
+            strings: Vec::new(),
+        }
+    }
+    pub fn with_capacity(capacity: usize) -> Self {
+        StringTable {
+            strings: Vec::with_capacity(capacity),
+        }
+    }
+    pub fn from_buffers(strings: Vec<Vec<u8>>) -> Self {
+        StringTable { strings }
+    }
+    pub fn add_buffer(&mut self, string: Vec<u8>) {
+        self.strings.push(string);
+    }
+    pub fn write(&self, mut out: &mut dyn Write) -> Result<(), Error> {
+        // Write the length.
+        out.write_varu32(self.strings.len() as u32)?;
+
+        // Write each string, NUL-terminated.
+        for buf in &self.strings {
+            // Write bytes one by one to handle escapes.
+            for byte in buf {
+                match byte {
+                    0 | 1 =>
+                    /* escape byte */
+                    {
+                        out.write_all(&[1, *byte])
+                    }
+                    _ => out.write_all(&[*byte]),
+                }?;
+            }
+            // NUL terminator
+            out.write_all(&[0])?;
+        }
+
+        Ok(())
+    }
+}
+
+#[test]
+fn test_write_and_read_string_tables() {
+    use std::io::Cursor;
+
+    // Generate samples with a few embedded '0's and '1's.
+    let samples: Vec<Vec<u8>> = (0..300)
+        .map(|len| (0..len).map(|i| (i % 256) as u8).collect())
+        .collect();
+
+    let reference = StringTable::from_buffers(samples);
+
+    // Write table, read it back.
+    let mut buf = Vec::new();
+    reference.write(&mut buf).unwrap();
+
+    let result = StringTable::read(&mut Cursor::new(buf)).unwrap();
+
+    assert_eq!(result.strings(), reference.strings());
 }
