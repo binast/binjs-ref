@@ -7,10 +7,9 @@ matrix:
       before_script:
         - rustup component add rustfmt
       script:
-        - >
-          cargo fmt --all -- --check &&
-          cargo build --verbose &&
-          cargo test --all -- --nocapture
+        - cargo fmt --all -- --check
+        - cargo build --verbose
+        - cargo test --all -- --nocapture
       rust:
         - stable
       node_js:
