@@ -4,8 +4,10 @@
 //! into values.
 
 use context::huffman::*;
+use context::varnum::ReadVaru32;
 
-use std::convert::{TryFrom, TryInto};
+use std::convert::{ TryFrom, TryInto };
+use std::io::{ self, Read };
 
 /// A Huffman table.
 ///
@@ -596,4 +598,82 @@ Viverra arcu dapibus nam magna a imperdiet inceptos cubilia libero lobortis prae
     run_test::<MultiLookupHuffmanTable<char, SingleLookupHuffmanTable<usize, usize>>, _>(
         |codebook| MultiLookupHuffmanTable::from_codebook(BitLen(10), codebook),
     );
+}
+
+
+impl<T> Codebook<T> where T: Ord + Clone {
+    /// Parse a Codebook containing a single symbol.
+    fn parse_single_symbol<A, R>(mut inp: R) -> Result<Self, io::Error> where A: Alphabet<Symbol=T>, R: Read {
+        let symbol = A::read_literal(&mut inp)?;
+        Codebook::from_bit_lens(vec![(symbol, BitLen::new(0))], MAX_CODE_BIT_LEN)
+            .map_err(|_|
+                io::Error::new(io::ErrorKind::InvalidData, "Could not derive a Codebook that does not exceed MAX_CODE_BIT_LEN")
+            )
+    }
+
+    /// Parse a Codebook for `StaticAlphabet`.
+    fn parse_static<A, R>(mut inp: R) -> Result<Self, io::Error> where A: StaticAlphabet<Symbol=T>, R: Read {
+        let mut byte = [0];
+        inp.read_exact(&mut byte)?;
+        match byte[0] {
+            0 => /* spec: UnitCodeTable */ Self::parse_single_symbol::<A, R>(inp),
+            1 => /* spec: MultiCodeTableImplicit */ {
+                let number_of_symbols = A::len();
+                let mut bit_lens = Vec::with_capacity(number_of_symbols as usize);
+                for i in 0..number_of_symbols {
+                    // Read the bit length.
+                    let mut byte = [0];
+                    inp.read_exact(&mut byte)?;
+                    let bit_len = BitLen::new(byte[0]);
+
+                    // Extract the symbol from the grammar.
+                    let symbol = A::index(i).unwrap(); // We're within 0..A::len()
+
+                    bit_lens.push((symbol, bit_len));
+                }
+                // Finally, build a codebook.
+                Codebook::from_bit_lens(bit_lens, MAX_CODE_BIT_LEN)
+                    .map_err(|_|
+                        io::Error::new(io::ErrorKind::InvalidData, "Could not derive a Codebook that does not exceed MAX_CODE_BIT_LEN")
+                    )
+            }
+            2 => /* spec: EmptyCodeTable */ Ok(Codebook::new()),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Incorrect CodeTable kind"))
+        }
+    }
+
+    /// Parse a Codebook for `DynamicAlphabet`.
+    fn parse_dynamic<A, R>(mut inp: R) -> Result<Self, io::Error> where A: DynamicAlphabet<Symbol=T>, R: Read, T: Default {
+        let mut byte = [0];
+        inp.read_exact(&mut byte)?;
+        match byte[0] {
+            0 => /* spec: UnitCodeTable */ Self::parse_single_symbol::<A, R>(inp),
+            1 => /* spec: MultiCodeTableExplicit */ {
+                let number_of_symbols = *inp.read_varu32_no_normalization()?.value();
+                // FIXME: We may need to guard against DoS by high `number_of_symbols`.
+                let mut bit_lens = Vec::with_capacity(number_of_symbols as usize);
+
+                // Read bit lengths.
+                for _ in 0..number_of_symbols {
+                    let mut byte = [0];
+                    inp.read_exact(&mut byte)?;
+                    bit_lens.push((T::default(), BitLen::new(byte[0])));
+                }
+
+                // Amend with symbols
+                for i in 0..number_of_symbols {
+                    let symbol = A::read_literal(&mut inp)?;
+                    bit_lens[i as usize].0 = symbol;
+                }
+
+                // Finally, build a codebook.
+                Codebook::from_bit_lens(bit_lens, MAX_CODE_BIT_LEN)
+                    .map_err(|_|
+                        io::Error::new(io::ErrorKind::InvalidData, "Could not derive a Codebook that does not exceed MAX_CODE_BIT_LEN")
+                    )
+            }
+            2 => /* spec: EmptyCodeTable */ Ok(Codebook::new()),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Incorrect CodeTable kind"))
+        }
+    }
 }

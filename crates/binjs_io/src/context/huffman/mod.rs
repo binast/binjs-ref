@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::hash::Hash;
+use std::io;
 
 /// Reading from bitstreams and decoding their contents using Huffman tables.
 pub mod read;
@@ -35,6 +36,10 @@ impl BitLen {
         self.0
     }
 }
+
+/// The maximal number of bits permitted in a Huffman key
+/// in this format.
+pub const MAX_CODE_BIT_LEN: BitLen = BitLen(20);
 
 /// Convenience implementation of operator `<<` in
 /// `bits << bit_len`
@@ -385,7 +390,7 @@ where
     ///
     /// Values (type `T`) will be cloned regularly, so you should make
     /// sure that their cloning is reasonably cheap.
-    pub fn from_sequence<S>(source: S, max_bit_len: u8) -> Result<Self, u8>
+    pub fn from_sequence<S>(source: S, max_bit_len: BitLen) -> Result<Self, BitLen>
     where
         S: IntoIterator<Item = T>,
         T: PartialEq + Hash,
@@ -411,25 +416,41 @@ where
     /// # Requirement
     ///
     /// Values of `T` in the source MUST be distinct.
-    pub fn from_instances<S>(source: S, max_bit_len: u8) -> Result<Self, u8>
+    pub fn from_instances<S>(source: S, max_bit_len: BitLen) -> Result<Self, BitLen>
     where
         S: IntoIterator<Item = (T, Instances)>,
     {
-        let mut bit_lengths = Self::compute_bit_lengths(source, max_bit_len)?;
+        let bit_lengths = Self::compute_bit_lengths(source, max_bit_len)?;
+        Self::from_bit_lens(bit_lengths, max_bit_len)
+    }
+
+    /// Compute a `Codebook` from a sequence of values
+    /// with a bit length already attached.
+    ///
+    /// The current implementation only attempts to produce the best compression
+    /// level. This may cause us to exceed `max_bit_len` even though an
+    /// alternative table, with a lower compression level, would let us
+    /// proceed without exceeding `max_bit_len`.
+    ///
+    /// # Requirement
+    ///
+    /// Values of `T` in the source MUST be distinct.
+    pub fn from_bit_lens(mut bit_lens: Vec<(T, BitLen)>, max_bit_len: BitLen) -> Result<Self, BitLen>
+    {
         let mut highest_bit_len = BitLen(0);
 
         // Canonicalize order: (BitLen, T)
-        bit_lengths.sort_unstable_by_key(|&(ref value, ref bit_len)| (*bit_len, value.clone()));
+        bit_lens.sort_unstable_by_key(|&(ref value, ref bit_len)| (*bit_len, value.clone()));
 
         // The bits associated to the next value.
         let mut bits = 0;
-        let mut mappings = Vec::with_capacity(bit_lengths.len());
+        let mut mappings = Vec::with_capacity(bit_lens.len());
 
-        for i in 0..bit_lengths.len() - 1 {
+        for i in 0..bit_lens.len() - 1 {
             let (bit_len, symbol, next_bit_len) = (
-                bit_lengths[i].1,
-                bit_lengths[i].0.clone(),
-                bit_lengths[i + 1].1,
+                bit_lens[i].1,
+                bit_lens[i].0.clone(),
+                bit_lens[i + 1].1,
             );
             mappings.push((symbol.clone(), Key::new(bits, bit_len)));
             bits = (bits + 1) << (next_bit_len - bit_len);
@@ -438,8 +459,15 @@ where
             }
         }
         // Handle the last element.
-        let (ref symbol, bit_len) = bit_lengths[bit_lengths.len() - 1];
+        let (ref symbol, bit_len) = bit_lens[bit_lens.len() - 1];
+        if bit_len > highest_bit_len {
+            highest_bit_len = bit_len;
+        }
         mappings.push((symbol.clone(), Key::new(bits, bit_len)));
+
+        if highest_bit_len > max_bit_len {
+            return Err(highest_bit_len)
+        }
 
         return Ok(Self {
             highest_bit_len,
@@ -452,7 +480,7 @@ where
     /// in the Huffman tree, aka the bitlength of their Huffman key.
     ///
     /// Values that have 0 instances are skipped.
-    pub fn compute_bit_lengths<S>(source: S, max_bit_len: u8) -> Result<Vec<(T, BitLen)>, u8>
+    pub fn compute_bit_lengths<S>(source: S, max_bit_len: BitLen) -> Result<Vec<(T, BitLen)>, u8>
     where
         S: IntoIterator<Item = (T, Instances)>,
     {
@@ -496,7 +524,7 @@ where
         let mut bit_lengths = Vec::with_capacity(len);
         fn aux<T>(
             bit_lengths: &mut Vec<(T, BitLen)>,
-            max_bit_len: u8,
+            max_bit_len: BitLen,
             depth: u8,
             node: &NodeContent<T>,
         ) -> Result<(), u8>
@@ -505,7 +533,7 @@ where
         {
             match *node {
                 NodeContent::Leaf(ref value) => {
-                    if depth > max_bit_len {
+                    if depth > max_bit_len.as_u8() {
                         return Err(depth);
                     }
                     bit_lengths.push((value.clone(), BitLen(depth)));
@@ -586,17 +614,41 @@ impl<T> Codebook<T> {
         self.mappings
     }
 
-    pub fn map<F, U>(self, mut f: F) -> Codebook<U>
-    where
-        F: FnMut(T) -> U,
-    {
-        Codebook {
-            highest_bit_len: self.highest_bit_len,
-            mappings: self
-                .mappings
-                .into_iter()
-                .map(|(value, key)| (f(value), key))
-                .collect(),
-        }
+
+    /// Iterate through this Codebook.
+    pub fn iter(&self) -> impl Iterator<Item = &(T, Key)> {
+        self.mappings.iter()
     }
 }
+
+/// An alphabet of symbols.
+pub trait Alphabet {
+    type Symbol: Ord + Clone;
+
+    /// Read a symbol from an input stream.
+    fn read_literal<R>(input: R) -> Result<Self::Symbol, io::Error>
+        where R: io::Read;
+}
+
+/// An alphabet of symbols known statically from the grammar.
+/// Also known as `Implicit Symbols` in the grammar.
+///
+/// For instance, in most languages, there is a finite set of
+/// arithmetic operators specified by the grammar.
+pub trait StaticAlphabet: Alphabet {
+    /// The number of symbols in this static alphabet.
+    fn len() -> u32;
+
+    /// Return the nth value of the alphabet of `None` if there is no such value.
+    fn index(u32) -> Option<Self::Symbol>;
+}
+
+/// An alphabet of symbols known dynamically from the file.
+/// Also known as `Explicit Symbols` in the grammar.
+///
+/// For instance, in most languages, the set of literal strings
+/// actually used in a file is determined by the user, not by
+/// the grammar.
+pub trait DynamicAlphabet: Alphabet {
+}
+
