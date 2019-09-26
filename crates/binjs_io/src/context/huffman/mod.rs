@@ -6,6 +6,9 @@ use std::collections::{BinaryHeap, HashMap};
 use std::hash::Hash;
 use std::io;
 
+/// Huffman trees.
+mod codebook;
+
 /// Reading from bitstreams and decoding their contents using Huffman tables.
 pub mod read;
 
@@ -339,295 +342,18 @@ impl<T> PartialEq for Node<T> {
 }
 impl<T> Eq for Node<T> {}
 
-/// Codebook associated to a sequence of values.
-#[derive(Clone, Debug)]
-pub struct Codebook<T> {
-    /// The longest bit length that actually appears in `mappings`.
-    highest_bit_len: BitLen,
-
-    /// The sequence of keys.
-    ///
-    /// Order is meaningful.
-    mappings: Vec<(T, Key)>,
-}
-
-impl<T> Codebook<T> {
-    /// The number of elements in this Codebook.
-    pub fn len(&self) -> usize {
-        self.mappings.len()
-    }
-
-    /// The longest bit length that acctually appears in this Codebook.
-    pub fn highest_bit_len(&self) -> BitLen {
-        self.highest_bit_len
-    }
-}
-
-impl<T> IntoIterator for Codebook<T> {
-    type Item = (T, Key);
-    type IntoIter = std::vec::IntoIter<(T, Key)>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.mappings.into_iter()
-    }
-}
-
-impl<T> Codebook<T>
-where
-    T: Ord + Clone,
-{
-    /// Compute a `Codebook` from a sequence of values.
-    ///
-    /// Optionally, `max_bit_len` may specify a largest acceptable bit length.
-    /// If the `Codebook` may not be computed without exceeding this bit length,
-    /// fail with `Err(problemantic_bit_len)`.
-    ///
-    /// The current implementation only attempts to produce the best compression
-    /// level. This may cause us to exceed `max_bit_len` even though an
-    /// alternative table, with a lower compression level, would let us
-    /// proceed without exceeding `max_bit_len`.
-    ///
-    /// # Performance
-    ///
-    /// Values (type `T`) will be cloned regularly, so you should make
-    /// sure that their cloning is reasonably cheap.
-    pub fn from_sequence<S>(source: S, max_bit_len: BitLen) -> Result<Self, BitLen>
-    where
-        S: IntoIterator<Item = T>,
-        T: PartialEq + Hash,
-    {
-        // Count the values.
-        let mut map = HashMap::new();
-        for item in source {
-            let counter = map.entry(item).or_insert(0.into());
-            *counter += 1.into();
-        }
-        // Then compute the `Codebook`.
-        Self::from_instances(map, max_bit_len)
-    }
-
-    /// Compute a `Codebook` from a sequence of values
-    /// with a number of instances already attached.
-    ///
-    /// The current implementation only attempts to produce the best compression
-    /// level. This may cause us to exceed `max_bit_len` even though an
-    /// alternative table, with a lower compression level, would let us
-    /// proceed without exceeding `max_bit_len`.
-    ///
-    /// # Requirement
-    ///
-    /// Values of `T` in the source MUST be distinct.
-    pub fn from_instances<S>(source: S, max_bit_len: BitLen) -> Result<Self, BitLen>
-    where
-        S: IntoIterator<Item = (T, Instances)>,
-    {
-        let bit_lengths = Self::compute_bit_lengths(source, max_bit_len)?;
-        Self::from_bit_lens(bit_lengths, max_bit_len)
-    }
-
-    /// Compute a `Codebook` from a sequence of values
-    /// with a bit length already attached.
-    ///
-    /// The current implementation only attempts to produce the best compression
-    /// level. This may cause us to exceed `max_bit_len` even though an
-    /// alternative table, with a lower compression level, would let us
-    /// proceed without exceeding `max_bit_len`.
-    ///
-    /// # Requirement
-    ///
-    /// Values of `T` in the source MUST be distinct.
-    pub fn from_bit_lens(mut bit_lens: Vec<(T, BitLen)>, max_bit_len: BitLen) -> Result<Self, BitLen>
-    {
-        let mut highest_bit_len = BitLen(0);
-
-        // Canonicalize order: (BitLen, T)
-        bit_lens.sort_unstable_by_key(|&(ref value, ref bit_len)| (*bit_len, value.clone()));
-
-        // The bits associated to the next value.
-        let mut bits = 0;
-        let mut mappings = Vec::with_capacity(bit_lens.len());
-
-        for i in 0..bit_lens.len() - 1 {
-            let (bit_len, symbol, next_bit_len) = (
-                bit_lens[i].1,
-                bit_lens[i].0.clone(),
-                bit_lens[i + 1].1,
-            );
-            mappings.push((symbol.clone(), Key::new(bits, bit_len)));
-            bits = (bits + 1) << (next_bit_len - bit_len);
-            if bit_len > highest_bit_len {
-                highest_bit_len = bit_len;
-            }
-        }
-        // Handle the last element.
-        let (ref symbol, bit_len) = bit_lens[bit_lens.len() - 1];
-        if bit_len > highest_bit_len {
-            highest_bit_len = bit_len;
-        }
-        mappings.push((symbol.clone(), Key::new(bits, bit_len)));
-
-        if highest_bit_len > max_bit_len {
-            return Err(highest_bit_len)
-        }
-
-        return Ok(Self {
-            highest_bit_len,
-            mappings,
-        });
-    }
-
-    /// Convert a sequence of values labelled by their number of instances
-    /// into a sequence of values labelled by the length for their path
-    /// in the Huffman tree, aka the bitlength of their Huffman key.
-    ///
-    /// Values that have 0 instances are skipped.
-    pub fn compute_bit_lengths<S>(source: S, max_bit_len: BitLen) -> Result<Vec<(T, BitLen)>, u8>
-    where
-        S: IntoIterator<Item = (T, Instances)>,
-    {
-        // Build a min-heap sorted by number of instances.
-        use std::cmp::Reverse;
-        let mut heap = BinaryHeap::new();
-
-        // Skip values that have 0 instances.
-        for (value, instances) in source {
-            if !instances.is_zero() {
-                heap.push(Reverse(Node {
-                    instances,
-                    content: NodeContent::Leaf(value),
-                }));
-            }
-        }
-
-        let len = heap.len();
-        if len == 0 {
-            // Special case: no tree to build.
-            return Ok(vec![]);
-        }
-
-        // Take the two rarest nodes, merge them behind a prefix,
-        // turn them into a single node with combined number of
-        // instances. Repeat.
-        while heap.len() > 1 {
-            let left = heap.pop().unwrap();
-            let right = heap.pop().unwrap();
-            heap.push(Reverse(Node {
-                instances: left.0.instances + right.0.instances,
-                content: NodeContent::Internal {
-                    left: Box::new(left.0.content),
-                    right: Box::new(right.0.content),
-                },
-            }));
-        }
-
-        // Convert tree into bit lengths
-        let root = heap.pop().unwrap(); // We have checked above that there is at least one value.
-        let mut bit_lengths = Vec::with_capacity(len);
-        fn aux<T>(
-            bit_lengths: &mut Vec<(T, BitLen)>,
-            max_bit_len: BitLen,
-            depth: u8,
-            node: &NodeContent<T>,
-        ) -> Result<(), u8>
-        where
-            T: Clone,
-        {
-            match *node {
-                NodeContent::Leaf(ref value) => {
-                    if depth > max_bit_len.as_u8() {
-                        return Err(depth);
-                    }
-                    bit_lengths.push((value.clone(), BitLen(depth)));
-                    Ok(())
-                }
-                NodeContent::Internal {
-                    ref left,
-                    ref right,
-                } => {
-                    aux(bit_lengths, max_bit_len, depth + 1, left)?;
-                    aux(bit_lengths, max_bit_len, depth + 1, right)?;
-                    Ok(())
-                }
-            }
-        }
-        aux(&mut bit_lengths, max_bit_len, 0, &root.0.content)?;
-
-        Ok(bit_lengths)
-    }
-}
-
-#[test]
-fn test_coded_from_sequence() {
-    let sample = "appl";
-    let coded = Codebook::from_sequence(sample.chars(), std::u8::MAX).unwrap();
-
-    // Symbol 'p' appears twice, we should see 3 codes.
-    assert_eq!(coded.mappings.len(), 3);
-
-    // Check order of symbols.
-    assert_eq!(coded.mappings[0].0, 'p');
-    assert_eq!(coded.mappings[1].0, 'a');
-    assert_eq!(coded.mappings[2].0, 'l');
-
-    // Check bit length of symbols.
-    assert_eq!(coded.mappings[0].1.bit_len(), 1.into());
-    assert_eq!(coded.mappings[1].1.bit_len(), 2.into());
-    assert_eq!(coded.mappings[2].1.bit_len(), 2.into());
-
-    // Check code of symbols.
-    assert_eq!(coded.mappings[0].1.bits(), 0b00);
-    assert_eq!(coded.mappings[1].1.bits(), 0b10);
-    assert_eq!(coded.mappings[2].1.bits(), 0b11);
-
-    // Let's try again with a limit to 1 bit paths.
-    assert_eq!(Codebook::from_sequence(sample.chars(), 1).unwrap_err(), 2);
-}
-
-impl<T> Codebook<T> {
-    /// Create an empty Codebook
-    pub fn new() -> Self {
-        Self {
-            highest_bit_len: BitLen::new(0),
-            mappings: vec![],
-        }
-    }
-
-    /// Create an empty Codebook
-    pub fn with_capacity(len: usize) -> Self {
-        Self {
-            highest_bit_len: BitLen::new(0),
-            mappings: Vec::with_capacity(len),
-        }
-    }
-
-    /// Add a mapping to a Codebook.
-    ///
-    /// This method does **not** check that the resulting Codebook is correct.
-    pub unsafe fn add_mapping(&mut self, value: T, key: Key) {
-        if key.bit_len() > self.highest_bit_len {
-            self.highest_bit_len = key.bit_len();
-        }
-        self.mappings.push((value, key));
-    }
-
-    /// Return the mappings of a Codebook.
-    pub fn mappings(self) -> Vec<(T, Key)> {
-        self.mappings
-    }
-
-
-    /// Iterate through this Codebook.
-    pub fn iter(&self) -> impl Iterator<Item = &(T, Key)> {
-        self.mappings.iter()
-    }
-}
-
 /// An alphabet of symbols.
 pub trait Alphabet {
     type Symbol: Ord + Clone;
 
     /// Read a symbol from an input stream.
     fn read_literal<R>(input: R) -> Result<Self::Symbol, io::Error>
-        where R: io::Read;
+    where
+        R: io::Read;
+
+    fn write_literal<W>(symbol: &Self::Symbol, output: W) -> Result<(), io::Error>
+    where
+        W: io::Write;
 }
 
 /// An alphabet of symbols known statically from the grammar.
@@ -640,7 +366,7 @@ pub trait StaticAlphabet: Alphabet {
     fn len() -> u32;
 
     /// Return the nth value of the alphabet of `None` if there is no such value.
-    fn index(u32) -> Option<Self::Symbol>;
+    fn symbol(u32) -> Option<Self::Symbol>;
 }
 
 /// An alphabet of symbols known dynamically from the file.
@@ -649,6 +375,4 @@ pub trait StaticAlphabet: Alphabet {
 /// For instance, in most languages, the set of literal strings
 /// actually used in a file is determined by the user, not by
 /// the grammar.
-pub trait DynamicAlphabet: Alphabet {
-}
-
+pub trait DynamicAlphabet: Alphabet {}
