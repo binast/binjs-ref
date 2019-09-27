@@ -60,7 +60,7 @@ where
     ///
     /// Values (type `T`) will be cloned regularly, so you should make
     /// sure that their cloning is reasonably cheap.
-    pub fn from_sequence<S>(source: S, max_bit_len: BitLen) -> Result<Self, BitLen>
+    pub fn from_sequence<S>(source: S, max_bit_len: BitLen) -> Result<Self, io::Error>
     where
         S: IntoIterator<Item = T>,
         T: PartialEq + Hash,
@@ -86,7 +86,7 @@ where
     /// # Requirement
     ///
     /// Values of `T` in the source MUST be distinct.
-    pub fn from_instances<S>(source: S, max_bit_len: BitLen) -> Result<Self, BitLen>
+    pub fn from_instances<S>(source: S, max_bit_len: BitLen) -> Result<Self, io::Error>
     where
         S: IntoIterator<Item = (T, Instances)>,
     {
@@ -108,7 +108,7 @@ where
     pub fn from_bit_lens(
         mut bit_lens: Vec<(T, BitLen)>,
         max_bit_len: BitLen,
-    ) -> Result<Self, BitLen> {
+    ) -> Result<Self, io::Error> {
         let mut highest_bit_len = BitLen(0);
 
         // Canonicalize order: (BitLen, T)
@@ -121,8 +121,7 @@ where
         for i in 0..bit_lens.len() - 1 {
             let (bit_len, symbol, next_bit_len) =
                 (bit_lens[i].1, bit_lens[i].0.clone(), bit_lens[i + 1].1);
-            // FIXME: Instead of asserting, this should fail gracefully.
-            mappings.push((symbol.clone(), Key::new(bits, bit_len)));
+            mappings.push((symbol.clone(), Key::try_new(bits, bit_len)?));
             bits = (bits + 1) << (next_bit_len - bit_len);
             if bit_len > highest_bit_len {
                 highest_bit_len = bit_len;
@@ -136,7 +135,10 @@ where
         mappings.push((symbol.clone(), Key::new(bits, bit_len)));
 
         if highest_bit_len > max_bit_len {
-            return Err(highest_bit_len);
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Could not create a codebook that fits into this bit length",
+            ));
         }
 
         return Ok(Self {
@@ -150,7 +152,10 @@ where
     /// in the Huffman tree, aka the bitlength of their Huffman key.
     ///
     /// Values that have 0 instances are skipped.
-    pub fn compute_bit_lengths<S>(source: S, max_bit_len: BitLen) -> Result<Vec<(T, BitLen)>, u8>
+    pub fn compute_bit_lengths<S>(
+        source: S,
+        max_bit_len: BitLen,
+    ) -> Result<Vec<(T, BitLen)>, std::io::Error>
     where
         S: IntoIterator<Item = (T, Instances)>,
     {
@@ -197,14 +202,17 @@ where
             max_bit_len: BitLen,
             depth: u8,
             node: &NodeContent<T>,
-        ) -> Result<(), u8>
+        ) -> Result<(), std::io::Error>
         where
             T: Clone,
         {
             match *node {
                 NodeContent::Leaf(ref value) => {
                     if depth > max_bit_len.as_u8() {
-                        return Err(depth);
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "Could not create a codebook that fits into this bit length",
+                        ));
                     }
                     bit_lengths.push((value.clone(), BitLen(depth)));
                     Ok(())
@@ -228,7 +236,8 @@ where
 #[test]
 fn test_coded_from_sequence() {
     let sample = "appl";
-    let coded = Codebook::from_sequence(sample.chars(), BitLen::new(std::u8::MAX)).unwrap();
+    let try_make_codebook = |bit_len| Codebook::from_sequence(sample.chars(), bit_len);
+    let coded = try_make_codebook(BitLen::new(std::u8::MAX)).unwrap();
 
     // Symbol 'p' appears twice, we should see 3 codes.
     assert_eq!(coded.mappings.len(), 3);
@@ -249,10 +258,7 @@ fn test_coded_from_sequence() {
     assert_eq!(coded.mappings[2].1.bits(), 0b11);
 
     // Let's try again with a limit to 1 bit paths.
-    assert_eq!(
-        Codebook::from_sequence(sample.chars(), BitLen::new(1)).unwrap_err(),
-        BitLen::new(2)
-    );
+    assert!(try_make_codebook(BitLen::new(1)).is_err());
 }
 
 impl<T> Codebook<T> {

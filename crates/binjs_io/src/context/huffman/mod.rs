@@ -256,21 +256,37 @@ impl Key {
     /// Create a new Key.
     ///
     /// Note that we only use the `bit_len` lowest-weight bits.
-    /// Any other bit MUST BE 0.
+    ///
+    /// # Failure
+    ///
+    /// - Panic if any bit other than the `bit_len` lowest-weight bits is 0.
+    /// - Panic if the bit length is greater than 32.
     pub fn new(bits: u32, bit_len: BitLen) -> Self {
-        debug_assert!({
-            let bit_len: u8 = bit_len.into();
-            bit_len <= 32
-        });
-        debug_assert!({
-            let bit_len: u8 = bit_len.into();
-            if bit_len < 32 {
-                bits >> bit_len == 0
-            } else {
-                true
+        Self::try_new(bits, bit_len).expect("Invalid Key")
+    }
+
+    /// Create a new Key.
+    ///
+    /// Note that we only use the `bit_len` lowest-weight bits.
+    /// Any other bit MUST BE 0.
+    pub fn try_new(bits: u32, bit_len: BitLen) -> Result<Self, io::Error> {
+        // May the value fit in a `Key`?
+        if bit_len.as_u8() > 32 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "bitlength exceeds Key capacity",
+            ));
+        }
+        // Are the heavy-weight bits 0s, as expected?
+        if bit_len.as_u8() < 32 {
+            if bits >> bit_len != 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Invalid Key content",
+                ));
             }
-        });
-        Key(BitSequence { bits, bit_len })
+        }
+        Ok(Key(BitSequence { bits, bit_len }))
     }
 
     pub fn from_bit_sequence(sequence: BitSequence) -> Self {
