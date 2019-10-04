@@ -64,13 +64,19 @@ impl std::ops::Shl<BitLen> for usize {
 impl std::ops::Shr<BitLen> for u32 {
     type Output = u32;
     fn shr(self, rhs: BitLen) -> u32 {
-        self >> Into::<u8>::into(rhs)
+        if rhs.as_u8() == 32 {
+            return 0;
+        }
+        self >> rhs.as_u8()
     }
 }
 impl std::ops::Shr<BitLen> for usize {
     type Output = usize;
     fn shr(self, rhs: BitLen) -> usize {
-        self >> Into::<u8>::into(rhs)
+        if rhs.as_u8() == 32 {
+            return 0;
+        }
+        self >> rhs.as_u8()
     }
 }
 
@@ -89,6 +95,8 @@ pub struct BitSequence {
 }
 impl BitSequence {
     pub fn new(bits: u32, bit_len: BitLen) -> Self {
+        assert!(bit_len.as_u8() <= 32);
+        assert_eq!(bits >> bit_len, 0);
         Self { bits, bit_len }
     }
 
@@ -106,20 +114,15 @@ impl BitSequence {
     ///
     /// If `bit_len` is larger than the number of bits, the prefix is padded with
     /// lower-weight bits into `bit_len` bits.
-    pub fn split_bits(&self, bit_len: BitLen) -> (u32, u32) {
+    pub fn split_raw_bits(&self, bit_len: BitLen) -> (u32, u32) {
         debug_assert!(bit_len.as_u8() <= 32);
         if self.bit_len <= bit_len {
             let padding = bit_len - self.bit_len;
             (self.bits << padding, 0)
         } else {
-            let shift = self.bit_len - bit_len;
-            match shift.into() {
-                32u8 => (0, self.bits), // Special case: cannot >> 32
-                shift => (
-                    self.bits >> shift,
-                    self.bits & (std::u32::MAX >> 32 - shift),
-                ),
-            }
+            let shift: BitLen = self.bit_len - bit_len;
+            let co_shift: BitLen = BitLen::new(32) - shift;
+            (self.bits >> shift, self.bits & (std::u32::MAX >> co_shift))
         }
     }
 
@@ -130,7 +133,7 @@ impl BitSequence {
     ///
     /// This function panics if `bit_len > self.bit_len`.
     pub fn split(&self, bit_len: BitLen) -> (BitSequence, BitSequence) {
-        let (prefix, suffix) = self.split_bits(bit_len);
+        let (prefix, suffix) = self.split_raw_bits(bit_len);
         (
             BitSequence::new(prefix, bit_len),
             BitSequence::new(
@@ -149,23 +152,12 @@ impl BitSequence {
     ///
     /// Does nothing if the bit sequence already has a sufficient bitlength.
     pub fn pad_lowest_to(&self, total_bit_len: BitLen) -> Cow<BitSequence> {
-        assert!(total_bit_len.0 <= 32u8);
+        assert!(total_bit_len.as_u8() <= 32);
         if total_bit_len <= self.bit_len {
             return Cow::Borrowed(self);
         }
-        let shift = total_bit_len - self.bit_len;
-        if shift.0 == 32u8 {
-            return Cow::Owned(BitSequence::new(0, BitLen(32)));
-        }
+        let shift: BitLen = total_bit_len - self.bit_len;
         Cow::Owned(BitSequence::new(self.bits << shift, total_bit_len))
-    }
-
-    /// Prepend a sequence of bits to a sequencce.s
-    pub fn with_prefix(&self, prefix: &BitSequence) -> Self {
-        assert!((prefix.bit_len() + self.bit_len()).as_u8() <= 32);
-        let bits = self.bits | (prefix.bits() << self.bit_len);
-        let bit_len = self.bit_len + prefix.bit_len;
-        BitSequence::new(bits, bit_len)
     }
 
     /// Return a range representing all possible suffixes of this `BitSequence`
@@ -215,18 +207,15 @@ impl BitSequence {
         let (first, last) = if bit_len <= self.bit_len() {
             // We have too many bits, we need to truncate the bits,
             // then return a single element.
-            let shearing: u8 = (self.bit_len() - bit_len).as_u8();
-            let first = if shearing == 32 {
-                0
-            } else {
-                self.bits() >> shearing
-            };
+            let shearing: BitLen = self.bit_len() - bit_len;
+            let first = self.bits() >> shearing;
             (first, first)
         } else {
             // We need to pad with lower-weight 0s.
-            let padding: u8 = (bit_len - self.bit_len()).as_u8();
+            let padding: BitLen = bit_len - self.bit_len();
+            let co_padding = BitLen::new(32) - padding;
             let first = self.bits() << padding;
-            let len = std::u32::MAX >> (8 * std::mem::size_of::<u32>() as u8 - padding);
+            let len = std::u32::MAX >> co_padding;
             (first, first + len)
         };
         first..(last + 1)
@@ -237,15 +226,15 @@ impl BitSequence {
 fn test_bit_sequence_split() {
     let bits = 0b11111111_11111111_00000000_00000000;
     let key = BitSequence::new(bits, BitLen(32));
-    assert_eq!(key.split_bits(BitLen(0)), (0, bits));
-    assert_eq!(key.split_bits(BitLen(32)), (bits, 0));
-    assert_eq!(key.split_bits(BitLen(16)), (0b11111111_11111111, 0));
+    assert_eq!(key.split_raw_bits(BitLen(0)), (0, bits));
+    assert_eq!(key.split_raw_bits(BitLen(32)), (bits, 0));
+    assert_eq!(key.split_raw_bits(BitLen(16)), (0b11111111_11111111, 0));
 
     let bits = 0b00000000_00000000_00000000_11111111;
     let key = BitSequence::new(bits, BitLen(16));
-    assert_eq!(key.split_bits(BitLen(0)), (0, bits));
-    assert_eq!(key.split_bits(BitLen(16)), (bits, 0));
-    assert_eq!(key.split_bits(BitLen(8)), (0, 0b11111111));
+    assert_eq!(key.split_raw_bits(BitLen(0)), (0, bits));
+    assert_eq!(key.split_raw_bits(BitLen(16)), (bits, 0));
+    assert_eq!(key.split_raw_bits(BitLen(8)), (0, 0b11111111));
 }
 
 /// A Huffman key
@@ -260,8 +249,9 @@ impl Key {
     /// # Failure
     ///
     /// - Panic if any bit other than the `bit_len` lowest-weight bits is 0.
-    /// - Panic if the bit length is greater than 32.
+    /// - Panic if the bit length is greater than 20.
     pub fn new(bits: u32, bit_len: BitLen) -> Self {
+        assert!(bit_len <= BitLen::new(20));
         Self::try_new(bits, bit_len).expect("Invalid Key")
     }
 
@@ -309,11 +299,6 @@ impl Key {
 
     pub fn as_bit_sequence(&self) -> &BitSequence {
         &self.0
-    }
-
-    pub fn with_prefix(&self, prefix: &BitSequence) -> Self {
-        let sequence = self.0.with_prefix(prefix);
-        Key::from_bit_sequence(sequence)
     }
 }
 

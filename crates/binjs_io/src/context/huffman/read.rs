@@ -221,7 +221,7 @@ where
     /// Constant-time lookup.
     fn lookup(&self, key: &BitSequence) -> Option<Cow<(T, Key)>> {
         assert!(key.bit_len() >= self.highest_bit_len());
-        let (prefix, _) = key.split_bits(self.highest_bit_len());
+        let (prefix, _) = key.split_raw_bits(self.highest_bit_len());
         let value_index = self.saturated[prefix as usize].clone();
         let value_index: usize = value_index
             .try_into()
@@ -452,7 +452,7 @@ where
         assert!(key.bit_len() >= self.highest_bit_len());
 
         // Find in which `SingleLookupHuffmanTable` to look for the entry.
-        let (prefix, suffix) = key.split_bits(self.prefix_len);
+        let (prefix, suffix) = key.split_raw_bits(self.prefix_len);
         let ref table = self.by_prefix.get(prefix as usize)?;
 
         // Now lookup in second table.
