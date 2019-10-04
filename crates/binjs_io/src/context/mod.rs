@@ -4,6 +4,7 @@
 /// Format documentation.
 pub mod format;
 pub mod huffman;
+mod strings;
 mod varnum;
 
 /// A four-char name embedded in the binary.

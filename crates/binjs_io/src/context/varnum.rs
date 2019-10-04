@@ -17,12 +17,13 @@ use std::io::{self, Error, Read, Result, Write};
 // --------------- Reading
 
 /// A result of reading data from a byte-oriented stream.
+#[derive(Debug, Clone)]
 pub struct ByteValue<T> {
     /// The value read.
-    value: T,
+    pub value: T,
 
     /// The number of bytes consumed.
-    byte_len: usize,
+    pub byte_len: usize,
 }
 impl<T> ByteValue<T> {
     /// The value read.
@@ -135,6 +136,41 @@ fn test_read_varu32_no_normalization_must_work() {
         // Check that entire input was consumed.
         assert_eq!(result.byte_len, input.len());
     }
+}
+
+#[cfg(test)]
+fn expect_error(buf: &Vec<u8>, kind: io::ErrorKind) {
+    let mut cursor = io::Cursor::new(buf);
+    match cursor.read_varu32_no_normalization() {
+        Ok(_) => panic!("Expected an error"),
+        Err(ref e) if e.kind() == kind => { /* good */ }
+        Err(ref e) => panic!(
+            "Expected {expected:?}, got error {e:?}",
+            expected = kind,
+            e = e
+        ),
+    }
+}
+
+#[test]
+fn test_read_varu32_no_normalization_must_fail() {
+    // A few values that make no sense because they end with `0b10000000`.
+    let mut buf = Vec::new();
+    for len in 0..5 {
+        buf.resize(len, 0b10000000);
+        {
+            expect_error(&buf, io::ErrorKind::UnexpectedEof);
+        }
+        buf.clear();
+    }
+
+    // A value made up from too many bytes.
+    buf.resize(8, 0b10000000);
+    buf.push(0);
+    {
+        expect_error(&buf, io::ErrorKind::InvalidData);
+    }
+    buf.clear();
 }
 
 // ---------- Writing
