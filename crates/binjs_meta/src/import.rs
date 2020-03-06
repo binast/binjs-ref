@@ -75,7 +75,7 @@ impl Importer {
     /// ```
     pub fn import<'a>(
         sources: impl IntoIterator<Item = &'a str>,
-    ) -> Result<SpecBuilder, weedle::Err<CompleteStr<'a>>> {
+    ) -> Result<SpecBuilder, weedle::Err<(&'a str, ErrorKind)>> {
         let mut importer = Importer {
             path: Vec::with_capacity(256),
             builder: SpecBuilder::new(),
@@ -330,7 +330,9 @@ impl Importer {
             .list
             .iter()
             .map(|t| match t {
-                UnionMemberType::Single(t) => self.convert_single_type(t),
+                UnionMemberType::Single(AttributedNonAnyType { type_: t, .. }) => {
+                    self.convert_single_type(t)
+                }
                 UnionMemberType::Union(t) => self.convert_union_type(t),
             })
             .map(|t| t.spec)
