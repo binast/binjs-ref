@@ -14,7 +14,7 @@ multistream = []
 [dependencies]
 binjs_meta = { path = "../binjs_meta", version = "*" }
 serde_json = { version = "^1.0.38", features = ["unbounded_depth"] }
-rand = "^0.6"
+rand = "0.7.3"
 
 [build-dependencies]
 binjs_generate_library = { path = "../binjs_generate_library", version = "*" }

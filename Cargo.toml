@@ -9,7 +9,7 @@ license = "MIT"
 build = "build.rs"
 
 [build-dependencies]
-which = "^2.0"
+which = "3.1.1"
 
 [dependencies]
 binjs_generic = { path = "crates/binjs_generic", version = "*" }
@@ -19,19 +19,19 @@ binjs_meta = { path = "crates/binjs_meta", version = "*" }
 binjs_shared = { path = "crates/binjs_shared", version = "*" }
 bincode = "^1.0"
 clap = "^2.0"
-derive_more = "^0.13"
-env_logger = "^0.6"
+derive_more = "0.99.3"
+env_logger = "0.7.1"
 itertools = "^0.8"
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = { version = "^1.0.38", features = ["unbounded_depth"] }
 log = "^0.4"
-which = "^2.0"
+which = "3.1.1"
 
 [dev-dependencies]
 bencher = "^0.1"
-glob = "^0.2"
+glob = "0.3.0"
 lazy_static = "^1.2"
-rand = "^0.6"
+rand = { version="0.7.3", features=["small_rng"] }
 separator = "^0.4"
 tempdir = "^0.3"
 test-logger = { version = "^0.1", git = "https://github.com/RReverser/test-logger" }
