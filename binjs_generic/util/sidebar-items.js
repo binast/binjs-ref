@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["pick","Return a random item from a slice."]]});

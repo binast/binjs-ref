@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `binjs_json` mod in crate `binjs_io`."><meta name="keywords" content="rust, rustlang, rust-lang, binjs_json"><title>binjs_io::binjs_json - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../binjs_io/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a><p class='location'>Module binjs_json</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li></ul></div><p class='location'><a href='../index.html'>binjs_io</a></p><script>window.sidebarCurrent = {name: 'binjs_json', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/binjs_io/binjs_json/mod.rs.html#1-76' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../index.html'>binjs_io</a>::<wbr><a class="mod" href=''>binjs_json</a></span></h1><div class='docblock'><p>A format for generating invalid file, to test decoder implementation.</p>
+<p>The expected usage is the following:</p>
+<ol>
+<li>Convert .js file to this JSON format (write module)</li>
+<li>Modify the JSON file, for instance:
+<ul>
+<li>Remove a field from an interface</li>
+<li>Add a field to an interface</li>
+<li>Replace a field value</li>
+</ul>
+</li>
+<li>Convert JSON file to other BinAST format (read module)</li>
+<li>Feed the possibly-invalid BinAST to decoder</li>
+</ol>
+<p>The JSON format is in the following structure:</p>
+<p>tagged tuple</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+{
+  <span class="string">&quot;@TYPE&quot;</span>: <span class="string">&quot;tagged tuple&quot;</span>,
+  <span class="string">&quot;@INTERFACE&quot;</span>: <span class="string">&quot;&lt;interface name&gt;&quot;</span>,
+  <span class="string">&quot;@FIELDS&quot;</span>: [
+    {
+      <span class="string">&quot;@FIELD_NAME&quot;</span>: <span class="string">&quot;&lt;field name&gt;&quot;</span>
+      <span class="string">&quot;@FIELD_VALUE&quot;</span>: <span class="op">&lt;</span><span class="ident">field</span> <span class="ident">value</span><span class="op">&gt;</span>
+    },
+    ...
+  ]
+}</pre></div>
+<p><code>&lt;interface name&gt;</code> and <code>&lt;field name&gt;</code> are the names of the interface and
+the field in WebIDL, and <code>&lt;field value&gt;</code> the field's value.</p>
+<p>list</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+{
+  <span class="string">&quot;@TYPE&quot;</span>: <span class="string">&quot;list&quot;</span>,
+  <span class="string">&quot;@VALUE&quot;</span>: [
+    <span class="op">&lt;</span><span class="ident">item</span><span class="op">&gt;</span>,
+    ...
+  ]
+}</pre></div>
+<p><code>&lt;item&gt;</code> is the list's item.</p>
+<p>string</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+{
+  <span class="string">&quot;@TYPE&quot;</span>: <span class="string">&quot;string&quot;</span>,
+  <span class="string">&quot;@VALUE&quot;</span>: <span class="op">&lt;</span><span class="ident">value</span><span class="op">&gt;</span>
+}</pre></div>
+<p><code>&lt;value&gt;</code> is the value of the string. if the value is null, it's <code>null</code>.
+enum, identifier name, property key, float, unsigned long, bool also use
+the same format, with corresponding &quot;@TYPE&quot; value</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table><tr class='module-item'><td><a class="mod" href="read/index.html" title='binjs_io::binjs_json::read mod'>read</a></td><td class='docblock-short'><p>A JSON reader with extra support for JSON-&gt;BinAST converter.
+The input JSON file is supposed to be the output of the JSON writer,
+filtered with some command to generate an invalid content.
+See mod.rs for the detail of the filter.
+Some methods implemented on Decoder are for binjs_convert_from_json command.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="write/index.html" title='binjs_io::binjs_json::write mod'>write</a></td><td class='docblock-short'><p>A JSON writer for BinAST file structure.
+The written file is supposed to be filtered with some command to generate
+an invalid content, and then fed to binjs_convert_from_json command to
+generate BinAST file with the invalid content.
+See mod.rs for the detail of the filter.</p>
+</td></tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.FormatProvider.html" title='binjs_io::binjs_json::FormatProvider struct'>FormatProvider</a></td><td class='docblock-short'><p>Command-line management.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "binjs_io";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

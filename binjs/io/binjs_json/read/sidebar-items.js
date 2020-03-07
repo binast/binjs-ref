@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["NextType","The next item in the tree, designates which method to call on the decoder."]],"struct":[["Decoder",""]],"type":[["PathItem",""]]});

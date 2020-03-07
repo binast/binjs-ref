@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["shift","Parsing JavaScript using the Shift source parser (in Node). Read the data through a call to the Shift parser"]],"trait":[["SourceParser","A source that can parse files to ASTs."]]});

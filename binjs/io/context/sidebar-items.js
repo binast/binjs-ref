@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["format","Format documentation."]],"type":[["Name","A four-char name embedded in the binary."]]});

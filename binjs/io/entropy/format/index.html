@@ -1,0 +1,298 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `format` mod in crate `binjs`."><meta name="keywords" content="rust, rustlang, rust-lang, format"><title>binjs::io::entropy::format - Rust</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../binjs/index.html'><div class='logo-container'><img src='../../../../rust-logo.png' alt='logo'></div></a><p class='location'>Module format</p><div class="sidebar-elems"><p class='location'><a href='../../../index.html'>binjs</a>::<wbr><a href='../../index.html'>io</a>::<wbr><a href='../index.html'>entropy</a></p><script>window.sidebarCurrent = {name: 'format', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../../src/binjs_io/entropy/mod.rs.html#9' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../../../index.html'>binjs</a>::<wbr><a href='../../index.html'>io</a>::<wbr><a href='../index.html'>entropy</a>::<wbr><a class="mod" href=''>format</a></span></h1><div class='docblock'><h1 id="about-this-file" class="section-header"><a href="#about-this-file">About this file</a></h1>
+<p>This is an attempt to document the Entropy 0.4 compression format.</p>
+<h1 id="global-structure" class="section-header"><a href="#global-structure">Global structure</a></h1>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Stream</span> ::<span class="op">=</span> <span class="ident">Headers</span> <span class="ident">Prelude</span><span class="question-mark">?</span> <span class="ident">Content</span><span class="question-mark">?</span> <span class="ident">Main</span> <span class="ident">Footers</span><span class="question-mark">?</span></pre></div>
+<h1 id="headers" class="section-header"><a href="#headers">Headers</a></h1>
+<p>Headers identify the file, the version of the format used and the shared dictionary used, if any.</p>
+<p>The shared dictionary provides:</p>
+<ul>
+<li>a family of context-based prediction tables;</li>
+<li>well-known literal strings;</li>
+<li>well-known floating-point numbers;</li>
+<li>well-known unsigned long numbers;</li>
+<li>well-known property keys;</li>
+<li>well-known identifier names;</li>
+<li>well-known list lengths.</li>
+</ul>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Headers</span> ::<span class="op">=</span> <span class="ident">MagicNumber</span> <span class="ident">FormatVersionNumber</span> <span class="ident">LinkToSharedDictionary</span></pre></div>
+<h2 id="magic-number" class="section-header"><a href="#magic-number">Magic number</a></h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">MagicNumber</span> ::<span class="op">=</span> <span class="string">&quot;\x89BJS\r\n\0\n&quot;</span></pre></div>
+<h2 id="version-number" class="section-header"><a href="#version-number">Version number</a></h2>
+<p>Not specified/implemented yet.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">VersionNumber</span> ::<span class="op">=</span> <span class="ident">TBD</span></pre></div>
+<h2 id="link-to-shared-dictionary" class="section-header"><a href="#link-to-shared-dictionary">Link to shared dictionary</a></h2>
+<p>Not specified/implemented yet.</p>
+<p>The shared dictionary is optional.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">LinkToSharedDictionary</span> ::<span class="op">=</span> <span class="ident">TBD</span></pre></div>
+<h1 id="prelude" class="section-header"><a href="#prelude">Prelude</a></h1>
+<p>The <strong>prelude</strong> extends the shared dictionary with additional strings, numbers, keys, names, ...</p>
+<p>Data structures are separated even when they have the same underlying representation, to improve
+compression.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Prelude</span> ::<span class="op">=</span> <span class="string">&quot;[[prelude]]&quot;</span> <span class="ident">NamedPreludeDictionary</span><span class="op">*</span>
+<span class="ident">NamedPreludeDictionary</span> ::<span class="op">=</span> <span class="string">&quot;[floats]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">f64</span><span class="question-mark">?</span><span class="op">&gt;</span>
+                         <span class="op">|</span>  <span class="string">&quot;[unsigned_longs]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">u32</span><span class="question-mark">?</span><span class="op">&gt;</span>
+                         <span class="op">|</span>  <span class="string">&quot;[list_lengths]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">u32</span><span class="question-mark">?</span><span class="op">&gt;</span>
+                         <span class="op">|</span>  <span class="string">&quot;[property_keys]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>
+                         <span class="op">|</span>  <span class="string">&quot;[identifier_names]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>
+                         <span class="op">|</span>  <span class="string">&quot;[string_literals]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>
+                         <span class="op">|</span>  <span class="string">&quot;[property_keys_len]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">StringLen</span><span class="op">&gt;</span>
+                         <span class="op">|</span>  <span class="string">&quot;[identifier_names_len]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">StringLen</span><span class="op">&gt;</span>
+                         <span class="op">|</span>  <span class="string">&quot;[string_literals_len]&quot;</span> <span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">StringLen</span><span class="op">&gt;</span></pre></div>
+<p>If the same prelude name (<code>&quot;[floats]&quot;</code>, <code>&quot;[unsigned_longs]&quot;</code>, etc.) appears more than once, this
+is a syntax error.</p>
+<p>If <code>[&quot;property_keys&quot;]</code> exists and is not empty, <code>'[&quot;property_keys_len&quot;]</code> must exist and be non-empty,
+otherwise, this is a syntax error.</p>
+<p>If <code>[&quot;identifier_names&quot;]</code> exists and is not empty, <code>'[&quot;identifier_names&quot;]</code> must exist and be non-empty,
+otherwise, this is a syntax error.</p>
+<p>If <code>[&quot;string_literals&quot;]</code> exists and is not empty, <code>'[&quot;string_literals_len&quot;]</code> must exist and be non-empty,
+otherwise, this is a syntax error.</p>
+<h2 id="internal-compression" class="section-header"><a href="#internal-compression">Internal compression</a></h2>
+<p>All prelude streams have the same structure</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">PreludeStream</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">CompressionFormat</span> <span class="string">&quot;;&quot;</span> <span class="ident">ByteLen</span> <span class="ident">CompressedByteStream</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+<span class="ident">CompressionFormat</span> ::<span class="op">=</span> <span class="string">&quot;brotli&quot;</span> <span class="comment">// The only compression format supported so far.</span>
+<span class="ident">ByteLen</span> :<span class="op">=</span> <span class="ident">var_u32</span></pre></div>
+<p>Where:</p>
+<ul>
+<li>the <code>CompressionFormat</code> is the name of the compression to use to decompress the <code>CompressedByteStream</code>;</li>
+<li>the <code>ByteLen</code> is the number of bytes in the <code>CompressedByteStream</code>;</li>
+</ul>
+<p>Let us call <code>ExpandedByteStream&lt;T&gt;</code> the result of decompressing the <code>ByteLen</code> bytes of
+a <code>CompressedByteStream&lt;T&gt;</code> with the specified <code>CompressionFormat</code>.</p>
+<h2 id="stream-interpretation" class="section-header"><a href="#stream-interpretation">Stream interpretation</a></h2><h3 id="integers" class="section-header"><a href="#integers">Integers</a></h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">ExpandedByteStream</span><span class="op">&lt;</span><span class="ident">u32</span><span class="question-mark">?</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">ExpandedByteStreamItem</span><span class="op">&lt;</span><span class="ident">u32</span><span class="question-mark">?</span><span class="op">&gt;</span><span class="op">*</span>
+<span class="ident">ExpandedByteStreamItem</span><span class="op">&lt;</span><span class="ident">u32</span><span class="question-mark">?</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">var_u32</span>         <span class="comment">// Some(value)</span>
+                               <span class="op">|</span> <span class="ident">var_u32_invalid_1</span>  <span class="comment">// None</span></pre></div>
+<ul>
+<li><code>var_u32_invalid_1</code> is interpreted as the <code>null</code> value for unsigned numbers;</li>
+<li>All valid <code>var_u32</code> values are interpreted as numbers.</li>
+</ul>
+<h3 id="floating-point" class="section-header"><a href="#floating-point">Floating-point</a></h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">ExpandedByteStream</span><span class="op">&lt;</span><span class="ident">f64</span><span class="question-mark">?</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">ExpandedByteStreamItem</span><span class="op">&lt;</span><span class="ident">f64</span><span class="question-mark">?</span><span class="op">&gt;</span>
+<span class="ident">ExpandedByteStreamItem</span><span class="op">&lt;</span><span class="ident">f64</span><span class="question-mark">?</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">var_i32</span>            <span class="comment">// Some(integer value)</span>
+                               <span class="op">|</span> <span class="ident">var_i32_invalid_1</span> <span class="ident">f64</span> <span class="comment">// Some(floating-point value)</span>
+                               <span class="op">|</span> <span class="ident">var_i32_invalid_2</span>     <span class="comment">// None</span></pre></div>
+<ul>
+<li>All valid <code>var_i32</code> values are interpreted as <code>i32</code> numbers, which are then converted to <code>f64</code>. This has the advantage that
+most numbers actually used in practice fit within <code>i32</code>.</li>
+<li><code>var_i32_invalid_1</code> is used as a prefix for floating-point values that do not fit in <code>i32</code>;</li>
+<li><code>var_i32_invalid_2</code> is used to represent the <code>null</code> value for floating-point numbers.</li>
+</ul>
+<h3 id="strings" class="section-header"><a href="#strings">Strings</a></h3>
+<p>To interpret a string stream, it is necessary to interpret both the <code>PreludeStream&lt;String&gt;</code> and the <code>PreludeStream&lt;StringLen&gt;</code>.</p>
+<p>If the <code>PreludeStream&lt;String&gt;</code> and the <code>PreludeStream&lt;StringLen&gt;</code> do not have the same number of elements, this is a syntax error.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">ExpandedByteStream</span><span class="op">&lt;</span><span class="ident">StringLen</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">varu32</span><span class="question-mark">?</span>
+<span class="ident">ExpandedByteStream</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> ::<span class="op">=</span> [<span class="ident">char</span>; <span class="ident">len_0</span>], [<span class="ident">char</span>; <span class="ident">len_1</span>], ... [<span class="ident">char</span>; <span class="ident">len_k</span>]
+                             <span class="comment">// where len_0, len_1, ..., len_k are the values of the ExpandedByteStream&lt;StringLen&gt;</span></pre></div>
+<p>If <code>len_0 + len_1 + ... + len_k</code> is not equal to the <code>ByteLen</code> attached to the <code>ExpandedByteStream&lt;String&gt;</code>, this is a syntax error.</p>
+<p>Strings are interpreted as WTF-8 (NOT UTF-8).</p>
+<h1 id="content" class="section-header"><a href="#content">Content</a></h1>
+<p>The <strong>content</strong> defines streams of references to the dictionaries (both the prelude dictionary and the shared dictionary,
+if specified). These values are pulled from the content streams while reading the <strong>main stream</strong>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Content</span> ::<span class="op">=</span> <span class="string">&quot;[[content]]&quot;</span> <span class="ident">NamedContentStream</span><span class="op">*</span>
+<span class="ident">NamedContentStream</span> ::<span class="op">=</span> <span class="string">&quot;[floats]&quot;</span> <span class="ident">ContentStream</span><span class="op">&lt;</span><span class="ident">f64</span><span class="question-mark">?</span><span class="op">&gt;</span>
+                     <span class="op">|</span> <span class="string">&quot;[unsigned_longs]&quot;</span> <span class="ident">ContentStream</span><span class="op">&lt;</span><span class="ident">u32</span><span class="question-mark">?</span><span class="op">&gt;</span>
+                     <span class="op">|</span> <span class="string">&quot;[list_lengths]&quot;</span> <span class="ident">ContentStream</span><span class="op">&lt;</span><span class="ident">u32</span><span class="question-mark">?</span><span class="op">&gt;</span>
+                     <span class="op">|</span> <span class="string">&quot;[property_keys]&quot;</span> <span class="ident">ContentStream</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>
+                     <span class="op">|</span> <span class="string">&quot;[identifier_names]&quot;</span> <span class="ident">ContentStream</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>
+                     <span class="op">|</span> <span class="string">&quot;[string_literals]&quot;</span> <span class="ident">ContentStream</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span></pre></div>
+<p>If the same content name (<code>&quot;[floats]&quot;</code>, <code>&quot;[unsigned_longs]&quot;</code>, etc.) appears more than once, this
+is a syntax error.</p>
+<h2 id="internal-compression-1" class="section-header"><a href="#internal-compression-1">Internal compression</a></h2>
+<p>All content streams have the same structure</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">ContentStream</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">CompressionFormat</span> <span class="string">&quot;;&quot;</span> <span class="ident">ByteLen</span> <span class="ident">CompressedContentStream</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span></pre></div>
+<p>Where:</p>
+<ul>
+<li>the <code>CompressionFormat</code> is the name of the compression to use to decompress the <code>CompressedByteStream</code>;</li>
+<li>the <code>ByteLen</code> is the number of bytes in the <code>CompressedByteStream</code>;</li>
+</ul>
+<p>Let us call <code>ExpandedContentStream&lt;T&gt;</code> the result of decompressing the <code>ByteLen</code> bytes of
+a <code>CompressedContentStream&lt;T&gt;</code> with the specified <code>CompressionFormat</code>.</p>
+<h2 id="stream-interpretation-1" class="section-header"><a href="#stream-interpretation-1">Stream interpretation</a></h2>
+<p>All expanded content streams have the same structure</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">ExpandedContentStream</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">WindowLen</span> <span class="ident">ExpandedContentReferences</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+<span class="ident">WindowLen</span> ::<span class="op">=</span> <span class="ident">var_u32</span></pre></div>
+<p>Where <code>WindowLen</code> is the number of bytes in the LRU cache used to interpret <code>ExpandedContentReferences</code>. It may be 0.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">ExpandedContentReferences</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">ContentReferenceBytes</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="op">*</span>
+<span class="ident">ContentReferenceBytes</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> ::<span class="op">=</span> <span class="ident">var_u32</span></pre></div>
+<p>Interpreting a <code>ContentReferenceBytes&lt;T&gt;</code> requires the following information:</p>
+<ul>
+<li>a per-stream value <code>prelude_latest</code>, initially set to <code>-1</code>;</li>
+<li>a per-stream value <code>imported_len</code>, initially set to <code>0</code>.</li>
+</ul>
+<p>A <code>ContentReferenceBytes&lt;T&gt;</code> is interpreted into a <code>ContentReference&lt;T&gt;</code> through
+the following algorithm:</p>
+<pre><code class="language-python">prelude_latest = -1
+imported = []
+window = LRU(WindowLen)
+prelude_len = # Length of the matching Prelude stream
+def interpret(u32):
+    # 0 means &quot;next in prelude&quot;
+    if u32 == 0:
+        prelude_latest += 1
+        return PreludeReference(prelude_latest)
+    # [1, WindowLen] is a LRU cache
+    if 1 &lt;= u32 and u32 &lt;= len(window):
+        result = window.fetch(u32 - 1)
+        if result.isinstance(PreludeReference):
+            prelude_latest = result.index
+        return result
+    # [WindowLen + 1, WindowLen + PreludeLen] is a reference to the prelude
+    # dictionary.
+    if len(window) + 1 &lt;= u32 and u32 &lt;= len(window) + len(prelude):
+        prelude_latest = u32 - len(window) - 1
+        result = PreludeReference(prelude_latest)
+        window.insert(result)
+        return result
+    # [WindowLen + PreludeLen + 1, WindowLen + PreludeLen + len(imported)] is a reference
+    # to an already encountered value from the shared dictionary.
+    if len(window) + len(prelude) + 1 &lt;= u32 and u32 &lt;= len(window) + len(prelude) + len(imported):
+        result = imported[u32 - len(window) - len(prelude) - 1]
+        window.insert(result)
+        return result
+    # Any value above is a first-time reference into the shared dictionary.
+    if len(window) + len(prelude) + len(imported) &lt; u32:
+        result = SharedReference(u32 - len(window) - len(prelude) - len(imported))
+        window.insert(result)
+        return result
+
+</code></pre>
+<h1 id="main-1" class="section-header"><a href="#main-1">Main</a></h1>
+<p>The <strong>main stream</strong> encodes the structure of the AST using a probability table.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Main</span> ::<span class="op">=</span> <span class="string">&quot;[[main]]&quot;</span> <span class="ident">EntropyCompressionFormat</span> <span class="ident">MainData</span>
+<span class="ident">EntropyCompressionFormat</span> ::<span class="op">=</span> <span class="string">&quot;entropy0.4&quot;</span></pre></div>
+<h2 id="stream-interpretation-2" class="section-header"><a href="#stream-interpretation-2">Stream interpretation</a></h2>
+<p>The stream <code>MainData</code> is a stream of range-encoded numbers.
+Each number may only be interpreted within a
+probability table (specified through the linked shared dictionary)
+and a grammar (specified through the linked shared dictionary).
+Note that the probability table and the grammar themselves may
+change at any step, in a manner not specified by this document.</p>
+<p>Algorithm:</p>
+<pre><code class="language-python"># A list of pairs (node, child index)
+path = None
+range_decoder = RangeDecoder(MainData)
+def next_number(tables, grammar):
+    if path == None:
+        path = (grammar.root(), 0)
+    # The structure of the node we need to decode.
+    node = None
+    # The index of the child in the node we need to decode.
+    index = None
+    while True:
+        if len(path) == 0:
+            # Decoding is complete
+            return None
+        [node, index] = path[-1]
+        if index &gt;= len(node.children):
+            # We have finished decoding the current node, return to parent node.
+            path.pop()
+            continue
+        # We are still decoding this node.
+        # Next time we attempt to decode this node, advance to next field.
+        path[-1][1] += 1
+        if node[index].is_encoded_as_content_stream():
+            # This field is encoded as a content stream, rather than the main
+            # stream, advance to next field or node.
+            continue
+        # At this stage, we have determined the field we need to decode.
+        break
+
+    # Pick the set of probability tables for this node
+    probability_table_by_kind = tables[path]
+    probability_table = None
+    if node[index].is_tagged_tuple():
+        probability_table = probability_table_by_kind.tagged_tuple
+    else if node[index].is_string_enum():
+        probability_table = probability_table_by_kind.string_enum
+    else if node[index].is_bool():
+        probability_table = probability_table_by_kind.bool
+    else:
+        # Not possible.
+
+    result = range_encoder.decode(probability_table)
+
+    # If the node is a tagged tuple, we need to recurse into its children
+    if node[index].is_tagged_tuple():
+        path.push(node[index], 0)
+
+    return result
+</code></pre>
+<h1 id="footers" class="section-header"><a href="#footers">Footers</a></h1>
+<p>Not specified/implemented yet.</p>
+<h1 id="primitive-values" class="section-header"><a href="#primitive-values">Primitive values</a></h1><h2 id="variable-length-numbers-unsigned" class="section-header"><a href="#variable-length-numbers-unsigned">Variable-length numbers (unsigned)</a></h2>
+<p>We use <code>var_u32</code> to denote a variable-length representation of 32 bit unsigned integers.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">var_u32</span> ::<span class="op">=</span> <span class="ident">var_u32_non_terminal_byte</span><span class="op">*</span> <span class="ident">var_u32_terminal_byte</span>
+<span class="ident">var_u32_non_terminal_byte</span> ::<span class="op">=</span> <span class="ident">Any</span> <span class="ident">byte</span> <span class="ident">b</span> <span class="ident">such</span> <span class="ident">that</span> <span class="ident">b</span> <span class="op">&amp;</span> <span class="number">1</span> <span class="op">=</span><span class="op">=</span> <span class="number">1</span>
+<span class="ident">var_u32_terminal_byte</span>     ::<span class="op">=</span> <span class="ident">Any</span> <span class="ident">byte</span> <span class="ident">b</span> <span class="ident">such</span> <span class="ident">that</span> <span class="ident">b</span> <span class="op">&amp;</span> <span class="number">1</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span>
+<span class="ident">var_u32_invalid_1</span> ::<span class="op">=</span> <span class="number">0x00000001</span> <span class="number">0x00000000</span>
+<span class="ident">var_u32_invalid_2</span> ::<span class="op">=</span> <span class="number">0x00000001</span> <span class="number">0x00000001</span> <span class="number">0x00000000</span>
+<span class="ident">var_u32_invalid_3</span> ::<span class="op">=</span> <span class="number">0x00000001</span> <span class="number">0x00000001</span> <span class="number">0x00000001</span> <span class="number">0x00000000</span></pre></div>
+<p>TBD</p>
+<p>As an exception, the following sequence of <code>var_u32_non_terminal_byte* var_non_terminal_byte</code> is <em>not</em> a <code>var_u32</code>:</p>
+<ul>
+<li>it consists in at least two bytes;</li>
+<li>all <code>var_u32_non_terminal_byte</code> are <code>1</code>;</li>
+<li>the <code>var_u32_terminal_byte</code> is <code>0</code>.</li>
+</ul>
+<p>Such sequences are used to represent exceptional cases (e.g. <code>null</code> values).</p>
+<h2 id="variable-length-numbers-signed" class="section-header"><a href="#variable-length-numbers-signed">Variable-length numbers (signed)</a></h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">var_i32</span> ::<span class="op">=</span> <span class="ident">var_u32</span>
+<span class="ident">var_i32_invalid_1</span> ::<span class="op">=</span> <span class="number">0x00000001</span> <span class="number">0x00000000</span> <span class="comment">// Aliased for convenience</span>
+<span class="ident">var_i32_invalid_2</span> ::<span class="op">=</span> <span class="number">0x00000001</span> <span class="number">0x00000001</span> <span class="number">0x00000000</span> <span class="comment">// Aliased for convenience</span>
+<span class="ident">var_i32_invalid_3</span> ::<span class="op">=</span> <span class="number">0x00000001</span> <span class="number">0x00000001</span> <span class="number">0x00000001</span> <span class="number">0x00000000</span> <span class="comment">// Aliased for convenience</span></pre></div>
+<p>Signed variable-length numbers are stored as unsigned, using the following algorithm:</p>
+<ul>
+<li>if <code>signed_value</code> is a <code>var_u32</code> used to store a <code>var_i32</code>
+<ul>
+<li>if <code>signed_value % 2</code> == 0
+<ul>
+<li>the unsigned value is <code>signed_value &gt;&gt; 1</code></li>
+</ul>
+</li>
+<li>else
+<ul>
+<li>the unsigned value is <code>-((signed_value - 1) &gt;&gt; 1)</code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>TBD</p>
+<h2 id="floating-point-1" class="section-header"><a href="#floating-point-1">Floating-point</a></h2>
+<p>We use <code>f64</code> to denote 64-bit floating point numbers.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">f64</span> ::<span class="op">=</span> <span class="ident">IEEE754</span> <span class="number">64</span> <span class="ident">Floating</span> <span class="ident">Point</span> <span class="ident">encoding</span></pre></div>
+<h2 id="raw-data" class="section-header"><a href="#raw-data">Raw data</a></h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+[<span class="ident">char</span>; <span class="ident">N</span>] ::<span class="op">=</span> <span class="ident">the</span> <span class="ident">next</span> <span class="ident">N</span> <span class="ident">bytes</span> <span class="kw">in</span> <span class="ident">the</span> <span class="ident">stream</span></pre></div>
+</div></section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../../";window.currentCrate = "binjs";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script defer src="../../../../search-index.js"></script></body></html>

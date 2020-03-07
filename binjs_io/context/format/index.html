@@ -1,0 +1,250 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `format` mod in crate `binjs_io`."><meta name="keywords" content="rust, rustlang, rust-lang, format"><title>binjs_io::context::format - Rust</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../binjs_io/index.html'><div class='logo-container'><img src='../../../rust-logo.png' alt='logo'></div></a><p class='location'>Module format</p><div class="sidebar-elems"><p class='location'><a href='../../index.html'>binjs_io</a>::<wbr><a href='../index.html'>context</a></p><script>window.sidebarCurrent = {name: 'format', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/binjs_io/context/format.rs.html#4-6' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../../index.html'>binjs_io</a>::<wbr><a href='../index.html'>context</a>::<wbr><a class="mod" href=''>format</a></span></h1><div class='docblock'><p>Format documentation.</p>
+<h1 id="context-01-format-née-fbssdc" class="section-header"><a href="#context-01-format-née-fbssdc">Context 0.1 Format (née &quot;fbssdc&quot;)</a></h1>
+<ul>
+<li>Dominic Cooney (dpc) 2019-06-27</li>
+<li>Reformated for markdown David Teller (yoric) 2019-09-02</li>
+</ul>
+<h1 id="overview" class="section-header"><a href="#overview">Overview</a></h1>
+<p>BinAST is a Work In Progress format for JavaScript programs designed for compact transfer and fast, streaming startup. This document describes the &quot;Context 0.1&quot; format of files on disk.</p>
+<p>The goals of this iteration of the BinAST format are to:</p>
+<ul>
+<li>Represent JavaScript syntax trees and metadata about variable capture, etc.</li>
+<li>Be compact when compressed with Brotli.</li>
+<li>Support random access to the content of lazy functions within the decompressed stream.</li>
+</ul>
+<p>The syntax trees and metadata are described in this IDL file: https://github.com/binast/binjs-ref/spec/es6.webidl and can be produced using the <code>binjs_encode</code> tool’s <code>--show-ast</code> option; see https://github.com/binast/binjs-ref/. You should have a copy of the IDL handy when reading this document.</p>
+<p>This document describes the structure of the files on disk at the bit level. This document includes commentary about design choices in the format, but not in the AST/IDL structure.
+The Context 0.1 format consists of the following items, in order:</p>
+<ol>
+<li>A signature, the bytes <code>89h</code>, <code>42h</code>, <code>4ah</code>, <code>53h</code> (these three bytes <code>&quot;BJS&quot;</code>) <code>dh</code> <code>ah</code> <code>0h</code> <code>ah</code> <code>2h</code> (NOTE: Currently not implemented!)</li>
+<li>A table of strings.</li>
+<li>A set of tables for constructing codes used to decode the AST</li>
+<li>An encoded Script AST node</li>
+</ol>
+<p>The subsequent sections describe each of these items in detail.</p>
+<p>To ease skimming, the format is summarized in BNF in green. The previous list can be written this way:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">File</span> ::<span class="op">=</span> <span class="ident">Signature</span> <span class="ident">StringTable</span>
+         <span class="ident">CodeTables</span> <span class="ident">Node</span></pre></div>
+<p>Repeated items will be written between square brackets with braces indicating the number of items. Literal bytes will be written in hexadecimal with a trailing <code>h</code>.</p>
+<h1 id="signature" class="section-header"><a href="#signature">Signature</a></h1>
+<p>The file starts with these bytes: <code>89h</code>, <code>42h</code>, <code>4ah</code>, <code>53h</code> (these three bytes <code>&quot;BJS&quot;</code>) <code>dh</code> <code>ah</code> <code>0h</code> <code>ah</code> followed by a version number.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Signature</span> ::<span class="op">=</span> <span class="number">89h</span> <span class="number">42h</span> <span class="number">4ah</span> <span class="number">53h</span> <span class="number">0dh</span> <span class="number">0ah</span> <span class="number">00h</span> <span class="number">0ah</span> <span class="ident">VersionNumber</span>
+<span class="ident">VersionNumber</span> ::<span class="op">=</span> <span class="number">02h</span></pre></div>
+<h1 id="string-table" class="section-header"><a href="#string-table">String Table</a></h1>
+<p>JavaScript programs contain a lot of text data, not only in string literals, but also in property names, variable names, etc. The format lifts string data into a header section and refers to strings by index.</p>
+<p>This has a couple of benefits: First, property names can be relatively long and are referred to repetitively, so using an index is more succinct. Second, there is a lot of redundancy between strings and Brotli compresses these more effectively if they are close together (although the benefit only scales ~logarithmically.)</p>
+<h2 id="string-table-format" class="section-header"><a href="#string-table-format">String Table Format</a></h2>
+<p>The string table consists of:</p>
+<ul>
+<li>The number of strings, n, in varuint encoding.</li>
+<li>n strings.</li>
+</ul>
+<p>Each string consists of the literal bytes of string content, with a null terminator. Because strings may contain embedded nulls, nulls are escaped as <code>01h 00h</code>, which means <code>01h</code> bytes must be escaped too; they’re escaped as <code>01h 01h</code>.</p>
+<p>The format does not do any semantically impactful string mangling, for example, if a string literal has an escape sequence, the escape sequence will be represented in the string data.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">StringTable</span> ::<span class="op">=</span> <span class="ident">StringCount</span> [<span class="ident">String</span>]{<span class="ident">StringCount</span>}
+<span class="ident">StringCount</span> ::<span class="op">=</span> <span class="ident">VarUint</span>
+<span class="ident">String</span> ::<span class="op">=</span> [<span class="ident">StringByte</span>] <span class="number">00h</span>
+<span class="ident">StringBytes</span> ::<span class="op">=</span> <span class="number">02h</span> .. <span class="ident">ffh</span>   (<span class="ident">a</span> <span class="ident">literal</span> <span class="ident">byte</span>)
+              <span class="op">|</span> <span class="number">01</span> <span class="number">00h</span>       (<span class="ident">the</span> <span class="ident">byte</span> <span class="number">00h</span>)
+              <span class="op">|</span> <span class="number">01</span> <span class="number">01h</span>       (<span class="ident">the</span> <span class="ident">byte</span> <span class="number">01h</span>)</pre></div>
+<h2 id="external-string-tables" class="section-header"><a href="#external-string-tables">External String Tables</a></h2>
+<p>The format can optionally refer to strings from an external string table. External string tables make it possible to produce very small files because strings can often be cached, reused, and shared between files (for example a library function and its caller will both refer to that method’s name.) These strings are assigned indices starting after the last intrinsic string.
+The external string table is specified out-of-band and a decoder has limited capacity to detect a missing external string table -- when it encounters an out-of-bounds string table reference.</p>
+<p>External string tables start with the ASCII bytes <code>astdict</code>. The following bytes are in the same format as the intrinsic string table.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">StringFile</span> ::<span class="op">=</span> <span class="ident">StringSignature</span> <span class="ident">StringTable</span>
+<span class="ident">StringSignature</span> ::<span class="op">=</span> <span class="number">61h</span> <span class="number">73h</span> <span class="number">74h</span> <span class="number">64h</span> <span class="number">69h</span> <span class="number">63h</span> <span class="number">74h</span></pre></div>
+<h1 id="code-tables" class="section-header"><a href="#code-tables">Code Tables</a></h1>
+<p>In general the AST is serialized by traversing the AST writing the symbols encountered into the file. (There is an exception to this supporting random access to lazy function bodies described later.) Because the content of files can vary a lot, the format does not use a fixed set of codes but instead the file contains tables of codes used in the file.</p>
+<h2 id="symbols" class="section-header"><a href="#symbols">Symbols</a></h2>
+<p>ASTs contain the following kinds of symbols:</p>
+<ul>
+<li>Primitive values: Booleans, unsigned integers, JavaScript numbers (IEEE 754 64-bit floating point numbers), strings, and optional strings.</li>
+<li>Enumeration values. (These are described using strings in es6.webidl, but the format treats enums as a distinct kind of value.)</li>
+<li>Interface type tags. For example, Script and Block are interface type tags. Note that typedefs in es6.webidl are for convenience when reading but the format deals with desugared interface definitions without typedefs.</li>
+<li>None, a special symbol which represents an absent interface.</li>
+</ul>
+<p>Symbols can appear in the file in two ways: literally; or encoded with a code. The format makes it clear when each form is used and the two forms are never mixed.</p>
+<h2 id="symbol-context-modeling" class="section-header"><a href="#symbol-context-modeling">Symbol Context Modeling</a></h2>
+<p>The Context 0.1 format saves space by using different symbol → code mappings depending on the part of the AST being encoded. For example, when encoding a Boolean value, only two symbols are valid so the format can use a code which is at most 1 bit long, even though that overlaps with codes in other contexts.</p>
+<p>There are two kinds of contexts:</p>
+<ol>
+<li>Fields, for example <code>AssertedBoundName.isCaptured</code>.</li>
+<li>Array lengths of a given array type, for example a <code>FrozenArray&lt;(Spread or Expression)&gt;</code> length</li>
+</ol>
+<p>The set of symbols which are allowed depend on the type associated with the context:</p>
+<ul>
+<li>For a field with an array type, the associated type is the element type of the array.</li>
+<li>For other fields, the associated type is the type of the field.</li>
+<li>For an array length, the associated type is unsigned long.</li>
+</ul>
+<p>Given an associated type, the allowable symbols are:</p>
+<ul>
+<li>For a primitive type, the allowed symbols are values of that type.</li>
+<li>For an enum type, the allowed symbols are the members of the enum.</li>
+<li>For a set of interface type tags, possibly including <code>None</code>, the allowed symbols are those type tags, and <code>None</code> if applicable.</li>
+</ul>
+<p>Each context which appears in the AST will have a code table, with two exceptions:</p>
+<ol>
+<li>
+<p>Fields with a monomorphic interface type or a <code>FrozenArray</code> of a monomorphic interface element type must always produce that interface type tag. It is redundant to produce tables for these and the format prevents that.</p>
+</li>
+<li>
+<p>The <code>StaticMemberAssignmentTarget.property</code> field and <code>StaticMemberExpression.property</code> field are treated as the same context. These fields usually have large tables of property names with similar lengths, so they are combined to save space. Algorithms which talk about enumerating the fields of an interface should treat these two interfaces as sharing one property field.</p>
+</li>
+</ol>
+<h2 id="code-table-encoding" class="section-header"><a href="#code-table-encoding">Code Table Encoding</a></h2>
+<p>Each code table does not specify the codes directly, but instead specifies the length of each symbol’s code. How codes are assigned based on length is described later.</p>
+<p>Code tables can be encoded multiple ways:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">CodeTable</span> ::<span class="op">=</span> <span class="ident">UnitCodeTable</span>
+            <span class="op">|</span> <span class="ident">MultiCodeTableImplicit</span>
+            <span class="op">|</span> <span class="ident">MultiCodeTableExplicit</span>
+            <span class="op">|</span> <span class="ident">EmptyCodeTable</span>
+
+<span class="ident">UnitCodeTable</span> ::<span class="op">=</span> <span class="number">00h</span> <span class="ident">LiteralSymbol</span>
+<span class="ident">MultiCodeTableExplicit</span> ::<span class="op">=</span> <span class="number">01h</span> <span class="ident">CodeCount</span> [<span class="ident">CodeLength</span>]{<span class="ident">CodeCount</span>} [<span class="ident">LiteralSymbol</span>]{<span class="ident">CodeCount</span>}
+<span class="ident">CodeLength</span> ::<span class="op">=</span> <span class="number">00h</span> .. <span class="number">14h</span>
+<span class="ident">MultiCodeTableExplicit</span> ::<span class="op">=</span> <span class="number">01h</span> [<span class="ident">CodeLength</span>]{<span class="ident">SymbolCount</span>}
+<span class="ident">EmptyCodeTable</span> ::<span class="op">=</span> <span class="number">02h</span></pre></div>
+<p>The <code>UnitCodeTable</code> is a table with a single symbol. This symbol is assigned given a zero-length code. As a consequence when that table is used to encode a symbol in the tree, it generates no bits in the output.</p>
+<p>Because modern minified JavaScript tends to be very regular <code>UnitCodeTables</code> occur a lot in practice and are a large contributor to the size reduction of BinAST encoded tree sizes. For example, BinAST tracks whether each scope uses <code>eval</code> (see <code>hasDirectEval</code> in <code>es6.webidl</code>.) However modern JavaScript practice avoids using <code>eval</code>. Encoding a unit code table for <code>false</code> takes two bytes, <code>00h 00h</code>, so the format can represent an unlimited number of block scope’s lack of <code>eval</code> with a fixed overhead of two bytes -- fewer after Brotli compression.</p>
+<p>Note that a unit code table is the only way to produce a zero-length code. <code>MultiCodeTableImplicit</code> may mention symbols with zero length, but these are skipped during code assignment.
+The <code>MultiCodeTable</code> is a table with multiple symbols. There are two variants of the encoding depending on the type of symbol being encoded.</p>
+<p>The implicit table is for symbols which form a small, closed set. The lengths of all symbols are enumerated. Unused symbols are denoted with zero length and are skipped during code assignment.</p>
+<p>The explicit table is for symbols which form an effectively open set. The table includes a symbol count, then the lengths of all symbols, then the literal symbols.</p>
+<table><thead><tr><th>Type</th><th>Table Type</th><th>Ordering</th></tr></thead><tbody>
+<tr><td>Boolean</td><td>Implicit</td><td><code>false</code>, <code>true</code></td></tr>
+<tr><td>Unsigned integers</td><td>Explicit</td><td>Encoder determined</td></tr>
+<tr><td>JavaScript numbers</td><td>Explicit</td><td>Encoder determined</td></tr>
+<tr><td>Strings</td><td>Explicit</td><td>Encoder determined</td></tr>
+<tr><td>Optional strings</td><td>Explicit</td><td>Encoder determined</td></tr>
+<tr><td>Enumeration values</td><td>Implicit</td><td>IDL declaration order</td></tr>
+<tr><td>Interface type tags &amp; <code>None</code></td><td>Implicit</td><td><code>None</code> first; then lexical order of interface names</td></tr>
+</tbody></table>
+<p>Finally, the <code>EmptyCodeTable</code> represents a set of unused codes. How empty code tables arise is described later.</p>
+<h2 id="symbol-literal-encoding" class="section-header"><a href="#symbol-literal-encoding">Symbol Literal Encoding</a></h2>
+<p>Symbols appear literally in the <code>UnitCodeTable</code> and <code>MultiCodeTableExplicit</code>. When a symbol appears literally, it is encoded this way:</p>
+<table><thead><tr><th>Type</th><th>Literal Encoding</th></tr></thead><tbody>
+<tr><td>Booleans</td><td>One byte. <code>false</code>, <code>00h</code>; <code>true</code>, <code>01h</code>.</td></tr>
+<tr><td>Unsigned integers</td><td>4-byte big-endian integer</td></tr>
+<tr><td>JavaScript numbers</td><td>8-byte big-endian IEEE-754</td></tr>
+<tr><td>Strings</td><td><code>Varuint</code> string table index</td></tr>
+<tr><td>Optional string</td><td>If <code>None</code>, <code>00h</code>, otherwise <code>Varuint</code> 1 + string table index</td></tr>
+<tr><td>Enumeration value</td><td>Varuint index of IDL declaration order</td></tr>
+<tr><td>Interface type tag &amp; <code>None</code></td><td>Given a set of relevant interface type tags, and None if relevant, sorted by symbol ordering (see below), <code>varuint</code> index of the symbol in the set</td></tr>
+</tbody></table>
+<h2 id="code-assignment-from-symbol-lengths-to-codes" class="section-header"><a href="#code-assignment-from-symbol-lengths-to-codes">Code Assignment: From Symbol Lengths to Codes</a></h2>
+<p>To encode or decode a file, each symbol must be assigned not just a code length but a specific sequence of bits. The format uses a canonical Huffman code for this purpose.</p>
+<p>Given a set <code>S</code> of length, symbol pairs, canonical Huffman codes can be assigned this way:</p>
+<ol>
+<li>Sort <code>S</code> by length. For pairs with the same length, sort them by the symbol. (Symbol ordering is defined below.)</li>
+<li>Initialize <code>code = 0</code>, <code>last_length = 0</code></li>
+<li>For i ∈ 1...|S|
+<ol>
+<li><code>next_length</code> = length associated with <code>S[i]</code></li>
+<li>Assign code of length <code>next_length</code> to symbol <code>S[i]</code></li>
+<li><code>code = (code + 1) × 2^(next_length - last_length)</code></li>
+<li>last_length = next_length</li>
+</ol>
+</li>
+</ol>
+<p>The codes constructed by this algorithm begin in the high-order bit, so when these codes are written into the file the high-order bit must appear first. That is, codes are written as bitwise big-endian, variable-length numbers.</p>
+<p>A decoder should check codes fit in their prescribed length; a file which produced codes longer than their length is invalid. Codes have a maximum length of 20 bits, which in practice limits JavaScript files to roughly a million strings and a million numbers.</p>
+<h2 id="symbol-ordering-for-code-assignment" class="section-header"><a href="#symbol-ordering-for-code-assignment">Symbol Ordering for Code Assignment</a></h2>
+<p>To briefly recap, files contain tables specifying the code lengths (but not the codes themselves) of symbols which appear in the serialized AST. The encoder and decoder must agree on the order different symbols with the same code length are assigned codes using the algorithm above. Here is the order:</p>
+<table><thead><tr><th>Type</th><th>Order for Code Assignment</th></tr></thead><tbody>
+<tr><td>Boolean</td><td><code>false</code>, <code>true</code></td></tr>
+<tr><td>Unsigned integers</td><td>Order literals appear in the code table</td></tr>
+<tr><td>JavaScript numbers</td><td>Order literals appear in the code table</td></tr>
+<tr><td>Strings</td><td>String table index</td></tr>
+<tr><td>Optional strings</td><td><code>None</code>, then string table index</td></tr>
+<tr><td>Enumeration values</td><td>Lexicographic order of IDL string constant</td></tr>
+<tr><td>Interface type tags &amp; <code>None</code></td><td><code>None</code>, then lexicographic order of name</td></tr>
+</tbody></table>
+<p>Note, this order is for assigning codes. This ordering is not related to the ordering values like strings and numbers might usually have, although that situation could arise coincidentally as in implementation detail of an encoder. As you have seen, enumeration values use a different ordering in enumerating lengths in <code>MultiCodeImplicitTables</code>. (This was an oversight but a harmless one.)</p>
+<h2 id="code-table-set-encoding" class="section-header"><a href="#code-table-set-encoding">Code Table Set Encoding</a></h2>
+<p>The format can model hundreds of contexts. Most files use far fewer contexts than this. To keep the file compact, the code table set only encodes tables used by the file. It does this by doing a depth-first walk through the fields of the IDL, starting with the fields of the Script interface. The walk is pruned in two ways: when it encounters array length contexts with code tables which only contain the symbol zero; when interface type tags are not present in a set of allowable symbols.</p>
+<p>To decode models:</p>
+<ol>
+<li>Initialize the set of visited contexts to empty</li>
+<li>Initialize the set of empty array types to empty</li>
+<li>Push all of the fields of the Script interface</li>
+<li>While the stack of fields is not empty</li>
+<li>Pop a field</li>
+<li>Decode a code table for the effective type of the field.</li>
+<li>For each of the code table’s symbols that are interface type tags:
+<ol>
+<li>Push all of the fields of the interface</li>
+</ol>
+</li>
+</ol>
+<p>To push a field:</p>
+<ol>
+<li>If the field is in the set of visited contexts, stop</li>
+<li>Add the field to the set of visited fields</li>
+<li>If the field has a FrozenArray type</li>
+<li>Determine if the array type is always empty</li>
+<li>If so, stop</li>
+<li>If the effective type is a monomorphic interface, push all of the interface’s fields</li>
+<li>Otherwise, push the field onto the stack</li>
+</ol>
+<p>To determine a field’s effective type:</p>
+<ol>
+<li>If the field’s type is an array type, the effective type is the array element type. Stop.</li>
+<li>Otherwise, the effective type is the field’s type. Stop.</li>
+</ol>
+<p>To determine if an array type is always empty:</p>
+<ol>
+<li>If the array type is in the set of empty arrays types, it is always empty. Stop.</li>
+<li>If the array type is in the set of visited contexts, it is not always empty. Stop.</li>
+<li>Decode a code table for unsigned longs. This is the code table for this array type.</li>
+<li>Add the array type to the set of visited contexts.</li>
+<li>If the code table has any non-zero symbols, the array type is not always empty. Stop.</li>
+<li>Otherwise, add the array type to the set of empty array types. It is always empty. Stop.</li>
+</ol>
+<p>The sharing of array length models by array type, instead of specific fields, explains the need for <code>EmptyCodeTables</code>: A situation can arise where an array length model includes zero and non-zero values, but within the context of a specific field the array length is always zero in practice.</p>
+<h2 id="node-encoding" class="section-header"><a href="#node-encoding">Node Encoding</a></h2>
+<p>With a complete string table and set of codes in hand, encoding and decoding nodes is straightforward:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Node</span> ::<span class="op">=</span> [<span class="ident">Symbol</span>] <span class="op">&lt;</span><span class="ident">pad</span> <span class="ident">to</span> <span class="ident">byte</span> <span class="ident">boundary</span><span class="op">&gt;</span> <span class="ident">LazyItemCount</span> [<span class="ident">LazyItemLength</span>]{<span class="ident">LazyItemCount</span>} [<span class="ident">Node</span>]{<span class="ident">LazyItemCount</span>}
+<span class="ident">LazyItemCount</span> ::<span class="op">=</span> <span class="ident">varuint</span>
+<span class="ident">LazyItemLength</span> ::<span class="op">=</span> <span class="ident">varuint</span></pre></div>
+<p>To deserialize an interface I:</p>
+<ol>
+<li>For each field f in I:</li>
+<li>If f’s type is an array:
+1. Decode an array length, n, using the code table for the array type consuming the prefix of the input bit stream.
+2. For 1 ... n:
+<ol>
+<li>Deserialize a value in context f.</li>
+</ol>
+</li>
+<li>Deserialize a value in context f.</li>
+</ol>
+<p>To deserialize a value in a field context f:</p>
+<ol>
+<li>If f has a Lazy attribute, add the effective type of f to the lazy item list. (Currently, these are always monomorphic interface types.)</li>
+<li>If f’s effective type is a monomorphic interface type, deserialize an interface of f’s effective type. Note, this does not consume the bit stream or consult any code table.</li>
+<li>If f’s effective type includes interface type tags:</li>
+<li>Decode an interface type tag J, or None, using the code table for f consuming the prefix of the input bitstream.</li>
+<li>If J is not none, deserialize an interface J.</li>
+<li>Otherwise, decode a symbol using the code table for f consuming the prefix of the input bitstream.</li>
+</ol>
+<p>An AST subtree may contain lazy sections; these are tagged <code>[Lazy]</code> in es6.webidl. A tree or subtree has postamble 0-padding to a byte boundary, a redundant count of lazy items, and a list of byte lengths which refer to the following serialized lazy nodes. This arrangement supports random access to lazy fields, once the subtree containing the field has been deserialized to discover the types of those fields.</p>
+<p>The encoding is recursive -- the script’s lazy nodes may themselves have lazy nodes which are written at the end of that node’s serialization.</p>
+<h1 id="variable-length-unsigned-integers-varuint" class="section-header"><a href="#variable-length-unsigned-integers-varuint">Variable-length Unsigned Integers (varuint)</a></h1><h2 id="encoding" class="section-header"><a href="#encoding">Encoding</a></h2>
+<p>Unsigned integers appear in various places in the format. These are encoded using a byte-oriented format of 7 bits of little-endian data and the high order bit indicating continuation. These should not exceed 5 bytes containing up to 32 bits and 3 zero bits.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Varuint</span> ::<span class="op">=</span> [<span class="number">1nnnnnnn</span>]{<span class="number">0</span>..<span class="number">4</span>} <span class="number">0nnnnnnn</span></pre></div>
+</div></section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "binjs_io";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>

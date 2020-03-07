@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `to_unicode_escape` fn in crate `binjs_io`."><meta name="keywords" content="rust, rustlang, rust-lang, to_unicode_escape"><title>binjs_io::escaped_wtf8::to_unicode_escape - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc fn"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../binjs_io/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a><div class="sidebar-elems"><p class='location'><a href='../index.html'>binjs_io</a>::<wbr><a href='index.html'>escaped_wtf8</a></p><script>window.sidebarCurrent = {name: 'to_unicode_escape', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/binjs_io/escaped_wtf8.rs.html#381-442' title='goto source code'>[src]</a></span><span class='in-band'>Function <a href='../index.html'>binjs_io</a>::<wbr><a href='index.html'>escaped_wtf8</a>::<wbr><a class="fn" href=''>to_unicode_escape</a></span></h1><pre class='rust fn'>pub fn to_unicode_escape(s: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></pre><div class='docblock'><p>If the given <code>bytes</code> contains any escaped lone surropgate, convert it to
+unicode escape \uXXXX.</p>
+<h1 id="failures" class="section-header"><a href="#failures">Failures</a></h1>
+<p>If the input is not well-formed escaped WTF-8, this function causes a panic.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<p>Lone lead surrogate is converted to unicode escape.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">input</span>    <span class="op">=</span> <span class="string">&quot;\x7FD83E&quot;</span>.<span class="ident">to_string</span>();
+<span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;\\uD83E&quot;</span>.<span class="ident">to_string</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">binjs_io</span>::<span class="ident">escaped_wtf8</span>::<span class="ident">to_unicode_escape</span>(<span class="ident">input</span>), <span class="ident">expected</span>);</pre></div>
+<p>Lone trail surrogate is converted to unicode escape.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">input</span>    <span class="op">=</span> <span class="string">&quot;\x7FDD9D&quot;</span>.<span class="ident">to_string</span>();
+<span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;\\uDD9D&quot;</span>.<span class="ident">to_string</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">binjs_io</span>::<span class="ident">escaped_wtf8</span>::<span class="ident">to_unicode_escape</span>(<span class="ident">input</span>), <span class="ident">expected</span>);</pre></div>
+<p>Escape char (\x7F) is unescaped.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">input</span>    <span class="op">=</span> <span class="string">&quot;\x7F007F&quot;</span>.<span class="ident">to_string</span>();
+<span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;\x7F&quot;</span>.<span class="ident">to_string</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">binjs_io</span>::<span class="ident">escaped_wtf8</span>::<span class="ident">to_unicode_escape</span>(<span class="ident">input</span>), <span class="ident">expected</span>);</pre></div>
+<p>If the input is ill-formed, causes a panic.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="comment">// Not enough character after escape character.</span>
+<span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;\x7F000&quot;</span>.<span class="ident">to_string</span>();
+<span class="ident">binjs_io</span>::<span class="ident">escaped_wtf8</span>::<span class="ident">to_unicode_escape</span>(<span class="ident">input</span>);</pre></div>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="comment">// Invalid character in the codeunit</span>
+<span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;\x7F012X&quot;</span>.<span class="ident">to_string</span>();
+<span class="ident">binjs_io</span>::<span class="ident">escaped_wtf8</span>::<span class="ident">to_unicode_escape</span>(<span class="ident">input</span>);</pre></div>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="comment">// Codeunit is not in the surrogate pair range.</span>
+<span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;\x7F3042&quot;</span>.<span class="ident">to_string</span>();
+<span class="ident">binjs_io</span>::<span class="ident">escaped_wtf8</span>::<span class="ident">to_unicode_escape</span>(<span class="ident">input</span>);</pre></div>
+</div></section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "binjs_io";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

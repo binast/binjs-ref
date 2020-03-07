@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["opus","Implementation of the Opus range encoder."]],"struct":[["CumulativeDistributionFrequency",""],["IndexedSegment",""],["Segment",""]]});

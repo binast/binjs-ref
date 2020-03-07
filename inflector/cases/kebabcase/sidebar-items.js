@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["is_kebab_case","Determines if a `&str` is `kebab-case`"],["to_kebab_case","Converts a `&str` to `kebab-case` `String`"]]});
