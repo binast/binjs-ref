@@ -14,7 +14,7 @@ license = "MIT"
 travis-ci = { repository = "https://github.com/binast/binjs-ref", branch = "master" }
 
 [dependencies]
-Inflector = "^0.11.4"
+Inflector = { version = "^0.11.4", default-features=false }
 itertools = "^0.8"
 log = "^0.4"
 weedle = "0.11"
