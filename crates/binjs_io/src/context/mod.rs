@@ -3,7 +3,7 @@
 
 /// Format documentation.
 pub mod format;
-mod huffman;
+pub mod huffman;
 mod strings;
 mod varnum;
 

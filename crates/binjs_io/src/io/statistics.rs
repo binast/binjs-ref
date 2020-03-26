@@ -12,6 +12,7 @@ impl std::iter::Sum for Bytes {
 
 /// A newtype for `usize` used to count the number of instances of some item.
 #[derive(
+    Constructor,
     Default,
     Display,
     Serialize,

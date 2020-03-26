@@ -25,6 +25,17 @@ pub struct ByteValue<T> {
     /// The number of bytes consumed.
     pub byte_len: usize,
 }
+impl<T> ByteValue<T> {
+    /// The value read.
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
+    /// The number of bytes consumed.
+    pub fn byte_len(&self) -> usize {
+        self.byte_len
+    }
+}
 
 /// A reader that may read varu32-encoded u32 values from a stream.
 pub trait ReadVaru32 {

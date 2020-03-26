@@ -137,7 +137,8 @@ CodeTable ::= UnitCodeTable
 UnitCodeTable ::= 00h LiteralSymbol
 MultiCodeTableExplicit ::= 01h CodeCount [CodeLength]{CodeCount} [LiteralSymbol]{CodeCount}
 CodeLength ::= 00h .. 14h
-MultiCodeTableExplicit ::= 01h [CodeLength]{SymbolCount}
+CodeCount ::= Varuint
+MultiCodeTableImplicit ::= 01h [CodeLength]{SymbolCount}
 EmptyCodeTable ::= 02h
 ```
 
